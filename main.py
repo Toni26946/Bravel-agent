@@ -6,6 +6,13 @@ import re
 import telebot
 from keep_alive import keep_alive
 from zoneinfo import ZoneInfo
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 keep_alive()
 
@@ -76,29 +83,33 @@ def handle_message(message):
     
     text = message.text.lower()
     chat_id = message.chat.id
-    if "podsjetnici" in text or "lista" in text:
-        if not reminders:
-            bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
+    
+    try:
+        logger.info(f"Poruka od {chat_id}: {text}")
+        
+        if "podsjetnici" in text or "lista" in text:
+            if not reminders:
+                bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
+            else:
+                msg = "📋 Tvoji aktivni podsjetnici:\n"
+                for i, r in enumerate(reminders, 1):
+                    msg += f"{i}. {r['text']} (u {r['time'].strftime('%H:%M')})\n"
+                bot.reply_to(message, msg)
+        elif "podsjeti me" in text:
+            reminder_time = parse_time(text)
+            reminders.append({
+                'text': message.text,
+                'time': reminder_time,
+                'chat_id': chat_id
+            })
+            bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
+        elif "status" in text or "kakav je status" in text:
+            bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            msg = "📋 Tvoji aktivni podsjetnici:\n"
-            for i, r in enumerate(reminders, 1):
-                msg += f"{i}. {r['text']} (u {r['time'].strftime('%H:%M')})\n"
-            bot.reply_to(message, msg)
-    elif "podsjeti me" in text:
-        reminder_time = parse_time(text)
-        reminders.append({
-            'text': message.text,
-            'time': reminder_time,
-            'chat_id': chat_id
-        })
-        bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
-    else:
-        bot.reply_to(message, "✅ Razumio sam.")
+            bot.reply_to(message, "✅ Razumio sam.")
+    except Exception as e:
+        logger.error(f"Greška: {e}")
+        bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
 print("Bot je aktivan.")
 bot.infinity_polling()
-    if "status" in text or "kakav je status" in text:
-        bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
-        if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:bot", host="0.0.0.0", port=8080)
