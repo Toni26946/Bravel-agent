@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-keep_alive()
+import keep_alive
 
 os.environ["OPENAI_API_KEY"] = "sk-tvoj-kljuc-ovdje"
 
