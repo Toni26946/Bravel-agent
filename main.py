@@ -97,3 +97,5 @@ def handle_message(message):
 
 print("Bot je aktivan.")
 bot.infinity_polling()
+    if "status" in text or "kakav je status" in text:
+        bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
