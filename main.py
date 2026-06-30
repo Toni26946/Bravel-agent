@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-import keep_alive
+keep_alive
 
 os.environ["OPENAI_API_KEY"] = "sk-tvoj-kljuc-ovdje"
 
@@ -24,9 +24,10 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-print("Bravel Agent - Točan prikaz vremena")
+print("Bravel Agent - Privatni podsjetnici")
 
-reminders = []
+# Svaki korisnik ima svoje podsjetnike
+user_reminders = {}
 
 def parse_time(text):
     text = text.lower()
@@ -62,16 +63,17 @@ def parse_time(text):
 def check_reminders():
     while True:
         now = datetime.now(ZoneInfo("Europe/Zagreb"))
-        for r in reminders[:]:
-            if r['time'] <= now:
-                msg = f"🛎️ PODSJETNIK: {r['text']}"
-                print(msg)
-                try:
-                    bot.send_message(r['chat_id'], msg)
-                except:
-                    pass
-                reminders.remove(r)
-        time.sleep(10)  # brža provjera
+        for chat_id, reminders in list(user_reminders.items()):
+            for r in reminders[:]:
+                if r['time'] <= now:
+                    msg = f"🛎️ PODSJETNIK: {r['text']}"
+                    print(msg)
+                    try:
+                        bot.send_message(chat_id, msg)
+                    except:
+                        pass
+                    reminders.remove(r)
+        time.sleep(3)
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
@@ -84,10 +86,15 @@ def handle_message(message):
     text = message.text.lower()
     chat_id = message.chat.id
     
+    # Inicijaliziraj za korisnika ako ne postoji
+    if chat_id not in user_reminders:
+        user_reminders[chat_id] = []
+    
     try:
         logger.info(f"Poruka od {chat_id}: {text}")
         
         if "podsjetnici" in text or "lista" in text:
+            reminders = user_reminders[chat_id]
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
             else:
@@ -97,12 +104,11 @@ def handle_message(message):
                 bot.reply_to(message, msg)
         elif "podsjeti me" in text:
             reminder_time = parse_time(text)
-            reminders.append({
+            user_reminders[chat_id].append({
                 'text': message.text,
-                'time': reminder_time,
-                'chat_id': chat_id
+                'time': reminder_time
             })
-            bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
+            bot.reply_to(message, f"✅ Tvoj podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
         elif "status" in text or "kakav je status" in text:
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
