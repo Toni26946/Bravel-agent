@@ -99,3 +99,6 @@ print("Bot je aktivan.")
 bot.infinity_polling()
     if "status" in text or "kakav je status" in text:
         bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
+        if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:bot", host="0.0.0.0", port=8080)
