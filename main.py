@@ -4,7 +4,7 @@ import time
 import threading
 import re
 import telebot
-from keep_alive import keep_alive
+import keep_alive
 from zoneinfo import ZoneInfo
 import logging
 
