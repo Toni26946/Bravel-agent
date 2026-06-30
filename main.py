@@ -71,7 +71,7 @@ def check_reminders():
                 except:
                     pass
                 reminders.remove(r)
-        time.sleep(3)  # brža provjera
+        time.sleep(10)  # brža provjera
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
