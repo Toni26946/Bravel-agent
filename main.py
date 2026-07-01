@@ -18,25 +18,24 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H- KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"  # <--- OVDJE STAVI SVOJ OPENAI KLJUČ
+# === KLJUČEVI ===
+os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H-KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
-ALLOWED_USERS = [5191857104, 7599693099]
+FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBDaXUWhA1R6qiOXyPfjHM4rwrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDwPJFWBSofyNDKJw3kXZcR/xlmtSxPOcGvSEAjsucC13T/trykFYU7Zo0S8eXZ90eeJjem7pATJDaadBWnETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboA2SlAORgc4BOtoiHwWRgqdidWlsZGVyH6J3Zx8BxCAIbiOpP1FWNFEq98cfQImAYHFQYbTANdd+42HiwssTYA==,fm2_lJPETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboMQQanjf8y+W4CdKK91W1DKHuMO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5qRPYkzwAAAAEmPRRCF84AGZ+1CpHOABmftQzEEDoAeCXr609rXGGTdclo4MLEILwJnYTBHxestw8k02NLmLSoeS6APT7AQIe10O9ZtOG4 ovo je kod za Token na fly.io, a sk-projp2UUzbVeQ95H- KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA je ključ za OpenAI."
 
-FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBDaXUWhA1R6qiOXyPfjHM4rwrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDwPJFWBSofyNDKJw3kXZcR/xlmtSxPOcGvSEAjsucC13T/trykFYU7Zo0S8eXZ90eeJjem7pATJDaadBWnETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboA2SlAORgc4BOtoiHwWRgqdidWlsZGVyH6J3Zx8BxCAIbiOpP1FWNFEq98cfQImAYHFQYbTANdd+42HiwssTYA==,fm2_lJPETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboMQQanjf8y+W4CdKK91W1DKHuMO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5qRPYkzwAAAAEmPRRCF84AGZ+1CpHOABmftQzEEDoAeCXr609rXGGTdclo4MLEILwJnYTBHxestw8k02NLmLSoeS6APT7AQIe10O9ZtOG4"  # <--- OVDJE STAVI FLY TOKEN
 FLY_APP_NAME = "bravel-agent"
 
 client = OpenAI()
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-print("Bravel Agent - Sa OpenAI i praćenjem")
+print("Bravel Agent - Sa OpenAI")
 
 reminders = []
 
 def parse_time(text):
-    # ... (isti kao prije)
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -102,8 +101,9 @@ def get_openai_response(prompt):
             temperature=0.7
         )
         return response.choices[0].message.content
-    except:
-        return "Došlo je do greške sa OpenAI. Pokušaj ponovo."
+    except Exception as e:
+        logger.error(f"OpenAI greška: {e}")
+        return "Došlo je do greške sa OpenAI. Pokušaj ponovo kasnije."
 
 threading.Thread(target=check_reminders, daemon=True).start()
 threading.Thread(target=check_fly_status, daemon=True).start()
@@ -121,7 +121,6 @@ def handle_message(message):
         logger.info(f"Poruka od {chat_id}: {text}")
         
         if "podsjetnici" in text.lower() or "lista" in text.lower():
-            # ... (isti kod za podsjetnike)
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
             else:
@@ -140,8 +139,8 @@ def handle_message(message):
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            # OpenAI odgovor za sve ostalo
-            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom: {text}")
+            # OpenAI odgovor
+            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
             bot.reply_to(message, response)
     except Exception as e:
         logger.error(f"Greška: {e}")
