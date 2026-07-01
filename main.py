@@ -94,7 +94,7 @@ def check_fly_status():
             bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
         time.sleep(300)
 
-def get_openai_response(prompt, language="hr"):
+def get_openai_response(prompt):
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -104,7 +104,7 @@ def get_openai_response(prompt, language="hr"):
         return response.choices[0].message.content
     except Exception as e:
         logger.error(f"OpenAI greška: {e}")
-        return "Došlo je do greške sa OpenAI. Pokušaj ponovo kasnije."
+        return "OpenAI nije dostupan. Pokušaj ponovo kasnije ili pitaj nešto jednostavno."
 
 threading.Thread(target=check_reminders, daemon=True).start()
 threading.Thread(target=check_fly_status, daemon=True).start()
