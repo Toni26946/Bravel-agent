@@ -1,3 +1,8 @@
+# fly.toml app configuration file generated for bravel-agent on 2026-07-01T11:26:10Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
 app = 'bravel-agent'  # promijeni ako je drugačije ime
 
 primary_region = 'ams'
@@ -15,3 +20,11 @@ primary_region = 'ams'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 256
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 2048
+  processes = ['app']
+  size = 'shared-cpu-1x'
