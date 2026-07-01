@@ -8,6 +8,7 @@ import keep_alive
 from zoneinfo import ZoneInfo
 import logging
 import requests
+from openai import OpenAI
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,23 +18,25 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-os.environ["OPENAI_API_KEY"] = "sk-tvoj-kljuc-ovdje"
+os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H- KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"  # <--- OVDJE STAVI SVOJ OPENAI KLJUČ
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-# Fly.io token
-FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBBzwpBoOfrYBaRYYvXAdnRWwrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDxN+CeDMxvVtwto0iplm78u8WE5dLpTve9nMjOdNph4s7j7VukCBJVGXINkOWATKvxLhBJWTIeGONTtCgHETl1ye/l4SrcOT9UZVy8H1JfjrCmIxUC1v3No"  # <--- OVDJE STAVI SVOJ TOKEN
-FLY_APP_NAME = "bravel-agent-monitor"  # promijeni ako je drugačije ime
+FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBDaXUWhA1R6qiOXyPfjHM4rwrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDwPJFWBSofyNDKJw3kXZcR/xlmtSxPOcGvSEAjsucC13T/trykFYU7Zo0S8eXZ90eeJjem7pATJDaadBWnETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboA2SlAORgc4BOtoiHwWRgqdidWlsZGVyH6J3Zx8BxCAIbiOpP1FWNFEq98cfQImAYHFQYbTANdd+42HiwssTYA==,fm2_lJPETlmy3KAjVbG+a8rgz1/TuiW+2/v+C1EpiNu/mwQrYcYnDU5SbJGZKD0lA7ua9l7+4hGCmujZIMlj3d++R2BkFkUvq+2CmlgKOcBI9EzboMQQanjf8y+W4CdKK91W1DKHuMO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5qRPYkzwAAAAEmPRRCF84AGZ+1CpHOABmftQzEEDoAeCXr609rXGGTdclo4MLEILwJnYTBHxestw8k02NLmLSoeS6APT7AQIe10O9ZtOG4"  # <--- OVDJE STAVI FLY TOKEN
+FLY_APP_NAME = "bravel-agent"
+
+client = OpenAI()
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-print("Bravel Agent - Sa praćenjem mašine")
+print("Bravel Agent - Sa OpenAI i praćenjem")
 
 reminders = []
 
 def parse_time(text):
+    # ... (isti kao prije)
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -91,6 +94,17 @@ def check_fly_status():
             bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
         time.sleep(300)
 
+def get_openai_response(prompt):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except:
+        return "Došlo je do greške sa OpenAI. Pokušaj ponovo."
+
 threading.Thread(target=check_reminders, daemon=True).start()
 threading.Thread(target=check_fly_status, daemon=True).start()
 
@@ -100,13 +114,14 @@ def handle_message(message):
         bot.reply_to(message, "Žao mi je, ovaj bot je samo za ovlaštene korisnike.")
         return
     
-    text = message.text.lower()
+    text = message.text
     chat_id = message.chat.id
     
     try:
         logger.info(f"Poruka od {chat_id}: {text}")
         
-        if "podsjetnici" in text or "lista" in text:
+        if "podsjetnici" in text.lower() or "lista" in text.lower():
+            # ... (isti kod za podsjetnike)
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
             else:
@@ -114,21 +129,23 @@ def handle_message(message):
                 for i, r in enumerate(reminders, 1):
                     msg += f"{i}. {r['text']} (u {r['time'].strftime('%H:%M')})\n"
                 bot.reply_to(message, msg)
-        elif "podsjeti me" in text:
+        elif "podsjeti me" in text.lower():
             reminder_time = parse_time(text)
             reminders.append({
-                'text': message.text,
+                'text': text,
                 'time': reminder_time,
                 'chat_id': chat_id
             })
             bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
-        elif "status" in text or "kakav je status" in text:
+        elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            bot.reply_to(message, "✅ Razumio sam.")
+            # OpenAI odgovor za sve ostalo
+            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom: {text}")
+            bot.reply_to(message, response)
     except Exception as e:
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan.")
+print("Bot je aktivan sa OpenAI.")
 bot.infinity_polling()
