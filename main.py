@@ -23,9 +23,9 @@ TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-# Fly.io token i app name
-FLY_TOKEN = "tvoj_fly_token"  # <--- OVDJE STAVI SVOJ FLY TOKEN
-FLY_APP_NAME = "bravel-agent"  # promijeni ako je drugačije ime
+# Fly.io token
+FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBBzwpBoOfrYBaRYYvXAdnRWwrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDxN+CeDMxvVtwto0iplm78u8WE5dLpTve9nMjOdNph4s7j7VukCBJVGXINkOWATKvxLhBJWTIeGONTtCgHETl1ye/l4SrcOT9UZVy8H1JfjrCmIxUC1v3No"  # <--- OVDJE STAVI SVOJ TOKEN
+FLY_APP_NAME = "bravel-agent-monitor"  # promijeni ako je drugačije ime
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -89,7 +89,7 @@ def check_fly_status():
                 bot.send_message(5191857104, "⚠️ UPOZORENJE: Fly.io mašina je pala ili ima problem!")
         except Exception as e:
             bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
-        time.sleep(300)  # provjera svakih 5 minuta
+        time.sleep(300)
 
 threading.Thread(target=check_reminders, daemon=True).start()
 threading.Thread(target=check_fly_status, daemon=True).start()
