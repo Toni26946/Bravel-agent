@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H-KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"
+os.environ["OPENAI_API_KEY"] = "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"
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
