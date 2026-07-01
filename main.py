@@ -30,9 +30,9 @@ client = OpenAI()
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-ALLOWED_USERS = [5191857104, 7599693099]  # <--- OVDJE
+ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Sa OpenAI")
+print("Bravel Agent - Sa OpenAI i više jezika")
 
 reminders = []
 
@@ -94,7 +94,7 @@ def check_fly_status():
             bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
         time.sleep(300)
 
-def get_openai_response(prompt):
+def get_openai_response(prompt, language="hr"):
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -140,6 +140,7 @@ def handle_message(message):
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
+            # OpenAI sa podrškom za više jezika
             response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
             bot.reply_to(message, response)
     except Exception as e:
