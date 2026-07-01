@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
+# === KLJUČEVI ===
 os.environ["OPENAI_API_KEY"] = "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"
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
@@ -32,7 +33,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Sa OpenAI i više jezika")
+print("Bravel Agent - Sa OpenAI")
 
 reminders = []
 
@@ -104,7 +105,7 @@ def get_openai_response(prompt):
         return response.choices[0].message.content
     except Exception as e:
         logger.error(f"OpenAI greška: {e}")
-        return "OpenAI nije dostupan. Pokušaj ponovo kasnije ili pitaj nešto jednostavno."
+        return "Došlo je do greške sa OpenAI. Pokušaj ponovo kasnije."
 
 threading.Thread(target=check_reminders, daemon=True).start()
 threading.Thread(target=check_fly_status, daemon=True).start()
@@ -140,7 +141,6 @@ def handle_message(message):
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            # OpenAI sa podrškom za više jezika
             response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
             bot.reply_to(message, response)
     except Exception as e:
