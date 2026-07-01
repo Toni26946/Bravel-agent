@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-keep_alive  # <--- ovo treba biti keep_alive() ako ima funkciju
+keep_alive
 
 os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H-KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"
 
@@ -29,6 +29,8 @@ FLY_APP_NAME = "bravel-agent"
 client = OpenAI()
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+ALLOWED_USERS = [5191857104, 7599693099]  # <--- OVDJE
 
 print("Bravel Agent - Sa OpenAI")
 
