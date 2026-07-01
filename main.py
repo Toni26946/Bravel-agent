@@ -16,9 +16,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-keep_alive
+keep_alive  # <--- ovo treba biti keep_alive() ako ima funkciju
 
-# === KLJUČEVI ===
 os.environ["OPENAI_API_KEY"] = "sk-projp2UUzbVeQ95H-KSeAJAPD95Gr9wwUUOSLLIR6Pm98NxZUQ6Fs3UJFpVqPOERQeHo9Sx7shwT3BibkFlyyE_xikr$e wArm8aOq_7CKAPwHQvnqtdtMhHdM4m5PSnEq3vFPJnrclXTTwTormppOj_88BLcQA"
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
@@ -139,7 +138,6 @@ def handle_message(message):
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            # OpenAI odgovor
             response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
             bot.reply_to(message, response)
     except Exception as e:
