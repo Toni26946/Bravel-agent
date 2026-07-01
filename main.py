@@ -7,6 +7,7 @@ import telebot
 import keep_alive
 from zoneinfo import ZoneInfo
 import logging
+import requests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,12 +23,15 @@ TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
+# Fly.io token i app name
+FLY_TOKEN = "tvoj_fly_token"  # <--- OVDJE STAVI SVOJ FLY TOKEN
+FLY_APP_NAME = "bravel-agent"  # promijeni ako je drugačije ime
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-print("Bravel Agent - Privatni podsjetnici")
+print("Bravel Agent - Sa praćenjem mašine")
 
-# Svaki korisnik ima svoje podsjetnike
-user_reminders = {}
+reminders = []
 
 def parse_time(text):
     text = text.lower()
@@ -63,19 +67,32 @@ def parse_time(text):
 def check_reminders():
     while True:
         now = datetime.now(ZoneInfo("Europe/Zagreb"))
-        for chat_id, reminders in list(user_reminders.items()):
-            for r in reminders[:]:
-                if r['time'] <= now:
-                    msg = f"🛎️ PODSJETNIK: {r['text']}"
-                    print(msg)
-                    try:
-                        bot.send_message(chat_id, msg)
-                    except:
-                        pass
-                    reminders.remove(r)
+        for r in reminders[:]:
+            if r['time'] <= now:
+                msg = f"🛎️ PODSJETNIK: {r['text']}"
+                print(msg)
+                try:
+                    bot.send_message(r['chat_id'], msg)
+                except:
+                    pass
+                reminders.remove(r)
         time.sleep(3)
 
+def check_fly_status():
+    while True:
+        try:
+            response = requests.get(
+                f"https://api.fly.io/apps/{FLY_APP_NAME}/machines",
+                headers={"Authorization": f"Bearer {FLY_TOKEN}"}
+            )
+            if response.status_code != 200:
+                bot.send_message(5191857104, "⚠️ UPOZORENJE: Fly.io mašina je pala ili ima problem!")
+        except Exception as e:
+            bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
+        time.sleep(300)  # provjera svakih 5 minuta
+
 threading.Thread(target=check_reminders, daemon=True).start()
+threading.Thread(target=check_fly_status, daemon=True).start()
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -86,15 +103,10 @@ def handle_message(message):
     text = message.text.lower()
     chat_id = message.chat.id
     
-    # Inicijaliziraj za korisnika ako ne postoji
-    if chat_id not in user_reminders:
-        user_reminders[chat_id] = []
-    
     try:
         logger.info(f"Poruka od {chat_id}: {text}")
         
         if "podsjetnici" in text or "lista" in text:
-            reminders = user_reminders[chat_id]
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
             else:
@@ -104,11 +116,12 @@ def handle_message(message):
                 bot.reply_to(message, msg)
         elif "podsjeti me" in text:
             reminder_time = parse_time(text)
-            user_reminders[chat_id].append({
+            reminders.append({
                 'text': message.text,
-                'time': reminder_time
+                'time': reminder_time,
+                'chat_id': chat_id
             })
-            bot.reply_to(message, f"✅ Tvoj podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
+            bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
         elif "status" in text or "kakav je status" in text:
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
