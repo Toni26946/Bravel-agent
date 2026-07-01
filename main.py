@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-# === KLJUČEVI ===
-os.environ["OPENAI_API_KEY"] = "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"
+# === KLJUČEVI IZ SECRETS (Fly.io) ===
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 
-FLY_TOKEN = "FlyV1 fm2_lJPECAAAAAAAFcOExBAO8atbztkL/8yVe9AaeOT6wrVodHRwczovL2FwaS5mbHkuaW8vdjGWAJLOABrDcB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDz6awbFM9Uq6QSd1T8C9TWMk/DmqmzRTxZk2VVXa3NEvwY3t6S18XJSzSTbfOsrC7qH4tk1WJNSW+UCsMLETjlRewRs/2apeuRG2+l5NdWMldgzPJ0FaQyLoL7dil7FHDF4jLsSSJwa13uytD+5BuEzFAFAbCtBI0FeR8IB9dkoqen/XgcxUH5bLExleA2SlAORgc4BOur5HwWRgqdidWlsZGVyH6J3Zx8BxCCQHq06lJdU3/o3GupGVorN6ew08GUHdrWmC6tot+hs8Q==,fm2_lJPETjlRewRs/2apeuRG2+l5NdWMldgzPJ0FaQyLoL7dil7FHDF4jLsSSJwa13uytD+5BuEzFAFAbCtBI0FeR8IB9dkoqen/XgcxUH5bLExleMQQo8nnjSx4yHfrU4uKG/gOssO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5qRP+8zwAAAAEmPR3aF84AGZ+1CpHOABmftQzEEPSlj/z2Kqro/ukfZarVgojEIHa9Lq7ch7ZgXBP7h92oFTd5Vy13jhH7ggemTbATgqzy"
+FLY_TOKEN = os.getenv("FLY_TOKEN")  # možeš i ovo staviti u Secrets
 
 FLY_APP_NAME = "bravel-agent"
 
@@ -33,7 +33,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Sa OpenAI")
+print("Bravel Agent - Sa OpenAI (preko Secrets)")
 
 reminders = []
 
@@ -147,5 +147,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa OpenAI.")
+print("Bot je aktivan sa OpenAI (preko Secrets).")
 bot.infinity_polling()
