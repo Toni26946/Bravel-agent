@@ -23,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Podsjetnici sa čistim opisom")
+print("Bravel Agent - Popravljeni podsjetnici")
 
 reminders = []
 
@@ -31,7 +31,12 @@ def parse_time(text):
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
-    # Sutra + vrijeme
+    # 1. NAJVIŠI PRIORITET - Za X minuta
+    match = re.search(r'za (\d+) (minut|min)', text)
+    if match:
+        return now + timedelta(minutes=int(match.group(1)))
+    
+    # 2. Sutra + vrijeme
     if "sutra" in text:
         match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -42,7 +47,7 @@ def parse_time(text):
             return target
         return now + timedelta(days=1)
     
-    # Datum + vrijeme (5.7. u 14:30)
+    # 3. Datum + vrijeme (5.7. u 14:30)
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if match:
         day = int(match.group(1))
@@ -54,7 +59,7 @@ def parse_time(text):
             target = target.replace(year=target.year + 1)
         return target
     
-    # Samo vrijeme
+    # 4. Samo vrijeme (u 14:30)
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
@@ -67,13 +72,12 @@ def parse_time(text):
     return None
 
 def extract_description(text):
-    """Izvlači čisti opis iz poruke (bez vremena)"""
-    # Uklanja uobičajene fraze za vrijeme
-    desc = re.sub(r'sutra u \d{1,2}[:.]?\d{2}?', '', text, flags=re.IGNORECASE)
-    desc = re.sub(r'u \d{1,2}[:.]?\d{2}?', '', desc, flags=re.IGNORECASE)
+    """Izvlači čisti opis"""
+    desc = re.sub(r'za \d+ minut?', '', text, flags=re.IGNORECASE)
+    desc = re.sub(r'sutra u? \d{1,2}[:.]?\d{2}?', '', desc, flags=re.IGNORECASE)
+    desc = re.sub(r'u? \d{1,2}[:.]?\d{2}?', '', desc, flags=re.IGNORECASE)
     desc = re.sub(r'\d{1,2}\.\d{1,2}\.?\s*u?\s*\d{1,2}[:.]?\d{2}?', '', desc, flags=re.IGNORECASE)
-    desc = desc.strip().strip(' ,.-')
-    return desc if desc else text
+    return desc.strip(' ,.-').strip() or "Podsjetnik"
 
 def check_reminders():
     while True:
@@ -82,7 +86,7 @@ def check_reminders():
             if r['time'] <= now:
                 delay_minutes = int((now - r['time']).total_seconds() / 60)
                 if delay_minutes > 3:
-                    msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['text']}"
+                    msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['description']}"
                     bot.send_message(r['chat_id'], msg, parse_mode='Markdown')
                 else:
                     msg = f"🛎️ **PODSJETNIK**\n\n{r['description']}\n⏰ **{r['time'].strftime('%H:%M')}**"
@@ -101,7 +105,6 @@ def handle_message(message):
     chat_id = message.chat.id
     
     if "podsjetnici" in text.lower() or "lista" in text.lower():
-        # ... (ista logika kao prije)
         if not reminders:
             bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
         else:
@@ -127,9 +130,9 @@ def handle_message(message):
                 'time': reminder_time,
                 'chat_id': chat_id
             })
-            bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n**Opis:** {description}\n**Vrijeme:** {reminder_time.strftime('%d.%m.%Y %H:%M')}")
+            # Lijepa potvrda kao prije + opis
+            bot.reply_to(message, f"✅ Podsjetnik postavljen!\n\n**Opis:** {description}\n**Vrijeme:** {reminder_time.strftime('%d.%m.%Y %H:%M')}")
         else:
-            # OpenAI odgovor
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
@@ -137,5 +140,5 @@ def handle_message(message):
             )
             bot.reply_to(message, response.choices[0].message.content)
 
-print("Bot je aktivan sa čistim opisom podsjetnika.")
+print("Bot je aktivan sa popravljenim parserom i opisom.")
 bot.infinity_polling()
