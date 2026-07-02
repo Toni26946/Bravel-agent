@@ -66,18 +66,31 @@ def parse_time(text):
 def check_reminders():
     while True:
         now = datetime.now(ZoneInfo("Europe/Zagreb"))
+        
         for r in reminders[:]:
             if r['time'] <= now:
-                delay = int((now - r['time']).total_seconds() / 60)
-                if delay > 5:
-                    msg = f"⚠️ **ZAKAŠNJELI PODSJETNIK** ({delay} min): {r['text']}"
+                delay_minutes = int((now - r['time']).total_seconds() / 60)
+                
+                if delay_minutes > 5:
+                    # Prvi jaki alarm
+                    msg = f"⚠️ **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} minuta)\n\n{r['text']}"
+                    try:
+                        bot.send_message(r['chat_id'], msg)
+                        time.sleep(30)  # pauza 30 sekundi
+                        # Drugi alarm
+                        bot.send_message(r['chat_id'], f"⚠️ **JOŠ UVIJEK ZAKAŠNJELI** ({delay_minutes} min): {r['text']}")
+                    except:
+                        pass
                 else:
+                    # Normalan podsjetnik
                     msg = f"🛎️ PODSJETNIK: {r['text']}"
-                try:
-                    bot.send_message(r['chat_id'], msg)
-                except:
-                    pass
+                    try:
+                        bot.send_message(r['chat_id'], msg)
+                    except:
+                        pass
+                
                 reminders.remove(r)
+        
         time.sleep(3)
 
 threading.Thread(target=check_reminders, daemon=True).start()
