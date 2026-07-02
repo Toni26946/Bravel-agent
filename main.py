@@ -30,26 +30,29 @@ print("Bravel Agent - Hibridni pametni podsjetnici + Alarm (3 min)")
 reminders = []
 
 def parse_time(text):
-    """Klasični parser - prioritet za točne vremenske izraze"""
+    """Poboljšani parser vremena"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
-    # Za X minuta
+    # 1. Za X minuta
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # U HH:MM ili u HH
-    match = re.search(r'u? (\d{1,2})(?::(\d{2}))?', text)
+    # 2. Točno vrijeme - poboljšano
+    match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
         minute = int(match.group(2)) if match.group(2) else 0
+        
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        
+        # Ako je vrijeme već prošlo danas, stavi za sutra
         if target <= now:
             target += timedelta(days=1)
         return target
     
-    # DD.MM.
+    # 3. DD.MM.
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
     if match:
         day = int(match.group(1))
