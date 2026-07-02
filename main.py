@@ -23,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Popravljena lista podsjetnika")
+print("Bravel Agent - Popravljeni ponavljajući podsjetnici")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -31,40 +31,34 @@ recurring = []      # ponavljajući
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
-def get_time_left(target_time):
-    """Vraća 'za x min' ili 'za x sati'"""
-    now = get_current_datetime()
-    delta = target_time - now
-    minutes = int(delta.total_seconds() / 60)
-    
-    if minutes <= 0:
-        return "uskoro"
-    elif minutes < 60:
-        return f"za {minutes} min"
-    else:
-        hours = minutes // 60
-        return f"za {hours} sati"
-
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # ==================== PONAVLJAJUĆI PODSJETNICI (POBOLJŠANO) ====================
+    # Svaki dan
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki dan u tjednu
-    days_map = {"ponedjeljak":0,"utorak":1,"srijeda":2,"četvrtak":3,"petak":4,"subota":5,"nedjelja":6,
-                "monday":0,"tuesday":1,"wednesday":2,"thursday":3,"friday":4,"saturday":5,"sunday":6}
+    # Svaki određeni dan u tjednu
+    days_map = {
+        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
+        "subota": 5, "nedjelja": 6,
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+        "saturday": 5, "sunday": 6
+    }
+    
     for day_name, day_num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                return (day_num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
+                hour = int(match.group(1))
+                minute = int(match.group(2) or 0)
+                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
     
-    # Jednokratni
+    # ==================== JEDNOKRATNI PODSJETNICI (NE DIRAM) ====================
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -103,18 +97,29 @@ def parse_time(text):
 def check_reminders():
     while True:
         now = get_current_datetime()
+        
+        # Jednokratni (ne diram)
         for r in reminders[:]:
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
         
+        # Ponavljajući
         for r in recurring:
-            if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
-               (r['type'] == "weekly" and r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute):
-                bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            if r['type'] == "daily":
+                if r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            elif r['type'] == "weekly":
+                if r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+        
         time.sleep(5)
 
 threading.Thread(target=check_reminders, daemon=True).start()
+
+# Brisanje i ostalo ostaje isto...
+
+# (ostatak koda sa listom i brisanjem ostaje isti kao u zadnjoj verziji koju si imao)
 
 # ==================== BRISANJE ====================
 @bot.callback_query_handler(func=lambda call: True)
@@ -208,5 +213,5 @@ Vrijeme: {data.strftime('%H:%M')}""")
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa popravljenom listom i vremenskim prikazom.")
+print("Bot je aktivan sa poboljšanim ponavljajućim podsjetnicima.")
 bot.infinity_polling()
