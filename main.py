@@ -174,15 +174,21 @@ def handle_message(message):
                 bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
-        # OpenAI
+             # OpenAI - poboljšana točnost
         current_time = get_current_datetime()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje. Ne miješaj jezike."},
+                {"role": "system", "content": """Ti si točan i pouzdan pomoćnik za logističku firmu Bravel.
+Trenutna godina je 2026. 
+- Budi maksimalno točan kod činjenica, godina, datuma i brojeva.
+- Ako nisi 100% siguran u neku činjenicu, reci "nisam siguran" ili "prema mojim podacima".
+- Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje.
+- Budi prijateljski i jasan."""},
                 {"role": "user", "content": text}
             ],
-            temperature=0.7
+            temperature=0.3,   # niža temperatura = manje halucinacija
+            max_tokens=600
         )
         bot.reply_to(message, response.choices[0].message.content)
 
