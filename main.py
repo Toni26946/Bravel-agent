@@ -23,20 +23,21 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Jednostavna potvrda podsjetnika")
+print("Bravel Agent - Popravljen datum + zelena kvačica")
 
 reminders = []
 
+def get_current_datetime():
+    return datetime.now(ZoneInfo("Europe/Zagreb"))
+
 def parse_time(text):
     text = text.lower()
-    now = datetime.now(ZoneInfo("Europe/Zagreb"))
+    now = get_current_datetime()
     
-    # Za X minuta
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # Sutra u HH:MM
     if "sutra" in text:
         match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -47,7 +48,6 @@ def parse_time(text):
             return target
         return now + timedelta(days=1)
     
-    # Datum + vrijeme
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if match:
         day = int(match.group(1))
@@ -59,7 +59,6 @@ def parse_time(text):
             target = target.replace(year=target.year + 1)
         return target
     
-    # Samo vrijeme
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
@@ -73,7 +72,7 @@ def parse_time(text):
 
 def check_reminders():
     while True:
-        now = datetime.now(ZoneInfo("Europe/Zagreb"))
+        now = get_current_datetime()
         for r in reminders[:]:
             if r['time'] <= now:
                 delay_minutes = int((now - r['time']).total_seconds() / 60)
@@ -99,7 +98,7 @@ def handle_message(message):
             bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
         else:
             msg = "📋 Tvoji aktivni podsjetnici:\n\n"
-            now = datetime.now(ZoneInfo("Europe/Zagreb"))
+            now = get_current_datetime()
             for i, r in enumerate(reminders, 1):
                 delay = int((r['time'] - now).total_seconds() / 60)
                 time_str = f"za {delay} min" if delay > 0 else "uskoro"
@@ -118,19 +117,23 @@ def handle_message(message):
                 'time': reminder_time,
                 'chat_id': chat_id
             })
-            # Točno onako kako si tražio
-            bot.reply_to(message, f"""Podsjetnik postavljen!
+            bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
 
 Opis: {text}
 Datum: {reminder_time.strftime('%d.%m.%Y')}
 Vrijeme: {reminder_time.strftime('%H:%M')}""")
         else:
+            # Popravljeni OpenAI dio sa točnim datumom
+            current_time = get_current_datetime()
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
+                messages=[
+                    {"role": "system", "content": f"Ti si pomoćnik za logističku firmu Bravel. Trenutni datum i vrijeme je: {current_time.strftime('%d.%m.%Y %H:%M')} (Europe/Zagreb). Odgovori prijateljski i točno na hrvatskom jeziku."},
+                    {"role": "user", "content": text}
+                ],
                 temperature=0.7
             )
             bot.reply_to(message, response.choices[0].message.content)
 
-print("Bot je aktivan sa željenim izgledom potvrde.")
+print("Bot je aktivan sa popravljenim datumom.")
 bot.infinity_polling()
