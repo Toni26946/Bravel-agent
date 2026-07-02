@@ -4,6 +4,7 @@ import time
 import threading
 import re
 import telebot
+from telebot import types
 import keep_alive
 from zoneinfo import ZoneInfo
 import logging
@@ -22,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Popravljeni podsjetnici + lista")
+print("Bravel Agent - Popravljena lista + brisanje tipkama")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -80,6 +81,26 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
+# ==================== BRISANJE TIPKAMA ====================
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    try:
+        if call.data.startswith("delete_"):
+            index = int(call.data.split("_")[1])
+            all_rem = reminders + recurring
+            if 0 <= index < len(all_rem):
+                deleted = all_rem[index]
+                if deleted in reminders:
+                    reminders.remove(deleted)
+                else:
+                    recurring.remove(deleted)
+                bot.answer_callback_query(call.id, "✅ Izbrisano!")
+                bot.edit_message_text("✅ Podsjetnik je izbrisan.", call.message.chat.id, call.message.message_id)
+            else:
+                bot.answer_callback_query(call.id, "❌ Greška")
+    except:
+        bot.answer_callback_query(call.id, "❌ Greška")
+
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     if message.chat.id not in ALLOWED_USERS:
@@ -89,46 +110,47 @@ def handle_message(message):
     chat_id = message.chat.id
 
     try:
-        # LISTA PODSJETNIKA
         if "podsjetnici" in text.lower() or "lista" in text.lower():
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
 
             msg = "📋 **Tvoji aktivni podsjetnici:**\n\n"
-            count = 1
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            count = 0
 
-            if reminders:
-                msg += "**Jednokratni:**\n"
-                for r in reminders:
-                    msg += f"{count}. {r['text']}\n"
-                    count += 1
+            # Jednokratni
+            for r in reminders:
+                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                markup.add(btn)
+                msg += f"{count+1}. {r['text']}\n"
+                count += 1
 
-            if recurring:
-                msg += "\n**Ponavljajući:**\n"
-                for r in recurring:
-                    msg += f"{count}. {r['text']} (svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
-                    count += 1
+            # Ponavljajući
+            for r in recurring:
+                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                markup.add(btn)
+                msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
+                count += 1
 
-            bot.reply_to(message, msg)
+            bot.reply_to(message, msg, reply_markup=markup)
             return
 
         if "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        # PARSIRANJE PODSJETNIKA
+        # Parsiranje podsjetnika
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
-            
             if rtype == "daily":
                 hour, minute = data
                 recurring.append({'text': text, 'hour': hour, 'minute': minute, 'chat_id': chat_id})
                 bot.reply_to(message, f"""✅ **Ponavljajući podsjetnik postavljen!**
 
 {text}
-Ponavljanje: Svaki dan u {hour:02d}:{minute:02d}""")
+🔄 Svaki dan u {hour:02d}:{minute:02d}""")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
                 bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
@@ -154,5 +176,5 @@ Vrijeme: {data.strftime('%H:%M')}""")
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa popravljenom listom i potvrdama.")
+print("Bot je aktivan sa inline brisanjem i ispravnom listom.")
 bot.infinity_polling()
