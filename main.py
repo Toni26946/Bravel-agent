@@ -30,7 +30,7 @@ print("Bravel Agent - Podsjetnici sa datumima")
 reminders = []
 
 def parse_time(text):
-    """Poboljšani parser koji podržava vrijeme i datume"""
+    """Poboljšani parser za datum + vrijeme"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -39,7 +39,22 @@ def parse_time(text):
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # 2. Točno vrijeme (u 14:30, 14.30, u 14)
+    # 2. Kombinacija: datum + vrijeme (npr. 5.7. u 14:30, 15.8 u 9:00)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        hour = int(match.group(3)) if match.group(3) else 9
+        minute = int(match.group(4)) if match.group(4) else 0
+        
+        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
+        
+        # Ako je datum već prošao, stavi sljedeću godinu
+        if target <= now:
+            target = target.replace(year=target.year + 1)
+        return target
+    
+    # 3. Samo vrijeme (u 14:30, u 14)
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
@@ -49,19 +64,7 @@ def parse_time(text):
             target += timedelta(days=1)
         return target
     
-    # 3. Datum + vrijeme (npr. 5.7. u 14:30, 5.7. u 14)
-    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})?[:.]?(\d{2})?', text)
-    if match:
-        day = int(match.group(1))
-        month = int(match.group(2))
-        hour = int(match.group(3)) if match.group(3) else 9
-        minute = int(match.group(4)) if match.group(4) else 0
-        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
-            target = target.replace(year=target.year + 1)
-        return target
-    
-    # 4. Samo datum (npr. 5.7., 15.8.)
+    # 4. Samo datum (5.7., 15.8.)
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
     if match:
         day = int(match.group(1))
