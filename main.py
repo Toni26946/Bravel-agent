@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-# === KLJUČEVI ===
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
@@ -26,21 +25,18 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Hibridni pametni podsjetnici")
+print("Bravel Agent - Poboljšani hibridni podsjetnici")
 
 reminders = []
 
 def parse_time(text):
-    """Brzi klasični parser - prioritet"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
-    # Za X minuta
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # U HH:MM
     match = re.search(r'u? (\d{1,2}):(\d{2})', text)
     if match:
         hour = int(match.group(1))
@@ -50,7 +46,6 @@ def parse_time(text):
             target += timedelta(days=1)
         return target
     
-    # DD.MM.
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
     if match:
         day = int(match.group(1))
@@ -112,7 +107,7 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             
         else:
-            # 1. Prvo pokušaj klasični parser (brzo i precizno)
+            # 1. Prvo probaj klasični parser
             reminder_time = parse_time(text)
             
             if reminder_time:
@@ -123,7 +118,7 @@ def handle_message(message):
                 })
                 bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
             else:
-                # 2. Ako klasični parser ne uspije, koristi OpenAI
+                # 2. Ako klasični ne uspije, pitaj OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
@@ -135,5 +130,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa hibridnim pametnim podsjetnicima.")
+print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima.")
 bot.infinity_polling()
