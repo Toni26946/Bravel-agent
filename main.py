@@ -72,33 +72,18 @@ def check_reminders():
             if r['time'] <= now:
                 delay_minutes = int((now - r['time']).total_seconds() / 60)
                 
-                if delay_minutes > 3:
-                    # Zakašnjeli podsjetnik
-                    msg = f"""🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)
-
-{r['text']}"""
+                if delay_minutes > 3:   # Alarm nakon 3 minute
+                    alarm_msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['text']}"
                     try:
-                        bot.send_message(r['chat_id'], msg, parse_mode='Markdown', disable_notification=False)
-                        time.sleep(1.5)
-                        bot.send_message(r['chat_id'], "🚨 **PAŽNJA!** Ovo je zakašnjeli podsjetnik!", parse_mode='Markdown', disable_notification=False)
+                        bot.send_message(r['chat_id'], alarm_msg, parse_mode='Markdown')
+                        time.sleep(2)
+                        bot.send_message(r['chat_id'], "🚨 **PAŽNJA!** Ovo je zakašnjeli podsjetnik!", parse_mode='Markdown')
                     except:
                         pass
                 else:
-                    # Normalni podsjetnik - maksimalno uočljiv
-                    msg = f"""🛎️ **PODSJETNIK**
-
-{r['text']}
-
-⏰ **{r['time'].strftime('%H:%M')}**"""
-                    
+                    msg = f"🛎️ PODSJETNIK: {r['text']}"
                     try:
-                        # disable_notification=False → uključuje zvuk + vibraciju
-                        bot.send_message(
-                            r['chat_id'], 
-                            msg, 
-                            parse_mode='Markdown', 
-                            disable_notification=False
-                        )
+                        bot.send_message(r['chat_id'], msg)
                     except:
                         pass
                 
