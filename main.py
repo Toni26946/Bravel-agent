@@ -25,12 +25,12 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Podsjetnici sa datumima")
+print("Bravel Agent - Poboljšani podsjetnici v4")
 
 reminders = []
 
 def parse_time(text):
-    """Poboljšani parser za datum + vrijeme"""
+    """Poboljšani parser za datum i vrijeme"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -39,22 +39,19 @@ def parse_time(text):
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # 2. Kombinacija: datum + vrijeme (npr. 5.7. u 14:30, 15.8 u 9:00)
-    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})[:.]?(\d{2})?', text)
-    if match:
-        day = int(match.group(1))
-        month = int(match.group(2))
-        hour = int(match.group(3)) if match.group(3) else 9
-        minute = int(match.group(4)) if match.group(4) else 0
-        
-        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
-        
-        # Ako je datum već prošao, stavi sljedeću godinu
-        if target <= now:
-            target = target.replace(year=target.year + 1)
-        return target
+    # 2. Sutra u HH:MM ili sutra u HH
+    if "sutra" in text:
+        match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2)) if match.group(2) else 0
+            target = now + timedelta(days=1)
+            target = target.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            return target
+        else:
+            return now + timedelta(days=1)  # samo "sutra"
     
-    # 3. Samo vrijeme (u 14:30, u 14)
+    # 3. Točno vrijeme danas (u 14:30, u 14)
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
@@ -64,18 +61,17 @@ def parse_time(text):
             target += timedelta(days=1)
         return target
     
-    # 4. Samo datum (5.7., 15.8.)
-    match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
+    # 4. Datum + vrijeme (5.7. u 14:30)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if match:
         day = int(match.group(1))
         month = int(match.group(2))
-        target = now.replace(day=day, month=month, hour=9, minute=0, second=0, microsecond=0)
+        hour = int(match.group(3)) if match.group(3) else 9
+        minute = int(match.group(4)) if match.group(4) else 0
+        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now:
             target = target.replace(year=target.year + 1)
         return target
-    
-    if "sutra" in text:
-        return now + timedelta(days=1)
     
     return None
 
@@ -144,7 +140,7 @@ def handle_message(message):
                 })
                 bot.reply_to(message, f"✅ Podsjetnik postavljen!\nDatum: {reminder_time.strftime('%d.%m.%Y')}\nVrijeme: {reminder_time.strftime('%H:%M')}")
             else:
-                # Ako parser ne uspije, koristi OpenAI
+                # OpenAI za ostale poruke
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
@@ -156,5 +152,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa podrškom za datume.")
+print("Bot je aktivan sa poboljšanim parserom datuma.")
 bot.infinity_polling()
