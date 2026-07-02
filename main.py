@@ -98,24 +98,42 @@ def handle_message(message):
     chat_id = message.chat.id
     
     try:
+        logger.info(f"Poruka od {chat_id}: {text}")
+        
         if "podsjetnici" in text.lower() or "lista" in text.lower():
-            if not reminders:
+            active_reminders = reminders  # ili user_reminders[chat_id] ako koristiš privatne
+            
+            if not active_reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
             else:
-                msg = "📋 Tvoji aktivni podsjetnici:\n"
-                for i, r in enumerate(reminders, 1):
-                    msg += f"{i}. {r['text']} (u {r['time'].strftime('%H:%M')})\n"
+                msg = "📋 Tvoji aktivni podsjetnici:\n\n"
+                now = datetime.now(ZoneInfo("Europe/Zagreb"))
+                for i, r in enumerate(active_reminders, 1):
+                    time_left = r['time'] - now
+                    minutes_left = int(time_left.total_seconds() / 60)
+                    if minutes_left > 0:
+                        time_str = f"za {minutes_left} min"
+                    else:
+                        time_str = "uskoro"
+                    msg += f"{i}. {r['text']} → {r['time'].strftime('%H:%M')} ({time_str})\n"
                 bot.reply_to(message, msg)
+                
         elif "podsjeti me" in text.lower():
             reminder_time = parse_time(text)
-            reminders.append({'text': text, 'time': reminder_time, 'chat_id': chat_id})
+            reminders.append({
+                'text': text,
+                'time': reminder_time,
+                'chat_id': chat_id
+            })
             bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
+            
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori na hrvatskom, prijateljski: {text}")
+            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
             bot.reply_to(message, response)
     except Exception as e:
+        logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
 print("Bot je pokrenut.")
