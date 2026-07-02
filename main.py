@@ -25,11 +25,12 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Poboljšani hibridni podsjetnici v3")
+print("Bravel Agent - Hibridni pametni podsjetnici + Alarm (3 min)")
 
 reminders = []
 
 def parse_time(text):
+    """Klasični parser - prioritet za točne vremenske izraze"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -71,18 +72,15 @@ def check_reminders():
             if r['time'] <= now:
                 delay_minutes = int((now - r['time']).total_seconds() / 60)
                 
-                if delay_minutes > 5:
-                    # Prvi jaki alarm
-                    msg = f"⚠️ **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} minuta)\n\n{r['text']}"
+                if delay_minutes > 3:   # Alarm nakon 3 minute
+                    alarm_msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['text']}"
                     try:
-                        bot.send_message(r['chat_id'], msg)
-                        time.sleep(30)  # pauza 30 sekundi
-                        # Drugi alarm
-                        bot.send_message(r['chat_id'], f"⚠️ **JOŠ UVIJEK ZAKAŠNJELI** ({delay_minutes} min): {r['text']}")
+                        bot.send_message(r['chat_id'], alarm_msg, parse_mode='Markdown')
+                        time.sleep(2)
+                        bot.send_message(r['chat_id'], "🚨 **PAŽNJA!** Ovo je zakašnjeli podsjetnik!", parse_mode='Markdown')
                     except:
                         pass
                 else:
-                    # Normalan podsjetnik
                     msg = f"🛎️ PODSJETNIK: {r['text']}"
                     try:
                         bot.send_message(r['chat_id'], msg)
@@ -123,7 +121,7 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             
         else:
-            # 1. Prvo probaj klasični parser
+            # 1. Prvo pokušaj klasični parser
             reminder_time = parse_time(text)
             
             if reminder_time:
@@ -146,5 +144,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima v3.")
+print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima + alarmom (3 min).")
 bot.infinity_polling()
