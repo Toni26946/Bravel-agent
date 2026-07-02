@@ -23,37 +23,61 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Popravljen OpenAI jezik")
+print("Bravel Agent - Optimizirana detekcija ponavljajućih podsjetnika")
 
-reminders = []
-recurring = []
+reminders = []      # jednokratni
+recurring = []      # ponavljajući
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
 def parse_time(text):
+    original_text = text
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
-    if any(x in text for x in ["svaki dan", "svakodnevno"]):
+    # ==================== PONAVLJAJUĆI PODSJETNICI ====================
+    recurring_keywords = ["svaki dan", "svakodnevno", "svaki ponedjeljak", "svaki utorak", "svaki srijeda", 
+                         "svaki četvrtak", "svaki petak", "svaki subota", "svaki nedjelja",
+                         "every day", "every monday", "every tuesday", "every friday"]
+    
+    is_recurring = any(keyword in text for keyword in recurring_keywords)
+    
+    if is_recurring:
+        # Svaki dan
+        if "svaki dan" in text or "svakodnevno" in text or "every day" in text:
+            match = re.search(r'(?:u|at|around) (\d{1,2})[:.]?(\d{2})?', text)
+            if match:
+                hour = int(match.group(1))
+                minute = int(match.group(2) or 0)
+                return {"type": "daily", "hour": hour, "minute": minute}, "recurring"
+        
+        # Svaki određeni dan u tjednu
+        days_map = {
+            "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
+            "subota": 5, "nedjelja": 6,
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+            "saturday": 5, "sunday": 6
+        }
+        
+        for day_name, day_num in days_map.items():
+            if day_name in text:
+                match = re.search(r'(?:u|at|around) (\d{1,2})[:.]?(\d{2})?', text)
+                if match:
+                    hour = int(match.group(1))
+                    minute = int(match.group(2) or 0)
+                    return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
+    
+    # ==================== JEDNOKRATNI PODSJETNICI ====================
+    # Ako ima "svaki" ili "every" ali nije uhvaćeno gore → ipak smatramo ponavljajućim
+    if "svaki" in text or "every" in text:
         match = re.search(r'(?:u|at) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            return (int(match.group(1)), int(match.group(2) or 0)), "daily"
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            return {"type": "daily", "hour": hour, "minute": minute}, "recurring"
     
-    days_map = {
-        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6, "monday": 0, "tuesday": 1, "wednesday": 2,
-        "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6
-    }
-    
-    for day_name, day_num in days_map.items():
-        if day_name in text:
-            match = re.search(r'(?:u|at) (\d{1,2})[:.]?(\d{2})?', text)
-            if match:
-                return (day_num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
-    
-    # Jednokratni
+    # Normalni jednokratni
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -106,7 +130,6 @@ def handle_message(message):
 
     try:
         if "podsjetnici" in text.lower() or "lista" in text.lower():
-            # ... (ista lista kao prije)
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
@@ -138,29 +161,25 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        # Parsiranje podsjetnika
+        # Parsiranje
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
-            if rtype == "daily":
-                hour, minute = data
-                recurring.append({'text': text, 'hour': hour, 'minute': minute, 'type': 'daily', 'chat_id': chat_id})
-                bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
-            elif rtype == "weekly":
-                weekday, hour, minute = data
-                recurring.append({'text': text, 'weekday': weekday, 'hour': hour, 'minute': minute, 'type': 'weekly', 'chat_id': chat_id})
+            if rtype == "recurring" or rtype == "daily" or rtype == "weekly":
+                if isinstance(data, dict):
+                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
-        # === OPENAI - STROŽA UPUTA ZA JEZIK ===
+        # OpenAI
         current_time = get_current_datetime()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "VAŽNO: Odgovaraj ISKLJUČIVO na jeziku na kojem ti je korisnik postavio pitanje. Ako je pitanje na hrvatskom - odgovori na hrvatskom. Ako je na engleskom - odgovori na engleskom. Ne miješaj jezike."},
+                {"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje. Ne miješaj jezike."},
                 {"role": "user", "content": text}
             ],
             temperature=0.7
@@ -171,5 +190,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa strožim jezičnim pravilima.")
+print("Bot je aktivan sa poboljšanom detekcijom ponavljajućih podsjetnika.")
 bot.infinity_polling()
