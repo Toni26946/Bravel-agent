@@ -35,36 +35,55 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # ==================== PONAVLJAJUĆI ====================
-    # Svaki dan
+    # 1. Ponavljajući podsjetnici
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            hour = int(match.group(1))
-            minute = int(match.group(2) or 0)
-            return {"type": "daily", "hour": hour, "minute": minute}, "recurring"
+            return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki dan u tjednu
+    # Svaki određeni dan
     days_map = {
         "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6,
-        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
-        "saturday": 5, "sunday": 6
+        "subota": 5, "nedjelja": 6, "monday": 0, "tuesday": 1, "wednesday": 2,
+        "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6
     }
-    
     for day_name, day_num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                hour = int(match.group(1))
-                minute = int(match.group(2) or 0)
-                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
+                return (day_num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # ==================== JEDNOKRATNI ====================
+    # 2. Datum + vrijeme (npr. 7.7. u 10:30)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        hour = int(match.group(3))
+        minute = int(match.group(4)) if match.group(4) else 0
+        
+        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
+        
+        # Ako je datum već prošao, stavi sljedeću godinu
+        if target <= now:
+            target = target.replace(year=target.year + 1)
+        return target, "once"
+    
+    # 3. Samo datum (7.7.)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        target = now.replace(day=day, month=month, hour=9, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target = target.replace(year=target.year + 1)
+        return target, "once"
+    
+    # 4. Jednokratni - za X minuta
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
     
+    # 5. Sutra
     if "sutra" in text:
         match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -73,7 +92,9 @@ def parse_time(text):
             target = now + timedelta(days=1)
             target = target.replace(hour=hour, minute=minute, second=0, microsecond=0)
             return target, "once"
+        return now + timedelta(days=1), "once"
     
+    # 6. Samo vrijeme
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
