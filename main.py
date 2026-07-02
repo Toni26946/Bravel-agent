@@ -23,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Popravljeni jednokratni podsjetnici + obavijesti")
+print("Bravel Agent - Poboljšani ponavljajući podsjetnici")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -35,13 +35,32 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
-    if "svaki dan" in text or "svakodnevno" in text:
-        match = re.search(r'(?:u|at) (\d{1,2})[:.]?(\d{2})?', text)
+    # ==================== PONAVLJAJUĆI ====================
+    # Svaki dan
+    if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
+        match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            return (int(match.group(1)), int(match.group(2) or 0)), "daily"
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            return {"type": "daily", "hour": hour, "minute": minute}, "recurring"
     
-    # Jednokratni
+    # Svaki dan u tjednu
+    days_map = {
+        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
+        "subota": 5, "nedjelja": 6,
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+        "saturday": 5, "sunday": 6
+    }
+    
+    for day_name, day_num in days_map.items():
+        if day_name in text:
+            match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
+            if match:
+                hour = int(match.group(1))
+                minute = int(match.group(2) or 0)
+                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
+    
+    # ==================== JEDNOKRATNI ====================
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -66,16 +85,6 @@ def parse_time(text):
     
     return None, None
 
-def get_time_left(target_time):
-    now = get_current_datetime()
-    delta = target_time - now
-    minutes = int(delta.total_seconds() / 60)
-    if minutes < 60:
-        return f"za {minutes} min"
-    else:
-        hours = minutes // 60
-        return f"za {hours} sati"
-
 def check_reminders():
     while True:
         now = get_current_datetime()
@@ -88,8 +97,12 @@ def check_reminders():
         
         # Ponavljajući
         for r in recurring:
-            if r['hour'] == now.hour and r['minute'] == now.minute:
-                bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            if r['type'] == "daily":
+                if r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            elif r['type'] == "weekly":
+                if r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
         
         time.sleep(5)
 
@@ -123,6 +136,7 @@ def handle_message(message):
 
     try:
         if "podsjetnici" in text.lower() or "lista" in text.lower():
+            # ... (lista kod - ostaje isti kao prije)
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
@@ -134,39 +148,33 @@ def handle_message(message):
             for r in reminders:
                 btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                 markup.add(btn)
-                time_left = get_time_left(r['time'])
-                msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                msg += f"{count+1}. {r['text']}\n"
                 count += 1
 
             for r in recurring:
                 btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                 markup.add(btn)
-                if r.get('type') == "daily":
+                if r['type'] == "daily":
                     msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
+                else:
+                    days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
+                    msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
                 count += 1
 
             bot.reply_to(message, msg, reply_markup=markup)
-            return
-
-        if "status" in text.lower():
-            bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
         # Parsiranje
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
-            if rtype == "daily":
-                hour, minute = data
-                recurring.append({'text': text, 'hour': hour, 'minute': minute, 'type': 'daily', 'chat_id': chat_id})
+            if rtype == "recurring" or rtype == "daily" or rtype == "weekly":
+                if isinstance(data, dict):
+                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
-                bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
-
-{text}
-Datum: {data.strftime('%d.%m.%Y')}
-Vrijeme: {data.strftime('%H:%M')}""")
+                bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
         # OpenAI
@@ -185,5 +193,5 @@ Vrijeme: {data.strftime('%H:%M')}""")
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa popravljenim jednokratnim podsjetnicima.")
+print("Bot je aktivan sa poboljšanim ponavljajućim podsjetnicima.")
 bot.infinity_polling()
