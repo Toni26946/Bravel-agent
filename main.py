@@ -25,12 +25,12 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Hibridni pametni podsjetnici + Alarm (3 min)")
+print("Bravel Agent - Podsjetnici sa datumima")
 
 reminders = []
 
 def parse_time(text):
-    """Poboljšani parser vremena"""
+    """Poboljšani parser koji podržava vrijeme i datume"""
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
@@ -39,27 +39,36 @@ def parse_time(text):
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    # 2. Točno vrijeme - poboljšano
+    # 2. Točno vrijeme (u 14:30, 14.30, u 14)
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
         hour = int(match.group(1))
         minute = int(match.group(2)) if match.group(2) else 0
-        
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        
-        # Ako je vrijeme već prošlo danas, stavi za sutra
         if target <= now:
             target += timedelta(days=1)
         return target
     
-    # 3. DD.MM.
+    # 3. Datum + vrijeme (npr. 5.7. u 14:30, 5.7. u 14)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u)?\s*(\d{1,2})?[:.]?(\d{2})?', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        hour = int(match.group(3)) if match.group(3) else 9
+        minute = int(match.group(4)) if match.group(4) else 0
+        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now:
+            target = target.replace(year=target.year + 1)
+        return target
+    
+    # 4. Samo datum (npr. 5.7., 15.8.)
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
     if match:
         day = int(match.group(1))
         month = int(match.group(2))
-        target = now.replace(day=day, month=month, hour=9, minute=0, second=0)
+        target = now.replace(day=day, month=month, hour=9, minute=0, second=0, microsecond=0)
         if target <= now:
-            target = target.replace(year=target.year + 1 if target.month < now.month else target.year)
+            target = target.replace(year=target.year + 1)
         return target
     
     if "sutra" in text:
@@ -75,18 +84,18 @@ def check_reminders():
             if r['time'] <= now:
                 delay_minutes = int((now - r['time']).total_seconds() / 60)
                 
-                if delay_minutes > 3:   # Alarm nakon 3 minute
-                    alarm_msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['text']}"
+                if delay_minutes > 3:
+                    msg = f"🚨 **ZAKAŠNJELI PODSJETNIK** ({delay_minutes} min)\n\n{r['text']}"
                     try:
-                        bot.send_message(r['chat_id'], alarm_msg, parse_mode='Markdown')
+                        bot.send_message(r['chat_id'], msg, parse_mode='Markdown')
                         time.sleep(2)
                         bot.send_message(r['chat_id'], "🚨 **PAŽNJA!** Ovo je zakašnjeli podsjetnik!", parse_mode='Markdown')
                     except:
                         pass
                 else:
-                    msg = f"🛎️ PODSJETNIK: {r['text']}"
+                    msg = f"🛎️ **PODSJETNIK**\n\n{r['text']}\n⏰ **{r['time'].strftime('%H:%M')}**"
                     try:
-                        bot.send_message(r['chat_id'], msg)
+                        bot.send_message(r['chat_id'], msg, parse_mode='Markdown')
                     except:
                         pass
                 
@@ -106,8 +115,6 @@ def handle_message(message):
     chat_id = message.chat.id
     
     try:
-        logger.info(f"Poruka od {chat_id}: {text}")
-        
         if "podsjetnici" in text.lower() or "lista" in text.lower():
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
@@ -117,14 +124,13 @@ def handle_message(message):
                 for i, r in enumerate(reminders, 1):
                     delay = int((r['time'] - now).total_seconds() / 60)
                     time_str = f"za {delay} min" if delay > 0 else "uskoro"
-                    msg += f"{i}. {r['text']} → {r['time'].strftime('%H:%M')} ({time_str})\n"
+                    msg += f"{i}. {r['text']} → {r['time'].strftime('%d.%m. %H:%M')} ({time_str})\n"
                 bot.reply_to(message, msg)
                 
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             
         else:
-            # 1. Prvo pokušaj klasični parser
             reminder_time = parse_time(text)
             
             if reminder_time:
@@ -133,9 +139,9 @@ def handle_message(message):
                     'time': reminder_time,
                     'chat_id': chat_id
                 })
-                bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
+                bot.reply_to(message, f"✅ Podsjetnik postavljen!\nDatum: {reminder_time.strftime('%d.%m.%Y')}\nVrijeme: {reminder_time.strftime('%H:%M')}")
             else:
-                # 2. Ako ne uspije, koristi OpenAI
+                # Ako parser ne uspije, koristi OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
@@ -147,5 +153,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima + alarmom (3 min).")
+print("Bot je aktivan sa podrškom za datume.")
 bot.infinity_polling()
