@@ -25,7 +25,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Poboljšani hibridni podsjetnici")
+print("Bravel Agent - Poboljšani hibridni podsjetnici v3")
 
 reminders = []
 
@@ -33,19 +33,22 @@ def parse_time(text):
     text = text.lower()
     now = datetime.now(ZoneInfo("Europe/Zagreb"))
     
+    # Za X minuta
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1)))
     
-    match = re.search(r'u? (\d{1,2}):(\d{2})', text)
+    # U HH:MM ili u HH
+    match = re.search(r'u? (\d{1,2})(?::(\d{2}))?', text)
     if match:
         hour = int(match.group(1))
-        minute = int(match.group(2))
+        minute = int(match.group(2)) if match.group(2) else 0
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
         return target
     
+    # DD.MM.
     match = re.search(r'(\d{1,2})\.(\d{1,2})\.', text)
     if match:
         day = int(match.group(1))
@@ -118,7 +121,7 @@ def handle_message(message):
                 })
                 bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
             else:
-                # 2. Ako klasični ne uspije, pitaj OpenAI
+                # 2. Ako ne uspije, koristi OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": f"Ti si pomoćnik za logističku firmu Bravel. Odgovori prijateljski na hrvatskom: {text}"}],
@@ -130,5 +133,5 @@ def handle_message(message):
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima.")
+print("Bot je aktivan sa poboljšanim hibridnim podsjetnicima v3.")
 bot.infinity_polling()
