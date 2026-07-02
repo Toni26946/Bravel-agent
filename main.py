@@ -10,30 +10,23 @@ import logging
 import requests
 from openai import OpenAI
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 keep_alive
 
-# === KLJUČEVI IZ SECRETS (Fly.io) ===
+# === KLJUČEVI IZ SECRETS ===
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
-
-FLY_TOKEN = os.getenv("FLY_TOKEN")  # možeš i ovo staviti u Secrets
-
 FLY_APP_NAME = "bravel-agent"
 
 client = OpenAI()
-
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Sa OpenAI (preko Secrets)")
+print("Bravel Agent - Popravljena verzija")
 
 reminders = []
 
@@ -74,26 +67,12 @@ def check_reminders():
         for r in reminders[:]:
             if r['time'] <= now:
                 msg = f"🛎️ PODSJETNIK: {r['text']}"
-                print(msg)
                 try:
                     bot.send_message(r['chat_id'], msg)
                 except:
                     pass
                 reminders.remove(r)
         time.sleep(3)
-
-def check_fly_status():
-    while True:
-        try:
-            response = requests.get(
-                f"https://api.fly.io/apps/{FLY_APP_NAME}/machines",
-                headers={"Authorization": f"Bearer {FLY_TOKEN}"}
-            )
-            if response.status_code != 200:
-                bot.send_message(5191857104, "⚠️ UPOZORENJE: Fly.io mašina je pala ili ima problem!")
-        except Exception as e:
-            bot.send_message(5191857104, f"⚠️ Greška pri provjeri Fly.io: {e}")
-        time.sleep(300)
 
 def get_openai_response(prompt):
     try:
@@ -105,10 +84,9 @@ def get_openai_response(prompt):
         return response.choices[0].message.content
     except Exception as e:
         logger.error(f"OpenAI greška: {e}")
-        return "Došlo je do greške sa OpenAI. Pokušaj ponovo kasnije."
+        return "OpenAI trenutno nije dostupan. Pokušaj ponovo kasnije."
 
 threading.Thread(target=check_reminders, daemon=True).start()
-threading.Thread(target=check_fly_status, daemon=True).start()
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -120,8 +98,6 @@ def handle_message(message):
     chat_id = message.chat.id
     
     try:
-        logger.info(f"Poruka od {chat_id}: {text}")
-        
         if "podsjetnici" in text.lower() or "lista" in text.lower():
             if not reminders:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
@@ -132,20 +108,15 @@ def handle_message(message):
                 bot.reply_to(message, msg)
         elif "podsjeti me" in text.lower():
             reminder_time = parse_time(text)
-            reminders.append({
-                'text': text,
-                'time': reminder_time,
-                'chat_id': chat_id
-            })
+            reminders.append({'text': text, 'time': reminder_time, 'chat_id': chat_id})
             bot.reply_to(message, f"✅ Podsjetnik postavljen! Aktivira se u {reminder_time.strftime('%H:%M')}")
         elif "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
         else:
-            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori korisniku na hrvatskom jeziku, prijateljski i korisno: {text}")
+            response = get_openai_response(f"Ti si pomoćnik za logističku firmu Bravel. Odgovori na hrvatskom, prijateljski: {text}")
             bot.reply_to(message, response)
     except Exception as e:
-        logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa OpenAI (preko Secrets).")
+print("Bot je pokrenut.")
 bot.infinity_polling()
