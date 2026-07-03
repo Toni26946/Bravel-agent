@@ -32,58 +32,76 @@ def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
 def parse_time(text):
-    text = text.lower()
+    text = text.lower().strip()
     now = get_current_datetime()
     
-    # Ponavljajući podsjetnici
-    if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
-        match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
+    # ==================== PONAVLJAJUĆI ====================
+    if any(word in text for word in ["svaki dan", "svakodnevno", "every day", "daily"]):
+        match = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            return (int(match.group(1)), int(match.group(2) or 0)), "daily"
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            return (hour, minute), "daily"
     
-    days_map = {"ponedjeljak":0, "utorak":1, "srijeda":2, "četvrtak":3, "petak":4, "subota":5, "nedjelja":6}
+    days_map = {
+        "ponedjeljak":0, "pon":0, "utorak":1, "uto":1, "srijeda":2, "sri":2,
+        "četvrtak":3, "čet":3, "petak":4, "pet":4, "subota":5, "sub":5,
+        "nedjelja":6, "ned":6
+    }
     for day_name, num in days_map.items():
         if day_name in text:
-            match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
+            match = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
             if match:
                 hour = int(match.group(1))
                 minute = int(match.group(2) or 0)
-                return {"type": "weekly", "weekday": num, "hour": hour, "minute": minute}, "weekly"
+                return (num, hour, minute), "weekly"
     
-    # Jednokratni (ostaje nepromijenjeno)
-    match = re.search(r'za (\d+) (minut|min)', text)
-    if match:
-        return now + timedelta(minutes=int(match.group(1))), "once"
-    
-    if "sutra" in text:
-        match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
-        if match:
-            hour = int(match.group(1))
-            minute = int(match.group(2)) if match.group(2) else 0
-            target = now + timedelta(days=1)
-            target = target.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            return target, "once"
-    
-    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    # ==================== JEDNOKRATNI ====================
+    # 1. Konkretan datum i vrijeme (npr. 5.7. u 18:30)
+    match = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if match:
         day = int(match.group(1))
         month = int(match.group(2))
-        hour = int(match.group(3))
-        minute = int(match.group(4)) if match.group(4) else 0
-        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
-            target = target.replace(year=target.year + 1)
-        return target, "once"
+        year = int(match.group(3)) if match.group(3) else now.year
+        if year < 100: year += 2000
+        hour = int(match.group(4))
+        minute = int(match.group(5) or 0)
+        
+        try:
+            target = datetime(year, month, day, hour, minute, tzinfo=ZoneInfo("Europe/Zagreb"))
+            if target < now:
+                target = target.replace(year=target.year + 1)
+            return target, "once"
+        except:
+            pass
+
+    # 2. Sutra / prekosutra
+    if "sutra" in text:
+        match = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            target = (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+            return target, "once"
     
-    match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
+    if "prekosutra" in text:
+        match = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            target = (now + timedelta(days=2)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+            return target, "once"
+
+    # 3. Za X minuta / sati
+    match = re.search(r'za (\d+)\s*(minut|min|h|sat)', text)
     if match:
-        hour = int(match.group(1))
-        minute = int(match.group(2)) if match.group(2) else 0
-        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
-        return target, "once"
-    
+        num = int(match.group(1))
+        unit = match.group(2)
+        if unit.startswith('h') or unit.startswith('sat'):
+            return now + timedelta(hours=num), "once"
+        else:
+            return now + timedelta(minutes=num), "once"
+
     return None, None
 
 def check_reminders():
