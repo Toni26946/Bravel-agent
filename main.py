@@ -26,10 +26,10 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DATA_FILE = "reminders.json"
 
-print("Bravel Agent - Trajno spremanje podsjetnika (JSON)")
+print("Bravel Agent - Trajno spremanje v2")
 
-reminders = []      # jednokratni
-recurring = []      # ponavljajući
+reminders = []
+recurring = []
 
 def load_data():
     global reminders, recurring
@@ -39,29 +39,32 @@ def load_data():
                 data = json.load(f)
                 reminders = data.get('reminders', [])
                 recurring = data.get('recurring', [])
-                # Pretvori string u datetime
+                
+                # Pretvori stringove u datetime
                 for r in reminders:
                     if isinstance(r.get('time'), str):
-                        r['time'] = datetime.fromisoformat(r['time'])
-            logger.info(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih podsjetnika.")
+                        r['time'] = datetime.fromisoformat(r['time'].replace('Z', '+00:00'))
+                logger.info(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih.")
+        else:
+            logger.info("Nema spremljenih podataka.")
     except Exception as e:
-        logger.error(f"Greška pri učitavanju: {e}")
+        logger.error(f"Greška pri učitavanju JSON-a: {e}")
         reminders = []
         recurring = []
 
 def save_data():
     try:
         data = {
-            'reminders': [{**r, 'time': r['time'].isoformat() if isinstance(r.get('time'), datetime) else r.get('time')} for r in reminders],
+            'reminders': [{**r, 'time': r['time'].isoformat()} for r in reminders],
             'recurring': recurring
         }
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info("✅ Podaci spremljeni u reminders.json")
     except Exception as e:
         logger.error(f"Greška pri spremanju: {e}")
 
-# Učitaj podatke pri pokretanju
-load_data()
+load_data()  # učitaj pri pokretanju
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -247,5 +250,5 @@ Vrijeme: {data.strftime('%H:%M')}""")
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa trajnim spremanjem podsjetnika.")
+print("Bot je aktivan sa trajnim spremanjem.")
 bot.infinity_polling()
