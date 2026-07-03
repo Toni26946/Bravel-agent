@@ -26,10 +26,8 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DATA_FILE = "reminders.json"
 
-print("Bravel Agent - Trajno spremanje v2")
-
-reminders = []
-recurring = []
+reminders = []      # jednokratni
+recurring = []      # ponavljajući
 
 def load_data():
     global reminders, recurring
@@ -39,16 +37,10 @@ def load_data():
                 data = json.load(f)
                 reminders = data.get('reminders', [])
                 recurring = data.get('recurring', [])
-                
-                # Pretvori stringove u datetime
                 for r in reminders:
                     if isinstance(r.get('time'), str):
-                        r['time'] = datetime.fromisoformat(r['time'].replace('Z', '+00:00'))
-                logger.info(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih.")
-        else:
-            logger.info("Nema spremljenih podataka.")
-    except Exception as e:
-        logger.error(f"Greška pri učitavanju JSON-a: {e}")
+                        r['time'] = datetime.fromisoformat(r['time'])
+    except:
         reminders = []
         recurring = []
 
@@ -60,30 +52,19 @@ def save_data():
         }
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        logger.info("✅ Podaci spremljeni u reminders.json")
-    except Exception as e:
-        logger.error(f"Greška pri spremanju: {e}")
+    except:
+        pass
 
-load_data()  # učitaj pri pokretanju
+load_data()
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
-
-def get_time_left(target):
-    now = get_current_datetime()
-    minutes = int((target - now).total_seconds() / 60)
-    if minutes <= 0:
-        return "uskoro"
-    elif minutes < 60:
-        return f"za {minutes} min"
-    else:
-        return f"za {minutes//60} sati"
 
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # PONAVLJAJUĆI
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -96,7 +77,7 @@ def parse_time(text):
             if match:
                 return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # Jednokratni
+    # JEDNOKRATNI
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -151,7 +132,7 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
-# Brisanje
+# Brisanje i lista (ostaje isto)
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -193,8 +174,7 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    time_left = get_time_left(r['time'])
-                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                    msg += f"{count+1}. {r['text']}\n"
                     count += 1
 
             if recurring:
@@ -226,11 +206,7 @@ def handle_message(message):
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
                 save_data()
-                bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
-
-{text}
-Datum: {data.strftime('%d.%m.%Y')}
-Vrijeme: {data.strftime('%H:%M')}""")
+                bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
         # OpenAI
@@ -243,12 +219,10 @@ Vrijeme: {data.strftime('%H:%M')}""")
                 temperature=0.7
             )
             bot.reply_to(message, response.choices[0].message.content)
-        else:
-            bot.reply_to(message, "OpenAI nije dostupan.")
 
     except Exception as e:
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa trajnim spremanjem.")
+print("Bot je aktivan.")
 bot.infinity_polling()
