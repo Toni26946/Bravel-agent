@@ -18,21 +18,16 @@ keep_alive
 # ==================== PROVJERA KLJUČEVA ====================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
 if not TELEGRAM_TOKEN:
     print("ERROR: TELEGRAM_TOKEN nije postavljen!")
     exit(1)
-
 client = OpenAI() if OPENAI_API_KEY else None
-
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
 ALLOWED_USERS = [5191857104, 7599693099]
-
 print("Bravel Agent - Stabilna verzija")
 
-reminders = []      # jednokratni
-recurring = []      # ponavljajući
+reminders = [] # jednokratni
+recurring = [] # ponavljajući
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -51,12 +46,14 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # ==================== PONAVLJAJUĆI PODSJETNICI ====================
+    # Svaki dan
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
+    # Svaki određeni dan u tjednu
     days_map = {"ponedjeljak":0,"utorak":1,"srijeda":2,"četvrtak":3,"petak":4,"subota":5,"nedjelja":6}
     for day_name, num in days_map.items():
         if day_name in text:
@@ -64,7 +61,7 @@ def parse_time(text):
             if match:
                 return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # Jednokratni
+    # ==================== JEDNOKRATNI (ne diram) ====================
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -186,7 +183,12 @@ def handle_message(message):
         if result and result[0] is not None:
             data, rtype = result
             if rtype in ["daily", "weekly"]:
-                recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                if isinstance(data, dict):
+                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                else:
+                    # za daily tuple
+                    hour, minute = data
+                    recurring.append({"type": "daily", "hour": hour, "minute": minute, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
