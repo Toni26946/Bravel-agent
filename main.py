@@ -36,6 +36,7 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
+    # Jednokratni podsjetnici
     c.execute('''CREATE TABLE IF NOT EXISTS reminders (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
@@ -43,6 +44,7 @@ def init_db():
                     chat_id INTEGER
                 )''')
     
+    # Ponavljajući podsjetnici
     c.execute('''CREATE TABLE IF NOT EXISTS recurring (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
@@ -55,6 +57,7 @@ def init_db():
     
     conn.commit()
     conn.close()
+    print("✅ SQLite baza inicijalizirana.")
 
 def save_reminder(text, time_obj, chat_id):
     conn = sqlite3.connect(DB_FILE)
