@@ -26,8 +26,8 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DATA_FILE = "reminders.json"
 
-reminders = []      # jednokratni
-recurring = []      # ponavljajući
+reminders = []
+recurring = []
 
 def load_data():
     global reminders, recurring
@@ -40,9 +40,9 @@ def load_data():
                 for r in reminders:
                     if isinstance(r.get('time'), str):
                         r['time'] = datetime.fromisoformat(r['time'])
-    except:
-        reminders = []
-        recurring = []
+            print(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih.")
+    except Exception as e:
+        print(f"Greška pri učitavanju: {e}")
 
 def save_data():
     try:
@@ -52,8 +52,9 @@ def save_data():
         }
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    except:
-        pass
+        print("✅ Podaci spremljeni.")
+    except Exception as e:
+        print(f"Greška pri spremanju: {e}")
 
 load_data()
 
@@ -64,7 +65,7 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # PONAVLJAJUĆI
+    # Ponavljajući
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -77,7 +78,7 @@ def parse_time(text):
             if match:
                 return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # JEDNOKRATNI
+    # Jednokratni
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -132,7 +133,6 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
-# Brisanje i lista (ostaje isto)
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -170,7 +170,7 @@ def handle_message(message):
             count = 0
 
             if reminders:
-                msg += "**📌 Jednokratni podsjetnici:**\n"
+                msg += "**📌 Jednokratni:**\n"
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
@@ -178,15 +178,15 @@ def handle_message(message):
                     count += 1
 
             if recurring:
-                msg += "\n**🔄 Ponavljajući podsjetnici:**\n"
+                msg += "\n**🔄 Ponavljajući:**\n"
                 for r in recurring:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
                     if r['type'] == "daily":
-                        msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
+                        msg += f"{count+1}. {r['text']} (svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
                     else:
                         days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
-                        msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
+                        msg += f"{count+1}. {r['text']} (svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
                     count += 1
 
             bot.reply_to(message, msg, reply_markup=markup)
@@ -210,15 +210,14 @@ def handle_message(message):
             return
 
         # OpenAI
-        if client:
-            current_time = get_current_datetime()
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
-                          {"role": "user", "content": text}],
-                temperature=0.7
-            )
-            bot.reply_to(message, response.choices[0].message.content)
+        current_time = get_current_datetime()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
+                      {"role": "user", "content": text}],
+            temperature=0.7
+        )
+        bot.reply_to(message, response.choices[0].message.content)
 
     except Exception as e:
         logger.error(f"Greška: {e}")
