@@ -51,30 +51,26 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # ==================== PONAVLJAJUĆI ====================
-    # Svaki dan
+    # PONAVLJAJUĆI PODSJETNICI
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki određeni dan u tjednu (najbolja detekcija)
+    # Svaki određeni dan (ponedjeljak, petak...)
     days_map = {
         "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6,
-        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
-        "saturday": 5, "sunday": 6
+        "subota": 5, "nedjelja": 6
     }
-    
     for day_name, day_num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
                 hour = int(match.group(1))
                 minute = int(match.group(2) or 0)
-                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
+                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "weekly"
     
-    # ==================== JEDNOKRATNI ====================
+    # Jednokratni (ne diram)
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -192,15 +188,20 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        result = parse_time(text)
+                result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
             if rtype in ["daily", "weekly"]:
-                recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                if isinstance(data, dict):
+                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                else:
+                    hour, minute = data
+                    recurring.append({"type": "daily", "hour": hour, "minute": minute, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
-                bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
+                bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
+            return
 
 {text}
 Datum: {data.strftime('%d.%m.%Y')}
