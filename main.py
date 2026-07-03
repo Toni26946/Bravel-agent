@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import time
 import threading
 import re
+import json
 import telebot
 from telebot import types
 import keep_alive
@@ -15,19 +16,52 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-# ==================== PROVJERA KLJUČEVA ====================
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-if not TELEGRAM_TOKEN:
-    print("ERROR: TELEGRAM_TOKEN nije postavljen!")
-    exit(1)
-client = OpenAI() if OPENAI_API_KEY else None
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-ALLOWED_USERS = [5191857104, 7599693099]
-print("Bravel Agent - Stabilna verzija")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+client = OpenAI()
 
-reminders = [] # jednokratni
-recurring = [] # ponavljajući
+TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+ALLOWED_USERS = [5191857104, 7599693099]
+
+DATA_FILE = "reminders.json"
+
+print("Bravel Agent - Trajno spremanje podsjetnika (JSON)")
+
+reminders = []      # jednokratni
+recurring = []      # ponavljajući
+
+def load_data():
+    global reminders, recurring
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                reminders = data.get('reminders', [])
+                recurring = data.get('recurring', [])
+                # Pretvori string u datetime
+                for r in reminders:
+                    if isinstance(r.get('time'), str):
+                        r['time'] = datetime.fromisoformat(r['time'])
+            logger.info(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih podsjetnika.")
+    except Exception as e:
+        logger.error(f"Greška pri učitavanju: {e}")
+        reminders = []
+        recurring = []
+
+def save_data():
+    try:
+        data = {
+            'reminders': [{**r, 'time': r['time'].isoformat() if isinstance(r.get('time'), datetime) else r.get('time')} for r in reminders],
+            'recurring': recurring
+        }
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Greška pri spremanju: {e}")
+
+# Učitaj podatke pri pokretanju
+load_data()
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -46,24 +80,20 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # ==================== PONAVLJAJUĆI ====================
+    # Ponavljajući
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki dan u tjednu
-    days_map = {
-        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6
-    }
-    for day_name, day_num in days_map.items():
+    days_map = {"ponedjeljak":0,"utorak":1,"srijeda":2,"četvrtak":3,"petak":4,"subota":5,"nedjelja":6}
+    for day_name, num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                return {"type": "weekly", "weekday": day_num, "hour": int(match.group(1)), "minute": int(match.group(2) or 0)}, "weekly"
+                return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # ==================== JEDNOKRATNI (ostaje nepromijenjeno) ====================
+    # Jednokratni
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -98,7 +128,7 @@ def parse_time(text):
         return target, "once"
     
     return None, None
-    
+
 def check_reminders():
     while True:
         now = get_current_datetime()
@@ -107,6 +137,7 @@ def check_reminders():
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
+                save_data()
         
         for r in recurring:
             if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
@@ -130,6 +161,7 @@ def callback_handler(call):
                     reminders.remove(deleted)
                 else:
                     recurring.remove(deleted)
+                save_data()
                 bot.answer_callback_query(call.id, "✅ Izbrisano!")
                 bot.edit_message_text("✅ Podsjetnik je izbrisan.", call.message.chat.id, call.message.message_id)
     except:
@@ -140,33 +172,11 @@ def handle_message(message):
     if message.chat.id not in ALLOWED_USERS:
         return
     
-    text = message.text.strip().lower()
+    text = message.text.strip()
     chat_id = message.chat.id
 
     try:
-        # === VEČERNJI SAŽETAK - NAJVIŠI PRIORITET ===
-        if any(x in text for x in ["gotovi za danas", "kraj dana", "danas gotovo", "sažetak", "sumar", "završili"]):
-            now = get_current_datetime()
-            msg = f"📊 **Dnevni sažetak - {now.strftime('%d.%m.%Y')}**\n\n"
-            
-            msg += f"**Jednokratni podsjetnici:** {len(reminders)}\n"
-            msg += f"**Ponavljajući podsjetnici:** {len(recurring)}\n\n"
-            
-            if reminders or recurring:
-                msg += "**Aktivni podsjetnici:**\n"
-                for i, r in enumerate(reminders, 1):
-                    msg += f"{i}. {r['text']}\n"
-                for r in recurring:
-                    msg += f"🔄 {r['text']}\n"
-            else:
-                msg += "Nema aktivnih podsjetnika za danas."
-            
-            bot.reply_to(message, msg)
-            return
-
-        # === LISTA PODSJETNIKA ===
-        if "podsjetnici" in text or "lista" in text:
-            # ... tvoj postojeći kod za listu ...
+        if "podsjetnici" in text.lower() or "lista" in text.lower():
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
@@ -199,33 +209,34 @@ def handle_message(message):
             bot.reply_to(message, msg, reply_markup=markup)
             return
 
-        if "status" in text:
+        if "status" in text.lower():
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        # Parsiranje podsjetnika...
-        result = parse_time(message.text)   # koristi originalni text
+        result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
             if rtype in ["daily", "weekly"]:
-                recurring.append({**data, 'text': message.text, 'chat_id': chat_id})
-                bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{message.text}")
+                recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                save_data()
+                bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
-                reminders.append({'text': message.text, 'time': data, 'chat_id': chat_id})
+                reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
+                save_data()
                 bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
 
-{message.text}
+{text}
 Datum: {data.strftime('%d.%m.%Y')}
 Vrijeme: {data.strftime('%H:%M')}""")
             return
 
-        # OpenAI - tek na kraju
+        # OpenAI
         if client:
             current_time = get_current_datetime()
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
-                          {"role": "user", "content": message.text}],
+                          {"role": "user", "content": text}],
                 temperature=0.7
             )
             bot.reply_to(message, response.choices[0].message.content)
@@ -235,4 +246,6 @@ Vrijeme: {data.strftime('%H:%M')}""")
     except Exception as e:
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
+
+print("Bot je aktivan sa trajnim spremanjem podsjetnika.")
 bot.infinity_polling()
