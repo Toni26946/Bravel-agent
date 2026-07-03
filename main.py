@@ -15,15 +15,21 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-client = OpenAI()
+# ==================== PROVJERA KLJUČEVA ====================
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
+if not TELEGRAM_TOKEN:
+    print("ERROR: TELEGRAM_TOKEN nije postavljen!")
+    exit(1)
+
+client = OpenAI() if OPENAI_API_KEY else None
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Stabilna verzija (jednokratni + ponavljajući)")
+print("Bravel Agent - Stabilna verzija")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -45,7 +51,7 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # ==================== PONAVLJAJUĆI ====================
+    # Ponavljajući
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -58,7 +64,7 @@ def parse_time(text):
             if match:
                 return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # ==================== JEDNOKRATNI ====================
+    # Jednokratni
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -98,13 +104,11 @@ def check_reminders():
     while True:
         now = get_current_datetime()
         
-        # Jednokratni
         for r in reminders[:]:
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
         
-        # Ponavljajući
         for r in recurring:
             if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
                (r['type'] == "weekly" and r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute):
@@ -114,6 +118,7 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
+# Brisanje
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -149,21 +154,26 @@ def handle_message(message):
             markup = types.InlineKeyboardMarkup(row_width=1)
             count = 0
 
-            for r in reminders:
-                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
-                markup.add(btn)
-                msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({get_time_left(r['time'])})\n"
-                count += 1
+            if reminders:
+                msg += "**📌 Jednokratni podsjetnici:**\n"
+                for r in reminders:
+                    btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                    markup.add(btn)
+                    time_left = get_time_left(r['time'])
+                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                    count += 1
 
-            for r in recurring:
-                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
-                markup.add(btn)
-                if r['type'] == "daily":
-                    msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
-                else:
-                    days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
-                    msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
-                count += 1
+            if recurring:
+                msg += "\n**🔄 Ponavljajući podsjetnici:**\n"
+                for r in recurring:
+                    btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                    markup.add(btn)
+                    if r['type'] == "daily":
+                        msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
+                    else:
+                        days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
+                        msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
+                    count += 1
 
             bot.reply_to(message, msg, reply_markup=markup)
             return
@@ -172,7 +182,6 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        # Parsiranje
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
@@ -189,18 +198,21 @@ Vrijeme: {data.strftime('%H:%M')}""")
             return
 
         # OpenAI
-        current_time = get_current_datetime()
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
-                      {"role": "user", "content": text}],
-            temperature=0.7
-        )
-        bot.reply_to(message, response.choices[0].message.content)
+        if client:
+            current_time = get_current_datetime()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
+                          {"role": "user", "content": text}],
+                temperature=0.7
+            )
+            bot.reply_to(message, response.choices[0].message.content)
+        else:
+            bot.reply_to(message, "OpenAI nije dostupan.")
 
     except Exception as e:
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan.")
+print("Bot je aktivan - stabilna verzija.")
 bot.infinity_polling()
