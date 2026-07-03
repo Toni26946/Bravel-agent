@@ -28,7 +28,7 @@ DB_FILE = "bravel.db"
 
 print("Bravel Agent - SQLite verzija")
 
-# ==================== INICIJALIZACIJA BAZE ====================
+# ==================== SQLITE FUNKCIJE ====================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -74,9 +74,9 @@ def load_data():
     c = conn.cursor()
     
     c.execute("SELECT * FROM reminders")
-    reminders = []
+    reminders_list = []
     for row in c.fetchall():
-        reminders.append({
+        reminders_list.append({
             'id': row[0],
             'text': row[1],
             'time': datetime.fromisoformat(row[2]),
@@ -84,9 +84,9 @@ def load_data():
         })
     
     c.execute("SELECT * FROM recurring")
-    recurring = []
+    recurring_list = []
     for row in c.fetchall():
-        recurring.append({
+        recurring_list.append({
             'id': row[0],
             'text': row[1],
             'type': row[2],
@@ -97,8 +97,8 @@ def load_data():
         })
     
     conn.close()
-    return reminders, recurring
-
+    return reminders_list, recurring_list
+    
 init_db()
 reminders, recurring = load_data()
 
