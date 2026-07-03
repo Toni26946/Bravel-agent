@@ -26,11 +26,6 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DB_FILE = "bravel.db"
 
-init_db()
-reminders, recurring = load_data()
-
-print("Bravel Agent - SQLite verzija")
-
 # ==================== SQLITE FUNKCIJE ====================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -59,29 +54,38 @@ def init_db():
     conn.close()
     print("✅ SQLite baza inicijalizirana.")
 
+
 def save_reminder(text, time_obj, chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)", 
-              (text, time_obj.isoformat(), chat_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)",
+                  (text, time_obj.isoformat(), chat_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Greška pri spremanju jednokratnog podsjetnika: {e}")
+
 
 def save_recurring(text, rtype, chat_id, data):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    if rtype == "daily":
-        hour, minute = data
-        c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
-                  (text, rtype, hour, minute, chat_id))
-    else:  # weekly
-        weekday, hour, minute = data
-        c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
-                  (text, rtype, weekday, hour, minute, chat_id))
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        if rtype == "daily":
+            hour, minute = data
+            c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
+                      (text, rtype, hour, minute, chat_id))
+        else:  # weekly
+            weekday, hour, minute = data
+            c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
+                      (text, rtype, weekday, hour, minute, chat_id))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Greška pri spremanju ponavljajućeg podsjetnika: {e}")
+
 
 def load_data():
     conn = sqlite3.connect(DB_FILE)
@@ -114,43 +118,32 @@ def load_data():
     
     conn.close()
     return reminders_list, recurring_list
-    
+
+
+# Inicijalizacija baze
 init_db()
 reminders, recurring = load_data()
+print(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih podsjetnika.")
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
-
-def get_time_left(target):
-    now = get_current_datetime()
-    minutes = int((target - now).total_seconds() / 60)
-    if minutes <= 0:
-        return "uskoro"
-    elif minutes < 60:
-        return f"za {minutes} min"
-    else:
-        return f"za {minutes//60} sati"
 
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # ==================== PONAVLJAJUĆI ====================
+    # Ponavljajući
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki dan u tjednu
-    days_map = {
-        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6
-    }
-    for day_name, day_num in days_map.items():
+    days_map = {"ponedjeljak":0,"utorak":1,"srijeda":2,"četvrtak":3,"petak":4,"subota":5,"nedjelja":6}
+    for day_name, num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                return {"type": "weekly", "weekday": day_num, "hour": int(match.group(1)), "minute": int(match.group(2) or 0)}, "weekly"
+                return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
     # Jednokratni
     match = re.search(r'za (\d+) (minut|min)', text)
@@ -206,7 +199,6 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
-# Brisanje
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -247,7 +239,7 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')}\n"
+                    msg += f"{count+1}. {r['text']}\n"
                     count += 1
 
             if recurring:
@@ -265,31 +257,21 @@ def handle_message(message):
             bot.reply_to(message, msg, reply_markup=markup)
             return
 
-        if "status" in text.lower():
-            bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
-            return
-
-                result = parse_time(text)
+        result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
-            
             if rtype in ["daily", "weekly"]:
                 recurring.append({**data, 'text': text, 'chat_id': chat_id})
-                save_recurring(text, rtype, chat_id, data)   # ← Popravljeno
+                save_recurring(text, rtype, chat_id, data)
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
-                save_reminder(text, data, chat_id)           # ← Popravljeno
-                bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
-
-{text}
-Datum: {data.strftime('%d.%m.%Y')}
-Vrijeme: {data.strftime('%H:%M')}""")
+                save_reminder(text, data, chat_id)
+                bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
         # OpenAI
         if client:
-            current_time = get_current_datetime()
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
