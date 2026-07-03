@@ -146,7 +146,7 @@ def handle_message(message):
 
     try:
         
- if "podsjetnici" in text.lower() or "lista" in text.lower():
+                if "podsjetnici" in text.lower() or "lista" in text.lower():
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
@@ -155,21 +155,28 @@ def handle_message(message):
             markup = types.InlineKeyboardMarkup(row_width=1)
             count = 0
 
-            for r in reminders:
-                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
-                markup.add(btn)
-                msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({get_time_left(r['time'])})\n"
-                count += 1
+            # Jednokratni
+            if reminders:
+                msg += "**📌 Jednokratni podsjetnici:**\n"
+                for r in reminders:
+                    btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                    markup.add(btn)
+                    time_left = get_time_left(r['time'])
+                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                    count += 1
 
-            for r in recurring:
-                btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
-                markup.add(btn)
-                if r['type'] == "daily":
-                    msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
-                else:
-                    days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
-                    msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
-                count += 1
+            # Ponavljajući
+            if recurring:
+                msg += "\n**🔄 Ponavljajući podsjetnici:**\n"
+                for r in recurring:
+                    btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
+                    markup.add(btn)
+                    if r['type'] == "daily":
+                        msg += f"{count+1}. {r['text']} (🔄 svaki dan u {r['hour']:02d}:{r['minute']:02d})\n"
+                    else:
+                        days = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"]
+                        msg += f"{count+1}. {r['text']} (🔄 svaki {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d})\n"
+                    count += 1
 
             bot.reply_to(message, msg, reply_markup=markup)
             return
