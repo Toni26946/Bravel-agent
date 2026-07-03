@@ -26,6 +26,9 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DB_FILE = "bravel.db"
 
+init_db()
+reminders, recurring = load_data()
+
 print("Bravel Agent - SQLite verzija")
 
 # ==================== SQLITE FUNKCIJE ====================
@@ -61,11 +64,19 @@ def save_reminder(text, time_obj, chat_id):
     conn.commit()
     conn.close()
 
-def save_recurring(text, rtype, chat_id, weekday=None, hour=None, minute=None):
+def save_recurring(text, rtype, chat_id, data):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
-              (text, rtype, weekday, hour, minute, chat_id))
+    
+    if rtype == "daily":
+        hour, minute = data
+        c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
+                  (text, rtype, hour, minute, chat_id))
+    else:  # weekly
+        weekday, hour, minute = data
+        c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
+                  (text, rtype, weekday, hour, minute, chat_id))
+    
     conn.commit()
     conn.close()
 
@@ -73,6 +84,7 @@ def load_data():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
+    # Jednokratni
     c.execute("SELECT * FROM reminders")
     reminders_list = []
     for row in c.fetchall():
@@ -83,6 +95,7 @@ def load_data():
             'chat_id': row[3]
         })
     
+    # Ponavljajući
     c.execute("SELECT * FROM recurring")
     recurring_list = []
     for row in c.fetchall():
@@ -253,18 +266,17 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-        result = parse_time(text)
+                result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
+            
             if rtype in ["daily", "weekly"]:
-                if isinstance(data, dict):
-                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
-                else:
-                    hour, minute = data
-                    recurring.append({"type": "daily", "hour": hour, "minute": minute, 'text': text, 'chat_id': chat_id})
+                recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                save_recurring(text, rtype, chat_id, data)   # ← Popravljeno
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
+                save_reminder(text, data, chat_id)           # ← Popravljeno
                 bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
 
 {text}
