@@ -30,16 +30,12 @@ DB_FILE = "bravel.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    
-    # Jednokratni podsjetnici
     c.execute('''CREATE TABLE IF NOT EXISTS reminders (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
                     time TEXT,
                     chat_id INTEGER
                 )''')
-    
-    # Ponavljajući podsjetnici
     c.execute('''CREATE TABLE IF NOT EXISTS recurring (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
@@ -49,49 +45,35 @@ def init_db():
                     minute INTEGER,
                     chat_id INTEGER
                 )''')
-    
     conn.commit()
     conn.close()
-    print("✅ SQLite baza inicijalizirana.")
-
 
 def save_reminder(text, time_obj, chat_id):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)",
-                  (text, time_obj.isoformat(), chat_id))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Greška pri spremanju jednokratnog podsjetnika: {e}")
-
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)", 
+              (text, time_obj.isoformat(), chat_id))
+    conn.commit()
+    conn.close()
 
 def save_recurring(text, rtype, chat_id, data):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        
-        if rtype == "daily":
-            hour, minute = data
-            c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
-                      (text, rtype, hour, minute, chat_id))
-        else:  # weekly
-            weekday, hour, minute = data
-            c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
-                      (text, rtype, weekday, hour, minute, chat_id))
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Greška pri spremanju ponavljajućeg podsjetnika: {e}")
-
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    if rtype == "daily":
+        hour, minute = data
+        c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
+                  (text, rtype, hour, minute, chat_id))
+    else:  # weekly
+        weekday, hour, minute = data
+        c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
+                  (text, rtype, weekday, hour, minute, chat_id))
+    conn.commit()
+    conn.close()
 
 def load_data():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Jednokratni
     c.execute("SELECT * FROM reminders")
     reminders_list = []
     for row in c.fetchall():
@@ -102,7 +84,6 @@ def load_data():
             'chat_id': row[3]
         })
     
-    # Ponavljajući
     c.execute("SELECT * FROM recurring")
     recurring_list = []
     for row in c.fetchall():
@@ -119,11 +100,8 @@ def load_data():
     conn.close()
     return reminders_list, recurring_list
 
-
-# Inicijalizacija baze
 init_db()
 reminders, recurring = load_data()
-print(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih podsjetnika.")
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
