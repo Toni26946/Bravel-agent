@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import time
 import threading
 import re
-import sqlite3
+import json
 import telebot
 from telebot import types
 import keep_alive
@@ -24,83 +24,41 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-DB_FILE = "bravel.db"
+DATA_FILE = "reminders.json"
 
-print("Bravel Agent - SQLite verzija")
-
-# ==================== INICIJALIZACIJA BAZE ====================
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS reminders (
-                    id INTEGER PRIMARY KEY,
-                    text TEXT,
-                    time TEXT,
-                    chat_id INTEGER
-                )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS recurring (
-                    id INTEGER PRIMARY KEY,
-                    text TEXT,
-                    type TEXT,
-                    weekday INTEGER,
-                    hour INTEGER,
-                    minute INTEGER,
-                    chat_id INTEGER
-                )''')
-    
-    conn.commit()
-    conn.close()
-
-def save_reminder(text, time_obj, chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)", 
-              (text, time_obj.isoformat(), chat_id))
-    conn.commit()
-    conn.close()
-
-def save_recurring(text, rtype, chat_id, weekday=None, hour=None, minute=None):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
-              (text, rtype, weekday, hour, minute, chat_id))
-    conn.commit()
-    conn.close()
+reminders = []      # jednokratni
+recurring = []      # ponavljajući
 
 def load_data():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    c.execute("SELECT * FROM reminders")
-    reminders = []
-    for row in c.fetchall():
-        reminders.append({
-            'id': row[0],
-            'text': row[1],
-            'time': datetime.fromisoformat(row[2]),
-            'chat_id': row[3]
-        })
-    
-    c.execute("SELECT * FROM recurring")
-    recurring = []
-    for row in c.fetchall():
-        recurring.append({
-            'id': row[0],
-            'text': row[1],
-            'type': row[2],
-            'weekday': row[3],
-            'hour': row[4],
-            'minute': row[5],
-            'chat_id': row[6]
-        })
-    
-    conn.close()
-    return reminders, recurring
+    global reminders, recurring
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                reminders = data.get('reminders', [])
+                recurring = data.get('recurring', [])
+                for r in reminders:
+                    if isinstance(r.get('time'), str):
+                        r['time'] = datetime.fromisoformat(r['time'])
+            print(f"✅ Učitano {len(reminders)} jednokratnih i {len(recurring)} ponavljajućih podsjetnika.")
+    except Exception as e:
+        print(f"Greška pri učitavanju: {e}")
+        reminders = []
+        recurring = []
 
-init_db()
-reminders, recurring = load_data()
+def save_data():
+    try:
+        data = {
+            'reminders': [{**r, 'time': r['time'].isoformat()} for r in reminders],
+            'recurring': recurring
+        }
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print("✅ Podaci spremljeni u reminders.json")
+    except Exception as e:
+        print(f"Greška pri spremanju: {e}")
+
+load_data()  # učitaj pri pokretanju
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -176,6 +134,7 @@ def check_reminders():
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
+                save_data()
         
         for r in recurring:
             if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
@@ -199,6 +158,7 @@ def callback_handler(call):
                     reminders.remove(deleted)
                 else:
                     recurring.remove(deleted)
+                save_data()
                 bot.answer_callback_query(call.id, "✅ Izbrisano!")
                 bot.edit_message_text("✅ Podsjetnik je izbrisan.", call.message.chat.id, call.message.message_id)
     except:
@@ -227,7 +187,8 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')}\n"
+                    time_left = get_time_left(r['time'])
+                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
                     count += 1
 
             if recurring:
@@ -254,9 +215,11 @@ def handle_message(message):
             data, rtype = result
             if rtype in ["daily", "weekly"]:
                 recurring.append({**data, 'text': text, 'chat_id': chat_id})
+                save_data()
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
+                save_data()
                 bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
 
 {text}
@@ -279,5 +242,5 @@ Vrijeme: {data.strftime('%H:%M')}""")
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan sa SQLite bazom.")
+print("Bot je aktivan sa trajnim spremanjem.")
 bot.infinity_polling()
