@@ -23,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Finalna verzija sa datumom kod jednokratnih")
+print("Bravel Agent - Stabilna verzija (jednokratni + ponavljajući)")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -31,11 +31,21 @@ recurring = []      # ponavljajući
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
+def get_time_left(target):
+    now = get_current_datetime()
+    minutes = int((target - now).total_seconds() / 60)
+    if minutes <= 0:
+        return "uskoro"
+    elif minutes < 60:
+        return f"za {minutes} min"
+    else:
+        return f"za {minutes//60} sati"
+
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # ==================== PONAVLJAJUĆI ====================
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
@@ -48,7 +58,7 @@ def parse_time(text):
             if match:
                 return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
     
-    # Jednokratni
+    # ==================== JEDNOKRATNI ====================
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -87,20 +97,24 @@ def parse_time(text):
 def check_reminders():
     while True:
         now = get_current_datetime()
+        
+        # Jednokratni
         for r in reminders[:]:
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
         
+        # Ponavljajući
         for r in recurring:
             if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
                (r['type'] == "weekly" and r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute):
                 bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+        
         time.sleep(5)
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
-# Brisanje i lista ostaju netaknuti
+# ==================== BRISANJE ====================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -128,7 +142,6 @@ def handle_message(message):
 
     try:
         if "podsjetnici" in text.lower() or "lista" in text.lower():
-            # Lista ostaje kako ti se sviđa
             if not reminders and not recurring:
                 bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
                 return
@@ -140,7 +153,7 @@ def handle_message(message):
             for r in reminders:
                 btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                 markup.add(btn)
-                msg += f"{count+1}. {r['text']}\n"
+                msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({get_time_left(r['time'])})\n"
                 count += 1
 
             for r in recurring:
@@ -169,7 +182,6 @@ def handle_message(message):
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
-                # ← POPRAVLJENO: Jednokratni sada ima datum i vrijeme
                 bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
 
 {text}
