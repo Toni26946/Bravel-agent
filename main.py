@@ -28,7 +28,7 @@ DB_FILE = "bravel.db"
 
 print("Bravel Agent - SQLite verzija")
 
-# ==================== BAZA PODATAKA ====================
+# ==================== INICIJALIZACIJA BAZE ====================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -56,7 +56,7 @@ def init_db():
 def save_reminder(text, time_obj, chat_id):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)",
+    c.execute("INSERT INTO reminders (text, time, chat_id) VALUES (?, ?, ?)", 
               (text, time_obj.isoformat(), chat_id))
     conn.commit()
     conn.close()
@@ -69,9 +69,10 @@ def save_recurring(text, rtype, chat_id, weekday=None, hour=None, minute=None):
     conn.commit()
     conn.close()
 
-def load_reminders():
+def load_data():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    
     c.execute("SELECT * FROM reminders")
     reminders = []
     for row in c.fetchall():
@@ -99,7 +100,7 @@ def load_reminders():
     return reminders, recurring
 
 init_db()
-reminders, recurring = load_reminders()
+reminders, recurring = load_data()
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -185,7 +186,7 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
-# ==================== BRISANJE ====================
+# Brisanje
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -226,8 +227,7 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    time_left = get_time_left(r['time'])
-                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')}\n"
                     count += 1
 
             if recurring:
