@@ -26,16 +26,20 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 DB_FILE = "bravel.db"
 
-# ==================== SQLITE FUNKCIJE ====================
+print("Bravel Agent - SQLite verzija")
+
+# ==================== INICIJALIZACIJA BAZE ====================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    
     c.execute('''CREATE TABLE IF NOT EXISTS reminders (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
                     time TEXT,
                     chat_id INTEGER
                 )''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS recurring (
                     id INTEGER PRIMARY KEY,
                     text TEXT,
@@ -45,6 +49,7 @@ def init_db():
                     minute INTEGER,
                     chat_id INTEGER
                 )''')
+    
     conn.commit()
     conn.close()
 
@@ -56,17 +61,11 @@ def save_reminder(text, time_obj, chat_id):
     conn.commit()
     conn.close()
 
-def save_recurring(text, rtype, chat_id, data):
+def save_recurring(text, rtype, chat_id, weekday=None, hour=None, minute=None):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    if rtype == "daily":
-        hour, minute = data
-        c.execute("INSERT INTO recurring (text, type, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?)",
-                  (text, rtype, hour, minute, chat_id))
-    else:  # weekly
-        weekday, hour, minute = data
-        c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
-                  (text, rtype, weekday, hour, minute, chat_id))
+    c.execute("INSERT INTO recurring (text, type, weekday, hour, minute, chat_id) VALUES (?, ?, ?, ?, ?, ?)",
+              (text, rtype, weekday, hour, minute, chat_id))
     conn.commit()
     conn.close()
 
@@ -75,9 +74,9 @@ def load_data():
     c = conn.cursor()
     
     c.execute("SELECT * FROM reminders")
-    reminders_list = []
+    reminders = []
     for row in c.fetchall():
-        reminders_list.append({
+        reminders.append({
             'id': row[0],
             'text': row[1],
             'time': datetime.fromisoformat(row[2]),
@@ -85,9 +84,9 @@ def load_data():
         })
     
     c.execute("SELECT * FROM recurring")
-    recurring_list = []
+    recurring = []
     for row in c.fetchall():
-        recurring_list.append({
+        recurring.append({
             'id': row[0],
             'text': row[1],
             'type': row[2],
@@ -98,13 +97,23 @@ def load_data():
         })
     
     conn.close()
-    return reminders_list, recurring_list
+    return reminders, recurring
 
 init_db()
 reminders, recurring = load_data()
 
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
+
+def get_time_left(target):
+    now = get_current_datetime()
+    minutes = int((target - now).total_seconds() / 60)
+    if minutes <= 0:
+        return "uskoro"
+    elif minutes < 60:
+        return f"za {minutes} min"
+    else:
+        return f"za {minutes//60} sati"
 
 def parse_time(text):
     text = text.lower()
@@ -177,6 +186,7 @@ def check_reminders():
 
 threading.Thread(target=check_reminders, daemon=True).start()
 
+# Brisanje
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     try:
@@ -217,7 +227,7 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    msg += f"{count+1}. {r['text']}\n"
+                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')}\n"
                     count += 1
 
             if recurring:
@@ -235,21 +245,28 @@ def handle_message(message):
             bot.reply_to(message, msg, reply_markup=markup)
             return
 
+        if "status" in text.lower():
+            bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
+            return
+
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
             if rtype in ["daily", "weekly"]:
                 recurring.append({**data, 'text': text, 'chat_id': chat_id})
-                save_recurring(text, rtype, chat_id, data)
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
-                save_reminder(text, data, chat_id)
-                bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
+                bot.reply_to(message, f"""✅ **Podsjetnik postavljen!**
+
+{text}
+Datum: {data.strftime('%d.%m.%Y')}
+Vrijeme: {data.strftime('%H:%M')}""")
             return
 
         # OpenAI
         if client:
+            current_time = get_current_datetime()
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
