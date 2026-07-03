@@ -15,21 +15,15 @@ logger = logging.getLogger(__name__)
 
 keep_alive
 
-# ==================== PROVJERA KLJUČEVA ====================
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+client = OpenAI()
 
-if not TELEGRAM_TOKEN:
-    print("ERROR: TELEGRAM_TOKEN nije postavljen!")
-    exit(1)
-
-client = OpenAI() if OPENAI_API_KEY else None
-
+TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Stabilna verzija")
+print("Bravel Agent - Stabilna verzija sa ponavljajućim podsjetnicima")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -37,40 +31,26 @@ recurring = []      # ponavljajući
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
-def get_time_left(target):
-    now = get_current_datetime()
-    minutes = int((target - now).total_seconds() / 60)
-    if minutes <= 0:
-        return "uskoro"
-    elif minutes < 60:
-        return f"za {minutes} min"
-    else:
-        return f"za {minutes//60} sati"
-
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # PONAVLJAJUĆI PODSJETNICI
+    # Ponavljajući podsjetnici
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    # Svaki određeni dan (ponedjeljak, petak...)
-    days_map = {
-        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
-        "subota": 5, "nedjelja": 6
-    }
-    for day_name, day_num in days_map.items():
+    days_map = {"ponedjeljak":0, "utorak":1, "srijeda":2, "četvrtak":3, "petak":4, "subota":5, "nedjelja":6}
+    for day_name, num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
                 hour = int(match.group(1))
                 minute = int(match.group(2) or 0)
-                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "weekly"
+                return {"type": "weekly", "weekday": num, "hour": hour, "minute": minute}, "weekly"
     
-    # Jednokratni (ne diram)
+    # Jednokratni (ostaje nepromijenjeno)
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -110,15 +90,20 @@ def check_reminders():
     while True:
         now = get_current_datetime()
         
+        # Jednokratni
         for r in reminders[:]:
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🛎️ **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
                 reminders.remove(r)
         
+        # Ponavljajući
         for r in recurring:
-            if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
-               (r['type'] == "weekly" and r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute):
-                bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            if r['type'] == "daily":
+                if r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            elif r['type'] == "weekly":
+                if r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
         
         time.sleep(5)
 
@@ -165,8 +150,7 @@ def handle_message(message):
                 for r in reminders:
                     btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                     markup.add(btn)
-                    time_left = get_time_left(r['time'])
-                    msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                    msg += f"{count+1}. {r['text']}\n"
                     count += 1
 
             if recurring:
@@ -188,42 +172,30 @@ def handle_message(message):
             bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
             return
 
-                result = parse_time(text)
+        result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
             if rtype in ["daily", "weekly"]:
-                if isinstance(data, dict):
-                    recurring.append({**data, 'text': text, 'chat_id': chat_id})
-                else:
-                    hour, minute = data
-                    recurring.append({"type": "daily", "hour": hour, "minute": minute, 'text': text, 'chat_id': chat_id})
+                recurring.append({**data, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
                 reminders.append({'text': text, 'time': data, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Podsjetnik postavljen!**\n\n{text}")
             return
 
-{text}
-Datum: {data.strftime('%d.%m.%Y')}
-Vrijeme: {data.strftime('%H:%M')}""")
-            return
-
         # OpenAI
-        if client:
-            current_time = get_current_datetime()
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
-                          {"role": "user", "content": text}],
-                temperature=0.7
-            )
-            bot.reply_to(message, response.choices[0].message.content)
-        else:
-            bot.reply_to(message, "OpenAI nije dostupan.")
+        current_time = get_current_datetime()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
+                      {"role": "user", "content": text}],
+            temperature=0.7
+        )
+        bot.reply_to(message, response.choices[0].message.content)
 
     except Exception as e:
         logger.error(f"Greška: {e}")
         bot.reply_to(message, "Došlo je do greške. Pokušaj ponovo.")
 
-print("Bot je aktivan - stabilna verzija.")
+print("Bot je aktivan.")
 bot.infinity_polling()
