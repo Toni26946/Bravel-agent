@@ -51,20 +51,30 @@ def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # ==================== PONAVLJAJUĆI ====================
+    # Svaki dan
     if any(x in text for x in ["svaki dan", "svakodnevno", "every day"]):
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
             return (int(match.group(1)), int(match.group(2) or 0)), "daily"
     
-    days_map = {"ponedjeljak":0,"utorak":1,"srijeda":2,"četvrtak":3,"petak":4,"subota":5,"nedjelja":6}
-    for day_name, num in days_map.items():
+    # Svaki određeni dan u tjednu (najbolja detekcija)
+    days_map = {
+        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
+        "subota": 5, "nedjelja": 6,
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+        "saturday": 5, "sunday": 6
+    }
+    
+    for day_name, day_num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
+                hour = int(match.group(1))
+                minute = int(match.group(2) or 0)
+                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
     
-    # Jednokratni
+    # ==================== JEDNOKRATNI ====================
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
