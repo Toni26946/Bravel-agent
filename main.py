@@ -23,7 +23,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-print("Bravel Agent - Stabilna verzija")
+print("Bravel Agent - Stabilna verzija ponavljajućih podsjetnika")
 
 reminders = []      # jednokratni
 recurring = []      # ponavljajući
@@ -31,35 +31,32 @@ recurring = []      # ponavljajući
 def get_current_datetime():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
-def get_time_left(target):
-    now = get_current_datetime()
-    minutes = int((target - now).total_seconds() / 60)
-    if minutes <= 0:
-        return "uskoro"
-    elif minutes < 60:
-        return f"za {minutes} min"
-    else:
-        return f"za {minutes//60} sati"
-
 def parse_time(text):
     text = text.lower()
     now = get_current_datetime()
     
-    # Ponavljajući
+    # Ponavljajući - svaki dan
     if "svaki dan" in text or "svakodnevno" in text:
         match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            return (int(match.group(1)), int(match.group(2) or 0)), "daily"
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            return {"type": "daily", "hour": hour, "minute": minute}, "recurring"
     
-    # Svaki dan u tjednu
-    days = {"ponedjeljak":0, "utorak":1, "srijeda":2, "četvrtak":3, "petak":4, "subota":5, "nedjelja":6}
-    for day_name, num in days.items():
+    # Ponavljajući - svaki određeni dan
+    days_map = {
+        "ponedjeljak": 0, "utorak": 1, "srijeda": 2, "četvrtak": 3, "petak": 4,
+        "subota": 5, "nedjelja": 6
+    }
+    for day_name, day_num in days_map.items():
         if day_name in text:
             match = re.search(r'(?:u|at|oko) (\d{1,2})[:.]?(\d{2})?', text)
             if match:
-                return (num, int(match.group(1)), int(match.group(2) or 0)), "weekly"
+                hour = int(match.group(1))
+                minute = int(match.group(2) or 0)
+                return {"type": "weekly", "weekday": day_num, "hour": hour, "minute": minute}, "recurring"
     
-    # Jednokratni
+    # Jednokratni (ne diram)
     match = re.search(r'za (\d+) (minut|min)', text)
     if match:
         return now + timedelta(minutes=int(match.group(1))), "once"
@@ -67,25 +64,28 @@ def parse_time(text):
     if "sutra" in text:
         match = re.search(r'sutra.*u? (\d{1,2})[:.]?(\d{2})?', text)
         if match:
-            h = int(match.group(1))
-            m = int(match.group(2) or 0)
+            hour = int(match.group(1))
+            minute = int(match.group(2)) if match.group(2) else 0
             target = now + timedelta(days=1)
-            target = target.replace(hour=h, minute=m, second=0, microsecond=0)
+            target = target.replace(hour=hour, minute=minute, second=0, microsecond=0)
             return target, "once"
     
-    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u|at)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    match = re.search(r'(\d{1,2})\.(\d{1,2})\.?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if match:
-        d, m, h, min_ = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4) or 0)
-        target = now.replace(day=d, month=m, hour=h, minute=min_, second=0, microsecond=0)
+        day = int(match.group(1))
+        month = int(match.group(2))
+        hour = int(match.group(3))
+        minute = int(match.group(4)) if match.group(4) else 0
+        target = now.replace(day=day, month=month, hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now:
             target = target.replace(year=target.year + 1)
         return target, "once"
     
     match = re.search(r'u? (\d{1,2})[:.]?(\d{2})?', text)
     if match:
-        h = int(match.group(1))
-        m = int(match.group(2) or 0)
-        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        hour = int(match.group(1))
+        minute = int(match.group(2)) if match.group(2) else 0
+        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
         return target, "once"
@@ -104,9 +104,12 @@ def check_reminders():
         
         # Ponavljajući
         for r in recurring:
-            if (r['type'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute) or \
-               (r['type'] == "weekly" and r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute):
-                bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
+            if r['type'] == "daily":
+                if r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI**\n\n{r['text']}", parse_mode='Markdown')
+            elif r['type'] == "weekly":
+                if r['weekday'] == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute:
+                    bot.send_message(r['chat_id'], f"🔄 **PONAVLJAJUĆI**\n\n{r['text']}", parse_mode='Markdown')
         
         time.sleep(5)
 
@@ -115,20 +118,20 @@ threading.Thread(target=check_reminders, daemon=True).start()
 # Brisanje
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
-    if call.data.startswith("delete_"):
-        try:
-            idx = int(call.data.split("_")[1])
-            all_list = reminders + recurring
-            if 0 <= idx < len(all_list):
-                item = all_list[idx]
-                if item in reminders:
-                    reminders.remove(item)
+    try:
+        if call.data.startswith("delete_"):
+            index = int(call.data.split("_")[1])
+            all_rem = reminders + recurring
+            if 0 <= index < len(all_rem):
+                deleted = all_rem[index]
+                if deleted in reminders:
+                    reminders.remove(deleted)
                 else:
-                    recurring.remove(item)
-                bot.answer_callback_query(call.id, "✅ Izbrisano")
+                    recurring.remove(deleted)
+                bot.answer_callback_query(call.id, "✅ Izbrisano!")
                 bot.edit_message_text("✅ Podsjetnik izbrisan.", call.message.chat.id, call.message.message_id)
-        except:
-            pass
+    except:
+        pass
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -140,6 +143,11 @@ def handle_message(message):
 
     try:
         if "podsjetnici" in text.lower() or "lista" in text.lower():
+            # Lista ostaje netaknuta
+            if not reminders and not recurring:
+                bot.reply_to(message, "Nemaš aktivnih podsjetnika.")
+                return
+
             msg = "📋 **Tvoji aktivni podsjetnici:**\n\n"
             markup = types.InlineKeyboardMarkup(row_width=1)
             count = 0
@@ -147,8 +155,7 @@ def handle_message(message):
             for r in reminders:
                 btn = types.InlineKeyboardButton("🗑 Izbriši", callback_data=f"delete_{count}")
                 markup.add(btn)
-                time_left = get_time_left(r['time'])
-                msg += f"{count+1}. {r['text']}\n   ⏰ {r['time'].strftime('%d.%m.%Y %H:%M')} ({time_left})\n"
+                msg += f"{count+1}. {r['text']}\n"
                 count += 1
 
             for r in recurring:
@@ -164,11 +171,15 @@ def handle_message(message):
             bot.reply_to(message, msg, reply_markup=markup)
             return
 
+        if "status" in text.lower():
+            bot.reply_to(message, "✅ Bot je aktivan i radi 24/7.")
+            return
+
         # Parsiranje
         result = parse_time(text)
         if result and result[0] is not None:
             data, rtype = result
-            if rtype == "daily" or rtype == "weekly":
+            if rtype == "recurring" or rtype == "daily" or rtype == "weekly":
                 recurring.append({**data, 'text': text, 'chat_id': chat_id})
                 bot.reply_to(message, f"✅ **Ponavljajući podsjetnik postavljen!**\n\n{text}")
             else:
@@ -180,7 +191,7 @@ def handle_message(message):
         current_time = get_current_datetime()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "Odgovaraj na istom jeziku."},
+            messages=[{"role": "system", "content": "Odgovaraj na istom jeziku na kojem ti je korisnik postavio pitanje."},
                       {"role": "user", "content": text}],
             temperature=0.7
         )
