@@ -106,7 +106,7 @@ def add_recurring(chat_id, text, rtype, hour, minute, weekday=None):
 
 def get_user_items(chat_id):
     """Vraca (jednokratni, ponavljajuci) za jednog korisnika,
-    deterministicki poredano - isti poredak koristi i /lista i /obrisi."""
+    deterministicki poredano za prikaz u /lista."""
     with db() as conn:
         once = conn.execute(
             "SELECT * FROM reminders WHERE chat_id = ? ORDER BY time_ts, id",
@@ -301,22 +301,30 @@ def check_reminders():
 
 # ==================== PRIKAZ I BRISANJE ====================
 
-def show_reminders(message):
-    once, rec = get_user_items(message.chat.id)
+def _short(text, n=25):
+    return text if len(text) <= n else text[:n - 1] + "…"
+
+
+def build_reminders_view(chat_id):
+    """Sastavlja tekst liste i gumbe za brisanje.
+    Vraca (tekst, markup) - markup je None ako nema podsjetnika."""
+    once, rec = get_user_items(chat_id)
 
     if not once and not rec:
-        bot.reply_to(message, "Trenutno nemaš aktivnih podsjetnika.")
-        return
+        return "Trenutno nemaš aktivnih podsjetnika.", None
 
     lines = ["📋 Tvoji podsjetnici:", ""]
-    idx = 1
+    markup = telebot.types.InlineKeyboardMarkup()
 
     if once:
         lines.append("Jednokratni:")
         for r in once:
             dt = datetime.fromtimestamp(r["time_ts"], TZ)
-            lines.append(f"{idx}. {dt.strftime('%d.%m.%Y. %H:%M')} → {r['text']}")
-            idx += 1
+            lines.append(f"• {dt.strftime('%d.%m.%Y. %H:%M')} → {r['text']}")
+            markup.add(telebot.types.InlineKeyboardButton(
+                f"🗑 {dt.strftime('%d.%m. %H:%M')} — {_short(r['text'])}",
+                callback_data=f"del_o_{r['id']}"
+            ))
         lines.append("")
 
     if rec:
@@ -324,41 +332,61 @@ def show_reminders(message):
         day_names = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
         for r in rec:
             if r["rtype"] == "daily":
-                lines.append(f"{idx}. 🔄 Svaki dan u {r['hour']:02d}:{r['minute']:02d} → {r['text']}")
+                when = f"Svaki dan u {r['hour']:02d}:{r['minute']:02d}"
             else:
-                wd = day_names[r["weekday"] or 0]
-                lines.append(f"{idx}. 🔄 {wd} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}")
-            idx += 1
+                when = f"{day_names[r['weekday'] or 0]} u {r['hour']:02d}:{r['minute']:02d}"
+            lines.append(f"• 🔄 {when} → {r['text']}")
+            markup.add(telebot.types.InlineKeyboardButton(
+                f"🗑 {when} — {_short(r['text'])}",
+                callback_data=f"del_r_{r['id']}"
+            ))
 
     lines.append("")
-    lines.append("Za brisanje: /obrisi BROJ (npr. /obrisi 2)")
-    bot.reply_to(message, "\n".join(lines))
+    lines.append("Za brisanje klikni gumb ispod 👇")
+    return "\n".join(lines), markup
 
 
-def delete_reminder(message):
-    m = re.search(r'/obrisi\s+(\d+)', message.text.lower())
-    if not m:
-        bot.reply_to(message, "Napiši broj podsjetnika, npr. /obrisi 2\nBrojeve vidiš sa /lista")
+def show_reminders(message):
+    text, markup = build_reminders_view(message.chat.id)
+    bot.reply_to(message, text, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("del_"))
+def delete_callback(c):
+    if c.from_user.id not in ALLOWED_USERS:
+        bot.answer_callback_query(c.id)
         return
 
-    num = int(m.group(1))
-    once, rec = get_user_items(message.chat.id)  # isti poredak kao /lista
-    total = len(once) + len(rec)
+    try:
+        _, kind, rid = c.data.split("_")
+        rid = int(rid)
+        table = "reminders" if kind == "o" else "recurring"
 
-    if num < 1 or num > total:
-        bot.reply_to(message, f"Ne postoji podsjetnik broj {num}. Provjeri /lista")
-        return
+        # Brisi samo ako podsjetnik pripada ovom korisniku
+        with db() as conn:
+            row = conn.execute(
+                f"SELECT text FROM {table} WHERE id = ? AND chat_id = ?",
+                (rid, c.message.chat.id)
+            ).fetchone()
+            if row:
+                conn.execute(f"DELETE FROM {table} WHERE id = ?", (rid,))
 
-    if num <= len(once):
-        target = once[num - 1]
-        with db() as conn:
-            conn.execute("DELETE FROM reminders WHERE id = ?", (target["id"],))
-        bot.reply_to(message, f"🗑 Obrisan podsjetnik: {target['text']}")
-    else:
-        target = rec[num - len(once) - 1]
-        with db() as conn:
-            conn.execute("DELETE FROM recurring WHERE id = ?", (target["id"],))
-        bot.reply_to(message, f"🗑 Obrisan ponavljajući podsjetnik: {target['text']}")
+        if row:
+            bot.answer_callback_query(c.id, f"🗑 Obrisano: {_short(row['text'])}")
+        else:
+            bot.answer_callback_query(c.id, "Taj podsjetnik više ne postoji.")
+
+        # Osvjezi poruku s novom listom (gumb obrisanog nestaje)
+        text, markup = build_reminders_view(c.message.chat.id)
+        try:
+            bot.edit_message_text(text, c.message.chat.id, c.message.message_id,
+                                  reply_markup=markup)
+        except Exception:
+            pass  # npr. identican sadrzaj - nije problem
+
+    except Exception as e:
+        print(f"Greska u delete_callback: {e}")
+        bot.answer_callback_query(c.id, "Greška pri brisanju.")
 
 
 # ==================== AI RAZGOVOR ====================
@@ -402,7 +430,7 @@ def get_ai_response(chat_id, text):
 
 # ==================== HANDLERS ====================
 
-@bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik', 'obrisi', 'reset'])
+@bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik', 'reset'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -416,17 +444,12 @@ def command_handler(message):
             "Podsjetnik postaviš običnom porukom, npr:\n"
             "• sutra u 10 nazovi klijenta\n"
             "• svaki dan u 7:30 provjeri kamione\n"
-            "• petak u 14 sastanak\n\n"
+            "• u 14:30 idem na trening\n\n"
             "Naredbe:\n"
-            "/lista – pregled podsjetnika\n"
-            "/obrisi BROJ – brisanje podsjetnika\n"
+            "/lista – pregled podsjetnika (brisanje gumbom)\n"
             "/reset – obriši povijest AI razgovora\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
-        return
-
-    if cmd.startswith('/obrisi'):
-        delete_reminder(message)
         return
 
     if cmd.startswith('/reset'):
