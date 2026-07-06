@@ -120,9 +120,9 @@ def show_reminders(message):
     bot.reply_to(message, text, parse_mode='Markdown')
 
 # ==================== HANDLERS ====================
+# ==================== HANDLERS ====================
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik'])
 def command_handler(message):
-    print(f"DEBUG: Primljena naredba: {message.text}")  # debug
     if message.chat.id not in ALLOWED_USERS:
         return
     
@@ -132,6 +132,7 @@ def command_handler(message):
         bot.reply_to(message, "✅ Bot je aktivan!")
         return
 
+    # Ako je komanda sa kosicom
     if cmd.startswith(('/lista', '/list', '/podsjetnici', '/podsjetnik')):
         show_reminders(message)
         return
@@ -144,6 +145,13 @@ def handle(message):
 
     text = message.text.strip().lower()
 
+    # Provjera za prirodne načine traženja liste
+    list_keywords = ["lista", "list", "podsjetnici", "podsjetnik", "moji podsjetnici", "pokaži podsjetnike", "što imam", "pregled"]
+    if any(keyword in text for keyword in list_keywords):
+        show_reminders(message)
+        return
+
+    # Provjera za podsjetnike
     reminder_keywords = ["podsjet", "podsjeti", "remind", "za ", "sutra", "prekosutra", "svaki dan", "svakodnevno"]
     if any(word in text for word in reminder_keywords):
         result, rtype = parse_time(message.text)
@@ -161,10 +169,10 @@ def handle(message):
                 bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
             return
 
-    # OpenAI razgovor
+    # Ako nije ništa od navedenog → OpenAI razgovor
     response = get_openai_response(message.text)
     bot.reply_to(message, response)
-
+    
 def get_openai_response(text):
     try:
         response = client.chat.completions.create(
