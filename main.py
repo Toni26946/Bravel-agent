@@ -136,6 +136,14 @@ def handle(message):
     else:
         bot.reply_to(message, "❌ Nisam uspio razumjeti vrijeme. Pokušaj drugačije.")
 
+# ==================== START ====================
 print("🚀 Bot pokrenut (in-memory verzija)")
+
+# VAŽNO: Ukloni webhook ako postoji
+print("Brisanje starog webhooka...")
+bot.delete_webhook(drop_pending_updates=True)
+
 threading.Thread(target=check_reminders, daemon=True).start()
+
+bot.infinity_polling()
 bot.infinity_polling()
