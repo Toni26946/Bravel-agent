@@ -24,7 +24,7 @@ recurring = []      # ponavljajući
 def get_now():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
-# ==================== PODSJETNICI (moj kod) ====================
+# ==================== PODSJETNICI ====================
 def parse_time(text):
     text = text.lower().strip()
     now = get_now()
@@ -95,7 +95,31 @@ def check_reminders():
                 bot.send_message(r['chat_id'], f"🔄 **TJEDNI PODSJETNIK**\n\n{r['text']}")
         time.sleep(10)
 
-# ==================== OPENAI - SAMO ZA RAZGOVOR ====================
+def show_reminders(message):
+    if not reminders and not recurring:
+        bot.reply_to(message, "Trenutno nemaš aktivnih podsjetnika.")
+        return
+
+    text = "📋 **Tvoji podsjetnici:**\n\n"
+
+    if reminders:
+        text += "**Jednokratni:**\n"
+        for i, r in enumerate(reminders, 1):
+            text += f"{i}. {r['time'].strftime('%d.%m.%Y. %H:%M')} → {r['text']}\n"
+        text += "\n"
+
+    if recurring:
+        text += "**Ponavljajući:**\n"
+        for r in recurring:
+            if r['rtype'] == "daily":
+                text += f"🔄 Svaki dan u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
+            else:
+                days = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
+                text += f"🔄 {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
+
+    bot.reply_to(message, text, parse_mode='Markdown')
+
+# ==================== OPENAI RAZGOVOR ====================
 def get_openai_response(text):
     try:
         response = client.chat.completions.create(
@@ -108,10 +132,9 @@ def get_openai_response(text):
         )
         return response.choices[0].message.content
     except:
-        return "Žao mi je, trenutno imam problema sa razumijevanjem."
+        return "Žao mi je, trenutno imam problema sa odgovorom."
 
-# ==================== BOT HANDLER ====================
-# ==================== BOT HANDLER ====================
+# ==================== HANDLERS ====================
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
@@ -126,6 +149,7 @@ def command_handler(message):
     if cmd.startswith(('/lista', '/list', '/podsjetnici', '/podsjetnik')):
         show_reminders(message)
         return
+
 
 @bot.message_handler(func=lambda m: True)
 def handle(message):
@@ -152,42 +176,12 @@ def handle(message):
                 bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
             return
 
-    # Ako nije podsjetnik → razgovor sa OpenAI
-    response = get_openai_response(message.text)
-    bot.reply_to(message, response)
-
-
-def show_reminders(message):
-    if not reminders and not recurring:
-        bot.reply_to(message, "Trenutno nemaš aktivnih podsjetnika.")
-        return
-
-    text = "📋 **Tvoji podsjetnici:**\n\n"
-
-    if reminders:
-        text += "**Jednokratni:**\n"
-        for i, r in enumerate(reminders, 1):
-            text += f"{i}. {r['time'].strftime('%d.%m.%Y. %H:%M')} → {r['text']}\n"
-        text += "\n"
-
-    if recurring:
-        text += "**Ponavljajući:**\n"
-        for r in recurring:
-            if r['rtype'] == "daily":
-                text += f"🔄 Svaki dan u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
-            else:
-                days = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
-                text += f"🔄 {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
-
-    bot.reply_to(message, text, parse_mode='Markdown')
-            return
-
-    # Ako nije podsjetnik → normalan razgovor sa OpenAI
+    # Normalan razgovor sa OpenAI
     response = get_openai_response(message.text)
     bot.reply_to(message, response)
 
 # ==================== START ====================
-print("🚀 Bot pokrenut - Podsjetnici + OpenAI razgovor")
+print("🚀 Bot pokrenut - Podsjetnici + OpenAI")
 bot.delete_webhook(drop_pending_updates=True)
 threading.Thread(target=check_reminders, daemon=True).start()
 bot.infinity_polling()
