@@ -155,19 +155,22 @@ def handle(message):
     reminder_keywords = ["podsjet", "podsjeti", "remind", "za ", "sutra", "prekosutra", "svaki dan", "svakodnevno"]
     if any(word in text for word in reminder_keywords):
         result, rtype = parse_time(message.text)
-        if result:
-            if rtype == "once":
-                reminders.append({'text': message.text, 'time': result, 'chat_id': message.chat.id})
-                bot.reply_to(message, f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}")
+      # Pokušaj prepoznati podsjetnik (prošireno)
+    result, rtype = parse_time(text)
+    
+    if result:
+        if rtype == "once":
+            reminders.append({'text': text, 'time': result, 'chat_id': message.chat.id})
+            bot.reply_to(message, f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}")
+        else:
+            if rtype == "daily":
+                hour, minute = result
+                recurring.append({'text': text, 'rtype': 'daily', 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
             else:
-                if rtype == "daily":
-                    hour, minute = result
-                    recurring.append({'text': message.text, 'rtype': 'daily', 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
-                else:
-                    weekday, hour, minute = result
-                    recurring.append({'text': message.text, 'rtype': 'weekly', 'weekday': weekday, 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
-                bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
-            return
+                weekday, hour, minute = result
+                recurring.append({'text': text, 'rtype': 'weekly', 'weekday': weekday, 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
+            bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
+        return
 
     # Ako nije ništa od navedenog → OpenAI razgovor
     response = get_openai_response(message.text)
