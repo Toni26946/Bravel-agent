@@ -153,22 +153,18 @@ def handle(message):
     if message.chat.id not in ALLOWED_USERS:
         return
 
-    text = message.text.strip().lower()
+    text = message.text.strip()
+    lower = text.lower()
 
-    # Provjera za prirodne načine traženja liste
+    # 1. Prvo provjeri listu podsjetnika
     list_keywords = ["lista", "list", "podsjetnici", "podsjetnik", "moji podsjetnici", "pokaži podsjetnike", "što imam", "pregled"]
-    if any(keyword in text for keyword in list_keywords):
+    if any(k in lower for k in list_keywords):
         show_reminders(message)
         return
 
-    # Provjera za podsjetnike
-    reminder_keywords = ["podsjet", "podsjeti", "remind", "za ", "sutra", "prekosutra", "svaki dan", "svakodnevno"]
-    if any(word in text for word in reminder_keywords):
-        result, rtype = parse_time(message.text)
-      # Pokušaj prepoznati podsjetnik (prošireno)
+    # 2. Pokušaj prepoznati kao podsjetnik (glavna provjera)
     result, rtype = parse_time(text)
-    
-    if result:
+    if result is not None:
         if rtype == "once":
             reminders.append({'text': text, 'time': result, 'chat_id': message.chat.id})
             bot.reply_to(message, f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}")
@@ -182,8 +178,8 @@ def handle(message):
             bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
         return
 
-    # Ako nije ništa od navedenog → OpenAI razgovor
-    response = get_openai_response(message.text)
+    # 3. Ako nije podsjetnik → razgovor sa OpenAI
+    response = get_openai_response(text)
     bot.reply_to(message, response)
     
 def get_openai_response(text):
