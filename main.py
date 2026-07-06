@@ -24,103 +24,123 @@ recurring = []      # ponavljajući
 def get_now():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
-# ==================== OPENAI PARSING ====================
-def parse_with_openai(text):
-    prompt = f"""
-    Ti si asistent za postavljanje podsjetnika.
-    Trenutno vrijeme: {get_now().strftime('%d.%m.%Y. %H:%M')}
-    
-    Korisnik je rekao: "{text}"
-    
-    Vrati samo JSON sa:
-    - "type": "once" ili "daily" ili "weekly"
-    - "time": ISO format datuma/vremena (ako je once) ili null
-    - "hour": broj (za daily/weekly)
-    - "minute": broj
-    - "weekday": broj 0-6 (za weekly, None ako nije)
-    - "text": originalni tekst podsjetnika
-    
-    Ako ne razumiješ, vrati null.
-    """
+# ==================== PODSJETNICI (moj kod) ====================
+def parse_time(text):
+    text = text.lower().strip()
+    now = get_now()
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        import json
-        result = json.loads(response.choices[0].message.content.strip())
-        return result
-    except:
-        return None
+    # Ponavljajući
+    if any(x in text for x in ["svaki dan", "svakodnevno", "daily"]):
+        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        if m:
+            return (int(m.group(1)), int(m.group(2) or 0)), "daily"
 
-# ==================== CHECK REMINDERS (isto kao prije) ====================
+    days = {"ponedjeljak":0,"pon":0,"utorak":1,"uto":1,"srijeda":2,"sri":2,"četvrtak":3,"čet":3,
+            "petak":4,"pet":4,"subota":5,"sub":5,"nedjelja":6,"ned":6}
+    for name, wd in days.items():
+        if name in text:
+            m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+            if m:
+                return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly"
+
+    # Jednokratni
+    m = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    if m:
+        d, mo, y, h, mi = m.groups()
+        year = int(y) if y else now.year
+        if year < 100: year += 2000
+        try:
+            target = datetime(year, int(mo), int(d), int(h), int(mi or 0), tzinfo=ZoneInfo("Europe/Zagreb"))
+            if target < now:
+                target = target.replace(year=target.year + 1)
+            return target, "once"
+        except:
+            pass
+
+    if "sutra" in text:
+        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        if m:
+            h = int(m.group(1))
+            mi = int(m.group(2) or 0)
+            return (now + timedelta(days=1)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
+
+    if "prekosutra" in text:
+        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        if m:
+            h = int(m.group(1))
+            mi = int(m.group(2) or 0)
+            return (now + timedelta(days=2)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
+
+    m = re.search(r'za (\d+)\s*(min|sat|h)', text)
+    if m:
+        num = int(m.group(1))
+        if "sat" in m.group(2) or "h" in m.group(2):
+            return now + timedelta(hours=num), "once"
+        return now + timedelta(minutes=num), "once"
+
+    return None, None
+
 def check_reminders():
     global reminders, recurring
     while True:
         now = get_now()
-        print(f"[{now.strftime('%H:%M:%S')}] Provjera...")
-
         for r in reminders[:]:
             if r['time'] <= now:
                 bot.send_message(r['chat_id'], f"🔔 **PODSJETNIK**\n\n{r['text']}")
                 reminders.remove(r)
-
         for r in recurring:
             if r['rtype'] == "daily" and r['hour'] == now.hour and r['minute'] == now.minute:
                 bot.send_message(r['chat_id'], f"🔄 **DNEVNI PODSJETNIK**\n\n{r['text']}")
             elif r['rtype'] == "weekly" and r.get('weekday') == now.weekday() and r['hour'] == now.hour and r['minute'] == now.minute:
                 bot.send_message(r['chat_id'], f"🔄 **TJEDNI PODSJETNIK**\n\n{r['text']}")
-
         time.sleep(10)
 
-# ==================== HANDLER ====================
+# ==================== OPENAI - SAMO ZA RAZGOVOR ====================
+def get_openai_response(text):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Ti si koristan, duhovit i direktan asistent."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except:
+        return "Žao mi je, trenutno imam problema sa razumijevanjem."
+
+# ==================== BOT HANDLER ====================
 @bot.message_handler(func=lambda m: True)
 def handle(message):
     if message.chat.id not in ALLOWED_USERS:
         return
 
-    text = message.text.strip()
-    
-    # Prvo probaj OpenAI
-    ai_result = parse_with_openai(text)
-    
-    if ai_result and ai_result != "null":
-        try:
-            if ai_result['type'] == "once":
-                remind_time = datetime.fromisoformat(ai_result['time'].replace('Z', '+00:00'))
-                reminders.append({'text': ai_result['text'], 'time': remind_time, 'chat_id': message.chat.id})
-                bot.reply_to(message, f"✅ Podsjetnik postavljen za {remind_time.strftime('%d.%m.%Y. %H:%M')}")
+    text = message.text.strip().lower()
+
+    # Prvo provjeri je li poruka za podsjetnik
+    if any(word in text for word in ["podsjet", "podsjeti", "remind", "za ", "u ", "sutra", "prekosutra", "svaki dan", "petak", "ponedjeljak"]):
+        result, rtype = parse_time(message.text)
+        if result:
+            if rtype == "once":
+                reminders.append({'text': message.text, 'time': result, 'chat_id': message.chat.id})
+                bot.reply_to(message, f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}")
             else:
-                # daily ili weekly
-                rtype = ai_result['type']
                 if rtype == "daily":
-                    recurring.append({
-                        'text': ai_result['text'], 
-                        'rtype': 'daily', 
-                        'hour': ai_result['hour'], 
-                        'minute': ai_result['minute'], 
-                        'chat_id': message.chat.id
-                    })
+                    hour, minute = result
+                    recurring.append({'text': message.text, 'rtype': 'daily', 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
                 else:
-                    recurring.append({
-                        'text': ai_result['text'], 
-                        'rtype': 'weekly', 
-                        'weekday': ai_result['weekday'], 
-                        'hour': ai_result['hour'], 
-                        'minute': ai_result['minute'], 
-                        'chat_id': message.chat.id
-                    })
-                bot.reply_to(message, f"✅ Ponavljajući podsjetnik postavljen!")
+                    weekday, hour, minute = result
+                    recurring.append({'text': message.text, 'rtype': 'weekly', 'weekday': weekday, 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
+                bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
             return
-        except:
-            pass
 
-    # Ako OpenAI ne uspije, fallback na stari parser
-    bot.reply_to(message, "❌ Nisam uspio razumjeti. Pokušaj ponovo ili koristi jednostavan format.")
+    # Ako nije podsjetnik → normalan razgovor sa OpenAI
+    response = get_openai_response(message.text)
+    bot.reply_to(message, response)
 
-print("🚀 Bot pokrenut sa OpenAI-om")
+# ==================== START ====================
+print("🚀 Bot pokrenut - Podsjetnici + OpenAI razgovor")
 bot.delete_webhook(drop_pending_updates=True)
 threading.Thread(target=check_reminders, daemon=True).start()
 bot.infinity_polling()
