@@ -25,10 +25,30 @@ def get_now():
 
 # ==================== PODSJETNICI ====================
 def parse_time(text):
-    # (isti kao prije - ostavljam nepromijenjen)
     text = text.lower().strip()
     now = get_now()
 
+    # === POBOLJŠANO PREPOZNAVANJE DATUMA ===
+    
+    # 1. Format: 7.7. u 10:30 ili 07.07. u 10:30
+    m = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko|za)?\s*(\d{1,2})[:.]?(\d{2})?', text)
+    if m:
+        day = int(m.group(1))
+        month = int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else now.year
+        if year < 100: year += 2000
+        hour = int(m.group(4))
+        minute = int(m.group(5) or 0)
+        
+        try:
+            target = datetime(year, month, day, hour, minute, tzinfo=ZoneInfo("Europe/Zagreb"))
+            if target < now:
+                target = target.replace(year=target.year + 1)
+            return target, "once"
+        except:
+            pass
+
+    # 2. Ponavljajući (svaki dan, petak itd.)
     if any(x in text for x in ["svaki dan", "svakodnevno", "daily"]):
         m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if m:
@@ -42,19 +62,7 @@ def parse_time(text):
             if m:
                 return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly"
 
-    m = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
-    if m:
-        d, mo, y, h, mi = m.groups()
-        year = int(y) if y else now.year
-        if year < 100: year += 2000
-        try:
-            target = datetime(year, int(mo), int(d), int(h), int(mi or 0), tzinfo=ZoneInfo("Europe/Zagreb"))
-            if target < now:
-                target = target.replace(year=target.year + 1)
-            return target, "once"
-        except:
-            pass
-
+    # 3. Relativni (sutra, prekosutra)
     if "sutra" in text:
         m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if m:
@@ -69,10 +77,12 @@ def parse_time(text):
             mi = int(m.group(2) or 0)
             return (now + timedelta(days=2)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
 
-    m = re.search(r'za (\d+)\s*(min|sat|h)', text)
+    # 4. Za X minuta/sati
+    m = re.search(r'za (\d+)\s*(minut|min|sat|h)', text)
     if m:
         num = int(m.group(1))
-        if "sat" in m.group(2) or "h" in m.group(2):
+        unit = m.group(2)
+        if "sat" in unit or "h" in unit:
             return now + timedelta(hours=num), "once"
         return now + timedelta(minutes=num), "once"
 
