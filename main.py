@@ -3,9 +3,7 @@ from datetime import datetime, timedelta
 import time
 import threading
 import re
-import sqlite3
 import telebot
-from telebot import types
 import keep_alive
 from zoneinfo import ZoneInfo
 
@@ -16,69 +14,9 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 ALLOWED_USERS = [5191857104, 7599693099]
 
-DB_FILE = "bravel.db"
-
-# ==================== DATABASE ====================
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS reminders (
-                    id INTEGER PRIMARY KEY, 
-                    text TEXT, 
-                    remind_time TEXT, 
-                    chat_id INTEGER)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS recurring (
-                    id INTEGER PRIMARY KEY, 
-                    text TEXT, 
-                    rtype TEXT, 
-                    weekday INTEGER, 
-                    hour INTEGER, 
-                    minute INTEGER, 
-                    chat_id INTEGER)''')
-    conn.commit()
-    conn.close()
-
-def save_reminder(text, remind_time, chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO reminders (text, remind_time, chat_id) VALUES (?,?,?)",
-              (text, remind_time.isoformat(), chat_id))
-    conn.commit()
-    conn.close()
-
-def save_recurring(text, rtype, chat_id, data):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    if rtype == "daily":
-        hour, minute = data
-        c.execute("INSERT INTO recurring (text, rtype, hour, minute, chat_id) VALUES (?,?,?,?,?)",
-                  (text, rtype, hour, minute, chat_id))
-    else:  # weekly
-        weekday, hour, minute = data
-        c.execute("INSERT INTO recurring (text, rtype, weekday, hour, minute, chat_id) VALUES (?,?,?,?,?,?)",
-                  (text, rtype, weekday, hour, minute, chat_id))
-    conn.commit()
-    conn.close()
-
-def load_reminders():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM reminders")
-    reminders = []
-    for row in c.fetchall():
-        reminders.append({
-            'id': row[0],
-            'text': row[1],
-            'time': datetime.fromisoformat(row[2]),
-            'chat_id': row[3]
-        })
-    c.execute("SELECT * FROM recurring")
-    recurring = [dict(zip([col[0] for col in c.description], row)) for row in c.fetchall()]
-    conn.close()
-    return reminders, recurring
-
-init_db()
-reminders, recurring = load_reminders()
+# In-memory storage (gubi se kad bot padne)
+reminders = []      # jednokratni
+recurring = []      # ponavljajući
 
 def get_now():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
@@ -88,7 +26,7 @@ def parse_time(text):
     text = text.lower().strip()
     now = get_now()
 
-    # === PONAVLJAJUĆI ===
+    # PONAVLJAJUĆI
     if any(x in text for x in ["svaki dan", "svakodnevno", "daily"]):
         m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if m:
@@ -102,19 +40,22 @@ def parse_time(text):
             if m:
                 return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly"
 
-    # === JEDNOKRATNI ===
+    # JEDNOKRATNI
     # Datum + vrijeme: 5.7. u 18:30
     m = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if m:
         d, mo, y, h, mi = m.groups()
         year = int(y) if y else now.year
         if year < 100: year += 2000
-        target = datetime(year, int(mo), int(d), int(h), int(mi or 0), tzinfo=ZoneInfo("Europe/Zagreb"))
-        if target < now:
-            target = target.replace(year=target.year + 1)
-        return target, "once"
+        try:
+            target = datetime(year, int(mo), int(d), int(h), int(mi or 0), tzinfo=ZoneInfo("Europe/Zagreb"))
+            if target < now:
+                target = target.replace(year=target.year + 1)
+            return target, "once"
+        except:
+            pass
 
-    # Sutra / prekosutra
+    # Sutra i prekosutra
     if "sutra" in text:
         m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if m:
@@ -129,11 +70,12 @@ def parse_time(text):
             mi = int(m.group(2) or 0)
             return (now + timedelta(days=2)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
 
-    # Za X minuta/sati
+    # Za X minuta / sati
     m = re.search(r'za (\d+)\s*(min|sat|h)', text)
     if m:
         num = int(m.group(1))
-        if "sat" in m.group(2) or "h" in m.group(2):
+        unit = m.group(2)
+        if "sat" in unit or "h" in unit:
             return now + timedelta(hours=num), "once"
         return now + timedelta(minutes=num), "once"
 
@@ -144,18 +86,13 @@ def check_reminders():
     global reminders, recurring
     while True:
         now = get_now()
-        print(f"[{now.strftime('%H:%M:%S')}] Provjera podsjetnika...")
+        print(f"[{now.strftime('%H:%M:%S')}] Provjera... Jednokratnih: {len(reminders)} | Ponavljajućih: {len(recurring)}")
 
         # Jednokratni
         for r in reminders[:]:
             if r['time'] <= now:
                 try:
                     bot.send_message(r['chat_id'], f"🔔 **PODSJETNIK**\n\n{r['text']}", parse_mode='Markdown')
-                    # Obriši nakon slanja
-                    conn = sqlite3.connect(DB_FILE)
-                    conn.execute("DELETE FROM reminders WHERE id=?", (r['id'],))
-                    conn.commit()
-                    conn.close()
                     reminders.remove(r)
                 except:
                     pass
@@ -169,32 +106,36 @@ def check_reminders():
 
         time.sleep(10)
 
-# ==================== BOT HANDLERS ====================
+# ==================== BOT ====================
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.chat.id not in ALLOWED_USERS:
-        bot.reply_to(message, "Nemaš pristup.")
         return
-    bot.reply_to(message, "✅ Bot je spreman!\n\nPošalji podsjetnik npr.:\n- `svaki dan u 8:00 popij tabletu`\n- `5.7. u 18:30 trening`\n- `sutra u 9:00`")
+    bot.reply_to(message, "✅ Bot pokrenut (bez SQLite).\n\nTestiraj:\n- svaki dan u 8:00 popij vodu\n- 6.7. u 18:30 trening\n- sutra u 9:00")
 
 @bot.message_handler(func=lambda m: True)
-def handle_all(message):
+def handle(message):
     if message.chat.id not in ALLOWED_USERS:
         return
-    
+
     result, rtype = parse_time(message.text)
     
     if result:
         if rtype == "once":
-            save_reminder(message.text, result, message.chat.id)
-            bot.reply_to(message, f"✅ Jednokratni podsjetnik postavljen za:\n{result.strftime('%d.%m.%Y. %H:%M')}")
+            reminders.append({'text': message.text, 'time': result, 'chat_id': message.chat.id})
+            bot.reply_to(message, f"✅ Jednokratni spremljen za {result.strftime('%d.%m.%Y. %H:%M')}")
         else:
-            save_recurring(message.text, rtype, message.chat.id, result)
-            bot.reply_to(message, f"✅ **Ponavljajući podsjetnik spreman!**\n\n{message.text}")
+            if rtype == "daily":
+                hour, minute = result
+                recurring.append({'text': message.text, 'rtype': 'daily', 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
+            else:  # weekly
+                weekday, hour, minute = result
+                recurring.append({'text': message.text, 'rtype': 'weekly', 'weekday': weekday, 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
+            
+            bot.reply_to(message, f"✅ Ponavljajući spremljen!")
     else:
-        bot.reply_to(message, "❌ Nisam razumio vrijeme. Pokušaj ponovo.")
+        bot.reply_to(message, "❌ Nisam uspio razumjeti vrijeme. Pokušaj drugačije.")
 
-# ==================== START ====================
-print("🚀 Bot pokrenut...")
+print("🚀 Bot pokrenut (in-memory verzija)")
 threading.Thread(target=check_reminders, daemon=True).start()
 bot.infinity_polling()
