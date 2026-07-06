@@ -10,7 +10,6 @@ from openai import OpenAI
 
 keep_alive.keep_alive()
 
-# ==================== CONFIG ====================
 TELEGRAM_TOKEN = "8968996549:AAE5YFAnUcnWd-esCwYyLzFKgAObJfFVuZU"
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -18,18 +17,18 @@ ALLOWED_USERS = [5191857104, 7599693099]
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-reminders = []      # jednokratni
-recurring = []      # ponavljajući
+reminders = []
+recurring = []
 
 def get_now():
     return datetime.now(ZoneInfo("Europe/Zagreb"))
 
 # ==================== PODSJETNICI ====================
 def parse_time(text):
+    # (isti kao prije - ostavljam nepromijenjen)
     text = text.lower().strip()
     now = get_now()
 
-    # Ponavljajući
     if any(x in text for x in ["svaki dan", "svakodnevno", "daily"]):
         m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
         if m:
@@ -43,7 +42,6 @@ def parse_time(text):
             if m:
                 return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly"
 
-    # Jednokratni
     m = re.search(r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\s*(?:u|at|oko)?\s*(\d{1,2})[:.]?(\d{2})?', text)
     if m:
         d, mo, y, h, mi = m.groups()
@@ -96,6 +94,8 @@ def check_reminders():
         time.sleep(10)
 
 def show_reminders(message):
+    print(f"DEBUG: show_reminders pozvan. Jednokratnih: {len(reminders)}, Ponavljajućih: {len(recurring)}")  # debug
+    
     if not reminders and not recurring:
         bot.reply_to(message, "Trenutno nemaš aktivnih podsjetnika.")
         return
@@ -115,35 +115,21 @@ def show_reminders(message):
                 text += f"🔄 Svaki dan u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
             else:
                 days = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
-                text += f"🔄 {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
+                text += f"🔄 {days[r.get('weekday', 0)]} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
 
     bot.reply_to(message, text, parse_mode='Markdown')
-
-# ==================== OPENAI RAZGOVOR ====================
-def get_openai_response(text):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ti si koristan, duhovit i direktan asistent."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.7
-        )
-        return response.choices[0].message.content
-    except:
-        return "Žao mi je, trenutno imam problema sa odgovorom."
 
 # ==================== HANDLERS ====================
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik'])
 def command_handler(message):
+    print(f"DEBUG: Primljena naredba: {message.text}")  # debug
     if message.chat.id not in ALLOWED_USERS:
         return
     
     cmd = message.text.lower().strip()
     
     if cmd.startswith('/start'):
-        bot.reply_to(message, "✅ Bot je aktivan!\n\nKoristi me za podsjetnike ili normalan razgovor.")
+        bot.reply_to(message, "✅ Bot je aktivan!")
         return
 
     if cmd.startswith(('/lista', '/list', '/podsjetnici', '/podsjetnik')):
@@ -158,7 +144,6 @@ def handle(message):
 
     text = message.text.strip().lower()
 
-    # Provjera za podsjetnike
     reminder_keywords = ["podsjet", "podsjeti", "remind", "za ", "sutra", "prekosutra", "svaki dan", "svakodnevno"]
     if any(word in text for word in reminder_keywords):
         result, rtype = parse_time(message.text)
@@ -176,12 +161,23 @@ def handle(message):
                 bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
             return
 
-    # Normalan razgovor sa OpenAI
+    # OpenAI razgovor
     response = get_openai_response(message.text)
     bot.reply_to(message, response)
 
+def get_openai_response(text):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "Ti si koristan asistent."}, {"role": "user", "content": text}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except:
+        return "Žao mi je, imao sam problem sa odgovorom."
+
 # ==================== START ====================
-print("🚀 Bot pokrenut - Podsjetnici + OpenAI")
+print("🚀 Bot pokrenut")
 bot.delete_webhook(drop_pending_updates=True)
 threading.Thread(target=check_reminders, daemon=True).start()
 bot.infinity_polling()
