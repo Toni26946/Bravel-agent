@@ -121,15 +121,37 @@ def get_user_items(chat_id):
 
 # ==================== PARSIRANJE VREMENA ====================
 
+def _make_description(original, spans):
+    """Iz originalnog teksta izbaci dijelove koji opisuju vrijeme (spans)
+    i vrati ocisceni opis podsjetnika, s velikim pocetnim slovom."""
+    spans = sorted(spans)
+    parts, prev = [], 0
+    for s, e in spans:
+        parts.append(original[prev:s])
+        prev = e
+    parts.append(original[prev:])
+    desc = re.sub(r'\s+', ' ', ''.join(parts)).strip(' ,.;:-–—')
+    if not desc:
+        return "Podsjetnik"
+    return desc[0].upper() + desc[1:]
+
+
+TIME_RE = r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?'
+
+
 def parse_time(text):
-    text = text.lower().strip()
+    """Vraca (rezultat, tip, opis).
+    tip: 'once' / 'daily' / 'weekly' / None
+    opis: tekst podsjetnika bez vremenskog dijela ("Idem na trening")"""
+    original = text.strip()
+    low = original.lower()
     now = get_now()
 
     # 1. Format: 7.7. u 10:30 ili 07.07.2026 u 10:30
     # \.? iza mjeseca/godine dopusta hrvatski nacin pisanja datuma s tockom ("7.7.")
     m = re.search(
         r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\.?\s*(?:u|at|oko|za)?\s*(\d{1,2})[:.]?(\d{2})?',
-        text
+        low
     )
     if m:
         day = int(m.group(1))
@@ -143,15 +165,18 @@ def parse_time(text):
             target = datetime(year, month, day, hour, minute, tzinfo=TZ)
             if target < now:
                 target = target.replace(year=target.year + 1)
-            return target, "once"
+            return target, "once", _make_description(original, [m.span()])
         except Exception:
             pass
 
     # 2. Ponavljajuci - svaki dan
-    if any(x in text for x in ["svaki dan", "svakodnevno", "daily"]):
-        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
-        if m:
-            return (int(m.group(1)), int(m.group(2) or 0)), "daily"
+    for kw in ["svaki dan", "svakodnevno", "daily"]:
+        kw_pos = low.find(kw)
+        if kw_pos != -1:
+            m = re.search(TIME_RE, low)
+            if m:
+                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), m.span()])
+                return (int(m.group(1)), int(m.group(2) or 0)), "daily", desc
 
     # 2b. Ponavljajuci - odredjeni dan u tjednu.
     # \b granice rijeci: "pon" ne matcha "ponuda", "pet" ne matcha "petsto".
@@ -161,34 +186,46 @@ def parse_time(text):
             ("pon", 0), ("uto", 1), ("sri", 2), ("čet", 3),
             ("pet", 4), ("sub", 5), ("ned", 6)]
     for name, wd in days:
-        if re.search(r'\b' + name + r'\b', text):
-            m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
+        dm = re.search(r'\b' + name + r'\b', low)
+        if dm:
+            m = re.search(TIME_RE, low)
             if m:
-                return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly"
+                desc = _make_description(original, [dm.span(), m.span()])
+                return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly", desc
 
     # 3. Relativni - prekosutra PRIJE jer sadrzi "sutra"
-    if "prekosutra" in text:
-        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
-        if m:
-            h, mi = int(m.group(1)), int(m.group(2) or 0)
-            return (now + timedelta(days=2)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
+    for kw, offset in [("prekosutra", 2), ("sutra", 1)]:
+        kw_pos = low.find(kw)
+        if kw_pos != -1:
+            m = re.search(TIME_RE, low)
+            if m:
+                h, mi = int(m.group(1)), int(m.group(2) or 0)
+                target = (now + timedelta(days=offset)).replace(hour=h, minute=mi, second=0, microsecond=0)
+                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), m.span()])
+                return target, "once", desc
 
-    if "sutra" in text:
-        m = re.search(r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?', text)
-        if m:
-            h, mi = int(m.group(1)), int(m.group(2) or 0)
-            return (now + timedelta(days=1)).replace(hour=h, minute=mi, second=0, microsecond=0), "once"
-
-    # 4. Za X minuta/sati
-    m = re.search(r'za (\d+)\s*(minut|min|sat|h)', text)
+    # 4. Za X minuta/sati - [a-zć]* hvata cijelu rijec (sata, sati, minuta, minute...)
+    m = re.search(r'za (\d+)\s*(minut[a-zć]*|min|sat[a-zć]*|h)\b', low)
     if m:
         num = int(m.group(1))
         unit = m.group(2)
-        if "sat" in unit or "h" in unit:
-            return now + timedelta(hours=num), "once"
-        return now + timedelta(minutes=num), "once"
+        delta = timedelta(hours=num) if ("sat" in unit or "h" in unit) else timedelta(minutes=num)
+        return now + delta, "once", _make_description(original, [m.span()])
 
-    return None, None
+    # 5. Samo vrijeme, bez datuma: "U 11:35 idem na trening" -> danas
+    #    (ili sutra ako je vrijeme vec proslo). Trazimo HH:MM s dvotockom/tockom
+    #    ili sam sat ("u 14") - provjera ide ZADNJA da ne pregazi gornje formate.
+    m = re.search(r'\bu\s*(\d{1,2})(?:[:.](\d{2}))?\b', low)
+    if m:
+        h = int(m.group(1))
+        mi = int(m.group(2) or 0)
+        if 0 <= h <= 23 and 0 <= mi <= 59:
+            target = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            return target, "once", _make_description(original, [m.span()])
+
+    return None, None, None
 
 
 # ==================== SLANJE PORUKA ====================
@@ -419,19 +456,29 @@ def handle(message):
         return
 
     # 2. Pokusaj prepoznati kao podsjetnik
-    result, rtype = parse_time(text)
+    result, rtype, desc = parse_time(text)
     if result is not None:
         if rtype == "once":
-            add_reminder(message.chat.id, text, result)
-            bot.reply_to(message, f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}")
+            add_reminder(message.chat.id, desc, result)
+            bot.reply_to(
+                message,
+                f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}\n📝 {desc}"
+            )
         elif rtype == "daily":
             hour, minute = result
-            add_recurring(message.chat.id, text, "daily", hour, minute)
-            bot.reply_to(message, f"✅ Dnevni podsjetnik postavljen ({hour:02d}:{minute:02d})!")
+            add_recurring(message.chat.id, desc, "daily", hour, minute)
+            bot.reply_to(
+                message,
+                f"✅ Dnevni podsjetnik postavljen ({hour:02d}:{minute:02d})\n📝 {desc}"
+            )
         else:  # weekly
             weekday, hour, minute = result
-            add_recurring(message.chat.id, text, "weekly", hour, minute, weekday)
-            bot.reply_to(message, "✅ Tjedni podsjetnik postavljen!")
+            day_names = ["ponedjeljak", "utorak", "srijedu", "četvrtak", "petak", "subotu", "nedjelju"]
+            add_recurring(message.chat.id, desc, "weekly", hour, minute, weekday)
+            bot.reply_to(
+                message,
+                f"✅ Tjedni podsjetnik postavljen (svaki {day_names[weekday]} u {hour:02d}:{minute:02d})\n📝 {desc}"
+            )
         return
 
     # 3. Sve ostalo -> AI razgovor
