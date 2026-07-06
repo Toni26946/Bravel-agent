@@ -111,6 +111,22 @@ def get_openai_response(text):
         return "Žao mi je, trenutno imam problema sa razumijevanjem."
 
 # ==================== BOT HANDLER ====================
+# ==================== BOT HANDLER ====================
+@bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik'])
+def command_handler(message):
+    if message.chat.id not in ALLOWED_USERS:
+        return
+    
+    cmd = message.text.lower().strip()
+    
+    if cmd.startswith('/start'):
+        bot.reply_to(message, "✅ Bot je aktivan!\n\nKoristi me za podsjetnike ili normalan razgovor.")
+        return
+
+    if cmd.startswith(('/lista', '/list', '/podsjetnici', '/podsjetnik')):
+        show_reminders(message)
+        return
+
 @bot.message_handler(func=lambda m: True)
 def handle(message):
     if message.chat.id not in ALLOWED_USERS:
@@ -118,8 +134,9 @@ def handle(message):
 
     text = message.text.strip().lower()
 
-    # Prvo provjeri je li poruka za podsjetnik
-    if any(word in text for word in ["podsjet", "podsjeti", "remind", "za ", "u ", "sutra", "prekosutra", "svaki dan", "petak", "ponedjeljak"]):
+    # Provjera za podsjetnike
+    reminder_keywords = ["podsjet", "podsjeti", "remind", "za ", "sutra", "prekosutra", "svaki dan", "svakodnevno"]
+    if any(word in text for word in reminder_keywords):
         result, rtype = parse_time(message.text)
         if result:
             if rtype == "once":
@@ -133,6 +150,36 @@ def handle(message):
                     weekday, hour, minute = result
                     recurring.append({'text': message.text, 'rtype': 'weekly', 'weekday': weekday, 'hour': hour, 'minute': minute, 'chat_id': message.chat.id})
                 bot.reply_to(message, "✅ Ponavljajući podsjetnik postavljen!")
+            return
+
+    # Ako nije podsjetnik → razgovor sa OpenAI
+    response = get_openai_response(message.text)
+    bot.reply_to(message, response)
+
+
+def show_reminders(message):
+    if not reminders and not recurring:
+        bot.reply_to(message, "Trenutno nemaš aktivnih podsjetnika.")
+        return
+
+    text = "📋 **Tvoji podsjetnici:**\n\n"
+
+    if reminders:
+        text += "**Jednokratni:**\n"
+        for i, r in enumerate(reminders, 1):
+            text += f"{i}. {r['time'].strftime('%d.%m.%Y. %H:%M')} → {r['text']}\n"
+        text += "\n"
+
+    if recurring:
+        text += "**Ponavljajući:**\n"
+        for r in recurring:
+            if r['rtype'] == "daily":
+                text += f"🔄 Svaki dan u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
+            else:
+                days = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
+                text += f"🔄 {days[r['weekday']]} u {r['hour']:02d}:{r['minute']:02d} → {r['text']}\n"
+
+    bot.reply_to(message, text, parse_mode='Markdown')
             return
 
     # Ako nije podsjetnik → normalan razgovor sa OpenAI
