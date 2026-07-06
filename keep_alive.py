@@ -1,6 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-import time
 
 def run():
     class Handler(BaseHTTPRequestHandler):
@@ -12,5 +11,6 @@ def run():
     server = HTTPServer(('0.0.0.0', 8080), Handler)
     server.serve_forever()
 
-if __name__ == "__main__":
-    threading.Thread(target=run, daemon=True).start()
+def keep_alive():
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
