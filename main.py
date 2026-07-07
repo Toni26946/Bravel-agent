@@ -584,23 +584,35 @@ def show_reminders(message):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("del_"))
 def delete_callback(c):
-    if c.from_user.id not in ALLOWED_USERS:
+    # Odmah zaustavi "ucitavanje" na gumbu
+    try:
         bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+
+    if c.from_user.id not in ALLOWED_USERS:
         return
 
     try:
         _, kind, rid = c.data.split("_")
         rid = int(rid)
         table = "reminders" if kind == "o" else "recurring"
+        print(f"[DELETE] zahtjev: table={table}, id={rid}, chat={c.message.chat.id}")
 
-        # Brisi samo ako podsjetnik pripada ovom korisniku
-        with db() as conn:
+        conn = db()
+        try:
             row = conn.execute(
                 f"SELECT text FROM {table} WHERE id = ? AND chat_id = ?",
                 (rid, c.message.chat.id)
             ).fetchone()
             if row:
-                conn.execute(f"DELETE FROM {table} WHERE id = ?", (rid,))
+                cur = conn.execute(f"DELETE FROM {table} WHERE id = ?", (rid,))
+                conn.commit()
+                print(f"[DELETE] obrisano redaka: {cur.rowcount}, tekst: {row['text']}")
+            else:
+                print(f"[DELETE] nije pronadjen: table={table}, id={rid}, chat={c.message.chat.id}")
+        finally:
+            conn.close()
 
         if row:
             bot.answer_callback_query(c.id, f"🗑 Obrisano: {_short(row['text'])}")
@@ -612,13 +624,11 @@ def delete_callback(c):
         try:
             bot.edit_message_text(text, c.message.chat.id, c.message.message_id,
                                   reply_markup=markup)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[DELETE] edit poruke nije uspio (vjerojatno nebitno): {e}")
 
     except Exception as e:
-        print(f"Greska u delete_callback: {e}")
-        bot.answer_callback_query(c.id, "Greška pri brisanju.")
-
+        print(f"[DELETE] GRESKA: {e}")
 
 # ==================== AI RAZGOVOR ====================
 
@@ -722,7 +732,7 @@ def handle(message):
             add_reminder(message.chat.id, desc, result)
             bot.reply_to(
                 message,
-                f"✅ {result.strftime('%d.%m.%Y. u %H:%M')} — {desc}"
+                f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}\n📝 {desc}"
             )
         elif rtype == "daily":
             add_recurring(message.chat.id, desc, "daily",
@@ -731,24 +741,24 @@ def handle(message):
             n = result["interval"]
             when = (f"Svaki dan u {result['hour']:02d}:{result['minute']:02d}" if n == 1
                     else f"Svaka {n} dana u {result['hour']:02d}:{result['minute']:02d}")
-            bot.reply_to(message, f"✅ 🔄 {when} — {desc}")
+            bot.reply_to(message, f"✅ Ponavljajući podsjetnik postavljen ({when})\n📝 {desc}")
         elif rtype == "weekly":
             add_recurring(message.chat.id, desc, "weekly",
                           result["hour"], result["minute"],
                           weekday=result["weekday"], interval=result["interval"])
             n = result["interval"]
             day = DAY_NAMES_INSTR[result["weekday"]]
-            when = (f"Svakim {day} u {result['hour']:02d}:{result['minute']:02d}" if n == 1
-                    else f"Svaki {n}. tjedan {day} u {result['hour']:02d}:{result['minute']:02d}")
-            bot.reply_to(message, f"✅ 🔄 {when} — {desc}")
+            when = (f"svakim {day} u {result['hour']:02d}:{result['minute']:02d}" if n == 1
+                    else f"svaki {n}. tjedan {day} u {result['hour']:02d}:{result['minute']:02d}")
+            bot.reply_to(message, f"✅ Ponavljajući podsjetnik postavljen ({when})\n📝 {desc}")
         else:  # monthly
             add_recurring(message.chat.id, desc, "monthly",
                           result["hour"], result["minute"],
                           monthday=result["monthday"])
             hhmm = f"{result['hour']:02d}:{result['minute']:02d}"
-            when = ("Zadnji dan u mjesecu" if result["monthday"] >= 32
-                    else f"Svaki mjesec {result['monthday']}.")
-            bot.reply_to(message, f"✅ 🔄 {when} u {hhmm} — {desc}")
+            when = ("zadnji dan u mjesecu" if result["monthday"] >= 32
+                    else f"svaki mjesec {result['monthday']}.")
+            bot.reply_to(message, f"✅ Ponavljajući podsjetnik postavljen ({when} u {hhmm})\n📝 {desc}")
         return
 
     # 3. Sve ostalo -> AI razgovor
