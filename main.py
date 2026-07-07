@@ -1,15 +1,17 @@
 # ============================================================
 #  BRAVEL AGENT - Telegram bot
 #  - SQLite persistencija na Fly Volume (/data/bot.db)
-#  - Podsjetnici (jednokratni, dnevni, tjedni)
+#  - Podsjetnici: jednokratni, dnevni, tjedni, svaka N dana,
+#    svaki N. tjedan, mjesecni
+#  - Odgoda podsjetnika gumbima (+15 min, +1 h, +3 h, sutra)
 #  - AI razgovor (OpenAI) s pamcenjem konteksta po korisniku
-#  - Bez keep_alive (nepotreban na fly.io)
 # ============================================================
 
 import os
 import re
 import time
 import sqlite3
+import calendar
 import threading
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -33,17 +35,17 @@ if _env_users.strip():
 else:
     ALLOWED_USERS = [5191857104, 7599693099]
 
-# Na fly.io je volume mountan na /data. Za lokalno testiranje
-# (bez /data mape) baza se sprema u trenutni direktorij.
 DB_FILE = "/data/bot.db" if os.path.isdir("/data") else "bot.db"
 
 TZ = ZoneInfo("Europe/Zagreb")
 
-# Povijest AI razgovora po korisniku (u RAM-u, resetira se kod restarta).
-# Kljuc: chat_id, vrijednost: lista {"role": ..., "content": ...}
-HISTORY_LIMIT = 20  # zadnjih 20 poruka (10 izmjena) po korisniku
+HISTORY_LIMIT = 20  # zadnjih 20 poruka (10 izmjena) AI povijesti po korisniku
 history = {}
 history_lock = threading.Lock()
+
+DAY_NAMES_SHORT = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
+DAY_NAMES_INSTR = ["ponedjeljkom", "utorkom", "srijedom", "četvrtkom",
+                   "petkom", "subotom", "nedjeljom"]
 
 
 def get_now():
@@ -51,9 +53,7 @@ def get_now():
 
 
 # ==================== BAZA (SQLite) ====================
-# Svaka operacija otvara svoju konekciju ("konekcija po operaciji").
-# To je thread-safe i za ovaj obujam sasvim dovoljno brzo.
-# WAL mode omogucuje da jedan thread cita dok drugi pise.
+# Konekcija po operaciji + WAL mode = thread-safe bez rucnih lockova.
 
 def db():
     conn = sqlite3.connect(DB_FILE, timeout=10)
@@ -69,7 +69,8 @@ def init_db():
                 id      INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id INTEGER NOT NULL,
                 text    TEXT    NOT NULL,
-                time_ts REAL    NOT NULL   -- unix timestamp (UTC), pouzdan za usporedbu
+                time_ts REAL    NOT NULL,   -- unix timestamp, pouzdan za usporedbu
+                fired   INTEGER DEFAULT 0   -- 1 = poslan (ceka eventualnu odgodu)
             )
         """)
         conn.execute("""
@@ -77,13 +78,28 @@ def init_db():
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id    INTEGER NOT NULL,
                 text       TEXT    NOT NULL,
-                rtype      TEXT    NOT NULL,          -- 'daily' ili 'weekly'
-                weekday    INTEGER,                    -- 0=pon ... 6=ned (samo weekly)
+                rtype      TEXT    NOT NULL,     -- 'daily' / 'weekly' / 'monthly'
+                weekday    INTEGER,               -- 0=pon..6=ned (weekly)
                 hour       INTEGER NOT NULL,
                 minute     INTEGER NOT NULL,
-                last_fired TEXT                        -- 'YYYY-MM-DD HH:MM' zadnjeg okidanja
+                interval_n INTEGER DEFAULT 1,     -- svaka N dana / svaki N. tjedan
+                anchor_ts  REAL,                  -- datum prvog okidanja (za interval)
+                monthday   INTEGER,               -- dan u mjesecu (monthly)
+                last_fired TEXT                   -- 'YYYY-MM-DD HH:MM' zadnjeg okidanja
             )
         """)
+    # Migracija starije baze (dodavanje stupaca ako ne postoje)
+    with db() as conn:
+        for stmt in [
+            "ALTER TABLE reminders ADD COLUMN fired INTEGER DEFAULT 0",
+            "ALTER TABLE recurring ADD COLUMN interval_n INTEGER DEFAULT 1",
+            "ALTER TABLE recurring ADD COLUMN anchor_ts REAL",
+            "ALTER TABLE recurring ADD COLUMN monthday INTEGER",
+        ]:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # stupac vec postoji
     print(f"Baza spremna: {DB_FILE}")
 
 
@@ -95,21 +111,41 @@ def add_reminder(chat_id, text, dt):
         )
 
 
-def add_recurring(chat_id, text, rtype, hour, minute, weekday=None):
+def first_occurrence(rtype, hour, minute, weekday=None):
+    """Prvi datum/vrijeme kada ponavljajuci podsjetnik treba okinuti."""
+    now = get_now()
+    t = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if rtype == "daily":
+        if t <= now:
+            t += timedelta(days=1)
+    elif rtype == "weekly":
+        t += timedelta(days=(weekday - now.weekday()) % 7)
+        if t <= now:
+            t += timedelta(days=7)
+    return t
+
+
+def add_recurring(chat_id, text, rtype, hour, minute,
+                  weekday=None, interval=1, monthday=None):
+    anchor_ts = None
+    if rtype in ("daily", "weekly"):
+        first = first_occurrence(rtype, hour, minute, weekday)
+        # anchor = ponoc dana prvog okidanja (za racunanje intervala)
+        anchor_ts = first.replace(hour=0, minute=0).timestamp()
     with db() as conn:
         conn.execute(
-            "INSERT INTO recurring (chat_id, text, rtype, weekday, hour, minute) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (chat_id, text, rtype, weekday, hour, minute)
+            "INSERT INTO recurring (chat_id, text, rtype, weekday, hour, minute, "
+            "interval_n, anchor_ts, monthday) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (chat_id, text, rtype, weekday, hour, minute, interval, anchor_ts, monthday)
         )
 
 
 def get_user_items(chat_id):
-    """Vraca (jednokratni, ponavljajuci) za jednog korisnika,
-    deterministicki poredano za prikaz u /lista."""
+    """Vraca (jednokratni, ponavljajuci) za korisnika, deterministicki poredano."""
     with db() as conn:
         once = conn.execute(
-            "SELECT * FROM reminders WHERE chat_id = ? ORDER BY time_ts, id",
+            "SELECT * FROM reminders WHERE chat_id = ? AND fired = 0 "
+            "ORDER BY time_ts, id",
             (chat_id,)
         ).fetchall()
         rec = conn.execute(
@@ -122,15 +158,20 @@ def get_user_items(chat_id):
 # ==================== PARSIRANJE VREMENA ====================
 
 def _make_description(original, spans):
-    """Iz originalnog teksta izbaci dijelove koji opisuju vrijeme (spans)
-    i vrati ocisceni opis podsjetnika, s velikim pocetnim slovom."""
+    """Izbaci vremenske dijelove (spans) iz teksta i vrati cisti opis."""
     spans = sorted(spans)
     parts, prev = [], 0
     for s, e in spans:
+        if s < prev:
+            prev = max(prev, e)  # preklapajuci span - prosiri brisanje
+            continue
         parts.append(original[prev:s])
         prev = e
     parts.append(original[prev:])
     desc = re.sub(r'\s+', ' ', ''.join(parts)).strip(' ,.;:-–—')
+    # makni uvodne fraze tipa "podsjeti me (da)" iz opisa
+    desc = re.sub(r'^(podsjeti\s+me\s+(da\s+)?|podsjetnik[:,]?\s*)', '', desc,
+                  flags=re.IGNORECASE).strip(' ,.;:-–—')
     if not desc:
         return "Podsjetnik"
     return desc[0].upper() + desc[1:]
@@ -138,87 +179,164 @@ def _make_description(original, spans):
 
 TIME_RE = r'(?:u|at|oko)\s*(\d{1,2})[:.]?(\d{2})?'
 
+ORDINALS = {"drug": 2, "treć": 3, "četvrt": 4, "pet": 5, "šest": 6}
+
+WEEKDAYS = [("ponedjeljak", 0), ("utorak", 1), ("srijeda", 2), ("četvrtak", 3),
+            ("petak", 4), ("subota", 5), ("nedjelja", 6),
+            ("pon", 0), ("uto", 1), ("sri", 2), ("čet", 3),
+            ("pet", 4), ("sub", 5), ("ned", 6)]
+
+
+def _find_weekday(low):
+    """Nadji dan u tjednu u tekstu. Vraca (weekday, span) ili (None, None).
+    \\b granice: 'pon' ne matcha 'ponuda', 'pet' ne matcha 'petsto'.
+    Duzi nazivi prvi da 'ponedjeljak' ne bude prepoznat kao 'pon'."""
+    for name, wd in WEEKDAYS:
+        m = re.search(r'\b' + name + r'\b', low)
+        if m:
+            return wd, m.span()
+    return None, None
+
+
+def _interval_from(numstr, wordstr):
+    if numstr:
+        return int(numstr)
+    if wordstr:
+        for prefix, val in ORDINALS.items():
+            if wordstr.startswith(prefix):
+                return val
+    return 1
+
 
 def parse_time(text):
     """Vraca (rezultat, tip, opis).
-    tip: 'once' / 'daily' / 'weekly' / None
-    opis: tekst podsjetnika bez vremenskog dijela ("Idem na trening")"""
+    tip: 'once' (rezultat=datetime) / 'daily'/'weekly'/'monthly' (rezultat=dict) / None"""
     original = text.strip()
     low = original.lower()
     now = get_now()
 
-    # 1. Format: 7.7. u 10:30 ili 07.07.2026 u 10:30
-    # \.? iza mjeseca/godine dopusta hrvatski nacin pisanja datuma s tockom ("7.7.")
-    m = re.search(
-        r'(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\.?\s*(?:u|at|oko|za)?\s*(\d{1,2})[:.]?(\d{2})?',
-        low
-    )
-    if m:
-        day = int(m.group(1))
-        month = int(m.group(2))
-        year = int(m.group(3)) if m.group(3) else now.year
+    # 1. Konkretan datum: "7.7. u 10:30", ali i razdvojeno: "8.7. za tenis u 16"
+    #    (?!\w) sprjecava da "12.5mm" bude prepoznat kao datum
+    dm = re.search(r'\b(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?\.?(?!\w)', low)
+    if dm:
+        day, month = int(dm.group(1)), int(dm.group(2))
+        year = int(dm.group(3)) if dm.group(3) else now.year
         if year < 100:
             year += 2000
-        hour = int(m.group(4))
-        minute = int(m.group(5) or 0)
-        try:
-            target = datetime(year, month, day, hour, minute, tzinfo=TZ)
-            if target < now:
-                target = target.replace(year=target.year + 1)
-            return target, "once", _make_description(original, [m.span()])
-        except Exception:
-            pass
+        if 1 <= day <= 31 and 1 <= month <= 12:
+            # vrijeme moze biti bilo gdje u poruci, samo ne unutar samog datuma
+            tm = None
+            for cand in re.finditer(TIME_RE, low):
+                if cand.start() >= dm.end() or cand.end() <= dm.start():
+                    tm = cand
+                    break
+            if tm:
+                hour, minute = int(tm.group(1)), int(tm.group(2) or 0)
+                try:
+                    target = datetime(year, month, day, hour, minute, tzinfo=TZ)
+                    if target < now:
+                        target = target.replace(year=target.year + 1)
+                    return target, "once", _make_description(original, [dm.span(), tm.span()])
+                except Exception:
+                    pass
 
-    # 2. Ponavljajuci - svaki dan
+    # 2. Mjesecno: "svaki mjesec 15. u 9" / "svakog 15. u mjesecu u 9"
+    #    / "zadnji dan u mjesecu u 20"
+    zm = re.search(r'zadnj\w+\s+dan\w*', low)
+    mk = (re.search(r'svak\w*\s+mjesec\w*', low)
+          or re.search(r'\bu\s+mjesecu\b', low)
+          or (zm and re.search(r'\bmjesec\w*', low)))
+    if mk:
+        tm = re.search(TIME_RE, low)
+        if tm:
+            spans = [mk.span(), tm.span()]
+            sk = re.search(r'\bsvak\w*\b', low)
+            if sk and sk.span() != mk.span():
+                spans.append(sk.span())
+            if zm:
+                monthday = 32  # 32 = zadnji dan u mjesecu (sentinel)
+                spans.append(zm.span())
+            else:
+                dmm = re.search(r'\b(\d{1,2})\.(?!\d)', low)
+                if dmm:
+                    monthday = int(dmm.group(1))
+                    spans.append(dmm.span())
+                else:
+                    monthday = now.day
+            if 1 <= monthday <= 32:
+                payload = {"monthday": monthday,
+                           "hour": int(tm.group(1)), "minute": int(tm.group(2) or 0)}
+                return payload, "monthly", _make_description(original, spans)
+
+    # 3. Svaki N. tjedan / svaki drugi tjedan / svaki tjedan (+ opcionalni dan)
+    wk = re.search(r'svak\w*\s+(?:(\d+)\.?\s*|([a-zčćšđž]+)\s+)?tjed\w*', low)
+    if wk:
+        tm = re.search(TIME_RE, low)
+        if tm:
+            interval = _interval_from(wk.group(1), wk.group(2))
+            wd, wd_span = _find_weekday(low)
+            spans = [wk.span(), tm.span()]
+            if wd_span:
+                spans.append(wd_span)
+            if wd is None:
+                wd = now.weekday()  # nije naveden dan -> danasnji dan u tjednu
+            payload = {"weekday": wd, "interval": interval,
+                       "hour": int(tm.group(1)), "minute": int(tm.group(2) or 0)}
+            return payload, "weekly", _make_description(original, spans)
+
+    # 4. Svaka N dana / svaki drugi dan
+    dk = re.search(r'svak\w*\s+(?:(\d+)\.?\s*|([a-zčćšđž]+)\s+)dan\w*', low)
+    if dk:
+        tm = re.search(TIME_RE, low)
+        if tm:
+            interval = _interval_from(dk.group(1), dk.group(2))
+            payload = {"interval": interval,
+                       "hour": int(tm.group(1)), "minute": int(tm.group(2) or 0)}
+            return payload, "daily", _make_description(original, [dk.span(), tm.span()])
+
+    # 5. Svaki dan
     for kw in ["svaki dan", "svakodnevno", "daily"]:
         kw_pos = low.find(kw)
         if kw_pos != -1:
-            m = re.search(TIME_RE, low)
-            if m:
-                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), m.span()])
-                return (int(m.group(1)), int(m.group(2) or 0)), "daily", desc
+            tm = re.search(TIME_RE, low)
+            if tm:
+                payload = {"interval": 1,
+                           "hour": int(tm.group(1)), "minute": int(tm.group(2) or 0)}
+                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), tm.span()])
+                return payload, "daily", desc
 
-    # 2b. Ponavljajuci - odredjeni dan u tjednu.
-    # \b granice rijeci: "pon" ne matcha "ponuda", "pet" ne matcha "petsto".
-    # Duzi nazivi idu prvi da "ponedjeljak" ne bude prepoznat kao "pon".
-    days = [("ponedjeljak", 0), ("utorak", 1), ("srijeda", 2), ("četvrtak", 3),
-            ("petak", 4), ("subota", 5), ("nedjelja", 6),
-            ("pon", 0), ("uto", 1), ("sri", 2), ("čet", 3),
-            ("pet", 4), ("sub", 5), ("ned", 6)]
-    for name, wd in days:
-        dm = re.search(r'\b' + name + r'\b', low)
-        if dm:
-            m = re.search(TIME_RE, low)
-            if m:
-                desc = _make_description(original, [dm.span(), m.span()])
-                return (wd, int(m.group(1)), int(m.group(2) or 0)), "weekly", desc
+    # 6. Odredjeni dan u tjednu (svaki tjedan): "petak u 14 sastanak"
+    wd, wd_span = _find_weekday(low)
+    if wd is not None:
+        tm = re.search(TIME_RE, low)
+        if tm:
+            payload = {"weekday": wd, "interval": 1,
+                       "hour": int(tm.group(1)), "minute": int(tm.group(2) or 0)}
+            return payload, "weekly", _make_description(original, [wd_span, tm.span()])
 
-    # 3. Relativni - prekosutra PRIJE jer sadrzi "sutra"
+    # 7. Relativni - prekosutra PRIJE jer sadrzi "sutra"
     for kw, offset in [("prekosutra", 2), ("sutra", 1)]:
         kw_pos = low.find(kw)
         if kw_pos != -1:
-            m = re.search(TIME_RE, low)
-            if m:
-                h, mi = int(m.group(1)), int(m.group(2) or 0)
-                target = (now + timedelta(days=offset)).replace(hour=h, minute=mi, second=0, microsecond=0)
-                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), m.span()])
+            tm = re.search(TIME_RE, low)
+            if tm:
+                h, mi = int(tm.group(1)), int(tm.group(2) or 0)
+                target = (now + timedelta(days=offset)).replace(
+                    hour=h, minute=mi, second=0, microsecond=0)
+                desc = _make_description(original, [(kw_pos, kw_pos + len(kw)), tm.span()])
                 return target, "once", desc
 
-    # 4. Za X minuta/sati - [a-zć]* hvata cijelu rijec (sata, sati, minuta, minute...)
+    # 8. Za X minuta/sati - [a-zć]* hvata cijelu rijec (sata, sati, minuta...)
     m = re.search(r'za (\d+)\s*(minut[a-zć]*|min|sat[a-zć]*|h)\b', low)
     if m:
-        num = int(m.group(1))
-        unit = m.group(2)
+        num, unit = int(m.group(1)), m.group(2)
         delta = timedelta(hours=num) if ("sat" in unit or "h" in unit) else timedelta(minutes=num)
         return now + delta, "once", _make_description(original, [m.span()])
 
-    # 5. Samo vrijeme, bez datuma: "U 11:35 idem na trening" -> danas
-    #    (ili sutra ako je vrijeme vec proslo). Trazimo HH:MM s dvotockom/tockom
-    #    ili sam sat ("u 14") - provjera ide ZADNJA da ne pregazi gornje formate.
+    # 9. Samo vrijeme: "U 11:35 idem na trening" -> danas (ili sutra ako je proslo)
     m = re.search(r'\bu\s*(\d{1,2})(?:[:.](\d{2}))?\b', low)
     if m:
-        h = int(m.group(1))
-        mi = int(m.group(2) or 0)
+        h, mi = int(m.group(1)), int(m.group(2) or 0)
         if 0 <= h <= 23 and 0 <= mi <= 59:
             target = now.replace(hour=h, minute=mi, second=0, microsecond=0)
             if target <= now:
@@ -228,75 +346,192 @@ def parse_time(text):
     return None, None, None
 
 
-# ==================== SLANJE PORUKA ====================
-# Bez parse_mode: korisnikov tekst moze sadrzavati * ili _ koji rusi
-# Markdown parsiranje pa se poruka uopce ne posalje. Plain text je siguran.
+# ==================== OPISI PONAVLJANJA ====================
 
-def safe_send(chat_id, text):
+def recurring_label(r):
+    """Ljudski citljiv opis rasporeda ponavljajuceg podsjetnika iz retka baze."""
+    hhmm = f"{r['hour']:02d}:{r['minute']:02d}"
+    n = r["interval_n"] or 1
+    if r["rtype"] == "daily":
+        return f"Svaki dan u {hhmm}" if n == 1 else f"Svaka {n} dana u {hhmm}"
+    if r["rtype"] == "weekly":
+        day = DAY_NAMES_SHORT[r["weekday"] or 0]
+        return f"{day} u {hhmm}" if n == 1 else f"Svaki {n}. tjedan, {day} u {hhmm}"
+    if r["rtype"] == "monthly":
+        if (r["monthday"] or 1) >= 32:
+            return f"Zadnji dan u mjesecu u {hhmm}"
+        return f"Svaki mjesec {r['monthday']}. u {hhmm}"
+    return hhmm
+
+
+# ==================== SLANJE PORUKA ====================
+# Bez parse_mode: korisnikov tekst s * ili _ ne smije srusiti slanje.
+
+def safe_send(chat_id, text, markup=None):
     try:
-        bot.send_message(chat_id, text)
+        bot.send_message(chat_id, text, reply_markup=markup)
         return True
     except Exception as e:
         print(f"Greska pri slanju poruke ({chat_id}): {e}")
         return False
 
 
+def snooze_markup(reminder_id):
+    """Gumbi za odgodu ispod okinutog podsjetnika."""
+    mk = telebot.types.InlineKeyboardMarkup()
+    mk.row(
+        telebot.types.InlineKeyboardButton("+15 min", callback_data=f"snz_{reminder_id}_15"),
+        telebot.types.InlineKeyboardButton("+1 h", callback_data=f"snz_{reminder_id}_60"),
+        telebot.types.InlineKeyboardButton("+3 h", callback_data=f"snz_{reminder_id}_180"),
+    )
+    mk.row(
+        telebot.types.InlineKeyboardButton("📅 Sutra", callback_data=f"snz_{reminder_id}_1440"),
+        telebot.types.InlineKeyboardButton("✅ Gotovo", callback_data=f"snz_{reminder_id}_done"),
+    )
+    return mk
+
+
 # ==================== PROVJERA PODSJETNIKA (thread) ====================
+
+def _interval_due(r, today):
+    """Provjera intervala za daily/weekly s N>1 (anchor = datum prvog okidanja)."""
+    n = r["interval_n"] or 1
+    if n <= 1 or not r["anchor_ts"]:
+        return True
+    anchor = datetime.fromtimestamp(r["anchor_ts"], TZ).date()
+    days = (today - anchor).days
+    if days < 0:
+        return False
+    if r["rtype"] == "daily":
+        return days % n == 0
+    return (days // 7) % n == 0  # weekly
+
 
 def check_reminders():
     while True:
-        # Cijeli ciklus u try/except - ako bilo sto pukne (mreza, baza),
-        # thread NE umire nego pokusa opet za 10 sekundi.
+        # Cijeli ciklus u try/except - thread ne smije umrijeti.
         try:
             now = get_now()
             now_ts = now.timestamp()
             fired_key = now.strftime('%Y-%m-%d %H:%M')
+            today = now.date()
 
             # --- jednokratni ---
             with db() as conn:
                 due = conn.execute(
-                    "SELECT * FROM reminders WHERE time_ts <= ?", (now_ts,)
+                    "SELECT * FROM reminders WHERE fired = 0 AND time_ts <= ?",
+                    (now_ts,)
                 ).fetchall()
 
             for r in due:
-                sent = safe_send(r["chat_id"], f"🔔 PODSJETNIK\n\n{r['text']}")
-                # Brisi iz baze i ako slanje nije uspjelo - inace bi
-                # neispravan chat_id spamao pokusaje svakih 10 sekundi.
-                # (Privremene mrezne greske rjesava telebot-ov vlastiti retry.)
+                # Oznaci kao poslan PRIJE slanja (da ne spama kod greske),
+                # red ostaje u bazi zbog gumba za odgodu.
                 with db() as conn:
-                    conn.execute("DELETE FROM reminders WHERE id = ?", (r["id"],))
-                if not sent:
-                    print(f"Podsjetnik {r['id']} obrisan iako slanje nije uspjelo: {r['text']}")
+                    conn.execute("UPDATE reminders SET fired = 1 WHERE id = ?", (r["id"],))
+                safe_send(r["chat_id"], f"🔔 PODSJETNIK\n\n{r['text']}",
+                          markup=snooze_markup(r["id"]))
 
             # --- ponavljajuci ---
             with db() as conn:
                 rec = conn.execute("SELECT * FROM recurring").fetchall()
 
             for r in rec:
-                # last_fired sprjecava visestruko okidanje unutar iste minute
                 if r["last_fired"] == fired_key:
+                    continue  # vec okinuo ovu minutu
+
+                if r["hour"] != now.hour or r["minute"] != now.minute:
                     continue
 
                 should_fire = False
-                if r["rtype"] == "daily" and r["hour"] == now.hour and r["minute"] == now.minute:
-                    should_fire = True
-                elif (r["rtype"] == "weekly" and r["weekday"] == now.weekday()
-                        and r["hour"] == now.hour and r["minute"] == now.minute):
-                    should_fire = True
+                if r["rtype"] == "daily":
+                    should_fire = _interval_due(r, today)
+                elif r["rtype"] == "weekly" and r["weekday"] == now.weekday():
+                    should_fire = _interval_due(r, today)
+                elif r["rtype"] == "monthly":
+                    last_day = calendar.monthrange(now.year, now.month)[1]
+                    md = r["monthday"] or 1
+                    # 32 = zadnji dan; 31. u kracem mjesecu okida na zadnji dan
+                    effective = last_day if md >= 32 else min(md, last_day)
+                    should_fire = (now.day == effective)
 
                 if should_fire:
                     with db() as conn:
-                        conn.execute(
-                            "UPDATE recurring SET last_fired = ? WHERE id = ?",
-                            (fired_key, r["id"])
-                        )
-                    label = "DNEVNI" if r["rtype"] == "daily" else "TJEDNI"
-                    safe_send(r["chat_id"], f"🔄 {label} PODSJETNIK\n\n{r['text']}")
+                        conn.execute("UPDATE recurring SET last_fired = ? WHERE id = ?",
+                                     (fired_key, r["id"]))
+                    safe_send(r["chat_id"],
+                              f"🔄 PODSJETNIK ({recurring_label(r)})\n\n{r['text']}")
+
+            # --- ciscenje: poslani jednokratni stariji od 2 dana ---
+            with db() as conn:
+                conn.execute("DELETE FROM reminders WHERE fired = 1 AND time_ts < ?",
+                             (now_ts - 172800,))
 
         except Exception as e:
             print(f"Greska u check_reminders petlji: {e}")
 
         time.sleep(10)
+
+
+# ==================== ODGODA (snooze gumbi) ====================
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("snz_"))
+def snooze_callback(c):
+    if c.from_user.id not in ALLOWED_USERS:
+        bot.answer_callback_query(c.id)
+        return
+
+    try:
+        _, rid, val = c.data.split("_")
+        rid = int(rid)
+
+        with db() as conn:
+            row = conn.execute(
+                "SELECT * FROM reminders WHERE id = ? AND chat_id = ?",
+                (rid, c.message.chat.id)
+            ).fetchone()
+
+        if not row:
+            bot.answer_callback_query(c.id, "Taj podsjetnik više ne postoji.")
+            return
+
+        if val == "done":
+            with db() as conn:
+                conn.execute("DELETE FROM reminders WHERE id = ?", (rid,))
+            bot.answer_callback_query(c.id, "✅ Označeno kao gotovo")
+            try:
+                bot.edit_message_text(f"✅ GOTOVO\n\n{row['text']}",
+                                      c.message.chat.id, c.message.message_id)
+            except Exception:
+                pass
+            return
+
+        minutes = int(val)
+        now_ts = get_now().timestamp()
+        if minutes == 1440:
+            # "Sutra" = izvorno vrijeme + 24h (isti sat kao original)
+            new_ts = row["time_ts"] + 86400
+            while new_ts <= now_ts:
+                new_ts += 86400
+        else:
+            new_ts = now_ts + minutes * 60
+
+        with db() as conn:
+            conn.execute("UPDATE reminders SET time_ts = ?, fired = 0 WHERE id = ?",
+                         (new_ts, rid))
+
+        new_dt = datetime.fromtimestamp(new_ts, TZ)
+        bot.answer_callback_query(c.id, f"⏰ Pomaknuto na {new_dt.strftime('%d.%m. %H:%M')}")
+        try:
+            bot.edit_message_text(
+                f"🔔 PODSJETNIK\n\n{row['text']}\n\n"
+                f"⏰ Pomaknuto na {new_dt.strftime('%d.%m.%Y. u %H:%M')}",
+                c.message.chat.id, c.message.message_id)
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"Greska u snooze_callback: {e}")
+        bot.answer_callback_query(c.id, "Greška pri odgodi.")
 
 
 # ==================== PRIKAZ I BRISANJE ====================
@@ -320,24 +555,20 @@ def build_reminders_view(chat_id):
         lines.append("Jednokratni:")
         for r in once:
             dt = datetime.fromtimestamp(r["time_ts"], TZ)
-            lines.append(f"• {dt.strftime('%d.%m.%Y. %H:%M')} → {r['text']}")
+            lines.append(f"• {dt.strftime('%d.%m.%Y. u %H:%M')} → {r['text']}")
             markup.add(telebot.types.InlineKeyboardButton(
-                f"🗑 {dt.strftime('%d.%m. %H:%M')} — {_short(r['text'])}",
+                f"🗑⏰ {dt.strftime('%d.%m. %H:%M')} — {_short(r['text'])}",
                 callback_data=f"del_o_{r['id']}"
             ))
         lines.append("")
 
     if rec:
         lines.append("Ponavljajući:")
-        day_names = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]
         for r in rec:
-            if r["rtype"] == "daily":
-                when = f"Svaki dan u {r['hour']:02d}:{r['minute']:02d}"
-            else:
-                when = f"{day_names[r['weekday'] or 0]} u {r['hour']:02d}:{r['minute']:02d}"
-            lines.append(f"• 🔄 {when} → {r['text']}")
+            label = recurring_label(r)
+            lines.append(f"• 🔄 {label} → {r['text']}")
             markup.add(telebot.types.InlineKeyboardButton(
-                f"🗑 {when} — {_short(r['text'])}",
+                f"🗑🔄 {label} — {_short(r['text'])}",
                 callback_data=f"del_r_{r['id']}"
             ))
 
@@ -376,13 +607,13 @@ def delete_callback(c):
         else:
             bot.answer_callback_query(c.id, "Taj podsjetnik više ne postoji.")
 
-        # Osvjezi poruku s novom listom (gumb obrisanog nestaje)
+        # Osvjezi poruku s novom listom
         text, markup = build_reminders_view(c.message.chat.id)
         try:
             bot.edit_message_text(text, c.message.chat.id, c.message.message_id,
                                   reply_markup=markup)
         except Exception:
-            pass  # npr. identican sadrzaj - nije problem
+            pass
 
     except Exception as e:
         print(f"Greska u delete_callback: {e}")
@@ -415,7 +646,6 @@ def get_ai_response(chat_id, text):
         )
         answer = response.choices[0].message.content
 
-        # Spremi izmjenu u povijest i odrezi na zadnjih HISTORY_LIMIT poruka
         with history_lock:
             h = history.setdefault(chat_id, [])
             h.append({"role": "user", "content": text})
@@ -442,9 +672,16 @@ def command_handler(message):
             message,
             "✅ Bot je aktivan!\n\n"
             "Podsjetnik postaviš običnom porukom, npr:\n"
+            "• u 14:30 idem na trening\n"
             "• sutra u 10 nazovi klijenta\n"
+            "• 15.8. u 9 registracija kamiona\n"
             "• svaki dan u 7:30 provjeri kamione\n"
-            "• u 14:30 idem na trening\n\n"
+            "• svaka 2 dana u 8 zalij cvijeće\n"
+            "• svaki 2. tjedan pon u 8 sastanak\n"
+            "• svaki mjesec 15. u 9 plati leasing\n"
+            "• zadnji dan u mjesecu u 20 izvještaj\n\n"
+            "Kad podsjetnik stigne, gumbima ga možeš odgoditi "
+            "(+15 min, +1 h, +3 h, sutra) ili označiti gotovim.\n\n"
             "Naredbe:\n"
             "/lista – pregled podsjetnika (brisanje gumbom)\n"
             "/reset – obriši povijest AI razgovora\n\n"
@@ -485,23 +722,33 @@ def handle(message):
             add_reminder(message.chat.id, desc, result)
             bot.reply_to(
                 message,
-                f"✅ Podsjetnik postavljen za {result.strftime('%d.%m.%Y. %H:%M')}\n📝 {desc}"
+                f"✅ {result.strftime('%d.%m.%Y. u %H:%M')} — {desc}"
             )
         elif rtype == "daily":
-            hour, minute = result
-            add_recurring(message.chat.id, desc, "daily", hour, minute)
-            bot.reply_to(
-                message,
-                f"✅ Dnevni podsjetnik postavljen ({hour:02d}:{minute:02d})\n📝 {desc}"
-            )
-        else:  # weekly
-            weekday, hour, minute = result
-            day_names = ["ponedjeljak", "utorak", "srijedu", "četvrtak", "petak", "subotu", "nedjelju"]
-            add_recurring(message.chat.id, desc, "weekly", hour, minute, weekday)
-            bot.reply_to(
-                message,
-                f"✅ Tjedni podsjetnik postavljen (svaki {day_names[weekday]} u {hour:02d}:{minute:02d})\n📝 {desc}"
-            )
+            add_recurring(message.chat.id, desc, "daily",
+                          result["hour"], result["minute"],
+                          interval=result["interval"])
+            n = result["interval"]
+            when = (f"Svaki dan u {result['hour']:02d}:{result['minute']:02d}" if n == 1
+                    else f"Svaka {n} dana u {result['hour']:02d}:{result['minute']:02d}")
+            bot.reply_to(message, f"✅ 🔄 {when} — {desc}")
+        elif rtype == "weekly":
+            add_recurring(message.chat.id, desc, "weekly",
+                          result["hour"], result["minute"],
+                          weekday=result["weekday"], interval=result["interval"])
+            n = result["interval"]
+            day = DAY_NAMES_INSTR[result["weekday"]]
+            when = (f"Svakim {day} u {result['hour']:02d}:{result['minute']:02d}" if n == 1
+                    else f"Svaki {n}. tjedan {day} u {result['hour']:02d}:{result['minute']:02d}")
+            bot.reply_to(message, f"✅ 🔄 {when} — {desc}")
+        else:  # monthly
+            add_recurring(message.chat.id, desc, "monthly",
+                          result["hour"], result["minute"],
+                          monthday=result["monthday"])
+            hhmm = f"{result['hour']:02d}:{result['minute']:02d}"
+            when = ("Zadnji dan u mjesecu" if result["monthday"] >= 32
+                    else f"Svaki mjesec {result['monthday']}.")
+            bot.reply_to(message, f"✅ 🔄 {when} u {hhmm} — {desc}")
         return
 
     # 3. Sve ostalo -> AI razgovor
