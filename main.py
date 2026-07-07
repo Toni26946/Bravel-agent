@@ -774,4 +774,4 @@ if __name__ == "__main__":
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
     print("✅ Bot pokrenut, slušam poruke")
-    bot.infinity_polling()
+    bot.infinity_polling(allowed_updates=["message", "callback_query"])
