@@ -88,6 +88,23 @@ def init_db():
                 last_fired TEXT                   -- 'YYYY-MM-DD HH:MM' zadnjeg okidanja
             )
         """)
+        # Dnevni log za izvjestaj: zabiljeske rada (kind='note') i poruke AI
+        # razgovora (kind='user'/'assistant'). 'day' je datum u Europe/Zagreb
+        # radi jednostavnog upita "sve od danas".
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_log (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                day     TEXT    NOT NULL,   -- 'YYYY-MM-DD' (Europe/Zagreb)
+                ts      REAL    NOT NULL,   -- unix timestamp (za poredak)
+                kind    TEXT    NOT NULL,   -- 'note' | 'user' | 'assistant'
+                text    TEXT    NOT NULL
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_daily_log_lookup "
+            "ON daily_log (chat_id, day)"
+        )
     # Migracija starije baze (dodavanje stupaca ako ne postoje)
     with db() as conn:
         for stmt in [
@@ -153,6 +170,45 @@ def get_user_items(chat_id):
             (chat_id,)
         ).fetchall()
     return once, rec
+
+
+# ==================== DNEVNI LOG ====================
+# Broj dana koliko cuvamo zapise; stariji se brisu kod izrade izvjestaja.
+RETENTION_DAYS = 30
+
+
+def _log(chat_id, kind, text):
+    now = get_now()
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO daily_log (chat_id, day, ts, kind, text) VALUES (?, ?, ?, ?, ?)",
+            (chat_id, now.strftime('%Y-%m-%d'), now.timestamp(), kind, text)
+        )
+
+
+def log_note(chat_id, text):
+    _log(chat_id, "note", text)
+
+
+def log_chat(chat_id, role, text):
+    # role je 'user' ili 'assistant'
+    _log(chat_id, role, text)
+
+
+def get_today_log(chat_id):
+    today = get_now().strftime('%Y-%m-%d')
+    with db() as conn:
+        return conn.execute(
+            "SELECT kind, text, ts FROM daily_log WHERE chat_id = ? AND day = ? "
+            "ORDER BY ts, id",
+            (chat_id, today)
+        ).fetchall()
+
+
+def cleanup_old_logs():
+    cutoff = get_now().timestamp() - RETENTION_DAYS * 86400
+    with db() as conn:
+        conn.execute("DELETE FROM daily_log WHERE ts < ?", (cutoff,))
 
 
 # ==================== PARSIRANJE VREMENA ====================
@@ -662,15 +718,110 @@ def get_ai_response(chat_id, text):
             h.append({"role": "assistant", "content": answer})
             history[chat_id] = h[-HISTORY_LIMIT:]
 
+        # Trajno spremi izmjenu za dnevni izvjestaj (RAM povijest se gubi kod restarta)
+        log_chat(chat_id, "user", text)
+        log_chat(chat_id, "assistant", answer)
+
         return answer
     except Exception as e:
         print(f"OpenAI greska: {e}")
         return "Žao mi je, imao sam problem s odgovorom. Pokušaj ponovno."
 
 
+# ==================== DNEVNI IZVJESTAJ ====================
+
+# Okidaci koji traze izvjestaj. Drzimo ih kratkima da lako matchaju.
+REPORT_TRIGGERS = [
+    "gotovi za danas", "gotov za danas", "gotova za danas", "gotovo za danas",
+    "gotovi smo za danas", "kraj dana", "gotov sam za danas",
+    "dnevni izvještaj", "dnevni izvjestaj",
+    "izvještaj za danas", "izvjestaj za danas",
+]
+
+# Prefiksi kojima korisnik rucno biljezi rad, npr. "zabilježi obavljena dostava".
+_NOTE_RE = re.compile(r'^\s*(zabilje[žz]i|bilje[šs]ka|zapi[šs]i)\b\s*[:,\-]?\s*(.+)',
+                      re.IGNORECASE | re.DOTALL)
+
+
+def is_report_trigger(lower):
+    return any(t in lower for t in REPORT_TRIGGERS)
+
+
+def extract_note(text):
+    """Vraca tekst zabiljeske ako poruka pocinje prepoznatim prefiksom, inace None."""
+    m = _NOTE_RE.match(text)
+    if m:
+        return m.group(2).strip()
+    return None
+
+
+def summarize_day(messages):
+    """messages: lista (role, text). Vraca uredan AI sazetak ili None ako AI padne."""
+    convo = "\n".join(
+        f"{'Radnik' if role == 'user' else 'Bot'}: {t}" for role, t in messages
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "Na temelju razgovora radnika s botom napiši kratak, uredan sažetak "
+                    "što je radnik danas radio, dogovorio ili planirao. Piši na hrvatskom, "
+                    "u natuknicama koje počinju s '- '. Bez uvoda i zaključka. "
+                    "Ako iz razgovora nema konkretnog posla, napiši samo '- nema konkretnih zadataka'."
+                )},
+                {"role": "user", "content": convo},
+            ],
+            temperature=0.4,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"OpenAI sazetak greska: {e}")
+        return None
+
+
+def build_daily_report(chat_id):
+    cleanup_old_logs()
+    rows = get_today_log(chat_id)
+    notes = [r["text"] for r in rows if r["kind"] == "note"]
+    convo = [(r["kind"], r["text"]) for r in rows if r["kind"] in ("user", "assistant")]
+
+    if not notes and not convo:
+        return (
+            "📊 Danas još nema zabilježenih aktivnosti.\n\n"
+            "Rad možeš zabilježiti porukom, npr:\n"
+            "„zabilježi obavljena dostava Zagreb“."
+        )
+
+    today_str = get_now().strftime('%d.%m.%Y.')
+    lines = [f"📊 DNEVNI IZVJEŠTAJ — {today_str}", ""]
+
+    if notes:
+        lines.append(f"📝 Zabilješke ({len(notes)}):")
+        for i, n in enumerate(notes, 1):
+            lines.append(f"{i}. {n}")
+        lines.append("")
+
+    if convo:
+        summary = summarize_day(convo)
+        if summary:
+            lines.append("💬 Sažetak dana:")
+            lines.append(summary)
+            lines.append("")
+
+    lines.append("Ugodan odmor! 👋")
+    return "\n".join(lines).strip()
+
+
+def send_daily_report(message):
+    report = build_daily_report(message.chat.id)
+    safe_send(message.chat.id, report)
+
+
 # ==================== HANDLERS ====================
 
-@bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik', 'reset'])
+@bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
+                               'reset', 'izvjestaj'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -692,11 +843,19 @@ def command_handler(message):
             "• zadnji dan u mjesecu u 20 izvještaj\n\n"
             "Kad podsjetnik stigne, gumbima ga možeš odgoditi "
             "(+15 min, +1 h, +3 h, sutra) ili označiti gotovim.\n\n"
+            "Bilježenje rada i izvještaj:\n"
+            "• zabilježi obavljena dostava Zagreb – zabilježi što si napravio\n"
+            "• „gotovi za danas“ ili /izvjestaj – dnevni izvještaj\n\n"
             "Naredbe:\n"
             "/lista – pregled podsjetnika (brisanje gumbom)\n"
+            "/izvjestaj – dnevni izvještaj\n"
             "/reset – obriši povijest AI razgovora\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
+        return
+
+    if cmd.startswith('/izvjestaj'):
+        send_daily_report(message)
         return
 
     if cmd.startswith('/reset'):
@@ -718,14 +877,30 @@ def handle(message):
     text = message.text.strip()
     lower = text.lower()
 
-    # 1. Kljucne rijeci za pregled podsjetnika
+    # 1. Dnevni izvjestaj ("gotovi za danas" i sl.) - provjeri prvo da ne
+    # bude protumaceno kao podsjetnik ili AI poruka.
+    if is_report_trigger(lower):
+        send_daily_report(message)
+        return
+
+    # 2. Rucna zabiljeska rada ("zabilježi ...")
+    note = extract_note(text)
+    if note is not None:
+        if note:
+            log_note(message.chat.id, note)
+            bot.reply_to(message, f"📝 Zabilježeno: {note}")
+        else:
+            bot.reply_to(message, "Napiši što da zabilježim, npr:\nzabilježi obavljena dostava Zagreb")
+        return
+
+    # 3. Kljucne rijeci za pregled podsjetnika
     list_keywords = ["lista", "podsjetnici", "moji podsjetnici",
                      "pokaži podsjetnike", "pregled podsjetnika"]
     if any(k == lower or k in lower for k in list_keywords) and len(lower) < 30:
         show_reminders(message)
         return
 
-    # 2. Pokusaj prepoznati kao podsjetnik
+    # 4. Pokusaj prepoznati kao podsjetnik
     result, rtype, desc = parse_time(text)
     if result is not None:
         if rtype == "once":
@@ -761,7 +936,7 @@ def handle(message):
             bot.reply_to(message, f"✅ Ponavljajući podsjetnik postavljen ({when} u {hhmm})\n📝 {desc}")
         return
 
-    # 3. Sve ostalo -> AI razgovor
+    # 5. Sve ostalo -> AI razgovor
     response = get_ai_response(message.chat.id, text)
     bot.reply_to(message, response)
 
