@@ -1,4 +1,4 @@
 pyTelegramBotAPI
-openai
+anthropic
 tzdata
 

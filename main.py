@@ -4,7 +4,7 @@
 #  - Podsjetnici: jednokratni, dnevni, tjedni, svaka N dana,
 #    svaki N. tjedan, mjesecni
 #  - Odgoda podsjetnika gumbima (+15 min, +1 h, +3 h, sutra)
-#  - AI razgovor (OpenAI) s pamcenjem konteksta po korisniku
+#  - AI razgovor (Claude) s pamcenjem konteksta po korisniku
 # ============================================================
 
 import os
@@ -17,14 +17,14 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import telebot
-from openai import OpenAI
+import anthropic
 
 # ==================== KONFIGURACIJA ====================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Whitelist: prvo pokusaj iz env varijable ALLOWED_USERS="123,456",
 # ako je nema koristi hardkodiranu listu. Novog radnika dodajes sa:
@@ -700,17 +700,18 @@ def get_ai_response(chat_id, text):
             user_history = list(history.get(chat_id, []))
 
         messages = (
-            [{"role": "system", "content": SYSTEM_PROMPT}]
-            + user_history
+            user_history
             + [{"role": "user", "content": text}]
         )
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
             messages=messages,
             temperature=0.7,
         )
-        answer = response.choices[0].message.content
+        answer = response.content[0].text
 
         with history_lock:
             h = history.setdefault(chat_id, [])
@@ -724,7 +725,7 @@ def get_ai_response(chat_id, text):
 
         return answer
     except Exception as e:
-        print(f"OpenAI greska: {e}")
+        print(f"Claude greska: {e}")
         return "Žao mi je, imao sam problem s odgovorom. Pokušaj ponovno."
 
 
@@ -761,22 +762,23 @@ def summarize_day(messages):
         f"{'Radnik' if role == 'user' else 'Bot'}: {t}" for role, t in messages
     )
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+        resp = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1024,
+            system=(
+                "Na temelju razgovora radnika s botom napiši kratak, uredan sažetak "
+                "što je radnik danas radio, dogovorio ili planirao. Piši na hrvatskom, "
+                "u natuknicama koje počinju s '- '. Bez uvoda i zaključka. "
+                "Ako iz razgovora nema konkretnog posla, napiši samo '- nema konkretnih zadataka'."
+            ),
             messages=[
-                {"role": "system", "content": (
-                    "Na temelju razgovora radnika s botom napiši kratak, uredan sažetak "
-                    "što je radnik danas radio, dogovorio ili planirao. Piši na hrvatskom, "
-                    "u natuknicama koje počinju s '- '. Bez uvoda i zaključka. "
-                    "Ako iz razgovora nema konkretnog posla, napiši samo '- nema konkretnih zadataka'."
-                )},
                 {"role": "user", "content": convo},
             ],
             temperature=0.4,
         )
-        return resp.choices[0].message.content.strip()
+        return resp.content[0].text.strip()
     except Exception as e:
-        print(f"OpenAI sazetak greska: {e}")
+        print(f"Claude sazetak greska: {e}")
         return None
 
 
