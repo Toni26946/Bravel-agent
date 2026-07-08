@@ -1,0 +1,25 @@
+# fly.monitor.toml — bravel-monitor (zaseban dijagnosticki bot)
+# Deploy:  fly deploy -c fly.monitor.toml
+# Koristi isti Dockerfile/image kao glavni bot, ali pokrece monitor.py.
+app = 'bravel-monitor'
+primary_region = 'ams'
+
+[build]
+  # koristi Dockerfile iz repozitorija (isti image kao glavni bot)
+
+[env]
+  PORT = '8080'
+
+[processes]
+  app = 'python monitor.py'
+
+# Vlastiti volume za monitor.db (odvojen od baze glavnog bota).
+[mounts]
+  source = 'monitor_data'
+  destination = '/data'
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  processes = ['app']

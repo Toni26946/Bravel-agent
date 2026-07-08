@@ -19,6 +19,8 @@ from zoneinfo import ZoneInfo
 import telebot
 import anthropic
 
+import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako nije konfiguriran)
+
 # ==================== KONFIGURACIJA ====================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -429,6 +431,7 @@ def safe_send(chat_id, text, markup=None):
         return True
     except Exception as e:
         print(f"Greska pri slanju poruke ({chat_id}): {e}")
+        monitoring.warning(f"Slanje poruke nije uspjelo ({chat_id}): {e}", source="safe_send")
         return False
 
 
@@ -524,6 +527,7 @@ def check_reminders():
 
         except Exception as e:
             print(f"Greska u check_reminders petlji: {e}")
+            monitoring.error("Greska u check_reminders petlji", source="check_reminders", exc=e)
 
         time.sleep(10)
 
@@ -587,6 +591,7 @@ def snooze_callback(c):
 
     except Exception as e:
         print(f"Greska u snooze_callback: {e}")
+        monitoring.error("Greska u snooze_callback", source="snooze_callback", exc=e)
         bot.answer_callback_query(c.id, "Greška pri odgodi.")
 
 
@@ -685,6 +690,7 @@ def delete_callback(c):
 
     except Exception as e:
         print(f"[DELETE] GRESKA: {e}")
+        monitoring.error("Greska u delete_callback", source="delete_callback", exc=e)
 
 # ==================== AI RAZGOVOR ====================
 
@@ -726,6 +732,7 @@ def get_ai_response(chat_id, text):
         return answer
     except Exception as e:
         print(f"Claude greska: {e}")
+        monitoring.error("Claude API greska (get_ai_response)", source="claude", exc=e)
         return "Žao mi je, imao sam problem s odgovorom. Pokušaj ponovno."
 
 
@@ -779,6 +786,7 @@ def summarize_day(messages):
         return resp.content[0].text.strip()
     except Exception as e:
         print(f"Claude sazetak greska: {e}")
+        monitoring.warning(f"Claude sazetak (summarize_day) nije uspio: {e}", source="claude")
         return None
 
 
@@ -947,8 +955,11 @@ def handle(message):
 
 if __name__ == "__main__":
     print("🚀 Bot se pokreće...")
+    monitoring.install("bravel-agent")  # hvatanje neuhvacenih iznimki -> monitoring bot
+    monitoring.start_heartbeat(interval=60)  # 'puls' svakih 60 s -> monitor prati je li bot ziv
     init_db()
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
     print("✅ Bot pokrenut, slušam poruke")
+    monitoring.info("Bot pokrenut i sluša poruke.", source="startup")
     bot.infinity_polling(allowed_updates=["message", "callback_query"])
