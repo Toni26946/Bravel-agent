@@ -247,20 +247,27 @@ def upload_file(filename, content_bytes):
     return resp.json()
 
 
+def rename_file(filename, new_name):
+    """Preimenuj fajl u BRAVEL folderu (PATCH item.name). Dize GraphError s
+    kodom 409 ako novo ime vec postoji."""
+    item_id = get_item_id(filename)
+    drive_id = get_drive_id()
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
+    return _request("PATCH", url, json={"name": new_name}).json()
+
+
 # ==================== EXCEL WORKBOOK API ====================
 
-def append_table_row(filename, table_name, values):
-    """Dodaj redak u imenovanu Excel tablicu preko workbook API-ja
-    (bez download/upload cijelog fajla).
+def append_table_rows(filename, table_name, rows):
+    """Dodaj JEDAN ili VISE redaka u imenovanu Excel tablicu preko workbook
+    API-ja (jedan POST, bez download/upload cijelog fajla).
 
-    values: lista vrijednosti (redoslijed = redoslijed kolona tablice).
-            Graph umece kao JEDAN redak.
-    Brojevi ostaju brojevi (JSON broj -> Excel broj), stringovi ostaju
-    tekst.
+    rows: lista redaka; svaki redak je lista vrijednosti (redoslijed =
+          redoslijed kolona tablice). Brojevi ostaju brojevi (JSON broj ->
+          Excel broj), stringovi ostaju tekst.
     """
     item_id = get_item_id(filename)
     drive_id = get_drive_id()
     url = (f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
            f"/workbook/tables/{table_name}/rows/add")
-    body = {"values": [values]}  # [[...]] = jedan redak
-    return _request("POST", url, json=body).json()
+    return _request("POST", url, json={"values": rows}).json()

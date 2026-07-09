@@ -32,12 +32,18 @@ VISION_MODEL = "claude-sonnet-4-6"  # samo za citanje racuna; razgovor ostaje na
 EXCEL_FILE = "Racuni_terena.xlsx"
 TABLE_NAME = "Racuni"
 
-# Kolone Excel tablice (redoslijed je bitan za upis retka)
+# Kolone Excel tablice (redoslijed je bitan za upis retka).
+# NOVA STRUKTURA: jedan redak = JEDNA STAVKA racuna.
 COLUMNS = [
-    "Datum", "Vrijeme", "Izdavatelj", "OIB", "BrojRacuna", "Opis",
-    "UkupnoEUR", "PDV", "NacinPlacanja", "Vozac", "GB", "JIR",
-    "UnioTelegramID", "VrijemeUnosa",
+    "Datum", "Vrijeme", "Izdavatelj", "OIB", "BrojRacuna",
+    "Stavka", "Kolicina", "JedinicnaCijena", "IznosStavke",
+    "PDV", "UkupnoEUR", "Lokacija", "Vozac", "GB",
+    "VrijemeUnosa", "UnioTelegramID",
 ]
+
+# Kljucne kolone po kojima prepoznajemo NOVU strukturu (za migraciju
+# starog fajla): ako zaglavlje nema ove kolone, fajl je stara struktura.
+_NEW_STRUCTURE_MARKERS = ("Stavka", "IznosStavke", "Lokacija")
 
 # ---- Ovisnosti koje ubrizgava main.py preko setup() ----
 _bot = None
@@ -155,27 +161,6 @@ def _fmt_num(x):
     return f"{x:.2f}"
 
 
-def _stavke_to_opis(stavke):
-    """Spoji listu stavki u jedan string za kolonu Opis."""
-    if not stavke:
-        return ""
-    dijelovi = []
-    for s in stavke:
-        if not isinstance(s, dict):
-            dijelovi.append(str(s))
-            continue
-        naziv = (s.get("naziv") or "").strip()
-        kol = s.get("kolicina")
-        iznos = s.get("iznos")
-        dio = naziv or "stavka"
-        if kol not in (None, ""):
-            dio += f" x{kol}"
-        if iznos not in (None, ""):
-            dio += f" = {iznos}"
-        dijelovi.append(dio)
-    return "; ".join(dijelovi)
-
-
 # ==================== CLAUDE VISION ====================
 
 _VISION_SYSTEM = (
@@ -191,12 +176,12 @@ _VISION_PROMPT = (
     '  "izdavatelj": "naziv tvrtke ili null",\n'
     '  "oib": "OIB izdavatelja (11 znamenki) ili null",\n'
     '  "broj_racuna": "broj racuna ili null",\n'
+    '  "lokacija": "adresa/mjesto poslovnice iz zaglavlja racuna '
+    '(npr. Zagrebačka 12, Vrbovec) ili null",\n'
     '  "stavke": [ {"naziv": "...", "kolicina": broj_ili_null, '
     '"cijena": broj_ili_null, "iznos": broj_ili_null} ],\n'
     '  "ukupno_eur": broj_ili_null,\n'
-    '  "pdv_iznos": broj_ili_null,\n'
-    '  "nacin_placanja": "gotovina/kartica/transakcija ili null",\n'
-    '  "jir": "JIR oznaka ili null"\n'
+    '  "pdv_iznos": broj_ili_null\n'
     '}\n'
     "Pravila: sve novcane iznose vrati kao brojeve u eurima (npr. 12.50). "
     "Ako je neko polje necitljivo ili ga nema, stavi null (nemoj izmisljati). "
@@ -242,20 +227,9 @@ def _read_receipt(image_bytes, media_type):
 
 # ==================== SAZETAK I GUMBI ====================
 
-# (labela, kljuc u data, je_broj)
-_DISPLAY = [
-    ("Datum", "datum", False),
-    ("Vrijeme", "vrijeme", False),
-    ("Izdavatelj", "izdavatelj", False),
-    ("OIB", "oib", False),
-    ("Broj računa", "broj_racuna", False),
-    ("Ukupno (EUR)", "ukupno_eur", True),
-    ("PDV", "pdv_iznos", True),
-    ("Način plaćanja", "nacin_placanja", False),
-    ("JIR", "jir", False),
-]
-
-# Aliasi za odabir polja kod ispravka -> kljuc u sesiji
+# Aliasi za odabir polja kod ispravka -> kljuc u sesiji.
+# (Pojedinacne stavke se ne uredjuju ovdje - kod krive stavke odbaci i
+#  posalji jasniju fotku.)
 _EDIT_ALIASES = {
     "datum": ("data", "datum"),
     "vrijeme": ("data", "vrijeme"),
@@ -264,43 +238,88 @@ _EDIT_ALIASES = {
     "broj racuna": ("data", "broj_racuna"),
     "broj_racuna": ("data", "broj_racuna"),
     "broj": ("data", "broj_racuna"),
+    "lokacija": ("data", "lokacija"),
     "ukupno": ("data", "ukupno_eur"),
     "ukupno_eur": ("data", "ukupno_eur"),
     "iznos": ("data", "ukupno_eur"),
     "pdv": ("data", "pdv_iznos"),
-    "nacin placanja": ("data", "nacin_placanja"),
-    "nacin_placanja": ("data", "nacin_placanja"),
-    "placanje": ("data", "nacin_placanja"),
-    "jir": ("data", "jir"),
-    "opis": ("data", "_opis_override"),
     "vozac": ("sess", "vozac"),
     "gb": ("sess", "gb"),
     "vozilo": ("sess", "gb"),
 }
 
+# polja koja se nude u poruci "koje polje ispraviti?"
+_EDIT_FIELD_NAMES = sorted({
+    "datum", "vrijeme", "izdavatelj", "oib", "broj racuna", "lokacija",
+    "ukupno", "pdv", "vozac", "gb",
+})
+
 _NUM_FIELDS = {"ukupno_eur", "pdv_iznos"}
+
+
+def _stavka_usable(s):
+    """True ako stavka ima barem naziv ili citljiv iznos."""
+    if not isinstance(s, dict):
+        return False
+    naziv = (s.get("naziv") or "").strip()
+    return bool(naziv) or _parse_num(s.get("iznos")) is not None
+
+
+def _stavka_fields(s):
+    """(naziv, kolicina, jed_cijena, iznos) — brojevi ili None gdje fali."""
+    if not isinstance(s, dict):
+        return ("(nespecificirano)", None, None, None)
+    naziv = (s.get("naziv") or "").strip() or "(nespecificirano)"
+    return (naziv, _parse_num(s.get("kolicina")),
+            _parse_num(s.get("cijena")), _parse_num(s.get("iznos")))
+
+
+def _usable_stavke(data):
+    return [s for s in (data.get("stavke") or []) if _stavka_usable(s)]
+
+
+def _stavka_line(s):
+    naziv, kol, cij, izn = _stavka_fields(s)
+    kol_s = f"{kol:g}" if kol is not None else "⚠️"
+    cij_s = f"{cij:.2f}" if cij is not None else "⚠️"
+    izn_s = f"{izn:.2f}" if izn is not None else "⚠️"
+    return f"  • {naziv} — {kol_s} × {cij_s} = {izn_s}"
 
 
 def _summary_text(sess):
     data = sess["data"]
+
+    def show(k):
+        v = data.get(k)
+        return str(v).strip() if v not in (None, "") else "⚠️"
+
     lines = ["🧾 Provjeri izvučene podatke:", ""]
-    for label, key, is_num in _DISPLAY:
-        val = data.get(key)
-        if is_num:
-            shown = _fmt_num(_parse_num(val))
-        else:
-            shown = (str(val).strip() if val not in (None, "") else "⚠️")
-        lines.append(f"• {label}: {shown}")
+    lines.append(f"• Datum: {show('datum')}   Vrijeme: {show('vrijeme')}")
+    lines.append(f"• Izdavatelj: {show('izdavatelj')}")
+    lines.append(f"• OIB: {show('oib')}")
+    lines.append(f"• Broj računa: {show('broj_racuna')}")
+    lines.append(f"• Lokacija: {show('lokacija')}")
+    lines.append("")
 
-    opis = data.get("_opis_override")
-    if opis is None:
-        opis = _stavke_to_opis(data.get("stavke"))
-    lines.append(f"• Opis: {opis if opis else '⚠️'}")
+    lines.append("Stavke:")
+    usable = _usable_stavke(data)
+    if usable:
+        for s in usable:
+            lines.append(_stavka_line(s))
+    else:
+        lines.append("  ⚠️ nema čitljivih stavki — upisat će se 1 redak "
+                     "„(nespecificirano)” s ukupnim iznosom")
+    lines.append("")
 
+    lines.append(f"• PDV: {_fmt_num(_parse_num(data.get('pdv_iznos')))}   "
+                 f"Ukupno (EUR): {_fmt_num(_parse_num(data.get('ukupno_eur')))}")
     lines.append("")
     lines.append(f"• Vozač: {sess.get('vozac') or '⚠️'}")
     lines.append(f"• GB (vozilo): {sess.get('gb') or '⚠️'}")
     lines.append("")
+
+    n = len(usable) if usable else 1
+    lines.append(f"➡️ Upisat će se {n} redak(a) — jedan po stavci.")
     lines.append("⚠️ = nečitljivo / prazno. Ispravi po potrebi.")
     return "\n".join(lines)
 
@@ -322,44 +341,50 @@ def _send_confirm(sess):
 
 # ==================== EXCEL: kreiranje i redak ====================
 
-def _build_row(sess):
-    """Sastavi listu vrijednosti za jedan redak tablice (redoslijed COLUMNS)."""
+def _build_rows(sess):
+    """Sastavi N redaka (jedan po stavci) u redoslijedu COLUMNS.
+
+    Ako racun nema citljivih stavki a ima ukupni iznos: jedan redak
+    „(nespecificirano)”, Kolicina=1, JedinicnaCijena=UkupnoEUR,
+    IznosStavke=UkupnoEUR. PDV i UkupnoEUR se ponavljaju u svakom retku."""
     data = sess["data"]
-    opis = data.get("_opis_override")
-    if opis is None:
-        opis = _stavke_to_opis(data.get("stavke"))
 
     def txt(k):
         v = data.get(k)
         return str(v).strip() if v not in (None, "") else ""
 
+    def num(x):
+        return x if x is not None else ""  # broj ili prazna celija
+
     ukupno = _parse_num(data.get("ukupno_eur"))
     pdv = _parse_num(data.get("pdv_iznos"))
 
-    return [
-        txt("datum"),
-        txt("vrijeme"),
-        txt("izdavatelj"),
-        txt("oib"),
-        txt("broj_racuna"),
-        opis,
-        ukupno if ukupno is not None else "",   # broj ili prazno
-        pdv if pdv is not None else "",
-        txt("nacin_placanja"),
-        sess.get("vozac") or "",
-        sess.get("gb") or "",
-        txt("jir"),
-        int(sess["user_id"]),
-        _now().strftime("%Y-%m-%d %H:%M:%S"),
-    ]
+    head = [txt("datum"), txt("vrijeme"), txt("izdavatelj"),
+            txt("oib"), txt("broj_racuna")]                      # 5 kolona
+    tail = [num(pdv), num(ukupno), txt("lokacija"),
+            sess.get("vozac") or "", sess.get("gb") or "",
+            _now().strftime("%Y-%m-%d %H:%M:%S"),
+            int(sess["user_id"])]                                # 7 kolona
+
+    usable = _usable_stavke(data)
+    rows = []
+    if usable:
+        for s in usable:
+            naziv, kol, cij, izn = _stavka_fields(s)
+            rows.append(head + [naziv, num(kol), num(cij), num(izn)] + tail)
+    else:
+        # nema citljivih stavki -> jedan redak s ukupnim iznosom
+        rows.append(head + ["(nespecificirano)", 1, num(ukupno), num(ukupno)]
+                    + tail)
+    return rows
 
 
-def _create_workbook_bytes(initial_row=None):
+def _create_workbook_bytes(initial_rows=None):
     """Kreiraj novi xlsx s Excel TABLICOM (ListObject) 'Racuni'.
 
-    Ako je zadan initial_row, upisujemo ga odmah (tablica ima zaglavlje +
-    prvi redak). Tako prvi upis NE ovisi o workbook API-ju na tek
-    nastalom fajlu (gdje Excel sesija zna kasniti/visjeti)."""
+    Ako su zadani initial_rows, upisemo ih odmah (tablica ima zaglavlje +
+    N redaka). Tako prvi upis NE ovisi o workbook API-ju na tek nastalom
+    fajlu (gdje Excel sesija zna kasniti/visjeti)."""
     from openpyxl import Workbook
     from openpyxl.worksheet.table import Table, TableStyleInfo
 
@@ -367,12 +392,11 @@ def _create_workbook_bytes(initial_row=None):
     ws = wb.active
     ws.title = "Racuni"
     ws.append(COLUMNS)
-    if initial_row is not None:
-        ws.append(initial_row)
+    for r in (initial_rows or []):
+        ws.append(r)
 
     last_col = _col_letter(len(COLUMNS))
-    last_row = ws.max_row  # 1 (samo zaglavlje) ili 2 (zaglavlje + redak)
-    tab = Table(displayName=TABLE_NAME, ref=f"A1:{last_col}{last_row}")
+    tab = Table(displayName=TABLE_NAME, ref=f"A1:{last_col}{ws.max_row}")
     tab.tableStyleInfo = TableStyleInfo(
         name="TableStyleMedium2", showRowStripes=True)
     ws.add_table(tab)
@@ -383,7 +407,7 @@ def _create_workbook_bytes(initial_row=None):
 
 
 def _col_letter(n):
-    """1 -> A, 14 -> N."""
+    """1 -> A, 16 -> P."""
     s = ""
     while n > 0:
         n, r = divmod(n - 1, 26)
@@ -391,16 +415,18 @@ def _col_letter(n):
     return s
 
 
-def _fallback_append(row_values):
-    """Rezerva ako workbook API zapne: download -> append openpyxl -> upload."""
+def _fallback_append(rows):
+    """Rezerva ako workbook API zapne: download -> append openpyxl -> upload.
+    rows: lista redaka."""
     from openpyxl import load_workbook
 
     content = graph_client.download_file(EXCEL_FILE)
     wb = load_workbook(io.BytesIO(content))
     ws = wb["Racuni"] if "Racuni" in wb.sheetnames else wb.active
-    ws.append(row_values)
+    for r in rows:
+        ws.append(r)
 
-    # Prosiri raspon tablice da ukljuci novi redak (ako tablica postoji)
+    # Prosiri raspon tablice da ukljuci nove retke (ako tablica postoji)
     tab = ws.tables.get(TABLE_NAME) if hasattr(ws, "tables") else None
     if tab is not None:
         last_col = _col_letter(len(COLUMNS))
@@ -416,19 +442,66 @@ def _fallback_append(row_values):
 _RETRYABLE = {404, 423, 500, 502, 503, 504}
 
 
-def _append_via_workbook(row):
-    """Dodaj redak preko workbook API-ja s kratkim backoff retryjem.
+def _append_via_workbook(rows):
+    """Dodaj retke preko workbook API-ja s kratkim backoff retryjem.
     Dize GraphError ako ni nakon retryja ne uspije (pozivatelj ide na fallback)."""
     delays = [2, 4]  # nakon 1. i 2. neuspjeha; 3. pokusaj je zadnji
     for attempt in range(3):
         try:
-            graph_client.append_table_row(EXCEL_FILE, TABLE_NAME, row)
+            graph_client.append_table_rows(EXCEL_FILE, TABLE_NAME, rows)
             return
         except graph_client.GraphError as e:
             if e.status_code in _RETRYABLE and attempt < len(delays):
                 time.sleep(delays[attempt])
                 continue
             raise
+
+
+# ---- Migracija starog fajla (stara struktura -> _STARO) ----
+
+def _read_header():
+    """Skini fajl i vrati listu vrijednosti zaglavlja (row 1), ili None."""
+    from openpyxl import load_workbook
+
+    content = graph_client.download_file(EXCEL_FILE)
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    try:
+        ws = wb["Racuni"] if "Racuni" in wb.sheetnames else wb.active
+        first = next(ws.iter_rows(min_row=1, max_row=1), None)
+        return [c.value for c in first] if first else []
+    finally:
+        wb.close()
+
+
+def _is_old_structure():
+    """True ako postojeci fajl NEMA nove kolone (stara struktura).
+    Jednostavna provjera zaglavlja. Kod greske vrati False (ne diramo fajl)."""
+    try:
+        header = _read_header()
+    except Exception as e:
+        _log(f"provjera strukture nije uspjela ({e}); pretpostavljam novu")
+        return False
+    if not header:
+        return False
+    return not all(marker in header for marker in _NEW_STRUCTURE_MARKERS)
+
+
+def _rename_old_aside():
+    """Preimenuj stari fajl u Racuni_terena_STARO.xlsx (uz sufiks ako je ime
+    zauzeto). Vraca novo ime."""
+    base, ext = "Racuni_terena_STARO", ".xlsx"
+    candidates = [f"{base}{ext}"] + [f"{base}_{i}{ext}" for i in range(2, 21)]
+    for name in candidates:
+        try:
+            graph_client.rename_file(EXCEL_FILE, name)
+            return name
+        except graph_client.GraphError as e:
+            if e.status_code == 409:  # ime vec zauzeto -> probaj sljedece
+                continue
+            raise
+    name = f"{base}_{_now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    graph_client.rename_file(EXCEL_FILE, name)
+    return name
 
 
 def _write_receipt(sess):
@@ -446,44 +519,62 @@ def _write_receipt(sess):
         graph_client.ensure_token()
         _log("1/6 auth OK")
 
-        row = _build_row(sess)
+        rows = _build_rows(sess)
+        _log(f"pripremljeno redaka za upis: {len(rows)}")
 
         step = "2/6 provjera fajla"
         _log("2/6 provjera postoji li fajl")
         exists = graph_client.file_exists(EXCEL_FILE)
         _log(f"2/6 fajl postoji = {exists}")
 
-        # PRVI upis: fajl ne postoji -> kreiraj ga s retkom vec unutra i
-        # uploadaj. Bez workbook API-ja na svjezem fajlu (izbjegava vis/greske
-        # dok se Excel sesija ne probudi).
+        # Migracija: fajl postoji ali stara struktura -> preimenuj u STARO i
+        # tretiraj kao novi fajl (kreiraj s novom strukturom).
+        if exists:
+            step = "2b/6 provjera strukture"
+            _log("2b/6 provjera strukture zaglavlja")
+            if _is_old_structure():
+                old = _rename_old_aside()
+                _log(f"2b/6 STARA struktura -> preimenovano u {old}; kreiram novi")
+                monitoring.info(
+                    f"Racuni: stari fajl preimenovan u {old} (migracija strukture).",
+                    source="racuni")
+                exists = False
+            else:
+                _log("2b/6 struktura OK (nova)")
+
+        # PRVI upis / novi fajl: kreiraj xlsx s retcima vec unutra i uploadaj.
+        # Bez workbook API-ja na svjezem fajlu (izbjegava vis/greske dok se
+        # Excel sesija ne probudi).
         if not exists:
             step = "3/6 kreiranje xlsx"
-            _log("3/6 kreiram xlsx s retkom (openpyxl)")
-            content = _create_workbook_bytes(initial_row=row)
+            _log(f"3/6 kreiram xlsx s {len(rows)} redaka (openpyxl)")
+            content = _create_workbook_bytes(initial_rows=rows)
             _log(f"3/6 xlsx kreiran ({len(content)} B)")
             step = "4/6 upload"
             _log("4/6 upload na SharePoint (PUT)")
             graph_client.upload_file(EXCEL_FILE, content)
             _log("4/6 upload OK")
-            return True, "✅ Račun upisan (kreiran novi Racuni_terena.xlsx)."
+            return True, (f"✅ Račun upisan — {len(rows)} stavka(i) "
+                          "(kreiran novi Racuni_terena.xlsx).")
 
-        # Fajl postoji: workbook API (s retryjem), pa fallback download/upload.
+        # Fajl postoji (nova struktura): workbook API (retry), pa fallback.
         step = "5/6 workbook append"
-        _log("5/6 workbook append (rows/add, s retryjem)")
+        _log(f"5/6 workbook append {len(rows)} redaka (rows/add, s retryjem)")
         try:
-            _append_via_workbook(row)
+            _append_via_workbook(rows)
             _log("5/6 workbook append OK")
-            return True, "✅ Račun upisan u Racuni_terena.xlsx na SharePointu."
+            return True, (f"✅ Račun upisan — {len(rows)} stavka(i) u "
+                          "Racuni_terena.xlsx.")
         except graph_client.GraphError as e:
             step = "5/6 fallback download/upload"
             _log(f"5/6 workbook append pao ({e}); fallback download->append->upload")
             monitoring.warning(
                 f"Workbook API zapeo ({e}); prelazim na fallback download/upload.",
                 source="racuni")
-            _fallback_append(row)
+            _fallback_append(rows)
             _log("5/6 fallback OK")
-            return True, ("✅ Račun upisan (preko rezervne metode "
-                          "download→upload).")
+            return True, (f"✅ Račun upisan — {len(rows)} stavka(i) "
+                          "(rezervna metoda download→upload).")
 
     except graph_client.GraphError as e:
         _log(f"{step} GREŠKA: GraphError kod={e.status_code} {e}")
@@ -669,13 +760,13 @@ def _on_callback(c):
 
     if action == "ed":
         sess["stage"] = "edit_which"
-        polja = ", ".join(sorted({
-            "datum", "vrijeme", "izdavatelj", "oib", "broj racuna",
-            "ukupno", "pdv", "nacin placanja", "jir", "opis", "vozac", "gb",
-        }))
-        _bot.send_message(chat_id,
-                          "Koje polje želiš ispraviti? Napiši naziv, npr. 'oib'.\n\n"
-                          f"Moguća polja: {polja}")
+        polja = ", ".join(_EDIT_FIELD_NAMES)
+        _bot.send_message(
+            chat_id,
+            "Koje polje želiš ispraviti? Napiši naziv, npr. 'oib'.\n"
+            "(Pojedine stavke se ne uređuju — ako su krive, odbaci i pošalji "
+            "jasniju fotku.)\n\n"
+            f"Moguća polja: {polja}")
         return
 
     if action == "ok":
