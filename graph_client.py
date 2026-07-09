@@ -73,9 +73,10 @@ class _TimeoutSession(requests.Session):
 _app = None
 _app_lock = threading.Lock()
 
-# Kes za site/drive ID (rijetko se mijenjaju, drzimo ih do restarta)
+# Kes za site/drive ID (rijetko se mijenjaju, drzimo ih do restarta).
+# RLock (reentrant) da isti thread ne moze zablokirati sam sebe.
 _ids = {"site": None, "drive": None}
-_ids_lock = threading.Lock()
+_ids_lock = threading.RLock()
 
 
 def is_configured():
@@ -166,29 +167,32 @@ def _request(method, url, *, json=None, data=None, headers=None, stream=False):
 
 def get_site_id():
     """Dohvati (i kesiraj) ID SharePoint sajta preko host+path adrese.
-    ASCII adresa, hrvatskih znakova ovdje nema."""
+    Mrezni poziv je IZVAN locka; lock se drzi samo za upis u kes — tako se
+    lock ne drzi preko I/O niti se ugnjezduje (nema deadlocka)."""
     if _ids["site"]:
         return _ids["site"]
+    _glog("site: dohvacam site ID")
+    url = f"{GRAPH_ROOT}/sites/{SITE_HOST}:{SITE_PATH}"
+    data = _request("GET", url).json()
     with _ids_lock:
-        if not _ids["site"]:
-            url = f"{GRAPH_ROOT}/sites/{SITE_HOST}:{SITE_PATH}"
-            data = _request("GET", url).json()
-            _ids["site"] = data["id"]
+        _ids["site"] = data["id"]
+    _glog(f"site: id={_ids['site']}")
     return _ids["site"]
 
 
 def get_drive_id():
     """Dohvati (i kesiraj) ID default biblioteke sajta ("Zajednički
-    dokumenti"). Koristimo /sites/{id}/drive da izbjegnemo adresiranje
-    biblioteke po hrvatskom imenu."""
+    dokumenti"). Site se rjesava PRIJE ulaska u lock (nema ugnijezdenog
+    zakljucavanja); mrezni poziv izvan locka."""
     if _ids["drive"]:
         return _ids["drive"]
+    site_id = get_site_id()  # rijesi site prvo (vlastiti, ne-ugnijezdeni lock)
+    _glog("drive: dohvacam drive ID")
+    url = f"{GRAPH_ROOT}/sites/{site_id}/drive"
+    data = _request("GET", url).json()
     with _ids_lock:
-        if not _ids["drive"]:
-            site_id = get_site_id()
-            url = f"{GRAPH_ROOT}/sites/{site_id}/drive"
-            data = _request("GET", url).json()
-            _ids["drive"] = data["id"]
+        _ids["drive"] = data["id"]
+    _glog(f"drive: id={_ids['drive']}")
     return _ids["drive"]
 
 

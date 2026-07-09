@@ -439,13 +439,16 @@ def _write_receipt(sess):
         return False, ("SharePoint nije konfiguriran (nedostaju Graph "
                        "kredencijali). Redak nije upisan.")
 
+    step = "start"
     try:
+        step = "1/6 auth"
         _log("1/6 auth (dohvacam Graph token)")
         graph_client.ensure_token()
         _log("1/6 auth OK")
 
         row = _build_row(sess)
 
+        step = "2/6 provjera fajla"
         _log("2/6 provjera postoji li fajl")
         exists = graph_client.file_exists(EXCEL_FILE)
         _log(f"2/6 fajl postoji = {exists}")
@@ -454,21 +457,25 @@ def _write_receipt(sess):
         # uploadaj. Bez workbook API-ja na svjezem fajlu (izbjegava vis/greske
         # dok se Excel sesija ne probudi).
         if not exists:
+            step = "3/6 kreiranje xlsx"
             _log("3/6 kreiram xlsx s retkom (openpyxl)")
             content = _create_workbook_bytes(initial_row=row)
             _log(f"3/6 xlsx kreiran ({len(content)} B)")
+            step = "4/6 upload"
             _log("4/6 upload na SharePoint (PUT)")
             graph_client.upload_file(EXCEL_FILE, content)
             _log("4/6 upload OK")
             return True, "✅ Račun upisan (kreiran novi Racuni_terena.xlsx)."
 
         # Fajl postoji: workbook API (s retryjem), pa fallback download/upload.
+        step = "5/6 workbook append"
         _log("5/6 workbook append (rows/add, s retryjem)")
         try:
             _append_via_workbook(row)
             _log("5/6 workbook append OK")
             return True, "✅ Račun upisan u Racuni_terena.xlsx na SharePointu."
         except graph_client.GraphError as e:
+            step = "5/6 fallback download/upload"
             _log(f"5/6 workbook append pao ({e}); fallback download->append->upload")
             monitoring.warning(
                 f"Workbook API zapeo ({e}); prelazim na fallback download/upload.",
@@ -479,7 +486,7 @@ def _write_receipt(sess):
                           "download→upload).")
 
     except graph_client.GraphError as e:
-        _log(f"GraphError pri upisu: kod={e.status_code} {e}")
+        _log(f"{step} GREŠKA: GraphError kod={e.status_code} {e}")
         if e.status_code == 403:
             monitoring.error("Graph 403 pri upisu racuna", source="racuni", exc=e)
             return False, ("❌ Nedostaje ovlast — provjeri admin consent za "
@@ -487,7 +494,7 @@ def _write_receipt(sess):
         monitoring.error("Graph greska pri upisu racuna", source="racuni", exc=e)
         return False, f"❌ Greška pri upisu na SharePoint (kod {e.status_code})."
     except Exception as e:
-        _log(f"NEOCEKIVANA greska pri upisu: {type(e).__name__}: {e}")
+        _log(f"{step} GREŠKA: {type(e).__name__}: {e}")
         monitoring.error("Neocekivana greska pri upisu racuna",
                          source="racuni", exc=e)
         return False, "❌ Neočekivana greška pri upisu računa."
@@ -609,7 +616,7 @@ def _do_write(sess, chat_id, msg_id):
             _bot.send_message(chat_id, msg)
         except Exception:
             pass
-    _log("6/6 gotovo")
+    _log(f"KRAJ ({'uspjeh' if ok else 'greška'})")
 
     if ok and _log_note:
         try:
