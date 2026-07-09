@@ -520,6 +520,86 @@ def _rename_old_aside():
     return name
 
 
+# ==================== DEDUPE (OIB + BrojRacuna) ====================
+
+def _norm_key(v):
+    """Normaliziraj vrijednost kljuca u string za KONZISTENTNU usporedbu.
+    Excel zna procitati broj kao float (2700809.0) — skidamo '.0'."""
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if s.endswith(".0"):
+        core = s[:-2]
+        if core.lstrip("-").isdigit():
+            return core
+    return s
+
+
+def _receipt_key(data):
+    """(oib, broj_racuna) novog racuna kao normalizirani stringovi."""
+    return (_norm_key(data.get("oib")), _norm_key(data.get("broj_racuna")))
+
+
+def _existing_receipt_keys():
+    """Skini PRAVI, aktualni Racuni_terena.xlsx (svjez download, bez kesa) i
+    vrati set (oib, broj_racuna) postojecih redaka — normalizirano.
+    Ako fajl ne postoji ili nema nove kolone -> prazan set."""
+    if not graph_client.file_exists(EXCEL_FILE):
+        return set()
+    from openpyxl import load_workbook
+
+    content = graph_client.download_file(EXCEL_FILE)  # svjez, ne kesira se
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    try:
+        ws = wb["Racuni"] if "Racuni" in wb.sheetnames else wb.active
+        it = ws.iter_rows(values_only=True)
+        header = next(it, None)
+        if not header:
+            return set()
+        header = list(header)
+        if "OIB" not in header or "BrojRacuna" not in header:
+            return set()  # stara/druga struktura -> ne dedupe-amo
+        i_oib = header.index("OIB")
+        i_br = header.index("BrojRacuna")
+        keys = set()
+        for r in it:
+            oib = _norm_key(r[i_oib]) if i_oib < len(r) else ""
+            br = _norm_key(r[i_br]) if i_br < len(r) else ""
+            if br:  # kljuc je smislen samo ako ima broj racuna
+                keys.add((oib, br))
+        return keys
+    finally:
+        wb.close()
+
+
+def _is_duplicate(data):
+    """True ako racun s istim (OIB, BrojRacuna) vec postoji u fajlu.
+    Bez broja racuna ne dedupe-amo (nema pouzdanog kljuca)."""
+    oib, br = _receipt_key(data)
+    if not br:
+        return False
+    return (oib, br) in _existing_receipt_keys()
+
+
+def _dup_warning_text(sess):
+    data = sess["data"]
+    return ("⚠️ Ovaj račun je već upisan!\n"
+            f"OIB: {data.get('oib') or '?'}   "
+            f"Broj računa: {data.get('broj_racuna') or '?'}\n\n"
+            "Želiš li ga svejedno upisati?")
+
+
+def _dup_markup(token):
+    mk = telebot.types.InlineKeyboardMarkup()
+    mk.row(
+        telebot.types.InlineKeyboardButton("✅ Ipak upiši", callback_data=f"rc_fo_{token}"),
+        telebot.types.InlineKeyboardButton("❌ Odustani", callback_data=f"rc_no_{token}"),
+    )
+    return mk
+
+
+# ==================== UPIS ====================
+
 def _write_once(sess):
     """JEDAN pokusaj upisa (auth, migracija, kreiranje/append). Vraca
     (bool ok, poruka) za terminalni ishod. Dize _Locked ako je fajl
@@ -712,13 +792,14 @@ def _on_document(message):
     _handle_image_message(message, img, mime)
 
 
-def _safe_edit(chat_id, msg_id, text):
-    """Uredi poruku; ako edit ne uspije, posalji novu. Nikad ne baca."""
+def _safe_edit(chat_id, msg_id, text, markup=None):
+    """Uredi poruku (opc. s gumbima); ako edit ne uspije, posalji novu.
+    Nikad ne baca."""
     try:
-        _bot.edit_message_text(text, chat_id, msg_id)
+        _bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup)
     except Exception:
         try:
-            _bot.send_message(chat_id, text)
+            _bot.send_message(chat_id, text, reply_markup=markup)
         except Exception:
             pass
 
@@ -758,11 +839,36 @@ def _write_with_lock_retry(sess, chat_id, msg_id):
     return False, "❌ Neočekivana greška pri upisu računa."
 
 
+def _do_ok(sess, chat_id, msg_id, force):
+    """Klik ✅: DEDUPE pa upis. Ako duplikat (isti OIB+BrojRacuna) i nije
+    force -> upozorenje + gumbi (Ipak upiši / Odustani), bez upisa.
+    Radi u zasebnom daemon threadu."""
+    if not force:
+        try:
+            _log("dedupe: citam postojece retke iz pravog fajla")
+            if _is_duplicate(sess["data"]):
+                _log("dedupe: DUPLIKAT (isti OIB+BrojRacuna) -> trazim potvrdu")
+                sess["busy"] = False  # dopusti Ipak upiši / Odustani
+                _safe_edit(chat_id, msg_id, _dup_warning_text(sess),
+                           markup=_dup_markup(sess["token"]))
+                return
+            _log("dedupe: nema duplikata")
+        except Exception as e:
+            # Ako provjera padne, NE gubimo racun -> upisujemo, ali logiramo.
+            _log(f"dedupe provjera nije uspjela ({e}); nastavljam s upisom")
+            monitoring.warning(f"Dedupe provjera nije uspjela: {e}", source="racuni")
+
+    _do_write(sess, chat_id, msg_id)
+
+
 def _do_write(sess, chat_id, msg_id):
     """Izvrsava upis (s lock-retryjem) u zasebnom threadu i UVIJEK uredi
     Telegram poruku u konacni status. Izoliran od telebot worker poola pa
     dugi backoff NE blokira ostatak bota."""
     ok, msg = _write_with_lock_retry(sess, chat_id, msg_id)
+
+    with _sessions_lock:
+        _sessions.pop(chat_id, None)  # gotovo -> makni sesiju
 
     _log("6/6 uredjujem Telegram poruku u konacni status")
     _safe_edit(chat_id, msg_id, msg)
@@ -808,6 +914,11 @@ def _on_callback(c):
             pass
         return
 
+    # Upis/dedupe u tijeku -> ignoriraj daljnje klikove (sprjecava dvostruki upis).
+    if sess.get("busy"):
+        _log(f"callback ignoriran (busy): action={action}")
+        return
+
     if action == "no":
         with _sessions_lock:
             _sessions.pop(chat_id, None)
@@ -828,19 +939,19 @@ def _on_callback(c):
             f"Moguća polja: {polja}")
         return
 
-    if action == "ok":
+    if action in ("ok", "fo"):
+        # "ok" = normalno (uz dedupe provjeru); "fo" = "Ipak upiši" (preskoci dedupe)
+        force = (action == "fo")
         msg_id = c.message.message_id
-        _log(f"OK klik: token={token} chat={chat_id} -> upis u zasebnom threadu")
-        try:
-            _bot.edit_message_text("⏳ Upisujem račun...", chat_id, msg_id)
-        except Exception:
-            pass
-        with _sessions_lock:
-            _sessions.pop(chat_id, None)  # sprijeci dvostruki upis
-        # Upis ide u ZASEBAN daemon thread: cak i ako neki poziv dugo traje,
-        # ne blokira telebot worker pool (ostatak bota radi normalno).
+        sess["busy"] = True  # zakljucaj daljnje klikove
+        _log(f"{'FORCE ' if force else ''}upis: token={token} chat={chat_id}")
+        _safe_edit(chat_id, msg_id,
+                   "⏳ Upisujem račun..." if force
+                   else "⏳ Provjeravam duplikat i upisujem…")
+        # Sve u ZASEBNOM daemon threadu (dedupe download + upis + lock-retry)
+        # da ne blokira telebot worker pool.
         threading.Thread(
-            target=_do_write, args=(sess, chat_id, msg_id), daemon=True
+            target=_do_ok, args=(sess, chat_id, msg_id, force), daemon=True
         ).start()
         return
 
