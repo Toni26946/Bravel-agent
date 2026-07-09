@@ -13,11 +13,9 @@ primary_region = 'ams'
 [processes]
   app = 'python monitor.py'
 
-# Vlastiti volume za monitor.db (odvojen od baze glavnog bota).
-[mounts]
-  source = 'monitor_data'
-  destination = '/data'
-  processes = ['app']
+# Bez volumena: monitor.db je ephemeral (unutar kontejnera). Dijagnosticki
+# bot ne treba trajnu pohranu — povijest se gubi na restart, ali alarmi
+# se salju u stvarnom vremenu. Kod ima fallback na ./monitor.db (monitor.py).
 
 [[vm]]
   size = 'shared-cpu-1x'

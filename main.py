@@ -20,6 +20,7 @@ import telebot
 import anthropic
 
 import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako nije konfiguriran)
+import racuni      # obrada fotki racuna + upis u Excel na SharePointu
 
 # ==================== KONFIGURACIJA ====================
 
@@ -856,10 +857,15 @@ def command_handler(message):
             "Bilježenje rada i izvještaj:\n"
             "• zabilježi obavljena dostava Zagreb – zabilježi što si napravio\n"
             "• „gotovi za danas“ ili /izvjestaj – dnevni izvještaj\n\n"
+            "Računi:\n"
+            "• pošalji fotografiju računa – izvučem podatke i, nakon tvoje "
+            "potvrde, upišem ih u Excel na SharePointu\n\n"
             "Naredbe:\n"
             "/lista – pregled podsjetnika (brisanje gumbom)\n"
             "/izvjestaj – dnevni izvještaj\n"
-            "/reset – obriši povijest AI razgovora\n\n"
+            "/reset – obriši povijest AI razgovora\n"
+            "/vozac_dodaj <id> <GB> <ime> – dodaj/uredi vozača (admin)\n"
+            "/vozac_lista – popis vozača (admin)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
         return
@@ -886,6 +892,11 @@ def handle(message):
 
     text = message.text.strip()
     lower = text.lower()
+
+    # 0. Racuni: pending stanja (npr. cekamo GB ili ispravak) i /vozac_*
+    #    komande. Ako racuni "pojede" poruku, ne idemo dalje.
+    if racuni.handle_text(message):
+        return
 
     # 1. Dnevni izvjestaj ("gotovi za danas" i sl.) - provjeri prvo da ne
     # bude protumaceno kao podsjetnik ili AI poruka.
@@ -958,6 +969,12 @@ if __name__ == "__main__":
     monitoring.install("bravel-agent")  # hvatanje neuhvacenih iznimki -> monitoring bot
     monitoring.start_heartbeat(interval=60)  # 'puls' svakih 60 s -> monitor prati je li bot ziv
     init_db()
+    # Modul za racune: injektiraj ovisnosti, kreiraj tablicu vozaca,
+    # registriraj photo/document/callback handlere.
+    racuni.setup(bot=bot, client=client, db=db,
+                 allowed_users=ALLOWED_USERS, tz=TZ, log_note=log_note)
+    racuni.init_db()
+    racuni.register(bot)
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
     print("✅ Bot pokrenut, slušam poruke")

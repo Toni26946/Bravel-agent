@@ -1,4 +1,6 @@
 pyTelegramBotAPI
 anthropic
 tzdata
-
+requests
+msal
+openpyxl
