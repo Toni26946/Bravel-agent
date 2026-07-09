@@ -19,6 +19,7 @@ import io
 import json
 import re
 import threading
+import time
 from datetime import datetime
 
 import telebot
@@ -349,8 +350,12 @@ def _build_row(sess):
     ]
 
 
-def _create_workbook_bytes():
-    """Kreiraj novi xlsx s Excel TABLICOM (ListObject) 'Racuni' i zaglavljem."""
+def _create_workbook_bytes(initial_row=None):
+    """Kreiraj novi xlsx s Excel TABLICOM (ListObject) 'Racuni'.
+
+    Ako je zadan initial_row, upisujemo ga odmah (tablica ima zaglavlje +
+    prvi redak). Tako prvi upis NE ovisi o workbook API-ju na tek
+    nastalom fajlu (gdje Excel sesija zna kasniti/visjeti)."""
     from openpyxl import Workbook
     from openpyxl.worksheet.table import Table, TableStyleInfo
 
@@ -358,10 +363,12 @@ def _create_workbook_bytes():
     ws = wb.active
     ws.title = "Racuni"
     ws.append(COLUMNS)
+    if initial_row is not None:
+        ws.append(initial_row)
 
     last_col = _col_letter(len(COLUMNS))
-    ref = f"A1:{last_col}1"  # tablica sa samo zaglavljem; Graph umece prvi redak
-    tab = Table(displayName=TABLE_NAME, ref=ref)
+    last_row = ws.max_row  # 1 (samo zaglavlje) ili 2 (zaglavlje + redak)
+    tab = Table(displayName=TABLE_NAME, ref=f"A1:{last_col}{last_row}")
     tab.tableStyleInfo = TableStyleInfo(
         name="TableStyleMedium2", showRowStripes=True)
     ws.add_table(tab)
@@ -400,24 +407,49 @@ def _fallback_append(row_values):
     graph_client.upload_file(EXCEL_FILE, buf.getvalue())
 
 
+# HTTP kodovi na kojima workbook API vrijedi ponoviti (Excel sesija se jos
+# budi na tek uploadanom fajlu, ili prolazni serverski problem).
+_RETRYABLE = {404, 423, 500, 502, 503, 504}
+
+
+def _append_via_workbook(row):
+    """Dodaj redak preko workbook API-ja s kratkim backoff retryjem.
+    Dize GraphError ako ni nakon retryja ne uspije (pozivatelj ide na fallback)."""
+    delays = [2, 4]  # nakon 1. i 2. neuspjeha; 3. pokusaj je zadnji
+    for attempt in range(3):
+        try:
+            graph_client.append_table_row(EXCEL_FILE, TABLE_NAME, row)
+            return
+        except graph_client.GraphError as e:
+            if e.status_code in _RETRYABLE and attempt < len(delays):
+                time.sleep(delays[attempt])
+                continue
+            raise
+
+
 def _write_receipt(sess):
-    """Upisi redak na SharePoint. Vraca (True, poruka) ili (False, poruka)."""
+    """Upisi redak na SharePoint. UVIJEK vraca (bool ok, poruka) — nikad ne
+    baca (pozivatelj se oslanja na to da poruka nikad ne ostane 'Upisujem...')."""
     if not graph_client.is_configured():
         return False, ("SharePoint nije konfiguriran (nedostaju Graph "
                        "kredencijali). Redak nije upisan.")
 
-    row = _build_row(sess)
     try:
-        # 1. osiguraj da fajl postoji
-        if not graph_client.file_exists(EXCEL_FILE):
-            graph_client.upload_file(EXCEL_FILE, _create_workbook_bytes())
+        row = _build_row(sess)
 
-        # 2. dodaj redak preko workbook API-ja
+        # PRVI upis: fajl ne postoji -> kreiraj ga s retkom vec unutra i
+        # uploadaj. Bez workbook API-ja na svjezem fajlu (izbjegava vis/greske
+        # dok se Excel sesija ne probudi).
+        if not graph_client.file_exists(EXCEL_FILE):
+            graph_client.upload_file(
+                EXCEL_FILE, _create_workbook_bytes(initial_row=row))
+            return True, "✅ Račun upisan (kreiran novi Racuni_terena.xlsx)."
+
+        # Fajl postoji: workbook API (s retryjem), pa fallback download/upload.
         try:
-            graph_client.append_table_row(EXCEL_FILE, TABLE_NAME, row)
+            _append_via_workbook(row)
             return True, "✅ Račun upisan u Racuni_terena.xlsx na SharePointu."
         except graph_client.GraphError as e:
-            # 3. rezerva: download -> append -> upload
             monitoring.warning(
                 f"Workbook API zapeo ({e}); prelazim na fallback download/upload.",
                 source="racuni")
@@ -431,7 +463,7 @@ def _write_receipt(sess):
             return False, ("❌ Nedostaje ovlast — provjeri admin consent za "
                            "Sites.ReadWrite.All.")
         monitoring.error("Graph greska pri upisu racuna", source="racuni", exc=e)
-        return False, f"❌ Greška pri upisu na SharePoint: {e.status_code or ''}"
+        return False, f"❌ Greška pri upisu na SharePoint (kod {e.status_code})."
     except Exception as e:
         monitoring.error("Neocekivana greska pri upisu racuna",
                          source="racuni", exc=e)
@@ -585,19 +617,35 @@ def _on_callback(c):
         return
 
     if action == "ok":
+        msg_id = c.message.message_id
         # onemoguci ponovni klik
         try:
-            _bot.edit_message_text("⏳ Upisujem račun...", chat_id, c.message.message_id)
+            _bot.edit_message_text("⏳ Upisujem račun...", chat_id, msg_id)
         except Exception:
             pass
-        ok, msg = _write_receipt(sess)
+        # _write_receipt je vec potpuno guardan, ali dodatno hvatamo sve da
+        # poruka NIKAD ne ostane na "Upisujem račun...".
+        try:
+            ok, msg = _write_receipt(sess)
+        except Exception as e:
+            monitoring.error("Racun: neuhvacena greska pri upisu",
+                             source="racuni", exc=e)
+            ok, msg = False, "❌ Neočekivana greška pri upisu računa."
         with _sessions_lock:
             _sessions.pop(chat_id, None)
-        _bot.send_message(chat_id, msg)
+        # Uredi ISTU poruku u konacni status; ako edit ne uspije, posalji novu.
+        try:
+            _bot.edit_message_text(msg, chat_id, msg_id)
+        except Exception:
+            try:
+                _bot.send_message(chat_id, msg)
+            except Exception:
+                pass
         if ok and _log_note:
             try:
-                _log_note(chat_id, f"Račun upisan: {sess['data'].get('izdavatelj') or ''} "
-                                   f"{_fmt_num(_parse_num(sess['data'].get('ukupno_eur')))} EUR")
+                _log_note(chat_id,
+                          f"Račun upisan: {sess['data'].get('izdavatelj') or ''} "
+                          f"{_fmt_num(_parse_num(sess['data'].get('ukupno_eur')))} EUR")
             except Exception:
                 pass
         return

@@ -29,7 +29,9 @@ except ImportError:  # msal je opcionalan dok se ne konfigurira Graph
 
 GRAPH_ROOT = "https://graph.microsoft.com/v1.0"
 _SCOPE = ["https://graph.microsoft.com/.default"]
-_HTTP_TIMEOUT = 30  # sekundi za Graph pozive
+# (connect, read) timeout u sekundama - nijedan poziv ne smije visjeti
+# ni na uspostavi veze ni na citanju odgovora.
+_HTTP_TIMEOUT = (10, 30)
 
 # ---- Konfiguracija sajta / lokacije fajlova ----
 SITE_HOST = "braveldoo.sharepoint.com"
