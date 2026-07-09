@@ -67,6 +67,10 @@ def _now():
     return datetime.now(_tz)
 
 
+def _log(msg):
+    print(f"[racuni] {msg}", flush=True)
+
+
 # ==================== BAZA: mapiranje vozaca ====================
 
 def init_db():
@@ -431,33 +435,51 @@ def _write_receipt(sess):
     """Upisi redak na SharePoint. UVIJEK vraca (bool ok, poruka) — nikad ne
     baca (pozivatelj se oslanja na to da poruka nikad ne ostane 'Upisujem...')."""
     if not graph_client.is_configured():
+        _log("SharePoint nije konfiguriran (nedostaju Graph kredencijali).")
         return False, ("SharePoint nije konfiguriran (nedostaju Graph "
                        "kredencijali). Redak nije upisan.")
 
     try:
+        _log("1/6 auth (dohvacam Graph token)")
+        graph_client.ensure_token()
+        _log("1/6 auth OK")
+
         row = _build_row(sess)
+
+        _log("2/6 provjera postoji li fajl")
+        exists = graph_client.file_exists(EXCEL_FILE)
+        _log(f"2/6 fajl postoji = {exists}")
 
         # PRVI upis: fajl ne postoji -> kreiraj ga s retkom vec unutra i
         # uploadaj. Bez workbook API-ja na svjezem fajlu (izbjegava vis/greske
         # dok se Excel sesija ne probudi).
-        if not graph_client.file_exists(EXCEL_FILE):
-            graph_client.upload_file(
-                EXCEL_FILE, _create_workbook_bytes(initial_row=row))
+        if not exists:
+            _log("3/6 kreiram xlsx s retkom (openpyxl)")
+            content = _create_workbook_bytes(initial_row=row)
+            _log(f"3/6 xlsx kreiran ({len(content)} B)")
+            _log("4/6 upload na SharePoint (PUT)")
+            graph_client.upload_file(EXCEL_FILE, content)
+            _log("4/6 upload OK")
             return True, "✅ Račun upisan (kreiran novi Racuni_terena.xlsx)."
 
         # Fajl postoji: workbook API (s retryjem), pa fallback download/upload.
+        _log("5/6 workbook append (rows/add, s retryjem)")
         try:
             _append_via_workbook(row)
+            _log("5/6 workbook append OK")
             return True, "✅ Račun upisan u Racuni_terena.xlsx na SharePointu."
         except graph_client.GraphError as e:
+            _log(f"5/6 workbook append pao ({e}); fallback download->append->upload")
             monitoring.warning(
                 f"Workbook API zapeo ({e}); prelazim na fallback download/upload.",
                 source="racuni")
             _fallback_append(row)
+            _log("5/6 fallback OK")
             return True, ("✅ Račun upisan (preko rezervne metode "
                           "download→upload).")
 
     except graph_client.GraphError as e:
+        _log(f"GraphError pri upisu: kod={e.status_code} {e}")
         if e.status_code == 403:
             monitoring.error("Graph 403 pri upisu racuna", source="racuni", exc=e)
             return False, ("❌ Nedostaje ovlast — provjeri admin consent za "
@@ -465,6 +487,7 @@ def _write_receipt(sess):
         monitoring.error("Graph greska pri upisu racuna", source="racuni", exc=e)
         return False, f"❌ Greška pri upisu na SharePoint (kod {e.status_code})."
     except Exception as e:
+        _log(f"NEOCEKIVANA greska pri upisu: {type(e).__name__}: {e}")
         monitoring.error("Neocekivana greska pri upisu racuna",
                          source="racuni", exc=e)
         return False, "❌ Neočekivana greška pri upisu računa."
@@ -567,7 +590,38 @@ def _on_document(message):
     _handle_image_message(message, img, mime)
 
 
+def _do_write(sess, chat_id, msg_id):
+    """Izvrsava upis u zasebnom threadu i UVIJEK uredi Telegram poruku u
+    konacni status (uspjeh/greska). Izoliran od telebot worker poola."""
+    try:
+        ok, msg = _write_receipt(sess)
+    except Exception as e:
+        _log(f"_do_write neuhvacena greska: {type(e).__name__}: {e}")
+        monitoring.error("Racun: neuhvacena greska pri upisu",
+                         source="racuni", exc=e)
+        ok, msg = False, "❌ Neočekivana greška pri upisu računa."
+
+    _log("6/6 uredjujem Telegram poruku u konacni status")
+    try:
+        _bot.edit_message_text(msg, chat_id, msg_id)
+    except Exception:
+        try:
+            _bot.send_message(chat_id, msg)
+        except Exception:
+            pass
+    _log("6/6 gotovo")
+
+    if ok and _log_note:
+        try:
+            _log_note(chat_id,
+                      f"Račun upisan: {sess['data'].get('izdavatelj') or ''} "
+                      f"{_fmt_num(_parse_num(sess['data'].get('ukupno_eur')))} EUR")
+        except Exception:
+            pass
+
+
 def _on_callback(c):
+    _log(f"callback ulaz: data={c.data} from={c.from_user.id}")
     if c.from_user.id not in _allowed_users:
         _bot.answer_callback_query(c.id)
         return
@@ -580,6 +634,7 @@ def _on_callback(c):
         _, action, tok = c.data.split("_")
         token = int(tok)
     except ValueError:
+        _log(f"callback: ne mogu parsirati data={c.data}")
         return
 
     chat_id = c.message.chat.id
@@ -618,36 +673,18 @@ def _on_callback(c):
 
     if action == "ok":
         msg_id = c.message.message_id
-        # onemoguci ponovni klik
+        _log(f"OK klik: token={token} chat={chat_id} -> upis u zasebnom threadu")
         try:
             _bot.edit_message_text("⏳ Upisujem račun...", chat_id, msg_id)
         except Exception:
             pass
-        # _write_receipt je vec potpuno guardan, ali dodatno hvatamo sve da
-        # poruka NIKAD ne ostane na "Upisujem račun...".
-        try:
-            ok, msg = _write_receipt(sess)
-        except Exception as e:
-            monitoring.error("Racun: neuhvacena greska pri upisu",
-                             source="racuni", exc=e)
-            ok, msg = False, "❌ Neočekivana greška pri upisu računa."
         with _sessions_lock:
-            _sessions.pop(chat_id, None)
-        # Uredi ISTU poruku u konacni status; ako edit ne uspije, posalji novu.
-        try:
-            _bot.edit_message_text(msg, chat_id, msg_id)
-        except Exception:
-            try:
-                _bot.send_message(chat_id, msg)
-            except Exception:
-                pass
-        if ok and _log_note:
-            try:
-                _log_note(chat_id,
-                          f"Račun upisan: {sess['data'].get('izdavatelj') or ''} "
-                          f"{_fmt_num(_parse_num(sess['data'].get('ukupno_eur')))} EUR")
-            except Exception:
-                pass
+            _sessions.pop(chat_id, None)  # sprijeci dvostruki upis
+        # Upis ide u ZASEBAN daemon thread: cak i ako neki poziv dugo traje,
+        # ne blokira telebot worker pool (ostatak bota radi normalno).
+        threading.Thread(
+            target=_do_write, args=(sess, chat_id, msg_id), daemon=True
+        ).start()
         return
 
 

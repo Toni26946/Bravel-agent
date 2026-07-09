@@ -44,6 +44,10 @@ TENANT_ID = os.getenv("GRAPH_TENANT_ID", "").strip()
 CLIENT_SECRET = os.getenv("GRAPH_CLIENT_SECRET", "").strip()
 
 
+def _glog(msg):
+    print(f"[graph] {msg}", flush=True)
+
+
 class GraphError(Exception):
     """Greska pri komunikaciji s Graph API-jem. status_code je HTTP kod
     (ili None za mrezne/konfiguracijske greske)."""
@@ -52,6 +56,16 @@ class GraphError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.payload = payload
+
+
+class _TimeoutSession(requests.Session):
+    """requests.Session koja svakom pozivu namece default timeout.
+    MSAL poziva token endpoint preko ove sesije pa auth vise NE MOZE
+    visjeti zauvijek (MSAL sam ne postavlja timeout)."""
+
+    def request(self, *args, **kwargs):
+        kwargs.setdefault("timeout", 30)
+        return super().request(*args, **kwargs)
 
 
 # ==================== AUTENTIKACIJA ====================
@@ -83,6 +97,7 @@ def _get_app():
                 client_id=CLIENT_ID,
                 authority=authority,
                 client_credential=CLIENT_SECRET,
+                http_client=_TimeoutSession(),  # MSAL dobiva timeout
             )
     return _app
 
@@ -91,11 +106,18 @@ def _get_token():
     """Dohvati app-only token. MSAL sam kesira i vraca vazeci token dok
     ne istekne, pa ne moramo rucno pratiti expiry."""
     app = _get_app()
+    _glog("token: pozivam MSAL acquire_token_for_client...")
     result = app.acquire_token_for_client(scopes=_SCOPE)
     if not result or "access_token" not in result:
         desc = (result or {}).get("error_description", "nepoznata greska")
         raise GraphError(f"Neuspjela autentikacija na Graph: {desc}")
+    _glog("token: dobiven")
     return result["access_token"]
+
+
+def ensure_token():
+    """Eksplicitno pribavi token (koristi se za jasan 'auth' korak u logu)."""
+    _get_token()
 
 
 def _headers(extra=None):
@@ -106,18 +128,24 @@ def _headers(extra=None):
 
 
 def _request(method, url, *, json=None, data=None, headers=None, stream=False):
-    """Tanak wrapper oko requests koji dize GraphError na ne-2xx odgovor."""
+    """Tanak wrapper oko requests koji dize GraphError na ne-2xx odgovor.
+    Svaki poziv ima timeout i logira se (pocetak + status)."""
+    short = url.replace(GRAPH_ROOT, "")
+    _glog(f"HTTP {method} {short} ...")
+    hdrs = _headers(headers)  # ovo moze pozvati MSAL (token) - logira se zasebno
     try:
         resp = requests.request(
             method, url,
-            headers=_headers(headers),
+            headers=hdrs,
             json=json,
             data=data,
             stream=stream,
             timeout=_HTTP_TIMEOUT,
         )
     except requests.RequestException as e:
+        _glog(f"HTTP {method} {short} MREZNA GRESKA: {e}")
         raise GraphError(f"Mrezna greska prema Graphu: {e}")
+    _glog(f"HTTP {method} {short} -> {resp.status_code}")
 
     if resp.status_code < 200 or resp.status_code >= 300:
         # Pokusaj izvuci poruku iz Graph JSON greske
