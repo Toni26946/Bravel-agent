@@ -1,0 +1,18 @@
+# Smanji build-context i sprijeci bustanje zadnjeg sloja zbog nebitnih fajlova.
+.git
+.github
+.claude
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+# lokalne baze (na Fly-u su na volumenu /data, ne u imageu)
+*.db
+*.sqlite
+*.sqlite3
+bot.db
+monitor.db
+# ostalo
+.gitignore
+.dockerignore
+README.md
