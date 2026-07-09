@@ -437,9 +437,23 @@ def _fallback_append(rows):
     graph_client.upload_file(EXCEL_FILE, buf.getvalue())
 
 
-# HTTP kodovi na kojima workbook API vrijedi ponoviti (Excel sesija se jos
-# budi na tek uploadanom fajlu, ili prolazni serverski problem).
-_RETRYABLE = {404, 423, 500, 502, 503, 504}
+# HTTP kodovi za KRATKI, odmah ponovljeni pokusaj (Excel sesija se jos budi
+# na tek uploadanom fajlu, ili prolazni serverski problem).
+_RETRYABLE = {404, 500, 502, 503, 504}
+
+# Kodovi "fajl otvoren/zakljucan / konflikt / rate-limit" -> DUGI backoff u
+# pozadini (obraduje _write_with_lock_retry).
+_LOCK_CODES = {423, 409, 429}
+_LOCK_BACKOFF = [15, 30, 60, 120, 240]  # sekunde izmedju ponovnih pokusaja
+
+
+class _Locked(Exception):
+    """Fajl je otvoren/zakljucan (423) ili konflikt/rate-limit (409/429).
+    Signalizira retry-petlji da ponovi CIJELI upis uz dugi backoff."""
+
+    def __init__(self, status):
+        super().__init__(f"locked (HTTP {status})")
+        self.status = status
 
 
 def _append_via_workbook(rows):
@@ -504,9 +518,11 @@ def _rename_old_aside():
     return name
 
 
-def _write_receipt(sess):
-    """Upisi redak na SharePoint. UVIJEK vraca (bool ok, poruka) — nikad ne
-    baca (pozivatelj se oslanja na to da poruka nikad ne ostane 'Upisujem...')."""
+def _write_once(sess):
+    """JEDAN pokusaj upisa (auth, migracija, kreiranje/append). Vraca
+    (bool ok, poruka) za terminalni ishod. Dize _Locked ako je fajl
+    zakljucan/konflikt (423/409/429) — retry-petlja tada ponovi cijeli
+    pokusaj (ukljucujuci dovrsetak migracije)."""
     if not graph_client.is_configured():
         _log("SharePoint nije konfiguriran (nedostaju Graph kredencijali).")
         return False, ("SharePoint nije konfiguriran (nedostaju Graph "
@@ -566,6 +582,8 @@ def _write_receipt(sess):
             return True, (f"✅ Račun upisan — {len(rows)} stavka(i) u "
                           "Racuni_terena.xlsx.")
         except graph_client.GraphError as e:
+            if e.status_code in _LOCK_CODES:
+                raise  # zakljucano -> preskoci fallback, neka outer digne _Locked
             step = "5/6 fallback download/upload"
             _log(f"5/6 workbook append pao ({e}); fallback download->append->upload")
             monitoring.warning(
@@ -577,6 +595,10 @@ def _write_receipt(sess):
                           "(rezervna metoda download→upload).")
 
     except graph_client.GraphError as e:
+        # Zakljucano / konflikt / rate-limit -> _Locked (retry-petlja ponavlja).
+        if e.status_code in _LOCK_CODES:
+            _log(f"{step} zakljucano/konflikt (HTTP {e.status_code})")
+            raise _Locked(e.status_code)
         _log(f"{step} GREŠKA: GraphError kod={e.status_code} {e}")
         if e.status_code == 403:
             monitoring.error("Graph 403 pri upisu racuna", source="racuni", exc=e)
@@ -688,25 +710,60 @@ def _on_document(message):
     _handle_image_message(message, img, mime)
 
 
-def _do_write(sess, chat_id, msg_id):
-    """Izvrsava upis u zasebnom threadu i UVIJEK uredi Telegram poruku u
-    konacni status (uspjeh/greska). Izoliran od telebot worker poola."""
+def _safe_edit(chat_id, msg_id, text):
+    """Uredi poruku; ako edit ne uspije, posalji novu. Nikad ne baca."""
     try:
-        ok, msg = _write_receipt(sess)
-    except Exception as e:
-        _log(f"_do_write neuhvacena greska: {type(e).__name__}: {e}")
-        monitoring.error("Racun: neuhvacena greska pri upisu",
-                         source="racuni", exc=e)
-        ok, msg = False, "❌ Neočekivana greška pri upisu računa."
-
-    _log("6/6 uredjujem Telegram poruku u konacni status")
-    try:
-        _bot.edit_message_text(msg, chat_id, msg_id)
+        _bot.edit_message_text(text, chat_id, msg_id)
     except Exception:
         try:
-            _bot.send_message(chat_id, msg)
+            _bot.send_message(chat_id, text)
         except Exception:
             pass
+
+
+def _write_with_lock_retry(sess, chat_id, msg_id):
+    """Pokusaj upis; ako je fajl otvoren/zakljucan (423/409/429), ponovi
+    CIJELI pokusaj u pozadini uz rastuci backoff (15/30/60/120/240 s).
+    Migracija (rename u _STARO) se time dovrsava na nekom iducem pokusaju
+    jer _write_once svaki put iznova provjeri stanje fajla. Vraca (ok, msg)."""
+    total = 1 + len(_LOCK_BACKOFF)  # 1 pocetni + 5 ponovnih = 6 pokusaja
+    obavijesteno = False
+    for i in range(total):
+        try:
+            return _write_once(sess)
+        except _Locked as e:
+            _log(f"upis zaključan (HTTP {e.status}); pokušaj {i + 1}/{total}")
+            if not obavijesteno:
+                obavijesteno = True
+                _safe_edit(chat_id, msg_id,
+                           "🔒 Fajl je trenutno otvoren/zaključan — "
+                           "pokušavam ponovo u pozadini…")
+            if i < len(_LOCK_BACKOFF):
+                time.sleep(_LOCK_BACKOFF[i])
+                continue
+            # svi pokusaji iscrpljeni
+            monitoring.warning(
+                "Racun: upis odustao nakon svih pokusaja (fajl zakljucan).",
+                source="racuni")
+            return False, (
+                "🔒 Nisam uspio upisati — Racuni_terena.xlsx je i dalje "
+                "otvoren/zaključan nakon više pokušaja.\n"
+                "Zatvorite datoteku (Excel/SharePoint) pa pošaljite račun ponovno.")
+        except Exception as e:
+            _log(f"_write_with_lock_retry neuhvacena: {type(e).__name__}: {e}")
+            monitoring.error("Racun: greska u retry petlji", source="racuni", exc=e)
+            return False, "❌ Neočekivana greška pri upisu računa."
+    return False, "❌ Neočekivana greška pri upisu računa."
+
+
+def _do_write(sess, chat_id, msg_id):
+    """Izvrsava upis (s lock-retryjem) u zasebnom threadu i UVIJEK uredi
+    Telegram poruku u konacni status. Izoliran od telebot worker poola pa
+    dugi backoff NE blokira ostatak bota."""
+    ok, msg = _write_with_lock_retry(sess, chat_id, msg_id)
+
+    _log("6/6 uredjujem Telegram poruku u konacni status")
+    _safe_edit(chat_id, msg_id, msg)
     _log(f"KRAJ ({'uspjeh' if ok else 'greška'})")
 
     if ok and _log_note:
