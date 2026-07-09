@@ -361,10 +361,12 @@ def _build_rows(sess):
 
     head = [txt("datum"), txt("vrijeme"), txt("izdavatelj"),
             txt("oib"), txt("broj_racuna")]                      # 5 kolona
+    # UnioTelegramID kao TEKST (ne broj) da Excel ne prikaze 7,6E+09.
+    # VrijemeUnosa uvijek "YYYY-MM-DD HH:MM:SS".
     tail = [num(pdv), num(ukupno), txt("lokacija"),
             sess.get("vozac") or "", sess.get("gb") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
-            int(sess["user_id"])]                                # 7 kolona
+            str(sess["user_id"])]                                # 7 kolona
 
     usable = _usable_stavke(data)
     rows = []
