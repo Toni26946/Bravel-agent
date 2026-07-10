@@ -417,22 +417,48 @@ def _col_letter(n):
     return s
 
 
+def _last_nonempty_row(ws):
+    """Indeks zadnjeg retka koji STVARNO ima vrijednost.
+
+    NE koristimo ws.max_row: on broji i prazne celije koje imaju samo
+    formatiranje (Excel tablica redovno ima traku stila u retku ispod
+    podataka), pa bi ws.append() pisao u max_row+1 i ostavljao prazan red.
+    Skeniramo od dna prema vrhu i vracamo prvi redak s bilo kojom ne-praznom
+    celijom. Minimalno 1 (redak zaglavlja)."""
+    for row in range(ws.max_row, 0, -1):
+        for cell in ws[row]:
+            v = cell.value
+            if v is not None and str(v).strip() != "":
+                return row
+    return 1
+
+
 def _fallback_append(rows):
     """Rezerva ako workbook API zapne: download -> append openpyxl -> upload.
-    rows: lista redaka."""
+    rows: lista redaka.
+
+    Novi retci idu NEPOSREDNO iza zadnjeg nepraznog retka (ne oslanjamo se na
+    ws.append/max_row koji broji i prazne formatirane celije -> ostavljao je
+    prazan red N+1). Raspon tablice stiscemo na stvarni zadnji redak."""
     from openpyxl import load_workbook
 
     content = graph_client.download_file(EXCEL_FILE)
     wb = load_workbook(io.BytesIO(content))
     ws = wb["Racuni"] if "Racuni" in wb.sheetnames else wb.active
-    for r in rows:
-        ws.append(r)
 
-    # Prosiri raspon tablice da ukljuci nove retke (ako tablica postoji)
+    n_cols = len(COLUMNS)
+    start = _last_nonempty_row(ws) + 1
+    for i, r in enumerate(rows):
+        for j in range(n_cols):
+            ws.cell(row=start + i, column=j + 1,
+                    value=(r[j] if j < len(r) else None))
+    last_row = start + len(rows) - 1
+
+    # Stisni/prosiri raspon tablice na stvarni zadnji redak (bez prazne rupe).
     tab = ws.tables.get(TABLE_NAME) if hasattr(ws, "tables") else None
     if tab is not None:
-        last_col = _col_letter(len(COLUMNS))
-        tab.ref = f"A1:{last_col}{ws.max_row}"
+        last_col = _col_letter(n_cols)
+        tab.ref = f"A1:{last_col}{last_row}"
 
     buf = io.BytesIO()
     wb.save(buf)
