@@ -888,9 +888,16 @@ def command_handler(message):
         return
 
 
-@bot.message_handler(func=lambda m: True)
+# VAZNO: content_types=['text'] — inace bi ovaj "catch-all" handler mogao
+# progutati i fotke/dokumente (ovisno o verziji telebota) pa bi photo handler
+# u racuni.py nikad ne bio pozvan (telebot izvrsi PRVI handler koji matcha).
+@bot.message_handler(func=lambda m: True, content_types=['text'])
 def handle(message):
     if message.chat.id not in ALLOWED_USERS:
+        return
+
+    # Sigurnosni pojas: ako ipak stigne ne-tekst, ne diraj message.text (None).
+    if message.content_type != 'text' or not (message.text or '').strip():
         return
 
     text = message.text.strip()
@@ -978,6 +985,24 @@ if __name__ == "__main__":
                  allowed_users=ALLOWED_USERS, tz=TZ, log_note=log_note)
     racuni.init_db()
     racuni.register(bot)
+
+    # Ispis registriranih handlera (redoslijed = prioritet matchanja u telebotu).
+    def _dump_handlers():
+        parts = []
+        for h in getattr(bot, "message_handlers", []):
+            fn = h.get("function")
+            name = getattr(fn, "__name__", str(fn))
+            filt = h.get("filters", {}) or {}
+            parts.append(f"msg:{name}(content_types={filt.get('content_types')},"
+                         f"commands={filt.get('commands')})")
+        for h in getattr(bot, "callback_query_handlers", []):
+            fn = h.get("function")
+            parts.append(f"cb:{getattr(fn, '__name__', str(fn))}")
+        return " | ".join(parts)
+
+    print(f"[startup] registrirani handleri: {_dump_handlers()}", flush=True)
+    monitoring.info(f"Registrirani handleri: {_dump_handlers()}", source="startup")
+
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
     print("✅ Bot pokrenut, slušam poruke")

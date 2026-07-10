@@ -918,32 +918,61 @@ def _start_collector_for_multipage(chat_id, who, img, mtype, total):
 
 
 def _on_photo(message):
-    if not _allowed(message):
-        return
+    # PRVA linija: svaki dolazak slike vidljiv u logu zauvijek.
+    print(f"[photo] ulaz chat={getattr(message.chat, 'id', '?')} "
+          f"from={getattr(message.from_user, 'id', '?')} "
+          f"media_group={getattr(message, 'media_group_id', None)}", flush=True)
     try:
-        file_id = message.photo[-1].file_id
-        img = _download_telegram_file(file_id)
+        if not _allowed(message):
+            print("[photo] odbijen — korisnik nije na whitelisti", flush=True)
+            return
+        try:
+            file_id = message.photo[-1].file_id
+            img = _download_telegram_file(file_id)
+        except Exception as e:
+            monitoring.error("Skidanje fotke nije uspjelo", source="racuni", exc=e)
+            _bot.send_message(message.chat.id, "❌ Nisam mogao preuzeti fotografiju.")
+            return
+        _ingest_image(message, img, "image/jpeg")
     except Exception as e:
-        monitoring.error("Skidanje fotke nije uspjelo", source="racuni", exc=e)
-        _bot.send_message(message.chat.id, "❌ Nisam mogao preuzeti fotografiju.")
-        return
-    _ingest_image(message, img, "image/jpeg")
+        _log(f"[photo] GREŠKA: {type(e).__name__}: {e}")
+        monitoring.error("Greska u _on_photo", source="racuni", exc=e)
+        try:
+            _bot.send_message(message.chat.id,
+                              "❌ Greška pri obradi fotografije. Pokušaj ponovno.")
+        except Exception:
+            pass
 
 
 def _on_document(message):
-    if not _allowed(message):
-        return
-    doc = message.document
-    mime = (doc.mime_type or "").lower()
-    if not mime.startswith("image/"):
-        return
+    doc = getattr(message, "document", None)
+    mime = ((doc.mime_type if doc else None) or "").lower()
+    print(f"[document] ulaz chat={getattr(message.chat, 'id', '?')} "
+          f"from={getattr(message.from_user, 'id', '?')} mime={mime}", flush=True)
     try:
-        img = _download_telegram_file(doc.file_id)
+        if not _allowed(message):
+            print("[document] odbijen — korisnik nije na whitelisti", flush=True)
+            return
+        if not mime.startswith("image/"):
+            _bot.send_message(message.chat.id,
+                              "ℹ️ Pošalji dokument kao sliku (JPG/PNG) ili fotografiju "
+                              "računa/primke.")
+            return
+        try:
+            img = _download_telegram_file(doc.file_id)
+        except Exception as e:
+            monitoring.error("Skidanje dokumenta nije uspjelo", source="racuni", exc=e)
+            _bot.send_message(message.chat.id, "❌ Nisam mogao preuzeti sliku.")
+            return
+        _ingest_image(message, img, mime)
     except Exception as e:
-        monitoring.error("Skidanje dokumenta nije uspjelo", source="racuni", exc=e)
-        _bot.send_message(message.chat.id, "❌ Nisam mogao preuzeti sliku.")
-        return
-    _ingest_image(message, img, mime)
+        _log(f"[document] GREŠKA: {type(e).__name__}: {e}")
+        monitoring.error("Greska u _on_document", source="racuni", exc=e)
+        try:
+            _bot.send_message(message.chat.id,
+                              "❌ Greška pri obradi dokumenta. Pokušaj ponovno.")
+        except Exception:
+            pass
 
 
 # ==================== OBRADA (vision -> sesija -> potvrda) ====================
