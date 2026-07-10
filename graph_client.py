@@ -307,10 +307,11 @@ def append_or_fill_table_rows(filename, table_name, rows):
 
     Logika:
       1. Procitaj dataBodyRange tablice (vrijednosti + adresa).
-      2. Nadji zadnji NEPRAZAN redak; prvi slobodan je odmah iza njega.
-      3. Nove retke koji stanu u postojece prazne retke UPISI PATCH-om (u prvi
-         prazan redak), a tek ostatak dodaj na kraj (rows/add).
-    Tako novi podatak uvijek zavrsi u prvom slobodnom retku, bez rupe."""
+      2. Nadji SVE prazne retke u bodyju (duh redak moze biti bilo gdje —
+         na pocetku, sredini ili kraju tablice).
+      3. Nove retke redom UPISI PATCH-om u te prazne retke (od prvog praznog),
+         a tek ostatak (kad praznih ponestane) dodaj na kraj (rows/add).
+    Tako novi podatak uvijek popuni prvi slobodan redak, bez rupe."""
     if not rows:
         return
     item_id = get_item_id(filename)
@@ -321,19 +322,21 @@ def append_or_fill_table_rows(filename, table_name, rows):
     values = body.get("values") or []
     sheet, first_col, last_col, start_row = _parse_a1_range(body.get("address", ""))
 
-    last_ne = -1
-    for i, rv in enumerate(values):
-        if not _row_all_empty(rv):
-            last_ne = i
-    n_body = len(values)
+    # Indeksi SVIH praznih ('duh') redaka u bodyju, odozgo. Duh redak od rucnog
+    # brisanja u Excelu moze biti BILO GDJE u tablici (dijagnostika je pokazala
+    # da je na indexu 0, ISPRED podatka), ne samo "na kraju" iza podataka —
+    # zato trazimo prvi prazan po cijelom bodyju, a ne iza zadnjeg nepunog.
+    empty_idxs = [i for i, rv in enumerate(values) if _row_all_empty(rv)]
 
     to_append = []
-    for k, row in enumerate(rows):
-        pos = last_ne + 1 + k
-        if pos < n_body:
-            r = start_row + pos
+    ei = 0
+    sheet_seg = requests.utils.quote(sheet, safe="") if sheet else ""
+    for row in rows:
+        if ei < len(empty_idxs):
+            # Upisi (PATCH) u PRVI slobodan prazan redak umjesto append-a.
+            r = start_row + empty_idxs[ei]
+            ei += 1
             addr = f"{first_col}{r}:{last_col}{r}"
-            sheet_seg = requests.utils.quote(sheet, safe="") if sheet else ""
             _request("PATCH",
                      f"{base}/worksheets/{sheet_seg}/range(address='{addr}')",
                      json={"values": [row]})
