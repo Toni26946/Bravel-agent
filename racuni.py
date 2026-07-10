@@ -38,7 +38,7 @@ class DocSpec:
     """Opis vrste dokumenta: gdje se upisuje i po kojim kolonama."""
 
     def __init__(self, vrsta, emoji, naziv, sheet_label, excel_file, table,
-                 columns, new_markers, key_data, key_cols):
+                 columns, new_markers, key_data, key_cols, name_col, uloga):
         self.vrsta = vrsta            # 'racun' | 'primka'
         self.emoji = emoji
         self.naziv = naziv            # 'Račun' / 'Primka'
@@ -49,6 +49,8 @@ class DocSpec:
         self.new_markers = new_markers  # kolone koje oznacavaju NOVU strukturu
         self.key_data = key_data        # kljucevi u data dictu (oib, broj)
         self.key_cols = key_cols        # kolone u tablici (OIB, Broj) za dedupe
+        self.name_col = name_col        # kolona s imenom osobe (Vozac / Zaprimio)
+        self.uloga = uloga              # 'vozač' / 'zaprimio' (za poruke)
 
 
 RACUN = DocSpec(
@@ -63,6 +65,7 @@ RACUN = DocSpec(
     new_markers=("Stavka", "IznosStavke", "Lokacija"),
     key_data=("oib", "broj_racuna"),
     key_cols=("OIB", "BrojRacuna"),
+    name_col="Vozac", uloga="vozač",
 )
 
 PRIMKA = DocSpec(
@@ -77,6 +80,7 @@ PRIMKA = DocSpec(
     new_markers=("KataloskiBroj", "Dospijece", "Zaprimio"),
     key_data=("oib", "br_racuna"),
     key_cols=("OIB", "BrRacuna"),
+    name_col="Zaprimio", uloga="zaprimio",
 )
 
 
@@ -687,11 +691,15 @@ def _receipt_key(spec, data):
     return tuple(_norm_key(data.get(k)) for k in spec.key_data)
 
 
-def _existing_keys(spec):
-    """Svjez download pravog fajla; vrati set (oib, broj) postojecih redaka —
-    normalizirano, ignorirajuci prazne retke. Prazan set ako fajl/kolone fale."""
+def _find_duplicate(spec, data):
+    """Ako dokument s istim (OIB, broj) vec postoji, vrati info o PRVOM takvom
+    retku: {'vrijeme': VrijemeUnosa, 'ime': Vozac/Zaprimio}. Inace None.
+    Bez broja dokumenta ne dedupe-amo (nema pouzdanog kljuca)."""
+    key = _receipt_key(spec, data)
+    if not key[-1]:
+        return None
     if not graph_client.file_exists(spec.excel_file):
-        return set()
+        return None
     from openpyxl import load_workbook
 
     content = graph_client.download_file(spec.excel_file)  # svjez, ne kesira se
@@ -701,50 +709,35 @@ def _existing_keys(spec):
         it = ws.iter_rows(values_only=True)
         header = next(it, None)
         if not header:
-            return set()
+            return None
         header = list(header)
         oib_col, num_col = spec.key_cols
         if oib_col not in header or num_col not in header:
-            return set()
+            return None
         i_oib = header.index(oib_col)
         i_num = header.index(num_col)
-        keys = set()
+        i_vrij = header.index("VrijemeUnosa") if "VrijemeUnosa" in header else None
+        i_ime = header.index(spec.name_col) if spec.name_col in header else None
         for r in it:
             if _row_is_empty(r):
                 continue
             oib = _norm_key(r[i_oib]) if i_oib < len(r) else ""
             num = _norm_key(r[i_num]) if i_num < len(r) else ""
-            if num:  # kljuc smislen samo ako ima broj dokumenta
-                keys.add((oib, num))
-        return keys
+            if num and (oib, num) == key:
+                vrijeme = r[i_vrij] if i_vrij is not None and i_vrij < len(r) else None
+                ime = r[i_ime] if i_ime is not None and i_ime < len(r) else None
+                return {"vrijeme": vrijeme, "ime": ime}
+        return None
     finally:
         wb.close()
 
 
-def _is_duplicate(spec, data):
-    """True ako dokument s istim (OIB, broj) vec postoji. Bez broja ne dedupe."""
-    key = _receipt_key(spec, data)
-    if not key[-1]:
-        return False
-    return key in _existing_keys(spec)
-
-
-def _dup_warning_text(sess):
-    data = sess["data"]
-    spec = sess["spec"]
-    num = data.get(spec.key_data[1])
-    return (f"⚠️ Ova {spec.naziv.lower()} je već upisana!\n"
-            f"OIB: {data.get('oib') or '?'}   Broj: {num or '?'}\n\n"
-            "Želiš li je svejedno upisati?")
-
-
-def _dup_markup(token):
-    mk = telebot.types.InlineKeyboardMarkup()
-    mk.row(
-        telebot.types.InlineKeyboardButton("✅ Ipak upiši", callback_data=f"rc_fo_{token}"),
-        telebot.types.InlineKeyboardButton("❌ Odustani", callback_data=f"rc_no_{token}"),
-    )
-    return mk
+def _dup_text(spec, dup):
+    """Informativna poruka o duplikatu (BEZ gumba — duplikati se ne upisuju)."""
+    vrijeme = _txt(dup.get("vrijeme")) or "ranije"
+    ime = _txt(dup.get("ime")) or "?"
+    return (f"⚠️ Ovaj dokument je već upisan {vrijeme} ({spec.uloga}: {ime}). "
+            "Duplikati se ne upisuju. Ako je ovo greška, javi se administratoru.")
 
 
 # ==================== UPIS ====================
@@ -1099,18 +1092,24 @@ def _write_with_lock_retry(sess, chat_id, msg_id):
     return False, "❌ Neočekivana greška pri upisu dokumenta."
 
 
-def _do_ok(sess, chat_id, msg_id, force):
-    """Klik ✅: DEDUPE pa upis. Radi u zasebnom daemon threadu."""
-    if not force:
-        try:
-            if _is_duplicate(sess["spec"], sess["data"]):
-                sess["busy"] = False
-                _safe_edit(chat_id, msg_id, _dup_warning_text(sess),
-                           markup=_dup_markup(sess["token"]))
-                return
-        except Exception as e:
-            _log(f"dedupe provjera nije uspjela ({e}); nastavljam s upisom")
-            monitoring.warning(f"Dedupe nije uspio: {e}", source="racuni")
+def _do_ok(sess, chat_id, msg_id):
+    """Klik ✅: DEDUPE pa upis. Radi u zasebnom daemon threadu.
+    Ako je duplikat (isti OIB+broj) -> samo informativna poruka, BEZ upisa i
+    BEZ gumba (duplikati se ne upisuju)."""
+    try:
+        dup = _find_duplicate(sess["spec"], sess["data"])
+    except Exception as e:
+        # Ako provjera padne, NE gubimo dokument -> upisujemo, ali logiramo.
+        _log(f"dedupe provjera nije uspjela ({e}); nastavljam s upisom")
+        monitoring.warning(f"Dedupe nije uspio: {e}", source="racuni")
+        dup = None
+
+    if dup:
+        with _sessions_lock:
+            _sessions.pop(chat_id, None)
+        _safe_edit(chat_id, msg_id, _dup_text(sess["spec"], dup))
+        _log("dedupe: DUPLIKAT -> nije upisano (bez gumba)")
+        return
 
     _do_write(sess, chat_id, msg_id)
 
@@ -1222,13 +1221,11 @@ def _on_callback(c):
                          args=(sess, chat_id, msg_id, other), daemon=True).start()
         return
 
-    if action in ("ok", "fo"):
-        force = (action == "fo")
+    if action == "ok":
         msg_id = c.message.message_id
         sess["busy"] = True
-        _safe_edit(chat_id, msg_id,
-                   "⏳ Upisujem…" if force else "⏳ Provjeravam duplikat i upisujem…")
-        threading.Thread(target=_do_ok, args=(sess, chat_id, msg_id, force),
+        _safe_edit(chat_id, msg_id, "⏳ Provjeravam duplikat i upisujem…")
+        threading.Thread(target=_do_ok, args=(sess, chat_id, msg_id),
                          daemon=True).start()
         return
 
