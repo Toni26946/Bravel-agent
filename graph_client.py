@@ -271,3 +271,75 @@ def append_table_rows(filename, table_name, rows):
     url = (f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
            f"/workbook/tables/{table_name}/rows/add")
     return _request("POST", url, json={"values": rows}).json()
+
+
+def _split_col_row(cell):
+    """'A2' -> ('A', 2)."""
+    import re
+    m = re.match(r"([A-Za-z]+)(\d+)", cell)
+    return m.group(1), int(m.group(2))
+
+
+def _parse_a1_range(address):
+    """Rastavi Graph adresu raspona u (sheet, prva_kol, zadnja_kol, prvi_red).
+    Primjeri: "Racuni!A2:P5", "'Moj list'!A2:P5", "A2:P5"."""
+    if "!" in address:
+        sheet, rng = address.rsplit("!", 1)
+        sheet = sheet.strip()
+        if len(sheet) >= 2 and sheet[0] == "'" and sheet[-1] == "'":
+            sheet = sheet[1:-1].replace("''", "'")
+    else:
+        sheet, rng = "", address
+    start, end = (rng.split(":", 1) + [rng])[:2] if ":" in rng else (rng, rng)
+    first_col, start_row = _split_col_row(start)
+    last_col, _ = _split_col_row(end)
+    return sheet, first_col, last_col, start_row
+
+
+def _row_all_empty(values):
+    """True ako su sve celije retka (iz Graph 'values') prazne."""
+    return all(c is None or str(c).strip() == "" for c in values)
+
+
+def append_or_fill_table_rows(filename, table_name, rows):
+    """Upisi retke IMUNO na prazne 'duh' retke (npr. nakon rucnog brisanja
+    retka u Excelu, kad tablica zadrzi prazan redak u rasponu).
+
+    Logika:
+      1. Procitaj dataBodyRange tablice (vrijednosti + adresa).
+      2. Nadji zadnji NEPRAZAN redak; prvi slobodan je odmah iza njega.
+      3. Nove retke koji stanu u postojece prazne retke UPISI PATCH-om (u prvi
+         prazan redak), a tek ostatak dodaj na kraj (rows/add).
+    Tako novi podatak uvijek zavrsi u prvom slobodnom retku, bez rupe."""
+    if not rows:
+        return
+    item_id = get_item_id(filename)
+    drive_id = get_drive_id()
+    base = f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}/workbook"
+
+    body = _request("GET", f"{base}/tables/{table_name}/dataBodyRange").json()
+    values = body.get("values") or []
+    sheet, first_col, last_col, start_row = _parse_a1_range(body.get("address", ""))
+
+    last_ne = -1
+    for i, rv in enumerate(values):
+        if not _row_all_empty(rv):
+            last_ne = i
+    n_body = len(values)
+
+    to_append = []
+    for k, row in enumerate(rows):
+        pos = last_ne + 1 + k
+        if pos < n_body:
+            r = start_row + pos
+            addr = f"{first_col}{r}:{last_col}{r}"
+            sheet_seg = requests.utils.quote(sheet, safe="") if sheet else ""
+            _request("PATCH",
+                     f"{base}/worksheets/{sheet_seg}/range(address='{addr}')",
+                     json={"values": [row]})
+        else:
+            to_append.append(row)
+
+    if to_append:
+        _request("POST", f"{base}/tables/{table_name}/rows/add",
+                 json={"values": to_append})

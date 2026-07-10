@@ -494,11 +494,13 @@ class _Locked(Exception):
 
 def _append_via_workbook(rows):
     """Dodaj retke preko workbook API-ja s kratkim backoff retryjem.
+    Koristi append_or_fill: prvo popuni prazne 'duh' retke (PATCH), ostatak na
+    kraj (rows/add) — imuno na prazne retke od rucnog brisanja u Excelu.
     Dize GraphError ako ni nakon retryja ne uspije (pozivatelj ide na fallback)."""
     delays = [2, 4]  # nakon 1. i 2. neuspjeha; 3. pokusaj je zadnji
     for attempt in range(3):
         try:
-            graph_client.append_table_rows(EXCEL_FILE, TABLE_NAME, rows)
+            graph_client.append_or_fill_table_rows(EXCEL_FILE, TABLE_NAME, rows)
             return
         except graph_client.GraphError as e:
             if e.status_code in _RETRYABLE and attempt < len(delays):
@@ -597,6 +599,9 @@ def _existing_receipt_keys():
         i_br = header.index("BrojRacuna")
         keys = set()
         for r in it:
+            # Preskoci prazne 'duh' retke (npr. nakon rucnog brisanja retka).
+            if _row_is_empty(r):
+                continue
             oib = _norm_key(r[i_oib]) if i_oib < len(r) else ""
             br = _norm_key(r[i_br]) if i_br < len(r) else ""
             if br:  # kljuc je smislen samo ako ima broj racuna
