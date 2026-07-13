@@ -221,9 +221,20 @@ bota. Naredbe monitora: `/greske [N]`, `/logovi [N]`, `/stats`, `/clear`, `/star
 - **423 lock (Excel fajl zaključan)** — netko drži `.xlsx` otvoren (Excel/SharePoint). Bot
   automatski retrya s backoffom (15/30/60/120/240 s) pa javi korisniku „🔒 fajl otvoren".
   → Zatvori fajl i ponovno pošalji fotku.
-- **Prazan red u tablici** — „duh" prazan redak (tipično nakon ručnog brisanja retka u
-  Excelu). Riješeno u kodu: upis popunjava **prvi prazan redak bilo gdje u tablici**
-  (`append_or_fill_table_rows`), ne ostavlja rupu. Za provjeru stanja: `table_debug.py`.
+- **Prazni retci u tablici (POZNATA ZAMKA)** — prazan „duh" redak UNUTAR tablice
+  (`Racuni_terena` / `Primke_terena`), tipično nakon ručnog brisanja retka u Excelu na
+  krivi način. Dvije posljedice:
+  1. **Graph API append dodaje nove retke tek ISPOD praznih** (na dno tablice) — podaci
+     „preskoče" prazninu.
+  2. **Excel HYPERLINK formulu u koloni „Slika" tretira kao izračunatu (calculated)
+     kolonu** i sam je razvuče na sve prazne retke → lažni linkovi u praznim retcima.
+  - **Rješenje:** prazne retke brisati **isključivo** preko desni klik → *Delete* →
+    **Table Rows** (Izbriši retke tablice), NE brisati samo sadržaj ćelija (Delete/tipka
+    Backspace) i NE koristiti „Clear Contents". Tablica **mora završavati zadnjim retkom
+    s podacima** — ne ostavljati „rezervne" prazne retke ispod podataka.
+  - Kod je otporan koliko može: upis popunjava **prvi prazan redak bilo gdje u tablici**
+    (`append_or_fill_table_rows`), ali gornje pravilo brisanja i dalje vrijedi da se
+    izbjegne razvučena HYPERLINK formula. Za provjeru stvarnog stanja: `table_debug.py`.
 - **Deploy usred testa** — push na `main` tijekom testiranja pokrene redeploy i restart
   stroja: kratki prekid pollinga, monitor može javiti „bot zašutio" pa „oporavak".
   → Ne pushaj dok aktivno testiraš na produkciji.
