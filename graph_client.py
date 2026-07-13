@@ -233,6 +233,42 @@ def download_file(filename):
     return resp.content
 
 
+def download_named(filename, folder=FOLDER):
+    """Skini fajl po imenu iz zadanog foldera, URL-encodirajuci ime — radi i za
+    imena s razmakom i hrvatskim znakovima (npr. 'GARAŽNI BROJEVI.xlsx').
+    folder=None -> fajl je u korijenu biblioteke. Vraca bytes."""
+    from urllib.parse import quote
+    drive_id = get_drive_id()
+    enc = quote(filename, safe="")
+    path = f"/root:/{folder}/{enc}" if folder else f"/root:/{enc}"
+    url = f"{GRAPH_ROOT}/drives/{drive_id}{path}:/content"
+    return _request("GET", url, stream=True).content
+
+
+def find_item_by_name(name):
+    """Nadji DriveItem po imenu bilo gdje u biblioteci (Graph search po baznom
+    imenu). Vrati dict tocnog poklapanja imena (case-insensitive), inace prvi
+    rezultat, inace None. Fallback kad fajl nije u ocekivanom folderu."""
+    from urllib.parse import quote
+    drive_id = get_drive_id()
+    base = name.rsplit(".", 1)[0]
+    q = quote(base, safe="")
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/root/search(q='{q}')"
+    items = _request("GET", url).json().get("value", [])
+    target = name.strip().lower()
+    for it in items:
+        if str(it.get("name", "")).strip().lower() == target:
+            return it
+    return items[0] if items else None
+
+
+def download_item(item_id):
+    """Skini sadrzaj DriveItem-a po ID-u (zaobilazi adresiranje po putanji)."""
+    drive_id = get_drive_id()
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}/content"
+    return _request("GET", url, stream=True).content
+
+
 def upload_file(filename, content_bytes):
     """Kreiraj ili zamijeni fajl (simple upload, za fajlove < 4 MB — nas
     Excel je sitan). Vraca metapodatke (ukljucujuci 'id')."""

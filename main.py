@@ -22,6 +22,7 @@ import anthropic
 import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako nije konfiguriran)
 import racuni      # obrada fotki racuna + upis u Excel na SharePointu
 import backup      # dnevni backup bot.db na SharePoint
+import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
 
 # ==================== KONFIGURACIJA ====================
 
@@ -830,15 +831,102 @@ def send_daily_report(message):
     safe_send(message.chat.id, report)
 
 
+# ==================== /gdje — GPS lokacija vozila (Mobilisis) ====================
+
+def _coord(x):
+    """Koordinata kao string s TOCKOM (bez lokalizacije), 6 decimala."""
+    return f"{float(x):.6f}"
+
+
+def _ignition_on(v):
+    """Je li motor upaljen (ignitionState raznih oblika)."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    return str(v).strip().lower() in ("1", "true", "on", "yes", "upaljen",
+                                      "ignition_on", "ignitionon")
+
+
+def _format_gdje(res, query):
+    st = res.get("status")
+    if st == "empty":
+        return "Napiši GB broj ili registraciju, npr:\n/gdje 12   ili   /gdje ZG5267KM"
+    if st == "error":
+        return f"❌ {res.get('message', 'Greška pri dohvatu lokacije.')}"
+    if st == "not_found":
+        sug = res.get("suggestions") or []
+        txt = f"❓ Ništa nije nađeno za „{query}”."
+        if sug:
+            txt += "\nJesi li mislio:\n" + "\n".join(f"• {s}" for s in sug)
+        return txt
+    if st == "no_device":
+        return (f"🚛 {res.get('reg')} (GB {res.get('gb') or '?'})\n"
+                "⚠️ Ovo vozilo nema GPS uređaj (nije u Mobilisisu).")
+    if st == "no_position":
+        return (f"🚛 {res.get('reg')} (GB {res.get('gb') or '?'})\n"
+                "⚠️ Nema trenutne GPS pozicije za ovo vozilo.")
+
+    # status ok
+    pos = res["pos"]
+    lat_s, lon_s = _coord(pos["lat"]), _coord(pos["lon"])
+    dt = mobilisis.parse_utc(pos.get("dateTime"))
+    if dt:
+        loc = dt.astimezone(TZ)
+        when = f"{loc.day}.{loc.month}.{loc.year} {loc:%H:%M}"
+    else:
+        when = "?"
+    speed = pos.get("speed")
+    kretanje = f"vozi {round(speed)} km/h" if (speed and speed > 0.5) else "stoji"
+    motor = "upaljen" if _ignition_on(pos.get("ignition")) else "ugašen"
+    odo = pos.get("odometer")
+    odo_s = str(round(odo)) if isinstance(odo, (int, float)) else "?"
+    return (
+        f"🚛 {res['reg']} (GB {res.get('gb') or '?'})\n"
+        f"📍 Google Maps: https://maps.google.com/?q={lat_s},{lon_s}\n"
+        f"🕐 {when}\n"
+        f"⚡ {kretanje}, motor {motor}\n"
+        f"🛣 Odometar: {odo_s} km"
+    )
+
+
+def _gdje_worker(chat_id, query):
+    try:
+        res = mobilisis.lookup(query)
+        safe_send(chat_id, _format_gdje(res, query))
+    except Exception as e:
+        print(f"[gdje] GRESKA: {e}")
+        monitoring.error("Greska u /gdje", source="gdje", exc=e)
+        safe_send(chat_id, "❌ Greška pri dohvatu lokacije. Pokušaj ponovno.")
+
+
+def handle_gdje(message):
+    parts = message.text.split(maxsplit=1)
+    query = parts[1].strip() if len(parts) > 1 else ""
+    if not query:
+        bot.reply_to(message,
+                     "Napiši GB broj ili registraciju, npr:\n"
+                     "/gdje 12   ili   /gdje ZG5267KM")
+        return
+    # Mrezni pozivi (Mobilisis + Excel) -> u thread da ne blokira polling.
+    bot.reply_to(message, "🔎 Tražim lokaciju…")
+    threading.Thread(target=_gdje_worker, args=(message.chat.id, query),
+                     daemon=True).start()
+
+
 # ==================== HANDLERS ====================
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
-                               'reset', 'izvjestaj', 'backup_sada'])
+                               'reset', 'izvjestaj', 'backup_sada', 'gdje'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
 
     cmd = message.text.lower().strip()
+
+    if cmd.startswith('/gdje'):
+        handle_gdje(message)
+        return
 
     if cmd.startswith('/backup_sada'):
         # Admin test: okini backup odmah (u threadu — ne blokira polling).
@@ -885,7 +973,8 @@ def command_handler(message):
             "/reset – obriši povijest AI razgovora\n"
             "/vozac_dodaj <id> <GB> <ime> – dodaj/uredi vozača (admin)\n"
             "/vozac_lista – popis vozača (admin)\n"
-            "/backup_sada – ručni backup baze na SharePoint (admin)\n\n"
+            "/backup_sada – ručni backup baze na SharePoint (admin)\n"
+            "/gdje <GB ili registracija> – GPS lokacija vozila (Mobilisis)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
         return
