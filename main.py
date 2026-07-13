@@ -21,6 +21,7 @@ import anthropic
 
 import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako nije konfiguriran)
 import racuni      # obrada fotki racuna + upis u Excel na SharePointu
+import backup      # dnevni backup bot.db na SharePoint
 
 # ==================== KONFIGURACIJA ====================
 
@@ -832,12 +833,27 @@ def send_daily_report(message):
 # ==================== HANDLERS ====================
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
-                               'reset', 'izvjestaj'])
+                               'reset', 'izvjestaj', 'backup_sada'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
 
     cmd = message.text.lower().strip()
+
+    if cmd.startswith('/backup_sada'):
+        # Admin test: okini backup odmah (u threadu — ne blokira polling).
+        bot.reply_to(message, "⏳ Pokrećem backup baze na SharePoint…")
+
+        def _run_backup_now(chat_id):
+            ok, name = backup.run_backup()
+            if ok:
+                safe_send(chat_id, f"✅ Backup gotov: {name}")
+            else:
+                safe_send(chat_id, "❌ Backup NIJE uspio — provjeri log / monitor.")
+
+        threading.Thread(target=_run_backup_now, args=(message.chat.id,),
+                         daemon=True).start()
+        return
 
     if cmd.startswith('/start'):
         bot.reply_to(
@@ -868,7 +884,8 @@ def command_handler(message):
             "/izvjestaj – dnevni izvještaj\n"
             "/reset – obriši povijest AI razgovora\n"
             "/vozac_dodaj <id> <GB> <ime> – dodaj/uredi vozača (admin)\n"
-            "/vozac_lista – popis vozača (admin)\n\n"
+            "/vozac_lista – popis vozača (admin)\n"
+            "/backup_sada – ručni backup baze na SharePoint (admin)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
         return
@@ -1002,6 +1019,10 @@ if __name__ == "__main__":
 
     print(f"[startup] registrirani handleri: {_dump_handlers()}", flush=True)
     monitoring.info(f"Registrirani handleri: {_dump_handlers()}", source="startup")
+
+    # Dnevni backup baze na SharePoint (03:00 Europe/Zagreb, best-effort).
+    backup.setup(DB_FILE, TZ)
+    backup.start()
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()

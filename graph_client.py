@@ -297,6 +297,41 @@ def ensure_folder(folder_path):
 
 # ==================== EXCEL WORKBOOK API ====================
 
+def list_folder(folder_path):
+    """Vrati listu djece (fajlova/foldera) u folderu (ASCII path relativan na
+    drive root, npr. 'BRAVEL/Backup'). Prati @odata.nextLink (paginacija).
+    Prazna lista ako folder ne postoji (404). Svaki element je Graph DriveItem
+    dict (ima 'name', 'id', 'lastModifiedDateTime', ...)."""
+    drive_id = get_drive_id()
+    p = folder_path.strip("/")
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/root:/{p}:/children"
+    items = []
+    try:
+        while url:
+            data = _request("GET", url).json()
+            items.extend(data.get("value", []))
+            url = data.get("@odata.nextLink")
+    except GraphError as e:
+        if e.status_code == 404:
+            return []
+        raise
+    return items
+
+
+def delete_item(path):
+    """Obrisi fajl/folder na ASCII putanji relativnoj na drive root. 404 se
+    tretira kao 'vec obrisano' (ne dize se)."""
+    drive_id = get_drive_id()
+    p = path.strip("/")
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/root:/{p}"
+    try:
+        _request("DELETE", url)
+    except GraphError as e:
+        if e.status_code == 404:
+            return
+        raise
+
+
 def append_table_rows(filename, table_name, rows):
     """Dodaj JEDAN ili VISE redaka u imenovanu Excel tablicu preko workbook
     API-ja (jedan POST, bez download/upload cijelog fajla).
