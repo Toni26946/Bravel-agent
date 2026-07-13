@@ -472,6 +472,18 @@ def _num(x):
     return x if x is not None else ""  # broj ili prazna celija
 
 
+def _slika_cell(sess):
+    """Vrijednost kolone 'Slika'. Ako imamo pravi URL -> klikabilna HYPERLINK
+    formula (Graph workbook API je en-US locale, separator je ZAREZ; navodnik
+    u URL-u se escapea udvostrucavanjem da formula ne pukne). Inace goli string
+    (marker "UPLOAD NIJE USPIO" ili prazno)."""
+    url = sess.get("slika_url") or ""
+    if url.startswith("http"):
+        safe = url.replace('"', '""')
+        return f'=HYPERLINK("{safe}","Slika")'
+    return url
+
+
 def _build_racun_rows(sess):
     data = sess["data"]
     ukupno = _parse_num(data.get("ukupno_eur"))
@@ -483,7 +495,7 @@ def _build_racun_rows(sess):
             sess.get("vozac") or "", sess.get("gb") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
             str(sess["user_id"]),
-            sess.get("slika_url") or ""]                         # 8 kolona (+Slika)
+            _slika_cell(sess)]                                   # 8 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []
     if usable:
@@ -505,7 +517,7 @@ def _build_primka_rows(sess):
             sess.get("gb") or "", sess.get("zaprimio") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
             str(sess["user_id"]),
-            sess.get("slika_url") or ""]                         # 7 kolona (+Slika)
+            _slika_cell(sess)]                                   # 7 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []
     if usable:
