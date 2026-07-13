@@ -263,3 +263,5 @@ bota. Naredbe monitora: `/greske [N]`, `/logovi [N]`, `/stats`, `/clear`, `/star
 - Admin za monitor alarme (`MONITOR_ADMIN_ID`): `7599693099`.
 - Vlasnik / glavni održavatelj: **Toni** — kontakt: `[POPUNITI]`.
 - Zamjena / sekundarni kontakt: `[POPUNITI]`.
+  Mobilisis username:tonij1
+
