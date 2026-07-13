@@ -33,6 +33,14 @@ import monitoring
 # ---- Postavke ----
 VISION_MODEL = "claude-sonnet-4-6"  # citanje/klasifikacija; razgovor ostaje Haiku
 
+# ---- Spremanje originalne fotografije dokumenta na SharePoint ----
+IMG_COL = "Slika"                              # naziv nove (zadnje) kolone
+IMG_FOLDER = f"{graph_client.FOLDER}/Dokumenti_slike"  # BRAVEL/Dokumenti_slike
+IMG_FAIL = "UPLOAD NIJE USPIO"                 # vrijednost u koloni kad upload padne
+# Kratki retry za upload slike (best-effort; ne smije dugo blokirati PRIMARNI
+# upis retka). Pokriva lock/rate-limit (423/429) i tranzijentne 5xx.
+_IMG_RETRY_DELAYS = [2, 5, 10]
+
 
 class DocSpec:
     """Opis vrste dokumenta: gdje se upisuje i po kojim kolonama."""
@@ -60,7 +68,7 @@ RACUN = DocSpec(
         "Datum", "Vrijeme", "Izdavatelj", "OIB", "BrojRacuna",
         "Stavka", "Kolicina", "JedinicnaCijena", "IznosStavke",
         "PDV", "UkupnoEUR", "Lokacija", "Vozac", "GB",
-        "VrijemeUnosa", "UnioTelegramID",
+        "VrijemeUnosa", "UnioTelegramID", "Slika",
     ],
     new_markers=("Stavka", "IznosStavke", "Lokacija"),
     key_data=("oib", "broj_racuna"),
@@ -75,7 +83,7 @@ PRIMKA = DocSpec(
         "DatumDokumenta", "Firma", "OIB", "BrRacuna", "KataloskiBroj",
         "Stavka", "Kolicina", "JM", "JedinicnaCijena", "RabatPosto",
         "IznosStavke", "UkupnoEUR", "Dospijece", "GB", "Zaprimio",
-        "VrijemeUnosa", "UnioTelegramID",
+        "VrijemeUnosa", "UnioTelegramID", "Slika",
     ],
     new_markers=("KataloskiBroj", "Dospijece", "Zaprimio"),
     key_data=("oib", "br_racuna"),
@@ -474,7 +482,8 @@ def _build_racun_rows(sess):
     tail = [_num(pdv), _num(ukupno), _txt(data.get("lokacija")),
             sess.get("vozac") or "", sess.get("gb") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
-            str(sess["user_id"])]                                # 7 kolona
+            str(sess["user_id"]),
+            sess.get("slika_url") or ""]                         # 8 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []
     if usable:
@@ -495,7 +504,8 @@ def _build_primka_rows(sess):
     tail = [_num(ukupno), _txt(data.get("dospijece")),
             sess.get("gb") or "", sess.get("zaprimio") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
-            str(sess["user_id"])]                                # 6 kolona
+            str(sess["user_id"]),
+            sess.get("slika_url") or ""]                         # 7 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []
     if usable:
@@ -624,6 +634,109 @@ def _append_via_workbook(spec, rows):
                 time.sleep(delays[attempt])
                 continue
             raise
+
+
+# ==================== SPREMANJE ORIGINALNE FOTOGRAFIJE ====================
+
+# SharePoint ne dopusta ove znakove u imenu fajla; spec trazi da / i \ postanu
+# '-', a ostale zabranjene mijenjamo istim '-' da upload ne padne.
+_FNAME_BAD = re.compile(r'[\\/:*?"<>|]+')
+
+
+def _sanitize_docnum(val):
+    """Broj dokumenta/OIB -> siguran dio imena fajla (/ i \\ -> '-')."""
+    s = _txt(val).replace("/", "-").replace("\\", "-")
+    s = _FNAME_BAD.sub("-", s).strip().strip(".")
+    return s
+
+
+def _image_basename(sess):
+    """{vrsta}_{OIB}_{BrojDokumenta}_{YYYYMMDD_HHMMSS} (bez ekstenzije)."""
+    spec = sess["spec"]
+    data = sess["data"]
+    oib = _sanitize_docnum(data.get("oib")) or "BB"
+    num_raw = data.get("br_racuna") if spec.vrsta == "primka" else data.get("broj_racuna")
+    num = _sanitize_docnum(num_raw) or "BB"
+    ts = _now().strftime("%Y%m%d_%H%M%S")
+    return f"{spec.vrsta}_{oib}_{num}_{ts}"
+
+
+def _upload_one_image(path, img, mtype):
+    """Upload jedne slike s KRATKIM retryjem (423/429/5xx). Vraca webUrl ili
+    None ako ni nakon retryja ne uspije (best-effort — ne dize dalje)."""
+    i = 0
+    while True:
+        try:
+            meta = graph_client.upload_bytes(path, img, mtype or "image/jpeg")
+            return meta.get("webUrl")
+        except graph_client.GraphError as e:
+            retryable = e.status_code in _LOCK_CODES or e.status_code in _RETRYABLE
+            if retryable and i < len(_IMG_RETRY_DELAYS):
+                time.sleep(_IMG_RETRY_DELAYS[i])
+                i += 1
+                continue
+            _log(f"upload slike pao ({e})")
+            return None
+        except Exception as e:
+            _log(f"upload slike iznimka: {type(e).__name__}: {e}")
+            return None
+
+
+def _prepare_image(sess):
+    """PRIJE upisa retka uploadaj originalne slike na SharePoint i u sess
+    postavi 'slika_url' (webUrl prve stranice) + 'slika_note' (za finalnu
+    poruku). Upis retka je PRIMARAN: ako upload padne -> slika_url = marker,
+    redak se svejedno upisuje. Visestranicno -> sve stranice s _str1, _str2..."""
+    sess.setdefault("slika_url", "")
+    sess.setdefault("slika_note", "")
+    images = sess.get("images") or []
+    if not images or not graph_client.is_configured():
+        return
+
+    try:
+        graph_client.ensure_folder(IMG_FOLDER)
+    except Exception as e:
+        # Nije fatalno: path-upload i sam kreira folder; samo logiramo.
+        _log(f"ensure_folder({IMG_FOLDER}) nije uspio ({e}); nastavljam")
+
+    base = _image_basename(sess)
+    n = len(images)
+    first_url = None      # webUrl PRVE stranice (preferiran za redak)
+    any_url = None        # prvi uspjesni upload (fallback ako prva padne)
+    fail_any = False
+    for idx, (img, mt) in enumerate(images, start=1):
+        fname = f"{base}_str{idx}.jpg" if n > 1 else f"{base}.jpg"
+        url = _upload_one_image(f"{IMG_FOLDER}/{fname}", img, mt)
+        if idx == 1:
+            first_url = url
+        if url and any_url is None:
+            any_url = url
+        if url is None:
+            fail_any = True
+
+    chosen = first_url or any_url
+    if chosen:
+        sess["slika_url"] = chosen
+        sess["slika_note"] = ("\n📎 original spremljen" if not fail_any
+                              else "\n📎 original spremljen (neke stranice nisu — vidi log)")
+        _log(f"slika spremljena -> {chosen}")
+    else:
+        sess["slika_url"] = IMG_FAIL
+        sess["slika_note"] = "\n⚠️ original NIJE spremljen (upload nije uspio)."
+        monitoring.warning(f"Upload slike ({sess['vrsta']}) nije uspio nakon retryja.",
+                           source="racuni")
+
+
+def _ensure_slika_column(spec):
+    """Ako tablica NEMA kolonu 'Slika', dodaj je (prazna, na kraj — iza
+    UnioTelegramID). Provjera zaglavlja; postojeci stari redci ostaju bez
+    linka (ne migriraju se). Jednokratno — nakon toga header je vec ok."""
+    header = graph_client.table_header(spec.excel_file, spec.table)
+    if IMG_COL in header:
+        return
+    _log(f"kolona '{IMG_COL}' ne postoji u {spec.table} -> dodajem (in-place)")
+    graph_client.add_table_column(spec.excel_file, spec.table, IMG_COL)
+    monitoring.info(f"{spec.naziv}: dodana kolona '{IMG_COL}'.", source="racuni")
 
 
 # ---- Migracija starog fajla (stara struktura -> _STARO) ----
@@ -781,6 +894,9 @@ def _write_once(sess):
             _log("4/6 upload OK")
             return True, (f"✅ {spec.naziv} upisana — {len(rows)} stavka(i) "
                           f"(kreiran novi {spec.excel_file}).")
+
+        step = "4b/6 kolona Slika"
+        _ensure_slika_column(spec)  # in-place doda 'Slika' ako fali (jednokratno)
 
         step = "5/6 workbook append"
         _log(f"5/6 workbook append {len(rows)} redaka (append_or_fill)")
@@ -1111,11 +1227,23 @@ def _do_ok(sess, chat_id, msg_id):
         _log("dedupe: DUPLIKAT -> nije upisano (bez gumba)")
         return
 
+    # Upload originalne fotke PRIJE upisa (da webUrl bude spreman za redak).
+    # Best-effort: ako padne, slika_url = marker, upis se svejedno nastavlja.
+    try:
+        _prepare_image(sess)
+    except Exception as e:
+        _log(f"_prepare_image neuhvacena ({e}); nastavljam s upisom")
+        sess["slika_url"] = IMG_FAIL
+        sess["slika_note"] = "\n⚠️ original NIJE spremljen (upload nije uspio)."
+
     _do_write(sess, chat_id, msg_id)
 
 
 def _do_write(sess, chat_id, msg_id):
     ok, msg = _write_with_lock_retry(sess, chat_id, msg_id)
+    if ok:
+        # Finalna poruka: postojeca + kratka potvrda o spremanju originala.
+        msg = msg + (sess.get("slika_note") or "")
     with _sessions_lock:
         _sessions.pop(chat_id, None)
     _safe_edit(chat_id, msg_id, msg)

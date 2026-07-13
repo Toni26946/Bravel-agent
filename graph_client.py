@@ -256,6 +256,45 @@ def rename_file(filename, new_name):
     return _request("PATCH", url, json={"name": new_name}).json()
 
 
+def upload_bytes(path, content_bytes, content_type):
+    """Kreiraj/zamijeni proizvoljan fajl na ASCII putanji relativnoj na drive
+    root (npr. 'BRAVEL/Dokumenti_slike/racun_...jpg'). Simple upload (< 4 MB —
+    Telegram fotke su sitne). Vraca metapodatke DriveItem-a (uklj. 'id' i
+    'webUrl' — direktan link na fajl u SharePointu)."""
+    drive_id = get_drive_id()
+    p = path.strip("/")
+    url = f"{GRAPH_ROOT}/drives/{drive_id}/root:/{p}:/content"
+    resp = _request("PUT", url, data=content_bytes,
+                    headers={"Content-Type": content_type})
+    return resp.json()
+
+
+def ensure_folder(folder_path):
+    """Osiguraj da folder-putanja (ASCII, relativna na drive root, npr.
+    'BRAVEL/Dokumenti_slike') postoji; kreira segmente koji nedostaju.
+    Idempotentno — postojeci folderi se ne diraju."""
+    drive_id = get_drive_id()
+    accum = ""
+    for seg in [s for s in folder_path.strip("/").split("/") if s]:
+        child = f"{accum}/{seg}" if accum else seg
+        try:
+            _request("GET", f"{GRAPH_ROOT}/drives/{drive_id}/root:/{child}")
+        except GraphError as e:
+            if e.status_code != 404:
+                raise
+            parent_url = (f"{GRAPH_ROOT}/drives/{drive_id}/root:/{accum}:/children"
+                          if accum else f"{GRAPH_ROOT}/drives/{drive_id}/root/children")
+            try:
+                _request("POST", parent_url, json={
+                    "name": seg, "folder": {},
+                    "@microsoft.graph.conflictBehavior": "fail",
+                })
+            except GraphError as ce:
+                if ce.status_code != 409:  # 409 = kreiran u međuvremenu (race)
+                    raise
+        accum = child
+
+
 # ==================== EXCEL WORKBOOK API ====================
 
 def append_table_rows(filename, table_name, rows):
@@ -271,6 +310,28 @@ def append_table_rows(filename, table_name, rows):
     url = (f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
            f"/workbook/tables/{table_name}/rows/add")
     return _request("POST", url, json={"values": rows}).json()
+
+
+def table_header(filename, table_name):
+    """Vrati listu naziva kolona tablice (headerRowRange preko workbook API-ja
+    — mali GET, bez skidanja cijelog fajla)."""
+    item_id = get_item_id(filename)
+    drive_id = get_drive_id()
+    url = (f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
+           f"/workbook/tables/{table_name}/headerRowRange")
+    vals = _request("GET", url).json().get("values") or [[]]
+    return list(vals[0]) if vals else []
+
+
+def add_table_column(filename, table_name, column_name):
+    """Dodaj praznu kolonu na KRAJ tablice (workbook API 'columns/add', bez
+    indeksa -> append). Tablica automatski prosiri raspon; postojeci redci
+    dobiju praznu celiju u novoj koloni (ne migriraju se). Vraca metapodatke."""
+    item_id = get_item_id(filename)
+    drive_id = get_drive_id()
+    url = (f"{GRAPH_ROOT}/drives/{drive_id}/items/{item_id}"
+           f"/workbook/tables/{table_name}/columns/add")
+    return _request("POST", url, json={"name": column_name}).json()
 
 
 def _split_col_row(cell):
