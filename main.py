@@ -23,6 +23,7 @@ import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako n
 import racuni      # obrada fotki racuna + upis u Excel na SharePointu
 import backup      # dnevni backup bot.db na SharePoint
 import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
+import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin komande
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
@@ -915,10 +916,71 @@ def handle_gdje(message):
                      daemon=True).start()
 
 
+# ==================== WhatsApp admin komande (samo vlasnik) ====================
+
+def _wa_register_worker(chat_id, pin):
+    try:
+        res = whatsapp.register(pin)
+        if res["ok"]:
+            safe_send(chat_id, "✅ Broj je REGISTRIRAN na Cloud API.\n"
+                               "Možemo dalje na slanje (test predloška).")
+        else:
+            safe_send(chat_id,
+                      "❌ Registracija nije uspjela.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_register", source="wa_register", exc=e)
+        safe_send(chat_id, f"❌ Greška pri registraciji: {e}")
+
+
+def handle_wa_register(message):
+    parts = message.text.split(maxsplit=1)
+    pin = parts[1].strip() if len(parts) > 1 else ""
+    if not (pin.isdigit() and len(pin) == 6):
+        bot.reply_to(message, "Upiši 6-znamenkasti PIN, npr:\n/wa_register 123456")
+        return
+    bot.reply_to(message, "⏳ Šaljem registraciju na Metu…")
+    threading.Thread(target=_wa_register_worker, args=(message.chat.id, pin),
+                     daemon=True).start()
+
+
+def _wa_test_worker(chat_id, broj):
+    try:
+        res = whatsapp.send_template(broj, "hello_world", "en_US")
+        if res["ok"]:
+            safe_send(chat_id, f"✅ Poslano na {broj} (hello_world). Provjeri WhatsApp.")
+        else:
+            safe_send(chat_id,
+                      "❌ Slanje nije uspjelo.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_test", source="wa_test", exc=e)
+        safe_send(chat_id, f"❌ Greška pri slanju: {e}")
+
+
+def handle_wa_test(message):
+    parts = message.text.split(maxsplit=1)
+    broj = parts[1].strip().replace("+", "").replace(" ", "") if len(parts) > 1 else ""
+    if not broj.isdigit():
+        bot.reply_to(message, "Upiši broj primatelja (s pozivnim, bez +), npr:\n"
+                              "/wa_test 3859xxxxxxx")
+        return
+    bot.reply_to(message, "⏳ Šaljem test predložak (hello_world)…")
+    threading.Thread(target=_wa_test_worker, args=(message.chat.id, broj),
+                     daemon=True).start()
+
+
 # ==================== HANDLERS ====================
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
-                               'reset', 'izvjestaj', 'backup_sada', 'gdje'])
+                               'reset', 'izvjestaj', 'backup_sada', 'gdje',
+                               'wa_register', 'wa_test'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -927,6 +989,14 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_register'):
+        handle_wa_register(message)
+        return
+
+    if cmd.startswith('/wa_test'):
+        handle_wa_test(message)
         return
 
     if cmd.startswith('/backup_sada'):
