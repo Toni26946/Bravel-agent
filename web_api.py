@@ -170,12 +170,13 @@ def _run():
 
 
 def start():
-    """Pokrece HTTP server u zasebnom daemon threadu. No-op (uz upozorenje)
-    ako FLOTA_OS_KEY nije postavljen — /api/pozicije bi ionako vracao 503."""
+    """UVIJEK diže HTTP server u zasebnom daemon threadu. Server mora slušati
+    na portu 8080 da Fly health/smoke check kod deploya prođe (fly.toml ima
+    [http_service]) i da /zdrav odgovara. Ako FLOTA_OS_KEY nije postavljen,
+    server i dalje radi, ali /api/pozicije vraća 503 dok se tajna ne postavi."""
     if not is_configured():
-        _log("FLOTA_OS_KEY nije postavljen — HTTP server se NE podiže "
-             "(/api/pozicije bi vraćao 503).")
-        monitoring.warning("Web API nije pokrenut: FLOTA_OS_KEY nije postavljen.",
+        _log("UPOZORENJE: FLOTA_OS_KEY nije postavljen — /api/pozicije vraća 503 "
+             "dok se tajna ne postavi. /zdrav i HTTP server rade normalno.")
+        monitoring.warning("Web API: FLOTA_OS_KEY nije postavljen (/api/pozicije = 503).",
                            source="web_api")
-        return
     threading.Thread(target=_run, daemon=True, name="web-api").start()
