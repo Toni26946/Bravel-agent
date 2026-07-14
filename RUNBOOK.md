@@ -264,4 +264,43 @@ bota. Naredbe monitora: `/greske [N]`, `/logovi [N]`, `/stats`, `/clear`, `/star
 - Vlasnik / glavni održavatelj: **Toni** — kontakt: `[POPUNITI]`.
 - Zamjena / sekundarni kontakt: `[POPUNITI]`.
   Mobilisis username:tonij1
+  
+  ## Web API (pozicije vozila za Flota OS)
+
+### Endpoint
+- GET https://bravel-agent.fly.dev/zdrav → {"status":"ok"} (health check, bez ključa)
+- GET https://bravel-agent.fly.dev/api/pozicije → JSON pozicija cijele flote
+  - Obavezan header: X-Api-Key: <FLOTA_OS_KEY>
+  - Bez/kriv ključ → 401
+  - Odgovor: vrijeme_dohvata, iz_kesa, vozila[] (gb, registracija, lat, lon,
+    brzina, smjer, motor, vrijeme UTC, odometar u km)
+  - Vozila bez GB mapiranja imaju "gb": null
+- Keš 30 s (više klijenata = max 2 Mobilisis poziva/min)
+- Mobilisis pao → 503 + zadnji uspješni rezultat ("zastarjelo": true)
+
+### Tajne (fly secrets, app bravel-agent)
+- FLOTA_OS_KEY — ključ za /api/pozicije (vrijednost u password manageru)
+- MOBILISIS_USER / MOBILISIS_PASS — API račun "bravel-api" s Mobilisis
+  fleet platforme (Globalni podaci → Mobilisis → API korisnički računi;
+  kredencijali se nalaze: [DOPUNI — gdje si ih našao])
+
+### Mobilisis API
+- Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
+- Login: POST /positions/getSessionKey {"username","password"} → token 24h
+  (produžuje se korištenjem); header: Authorization: Bearer <token>
+- Povezane grupe: Trenutna pozicija vozila, Gorivo, Radni nalozi/putni
+  računi, Geokodiranje/zone
+- REG↔GB mapiranje: GARAŽNI BROJEVI.xlsx (SharePoint), kolone GB i
+  REG OZNAKA; keš 24h
+
+### Poznate zamke (naučeno 14.7.2026.)
+- monitoring.install() presreće iznimke threadova → greške NE završe u
+  fly logs nego u monitoring botu. Ako neki servis "tiho nestane",
+  prvo pogledaj monitoring poruke.
+- fly secrets set radi brzi in-place restart → stari proces nakratko
+  drži port 8080 → web_api ima bind retry (6×/2 s) upravo zato.
+  Svaki boot MORA u logu imati "[web_api] HTTP server sluša na 0.0.0.0:8080".
+- PowerShell: koristiti curl.exe (ne curl — to je alias za Invoke-WebRequest).
+- API ključevi: samo slova i brojevi (specijalni znakovi stradaju u
+  PowerShell navodnicima).
 
