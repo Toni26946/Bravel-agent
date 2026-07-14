@@ -1,4 +1,4 @@
-# fly.toml — bravel-agent (Telegram bot, polling, bez HTTP prometa)
+# fly.toml — bravel-agent (Telegram bot, polling + lagani HTTP API)
 app = 'bravel-agent'
 primary_region = 'ams'
 
@@ -7,6 +7,16 @@ primary_region = 'ams'
 
 [processes]
   app = 'python main.py'
+
+# HTTP API (GET /api/pozicije, /zdrav) — aiohttp u istom procesu, port 8080.
+# VAZNO: auto_stop_machines = false jer bot MORA stalno raditi zbog Telegram
+# polinga (inace bi se stroj ugasio kad nema HTTP prometa i podsjetnici bi stali).
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
 
 [mounts]
   source = 'data'

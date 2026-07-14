@@ -23,6 +23,7 @@ import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako n
 import racuni      # obrada fotki racuna + upis u Excel na SharePointu
 import backup      # dnevni backup bot.db na SharePoint
 import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
+import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
 
@@ -1112,6 +1113,10 @@ if __name__ == "__main__":
     # Dnevni backup baze na SharePoint (03:00 Europe/Zagreb, best-effort).
     backup.setup(DB_FILE, TZ)
     backup.start()
+
+    # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
+    # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
+    web_api.start()
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()

@@ -103,6 +103,16 @@ def _num_dot(v):
         return None
 
 
+def ignition_on(v):
+    """Je li motor upaljen (ignitionState raznih oblika) -> bool."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    return _txt(v).lower() in ("1", "true", "on", "yes", "upaljen",
+                               "ignition_on", "ignitionon")
+
+
 def _as_list(data, *keys):
     """Izvuci listu iz odgovora koji moze biti lista ili omotan u dict."""
     if isinstance(data, list):
@@ -453,3 +463,39 @@ def lookup(query):
     if not pos or pos.get("lat") is None or pos.get("lon") is None:
         return {"status": "no_position", "reg": reg_display, "gb": gb}
     return {"status": "ok", "reg": reg_display, "gb": gb, "pos": pos}
+
+
+# ==================== SVE POZICIJE (za HTTP endpoint) ====================
+
+def all_positions():
+    """Sve trenutne pozicije svih vozila, obogacene s registracijom i GB.
+
+    Vraca listu dictova (JSON-spremnih):
+      {gb, registracija, lat, lon, brzina, smjer, motor(bool),
+       vrijeme(ISO8601 UTC ili None), odometar}
+    lat/lon/brzina/smjer/odometar su brojevi (ili None). Vozila bez GB
+    mapiranja dobiju gb=None. Baca MobilisisError na gresku (login/API/mapiranje)."""
+    gb2reg, reg2gb, regs = _get_map()
+    devices = get_devices()
+    id2name = {str(d["Id"]): d.get("Name", "") for d in devices}
+    positions = get_positions()
+
+    out = []
+    for p in positions:
+        did = str(p.get("deviceId"))
+        reg_display = _txt(id2name.get(did, ""))
+        reg_norm = norm_reg(reg_display)
+        gb = reg2gb.get(reg_norm) if reg_norm else None
+        dt = parse_utc(p.get("dateTime"))
+        out.append({
+            "gb": gb or None,
+            "registracija": reg_display or None,
+            "lat": p.get("lat"),
+            "lon": p.get("lon"),
+            "brzina": p.get("speed"),
+            "smjer": p.get("heading"),
+            "motor": ignition_on(p.get("ignition")),
+            "vrijeme": dt.astimezone(timezone.utc).isoformat() if dt else None,
+            "odometar": p.get("odometer"),
+        })
+    return out

@@ -4,3 +4,4 @@ tzdata
 requests
 msal
 openpyxl
+aiohttp
