@@ -32,6 +32,11 @@ import monitoring
 PORT = 8080
 CACHE_TTL = 30  # sekundi: unutar ovog prozora posluzujemo iz kesa
 
+# Kod brzog restarta (npr. nakon `fly secrets set`) stari proces moze jos
+# drzati port 8080 -> bind pada s OSError. Pokusaj vise puta prije predaje.
+_BIND_RETRIES = 6
+_BIND_RETRY_DELAY = 2.0  # sekundi izmedu pokusaja
+
 _API_KEY = os.getenv("FLOTA_OS_KEY", "").strip()
 
 # ---- Kes zadnjeg uspjesnog dohvata (dijeljen unutar jednog event loopa) ----
@@ -149,34 +154,71 @@ async def _cors_mw(request, handler):
 
 # ==================== POKRETANJE ====================
 
+def _bind_site(loop, runner):
+    """Startaj TCPSite na 0.0.0.0:PORT uz retry na OSError (port jos zauzet
+    od starog procesa kod brzog restarta). Baca zadnju gresku ako ne uspije."""
+    last = None
+    for attempt in range(1, _BIND_RETRIES + 1):
+        site = web.TCPSite(runner, "0.0.0.0", PORT)
+        try:
+            loop.run_until_complete(site.start())
+            return
+        except OSError as e:
+            last = e
+            _log(f"bind na :{PORT} nije uspio "
+                 f"(pokušaj {attempt}/{_BIND_RETRIES}): {e}")
+            if attempt < _BIND_RETRIES:
+                loop.run_until_complete(asyncio.sleep(_BIND_RETRY_DELAY))
+    raise last or OSError(f"bind na :{PORT} nije uspio")
+
+
 def _run():
+    # VAZNO: cijeli thread je u try/except. Bez toga bi iznimka (npr. bind na
+    # zauzet port) otisla u threading.excepthook koji monitoring.install()
+    # zamjenjuje -> prijavljuje SAMO monitoringu i NISTA ne ispisuje u fly
+    # logove (thread "tiho umre"). Ovdje gresku logiramo GLASNO: i u logger
+    # (vidljivo u `fly logs`) i u monitoring.
     global _fetch_lock
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    _fetch_lock = asyncio.Lock()
+    try:
+        _log(f"pokrećem HTTP server na 0.0.0.0:{PORT}…")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        _fetch_lock = asyncio.Lock()
 
-    app = web.Application(middlewares=[_cors_mw])
-    app.router.add_get("/zdrav", handle_zdrav)
-    app.router.add_get("/api/pozicije", handle_pozicije)
+        app = web.Application(middlewares=[_cors_mw])
+        app.router.add_get("/zdrav", handle_zdrav)
+        app.router.add_get("/api/pozicije", handle_pozicije)
 
-    runner = web.AppRunner(app)
-    loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    loop.run_until_complete(site.start())
-    _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
-         f"(rute: /zdrav, /api/pozicije)")
-    monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
-    loop.run_forever()
+        runner = web.AppRunner(app)
+        loop.run_until_complete(runner.setup())
+        _bind_site(loop, runner)
+
+        _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
+             f"(rute: /zdrav, /api/pozicije)")
+        monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
+        loop.run_forever()
+    except Exception as e:
+        _log(f"GREŠKA: HTTP server se NIJE podigao / ugasio se: {e}")
+        monitoring.error("Web API se ugasio (thread umro)",
+                         source="web_api", exc=e)
 
 
 def start():
     """UVIJEK diže HTTP server u zasebnom daemon threadu. Server mora slušati
     na portu 8080 da Fly health/smoke check kod deploya prođe (fly.toml ima
     [http_service]) i da /zdrav odgovara. Ako FLOTA_OS_KEY nije postavljen,
-    server i dalje radi, ali /api/pozicije vraća 503 dok se tajna ne postavi."""
-    if not is_configured():
-        _log("UPOZORENJE: FLOTA_OS_KEY nije postavljen — /api/pozicije vraća 503 "
-             "dok se tajna ne postavi. /zdrav i HTTP server rade normalno.")
-        monitoring.warning("Web API: FLOTA_OS_KEY nije postavljen (/api/pozicije = 503).",
-                           source="web_api")
-    threading.Thread(target=_run, daemon=True, name="web-api").start()
+    server i dalje radi, ali /api/pozicije vraća 503 dok se tajna ne postavi.
+
+    Sve je omotano u try/except s glasnim logiranjem (logger + monitoring) da
+    se problem s pokretanjem NIKAD ne izgubi tiho."""
+    try:
+        if not is_configured():
+            _log("UPOZORENJE: FLOTA_OS_KEY nije postavljen — /api/pozicije vraća 503 "
+                 "dok se tajna ne postavi. /zdrav i HTTP server rade normalno.")
+            monitoring.warning("Web API: FLOTA_OS_KEY nije postavljen (/api/pozicije = 503).",
+                               source="web_api")
+        threading.Thread(target=_run, daemon=True, name="web-api").start()
+        _log("web-api thread pokrenut")
+    except Exception as e:
+        _log(f"GREŠKA pri pokretanju web-api threada: {e}")
+        monitoring.error("Web API: start() nije uspio", source="web_api", exc=e)
