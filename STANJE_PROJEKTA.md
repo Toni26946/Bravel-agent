@@ -61,8 +61,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - /gdje <GB ili registracija> → živa pozicija kamiona (Mobilisis)
 - Backup bot.db dnevno u 03:00 → BRAVEL/Backup/ (retencija 30 dana)
 
-## WhatsApp (dvosmjerno RADI, stanje 15.7.)
-- Meta app "BravelBot" (unpublished), preko bratovog (Roko) računa.
+## WhatsApp (dvosmjerno RADI, app LIVE, stanje 15.7.)
+- Meta app "Bravel" (App ID 910214341385042), display name "Bravel",
+  OBJAVLJEN/LIVE 15.7. (business verification BRAVEL D.O.O. ✅ 14.7.),
+  preko bratovog (Roko) računa. Privacy Policy + Data deletion URL =
+  https://bravel-agent.fly.dev/privatnost (ruta u web_api.py).
   WABA "Bravel doo", WABA ID 1482419453685574 (raniji 2489346474912515 je
   vjerojatno Business Portfolio ID, ne WABA)
 - Broj +385 1 6539 906 REGISTRIRAN na Cloud API (Connected), Phone number
@@ -84,12 +87,12 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   pretplata na polje "messages" u Meta Configuration.
 - POTVRĐENO 15.7.: /wa_send šalje (bot → korisnik) I webhook prima
   (Test događaj stigao na Telegram).
+- APP LIVE 15.7. → webhook prima STVARNE dolazne poruke; slanje nije
+  ograničeno na test-brojeve.
 - TODO: token provjeriti da je permanentni (System User, Never-expire) —
-  inače istječe za 24 h; predlošci poruka_dispecera / potvrda_racuna na
-  odobrenje (+ payment method za business-initiated izvan 24 h prozora);
-  PUBLISH app (dok je unpublished, slanje samo na test-primatelje I webhook
-  prima samo TEST događaje iz dashboarda — stvarne dolazne poruke tek nakon
-  objave + business verification)
+  inače istječe za 24 h; display name "Bravel" na Metino odobrenje;
+  payment method na WABA-i (za business-initiated izvan 24 h prozora);
+  predlošci poruka_dispecera / potvrda_racuna na odobrenje
 - Template-i Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
