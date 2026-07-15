@@ -88,6 +88,9 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - /wa_send <broj> <tekst> — obična poruka; RADI unutar 24 h prozora
     (korisnik mora prvi pisati poslovnom broju). Broj se normalizira
     (0994396448 → 385994396448)
+  - /wa_token — dijagnostika tokena preko Graph /debug_token (ne otkriva
+    token): tip, valjanost, kad istječe (expires_at=0 → permanentni ✅),
+    dozvole. Ako nije permanentan → uputa za System User token „Never"
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;

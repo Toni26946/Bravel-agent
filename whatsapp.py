@@ -149,6 +149,29 @@ def send_buttons(to, body, buttons):
     return {"ok": ok, "status": status, "data": data}
 
 
+def debug_token():
+    """Provjeri metapodatke WHATSAPP_TOKEN-a preko Graph /debug_token — BEZ
+    otkrivanja samog tokena. Vrati {ok, status, data}. Ključno u data['data']:
+      expires_at == 0            -> token NIKAD ne istječe (permanentni System User)
+      expires_at == <timestamp>  -> istječe (privremeni token, treba zamjena)
+      type / is_valid / scopes   -> vrsta, valjanost, dodijeljene dozvole
+    Self-debug (isti token kao input i access) radi za System User tokene te app.
+    """
+    t = _token()
+    r = requests.get(f"{GRAPH_BASE}/debug_token",
+                     params={"input_token": t, "access_token": t}, timeout=TIMEOUT)
+    try:
+        data = r.json()
+    except ValueError:
+        data = {"raw": r.text}
+    ok = (r.status_code == 200 and isinstance(data, dict)
+          and isinstance(data.get("data"), dict))
+    if not ok:
+        monitoring.warning(f"WhatsApp debug_token nije uspio: HTTP {r.status_code} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": r.status_code, "data": data}
+
+
 def opisi_gresku(res):
     """Pretvori {ok,status,data} u čitljiv sažetak (za Telegram/log)."""
     d = res.get("data") if isinstance(res, dict) else None
