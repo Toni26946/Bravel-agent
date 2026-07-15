@@ -25,7 +25,7 @@ import os
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -234,18 +234,23 @@ def login():
     return token
 
 
-def _auth_request(method, path, params=None, _retried=False):
-    """Autenticirani poziv. Na 401 -> relogin i JEDAN ponovni pokušaj."""
+def _auth_request(method, path, params=None, json_body=None, _retried=False):
+    """Autenticirani poziv (GET s params ili POST s json_body). Na 401 -> relogin
+    i JEDAN ponovni pokušaj."""
     with _token_lock:
         tok = _token
     if not tok:
         tok = login()
-    resp = _http(method, f"{BASE_URL}{path}", params=params,
-                 headers={"Authorization": f"Bearer {tok}"})
+    kw = {"headers": {"Authorization": f"Bearer {tok}"}}
+    if params is not None:
+        kw["params"] = params
+    if json_body is not None:
+        kw["json"] = json_body
+    resp = _http(method, f"{BASE_URL}{path}", **kw)
     if resp.status_code == 401 and not _retried:
         _log("401 -> relogin i ponovni pokušaj")
         login()
-        return _auth_request(method, path, params, _retried=True)
+        return _auth_request(method, path, params, json_body, _retried=True)
     if resp.status_code != 200:
         raise MobilisisError(
             f"{method} {path} -> {resp.status_code}: {_txt(resp.text)[:200]}")
@@ -293,6 +298,83 @@ def get_positions(device_ids=None):
         want = {str(x) for x in device_ids}
         parsed = [p for p in parsed if str(p.get("deviceId")) in want]
     return parsed
+
+
+# ==================== POVIJEST (ruta vozila) ====================
+
+def _iso_utc(dt):
+    """datetime -> 'YYYY-MM-DDTHH:MM:SSZ' (UTC) za Mobilisis from/to."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_history_point(p):
+    """Jedna točka povijesti -> {lat, lon, vrijeme, brzina, smjer} ili None.
+    Mobilisis History može vratiti isti oblik kao trenutne pozicije
+    (coordinate.Latitude…) ili plosnati (Lat/Lon/Time) — pokrivamo oba."""
+    if not isinstance(p, dict):
+        return None
+    coord = p.get("coordinate") or p.get("Coordinate") or {}
+    if not isinstance(coord, dict):
+        coord = {}
+    lat = _num_dot(coord.get("Latitude", coord.get("latitude")))
+    lon = _num_dot(coord.get("Longitude", coord.get("longitude")))
+    if lat is None:
+        lat = _num_dot(p.get("Lat", p.get("lat", p.get("Latitude", p.get("latitude")))))
+    if lon is None:
+        lon = _num_dot(p.get("Lon", p.get("lon", p.get("Longitude", p.get("longitude")))))
+    if lat is None or lon is None:
+        return None
+    dt = parse_utc(p.get("dateTime", p.get("DateTime", p.get("Time", p.get("time")))))
+    return {
+        "lat": lat,
+        "lon": lon,
+        "vrijeme": dt.astimezone(timezone.utc).isoformat() if dt else None,
+        "brzina": _num_dot(p.get("speed", p.get("Speed"))),
+        "smjer": _num_dot(p.get("heading", p.get("Heading", p.get("course", p.get("Course"))))),
+    }
+
+
+def get_history(device_id, frm, to):
+    """POST /positions/history -> lista točaka {lat, lon, vrijeme, brzina, smjer}
+    za uređaj u periodu [frm, to] (aware datetime). Sortirano po vremenu; točke
+    bez koordinata se preskaču."""
+    body = {"id": int(device_id), "from": _iso_utc(frm), "to": _iso_utc(to)}
+    resp = _auth_request("POST", "/positions/history", json_body=body)
+    data = resp.json()
+    raw = _as_list(data, "Positions", "positions", "History", "history",
+                   "Items", "items", "Route", "route", "Points", "points")
+    if not raw and isinstance(data, list):
+        raw = data
+    tocke = [t for t in (_parse_history_point(p) for p in raw) if t]
+    tocke.sort(key=lambda t: t.get("vrijeme") or "")
+    return tocke
+
+
+def id_za_reg(reg):
+    """Registracija -> Mobilisis device Id (ili None). Usporedba normalizirana."""
+    target = norm_reg(reg)
+    if not target:
+        return None
+    for d in get_devices():
+        if norm_reg(d.get("Name", "")) == target:
+            return d.get("Id")
+    return None
+
+
+def putanja_za_reg(reg, sati=6):
+    """Ruta vozila (po registraciji) za zadnjih 'sati' sati.
+    Vraća {reg, id, od, do, tocke:[…]} ili baca MobilisisError. 'tocke' su
+    prazne ako Mobilisis nema zapisa za taj period."""
+    did = id_za_reg(reg)
+    if did is None:
+        raise MobilisisError(f"Nepoznata registracija: {reg}")
+    to = datetime.now(timezone.utc)
+    frm = to - timedelta(hours=float(sati))
+    tocke = get_history(did, frm, to)
+    return {"reg": reg, "id": did, "od": _iso_utc(frm), "do": _iso_utc(to),
+            "tocke": tocke}
 
 
 # ==================== MAPIRANJE GB <-> REG (Excel) ====================

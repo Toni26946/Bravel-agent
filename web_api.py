@@ -136,6 +136,35 @@ async def handle_pozicije(request):
     })
 
 
+async def handle_putanja(request):
+    """Ruta (povijest kretanja) jednog vozila za zadnjih 'sati' sati.
+    GET /api/putanja?reg=<registracija>&sati=<broj>  (štiti X-Api-Key)."""
+    err = _check_key(request)
+    if err is not None:
+        return err
+
+    reg = (request.query.get("reg") or "").strip()
+    if not reg:
+        return _json({"error": "Nedostaje parametar 'reg'."}, status=400)
+    try:
+        sati = float(request.query.get("sati", "6"))
+    except ValueError:
+        sati = 6.0
+    sati = max(0.5, min(sati, 72.0))  # ograniči raspon (0.5–72 h)
+
+    try:
+        loop = asyncio.get_event_loop()
+        rez = await loop.run_in_executor(
+            None, lambda: mobilisis.putanja_za_reg(reg, sati))
+    except Exception as e:
+        _log(f"putanja GRESKA: {e}")
+        monitoring.error("Web API: dohvat putanje nije uspio",
+                         source="web_api", exc=e)
+        return _json({"error": f"Putanja nedostupna: {e}"}, status=503)
+
+    return _json(rez)
+
+
 # ==================== CORS ====================
 
 @web.middleware
@@ -188,13 +217,14 @@ def _run():
         app = web.Application(middlewares=[_cors_mw])
         app.router.add_get("/zdrav", handle_zdrav)
         app.router.add_get("/api/pozicije", handle_pozicije)
+        app.router.add_get("/api/putanja", handle_putanja)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
         _bind_site(loop, runner)
 
         _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
-             f"(rute: /zdrav, /api/pozicije)")
+             f"(rute: /zdrav, /api/pozicije, /api/putanja)")
         monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
         loop.run_forever()
     except Exception as e:
