@@ -28,6 +28,7 @@ _lock = threading.RLock()
 # Potvrde: id gumba / prihvatljivi tekst
 _DA = {"wa_ok", "upiši", "upisi", "da", "ok", "potvrdi", "✅"}
 _NE = {"wa_no", "odbaci", "ne", "poništi", "ponisti", "❌"}
+_ISPRAVI = {"wa_ed", "ispravi", "✏️"}
 
 
 def _log(msg):
@@ -109,6 +110,14 @@ def _pokreni_dokument(frm, ime, media_id):
     whatsapp.send_text(frm, f"{spec.emoji} Prepoznato: {spec.naziv}.\n{pitanje}")
 
 
+def _posalji_potvrdu(frm, sess):
+    """Sažetak + 3 gumba (Upiši / Ispravi / Odbaci)."""
+    whatsapp.send_text(frm, racuni._summary_text(sess))
+    whatsapp.send_buttons(frm, "Upisati u SharePoint?",
+                          [("wa_ok", "✅ Upiši"), ("wa_ed", "✏️ Ispravi"),
+                           ("wa_no", "❌ Odbaci")])
+
+
 def _odgovor(frm, tekst):
     with _lock:
         sess = _sessions.get(frm)
@@ -123,11 +132,7 @@ def _odgovor(frm, tekst):
         gb = (tekst or "").strip()
         sess["gb"] = None if gb in ("-", "") else gb
         sess["stage"] = "confirm"
-        with _lock:
-            _sessions[frm] = sess
-        whatsapp.send_text(frm, racuni._summary_text(sess))
-        whatsapp.send_buttons(frm, "Upisati u SharePoint?",
-                              [("wa_ok", "✅ Upiši"), ("wa_no", "❌ Odbaci")])
+        _posalji_potvrdu(frm, sess)
         return
 
     if stage == "confirm":
@@ -143,14 +148,53 @@ def _odgovor(frm, tekst):
                 _sessions.pop(frm, None)
             whatsapp.send_text(frm, "❌ Odbačeno. Pošalji novu fotografiju kad želiš.")
             return
-        # nejasan odgovor u fazi potvrde
-        whatsapp.send_buttons(frm, "Odaberi:",
-                              [("wa_ok", "✅ Upiši"), ("wa_no", "❌ Odbaci")])
+        if low in _ISPRAVI:
+            sess["stage"] = "edit_which"
+            polja = ", ".join(racuni._edit_field_names(sess["vrsta"]))
+            whatsapp.send_text(frm, f"Koje polje ispravljaš? Napiši ime, npr:\n{polja}")
+            return
+        _posalji_potvrdu(frm, sess)  # nejasno → ponovno sažetak + gumbi
+        return
+
+    if stage == "edit_which":
+        key = racuni._edit_aliases(sess["vrsta"]).get(low)
+        if not key:
+            whatsapp.send_text(frm, "Ne prepoznajem to polje. Pokušaj npr. „oib” ili „ukupno”.")
+            return
+        sess["edit_key"] = key
+        sess["stage"] = "edit_value"
+        whatsapp.send_text(frm, f"Nova vrijednost za „{low}”:")
+        return
+
+    if stage == "edit_value":
+        target, field = sess["edit_key"]
+        if target == "sess":
+            sess[field] = (tekst or "").strip()
+        elif field in racuni._NUM_FIELDS:
+            num = racuni._parse_num(tekst)
+            sess["data"][field] = num if num is not None else (tekst or "").strip()
+        else:
+            sess["data"][field] = (tekst or "").strip()
+        sess["edit_key"] = None
+        sess["stage"] = "confirm"
+        whatsapp.send_text(frm, "✅ Ažurirano.")
+        _posalji_potvrdu(frm, sess)
         return
 
 
 def _upisi(sess):
     """Upis uz par pokušaja ako je Excel zaključan (isti _Locked kao Telegram)."""
+    # Provjera duplikata (isti OIB + broj dokumenta) — kao Telegram: duplikat se
+    # NE upisuje, samo informativna poruka. Ako provjera padne → ne gubimo
+    # dokument, nastavljamo s upisom.
+    try:
+        dup = racuni._find_duplicate(sess["spec"], sess["data"])
+    except Exception as e:
+        monitoring.warning(f"WhatsApp računi: dedupe nije uspio: {e}", source="wa_racuni")
+        dup = None
+    if dup:
+        return racuni._dup_text(sess["spec"], dup)
+
     # Slika se MORA uploadati PRIJE _write_once — ona postavlja sess['slika_url']
     # koju _build_rows/_slika_cell ugrađuju u redak (kolona 'Slika'). Bez ovog
     # koraka redak se upiše bez linka slike.
