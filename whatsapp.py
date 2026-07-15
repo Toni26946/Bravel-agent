@@ -113,6 +113,42 @@ def send_text(to, text):
     return {"ok": ok, "status": status, "data": data}
 
 
+def download_media(media_id):
+    """Preuzmi medij (npr. sliku računa) po media_id. Vrati (bytes, mime_type).
+    Dvokorak: GET /{id} → {url, mime_type}; pa GET url (isti Bearer) → bajtovi."""
+    r = requests.get(f"{GRAPH_BASE}/{media_id}",
+                     headers={"Authorization": f"Bearer {_token()}"}, timeout=TIMEOUT)
+    r.raise_for_status()
+    meta = r.json()
+    url = meta.get("url")
+    mime = meta.get("mime_type") or "image/jpeg"
+    if not url:
+        raise WhatsAppError("Media URL nedostupan u odgovoru.")
+    # Skidanje s lookaside.fbsbx.com traži isti Authorization header.
+    r2 = requests.get(url, headers={"Authorization": f"Bearer {_token()}"}, timeout=TIMEOUT)
+    r2.raise_for_status()
+    # mime zna doći kao "image/jpeg; codecs=..." → uzmi samo tip
+    return r2.content, mime.split(";")[0].strip()
+
+
+def send_buttons(to, body, buttons):
+    """Interaktivna poruka s do 3 reply-gumba. buttons = [(id, naslov), …].
+    Radi samo unutar 24 h prozora (kao i send_text)."""
+    btns = [{"type": "reply", "reply": {"id": bid, "title": naslov[:20]}}
+            for bid, naslov in buttons[:3]]
+    status, data = _post(
+        f"{_phone_id()}/messages",
+        {"messaging_product": "whatsapp", "to": str(to), "type": "interactive",
+         "interactive": {"type": "button", "body": {"text": body[:1024]},
+                         "action": {"buttons": btns}}},
+    )
+    ok = status == 200 and isinstance(data, dict) and "messages" in data
+    if not ok:
+        monitoring.warning(f"WhatsApp send_buttons nije uspio: HTTP {status} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": status, "data": data}
+
+
 def opisi_gresku(res):
     """Pretvori {ok,status,data} u čitljiv sažetak (za Telegram/log)."""
     d = res.get("data") if isinstance(res, dict) else None

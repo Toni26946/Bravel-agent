@@ -200,14 +200,13 @@ def _obradi_wa_event(data):
                     ime_po_broju[wa] = (c.get("profile") or {}).get("name")
             for m in value.get("messages", []) or []:
                 frm = m.get("from")
-                tip = m.get("type")
-                if tip == "text":
-                    tekst = (m.get("text") or {}).get("body", "")
-                else:
-                    tekst = f"[{tip}]"  # slika/audio/lokacija… — samo oznaka tipa
                 ime = ime_po_broju.get(frm) or frm
                 if _on_incoming:
-                    _on_incoming(frm, ime, tekst, tip)
+                    # Obrada (vision, SharePoint, slanje) je BLOKIRAJUĆA — u zaseban
+                    # thread da ne blokira aiohttp loop i da webhook odmah vrati 200
+                    # (inače Meta misli da je pao i ponavlja isporuku → duplikati).
+                    threading.Thread(target=_on_incoming, args=(frm, ime, m),
+                                     daemon=True).start()
 
 
 async def handle_wa_webhook_event(request):
@@ -368,8 +367,9 @@ def start(on_incoming=None):
     Sve je omotano u try/except s glasnim logiranjem (logger + monitoring) da
     se problem s pokretanjem NIKAD ne izgubi tiho.
 
-    on_incoming(from, ime, tekst, tip) — opcionalni callback za dolazne
-    WhatsApp poruke (main.py ga veže na Telegram obavijest vlasniku)."""
+    on_incoming(from, ime, msg) — opcionalni callback za dolazne WhatsApp
+    poruke; msg je cijeli message dict (tip, text, image, interactive…).
+    main.py ga veže na dispatcher (obrada računa / obavijest vlasniku)."""
     global _on_incoming
     _on_incoming = on_incoming
     try:
