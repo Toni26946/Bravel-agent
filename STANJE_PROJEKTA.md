@@ -101,8 +101,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   (upload slike) → racuni._write_once (upis na SharePoint). Ponovno koristi
   ČISTU jezgru iz racuni.py; Telegram tok netaknut (vlasnici ostaju na TG).
   Obrada u zasebnom threadu (webhook odmah 200 → nema duplikata).
-  v2 TODO: "Ispravi"/"Promijeni vrstu", provjera duplikata, /gdje na WhatsApp,
-  podsjetnici (trebaju odobrene predloške jer su izvan 24 h prozora).
+  v2 RADI (15.7.): provjera duplikata (racuni._find_duplicate, dup se NE upisuje)
+  + "Ispravi" polje (3. gumb, racuni._edit_aliases/_edit_field_names).
+  v3 TODO: "Promijeni vrstu" (račun↔primka), višestranični dokumenti,
+  /gdje na WhatsApp (ovisi o Mobilisis IP), podsjetnici (trebaju odobrene
+  predloške jer su izvan 24 h prozora), imena vozača po broju.
 - Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
