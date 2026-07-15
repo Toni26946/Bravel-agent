@@ -987,6 +987,61 @@ def handle_wa_test(message):
                      daemon=True).start()
 
 
+def _wa_token_worker(chat_id):
+    try:
+        res = whatsapp.debug_token()
+        if not res["ok"]:
+            safe_send(chat_id,
+                      "❌ Ne mogu provjeriti token.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+            return
+        d = (res.get("data") or {}).get("data") or {}
+        exp = d.get("expires_at")
+        dexp = d.get("data_access_expires_at")
+
+        def _fmt(ts):
+            if ts in (0, None):
+                return "NIKAD (permanentni ✅)"
+            try:
+                dt = datetime.fromtimestamp(ts, TZ)
+                dana = (dt - datetime.now(TZ)).days
+                znak = "⚠️" if dana < 30 else "✅"
+                return f"{dt:%d.%m.%Y %H:%M} (za {dana} dana) {znak}"
+            except Exception:
+                return str(ts)
+
+        scopes = ", ".join(d.get("scopes") or []) or "—"
+        poruka = (
+            "🔑 WhatsApp token\n"
+            f"• Tip: {d.get('type', '?')}\n"
+            f"• Valjan sad: {'da ✅' if d.get('is_valid') else 'NE ❌'}\n"
+            f"• Istječe: {_fmt(exp)}\n"
+            f"• Data-access istječe: {_fmt(dexp)}\n"
+            f"• App: {d.get('application') or d.get('app_id') or '?'}\n"
+            f"• Dozvole: {scopes}"
+        )
+        if exp not in (0, None):
+            poruka += (
+                "\n\n⚠️ Token NIJE permanentan → slanje će pući kad istekne.\n"
+                "Riješi: Business Settings → Users → System users → (admin) "
+                "Generate token, istek Never, dozvole whatsapp_business_messaging "
+                "+ whatsapp_business_management. Pa:\n"
+                "fly secrets set WHATSAPP_TOKEN=<token> -a bravel-agent")
+        safe_send(chat_id, poruka)
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_token", source="wa_token", exc=e)
+        safe_send(chat_id, f"❌ Greška pri provjeri tokena: {e}")
+
+
+def handle_wa_token(message):
+    bot.reply_to(message, "⏳ Pitam Metu za status tokena…")
+    threading.Thread(target=_wa_token_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 def _wa_send_worker(chat_id, broj, tekst):
     try:
         res = whatsapp.send_text(broj, tekst)
@@ -1046,7 +1101,7 @@ def wa_dolazna_poruka(frm, ime, msg):
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
-                               'wa_register', 'wa_test', 'wa_send'])
+                               'wa_register', 'wa_test', 'wa_send', 'wa_token'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1055,6 +1110,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_token'):
+        handle_wa_token(message)
         return
 
     if cmd.startswith('/wa_send'):

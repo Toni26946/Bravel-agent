@@ -26,6 +26,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   upisan u Meta App → WhatsApp → Configuration → Callback URL
 - WHATSAPP_ALLOWED — brojevi zaposlenika (385…, zarezom) koji smiju slati
   račune/primke preko WhatsAppa; prazno = nitko (samo obavijest vlasnicima)
+- WHATSAPP_DRIVERS — (opcionalno) mapa broj→ime vozača za tablicu; format
+  "385994396448=Ivan Ivić:GB123-AB; 385…=Marko Marić" (dio ":GB" opcionalan,
+  koristi se kao zadani GB na „.”). Prazno = koristi se WhatsApp profil/broj.
+- WHATSAPP_PAGE_WINDOW — (opcionalno) sekunde čekanja daljnjih stranica kod
+  višestraničnih dokumenata; default 8
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -83,6 +88,9 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - /wa_send <broj> <tekst> — obična poruka; RADI unutar 24 h prozora
     (korisnik mora prvi pisati poslovnom broju). Broj se normalizira
     (0994396448 → 385994396448)
+  - /wa_token — dijagnostika tokena preko Graph /debug_token (ne otkriva
+    token): tip, valjanost, kad istječe (expires_at=0 → permanentni ✅),
+    dozvole. Ako nije permanentan → uputa za System User token „Never"
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
@@ -91,10 +99,15 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   (Test događaj stigao na Telegram).
 - APP LIVE 15.7. → webhook prima STVARNE dolazne poruke; slanje nije
   ograničeno na test-brojeve.
+- Display name "Bravel doo" ODOBREN i vidljiv klijentima (15.7.), Quality High.
+- Payment method DODAN na WABA "Bravel doo" (MasterCard, 15.7.) → otključano
+  slanje business-initiated predložaka (podsjetnici izvan 24 h prozora).
+  Balance 0 € dok se ne pošalje naplativi predložak.
 - TODO: token provjeriti da je permanentni (System User, Never-expire) —
-  inače istječe za 24 h; display name "Bravel" na Metino odobrenje;
-  payment method na WABA-i (za business-initiated izvan 24 h prozora);
-  predlošci poruka_dispecera / potvrda_racuna na odobrenje
+  inače istječe za 24 h; predlošci na odobrenje — tekstovi skicirani u
+  WHATSAPP_PREDLOSCI.md (potvrda_racuna, podsjetnik_racun, podsjetnik_voznje,
+  poruka_dispecera; Utility, jezik hr). Pri slanju zvati send_template s
+  lang_code="hr" (default u modulu je en_US).
 - SELIDBA NA WHATSAPP — FAZA 1 RADI (potvrđeno 15.7.): ovlašteni zaposlenik
   (WHATSAPP_ALLOWED) šalje FOTO računa/primke → whatsapp_racuni.py: slika →
   racuni._read_document (vision) → pita GB → gumbi ✅/❌ → racuni._prepare_image
@@ -103,9 +116,17 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   Obrada u zasebnom threadu (webhook odmah 200 → nema duplikata).
   v2 RADI (15.7.): provjera duplikata (racuni._find_duplicate, dup se NE upisuje)
   + "Ispravi" polje (3. gumb, racuni._edit_aliases/_edit_field_names).
-  v3 TODO: "Promijeni vrstu" (račun↔primka), višestranični dokumenti,
-  /gdje na WhatsApp (ovisi o Mobilisis IP), podsjetnici (trebaju odobrene
-  predloške jer su izvan 24 h prozora), imena vozača po broju.
+  v3 (15.7.): tri stavke gotove u kodu (whatsapp_racuni.py):
+  - "Promijeni vrstu" (račun↔primka): tijekom potvrde napiši „vrsta” →
+    racuni._read_document(images, force_vrsta=…), ponovni sažetak. Ide tekstom
+    a ne 4. gumbom jer WhatsApp interactive dopušta max 3 reply-gumba.
+  - Višestranični dokumenti: uzastopne fotke se sakupe (debounce _PAGE_WINDOW,
+    default 8 s; „gotovo” završava odmah) → _read_document čita sve stranice,
+    _prepare_image uploada _str1/_str2… Buffer po broju (_pending), thread-safe.
+  - Imena vozača po broju: WHATSAPP_DRIVERS (broj→ime[:GB]) → pravo ime u
+    tablicu; „.” u koraku GB prihvaća zadani GB iz mape.
+  v3 PREOSTALO (blokirano vanjski): /gdje na WhatsApp (čeka Mobilisis IP
+  whitelist), podsjetnici (trebaju odobrene Meta predloške — izvan 24 h prozora).
 - Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
