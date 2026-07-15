@@ -1022,6 +1022,15 @@ def handle_wa_send(message):
                      daemon=True).start()
 
 
+# Dolazna WhatsApp poruka (iz web_api webhooka) -> obavijest vlasnicima na Telegram
+def wa_dolazna_poruka(frm, ime, tekst, tip):
+    poruka = (f"📱 WhatsApp poruka\n"
+              f"od: {ime}" + (f" ({frm})" if ime != frm else "") + "\n\n"
+              f"{tekst}")
+    for uid in ALLOWED_USERS:
+        safe_send(uid, poruka)
+
+
 # ==================== HANDLERS ====================
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
@@ -1236,7 +1245,7 @@ if __name__ == "__main__":
 
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
-    web_api.start()
+    web_api.start(on_incoming=wa_dolazna_poruka)
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
