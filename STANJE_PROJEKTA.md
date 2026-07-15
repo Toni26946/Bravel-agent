@@ -22,6 +22,8 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - WHATSAPP_TOKEN — WhatsApp Cloud API (System User token; MORA biti čist,
   bez sufiksa/razmaka — "malformed token" ako se zalijepi s opisom)
 - WHATSAPP_PHONE_ID — 1270404739480944 (Phone number ID, nije osjetljivo)
+- WHATSAPP_VERIFY_TOKEN — proizvoljan niz za verifikaciju webhooka; isti
+  upisan u Meta App → WhatsApp → Configuration → Callback URL
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -59,7 +61,7 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - /gdje <GB ili registracija> → živa pozicija kamiona (Mobilisis)
 - Backup bot.db dnevno u 03:00 → BRAVEL/Backup/ (retencija 30 dana)
 
-## WhatsApp (slanje RADI, stanje 15.7.)
+## WhatsApp (dvosmjerno RADI, stanje 15.7.)
 - Meta app "BravelBot" (unpublished), preko bratovog (Roko) računa.
   WABA "Bravel doo", WABA ID 1482419453685574 (raniji 2489346474912515 je
   vjerojatno Business Portfolio ID, ne WABA)
@@ -76,12 +78,18 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - /wa_send <broj> <tekst> — obična poruka; RADI unutar 24 h prozora
     (korisnik mora prvi pisati poslovnom broju). Broj se normalizira
     (0994396448 → 385994396448)
-- POTVRĐENO 15.7.: /wa_send šalje poruku na mobitel (bot → korisnik).
+- PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
+  dolazne poruke → Telegram obavijest svim ALLOWED_USERS
+  (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
+  pretplata na polje "messages" u Meta Configuration.
+- POTVRĐENO 15.7.: /wa_send šalje (bot → korisnik) I webhook prima
+  (Test događaj stigao na Telegram).
 - TODO: token provjeriti da je permanentni (System User, Never-expire) —
   inače istječe za 24 h; predlošci poruka_dispecera / potvrda_racuna na
   odobrenje (+ payment method za business-initiated izvan 24 h prozora);
-  webhook GET/POST /whatsapp/webhook za PRIMANJE (još ne postoji);
-  publish app (dok je unpublished, slanje samo na test-primatelje)
+  PUBLISH app (dok je unpublished, slanje samo na test-primatelje I webhook
+  prima samo TEST događaje iz dashboarda — stvarne dolazne poruke tek nakon
+  objave + business verification)
 - Template-i Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
