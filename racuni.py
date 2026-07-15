@@ -484,6 +484,13 @@ def _slika_cell(sess):
     return url
 
 
+def _unio_id(sess):
+    """Vrijednost za kolonu UnioTelegramID. WhatsApp tok postavi 'unio'
+    (npr. 'WhatsApp 385994396448') da se broj ne zamijeni s Telegram ID-em;
+    Telegram tok nema 'unio' pa ostaje čist brojčani user_id (kao dosad)."""
+    return sess.get("unio") or str(sess["user_id"])
+
+
 def _build_racun_rows(sess):
     data = sess["data"]
     ukupno = _parse_num(data.get("ukupno_eur"))
@@ -494,7 +501,7 @@ def _build_racun_rows(sess):
     tail = [_num(pdv), _num(ukupno), _txt(data.get("lokacija")),
             sess.get("vozac") or "", sess.get("gb") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
-            str(sess["user_id"]),
+            _unio_id(sess),
             _slika_cell(sess)]                                   # 8 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []
@@ -516,7 +523,7 @@ def _build_primka_rows(sess):
     tail = [_num(ukupno), _txt(data.get("dospijece")),
             sess.get("gb") or "", sess.get("zaprimio") or "",
             _now().strftime("%Y-%m-%d %H:%M:%S"),
-            str(sess["user_id"]),
+            _unio_id(sess),
             _slika_cell(sess)]                                   # 7 kolona (+Slika)
     usable = _usable_stavke(data)
     rows = []

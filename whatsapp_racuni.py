@@ -95,6 +95,8 @@ def _pokreni_dokument(frm, ime, media_id):
     spec = racuni._spec_for(data.get("vrsta"))
     sess = {
         "token": 0, "chat_id": frm, "user_id": frm, "who": ime or frm,
+        # Kolona UnioTelegramID: označi da je WhatsApp broj, ne Telegram ID.
+        "unio": f"WhatsApp {frm}",
         "data": data, "images": [(b, mime)], "spec": spec, "vrsta": spec.vrsta,
         "gb": None, "vozac": None, "zaprimio": None, "stage": "need_gb",
         "edit_key": None,
