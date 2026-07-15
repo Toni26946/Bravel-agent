@@ -151,10 +151,18 @@ def _odgovor(frm, tekst):
 
 def _upisi(sess):
     """Upis uz par pokušaja ako je Excel zaključan (isti _Locked kao Telegram)."""
+    # Slika se MORA uploadati PRIJE _write_once — ona postavlja sess['slika_url']
+    # koju _build_rows/_slika_cell ugrađuju u redak (kolona 'Slika'). Bez ovog
+    # koraka redak se upiše bez linka slike.
+    try:
+        racuni._prepare_image(sess)
+    except Exception as e:
+        monitoring.warning(f"WhatsApp računi: priprema slike pala: {e}", source="wa_racuni")
+
     for pokusaj in range(4):
         try:
             ok, poruka = racuni._write_once(sess)
-            return poruka
+            return poruka + (sess.get("slika_note") or "")
         except racuni._Locked:
             time.sleep(2 * (pokusaj + 1))
         except Exception as e:
