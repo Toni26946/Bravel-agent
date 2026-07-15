@@ -19,6 +19,9 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   podsjetnik u kalendaru lipanj 2028.
 - MOBILISIS_USER, MOBILISIS_PASS — Mobilisis API račun "bravel-api"
 - FLOTA_OS_KEY — ključ za GET /api/pozicije (header X-Api-Key)
+- WHATSAPP_TOKEN — WhatsApp Cloud API (System User token; MORA biti čist,
+  bez sufiksa/razmaka — "malformed token" ako se zalijepi s opisom)
+- WHATSAPP_PHONE_ID — 1270404739480944 (Phone number ID, nije osjetljivo)
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -38,6 +41,16 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - GET /api/pozicije → pozicije flote; header X-Api-Key = FLOTA_OS_KEY;
   keš 30 s; 401 bez ključa; 503 + "zastarjelo" ako Mobilisis padne
 - Namjena: Flota OS (Jarvis) živa karta — FAZA 2 u tijeku
+- ⚠️ BLOKADA (15.7.): fly app NE MOŽE do fleet2.mobilisis.hr —
+  ConnectTimeout (TCP spajanje istekne, nema odgovora). /api/pozicije i
+  /gdje padaju S FLY-A. Potpis firewalla koji tiho odbacuje pakete →
+  vjerojatno IP whitelist na Mobilisis strani (fly izlazna IP nije
+  dopuštena). Rješenje: whitelistati fly izlaznu IP
+  (fly ssh console -a bravel-agent -C "curl -s https://api.ipify.org")
+  kod API računa "bravel-api"; fly IP se zna mijenjati → možda treba
+  fiksni egress/proxy. NAPOMENA: živa karta zove /api/pozicije svakih
+  30 s → dok Mobilisis pada, monitoring se puni istim errorom
+  (kandidat za rate-limit)
 
 ## Telegram bot — funkcije
 - Računi/primke: slika → Claude vision → potvrda → SharePoint Excel
@@ -46,17 +59,29 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - /gdje <GB ili registracija> → živa pozicija kamiona (Mobilisis)
 - Backup bot.db dnevno u 03:00 → BRAVEL/Backup/ (retencija 30 dana)
 
-## WhatsApp (u tijeku, stanje 14.7.)
-- WABA ID 2489346474912515, "Bravel d.o.o.", broj +385 1 6539 906
-  VERIFICIRAN (status Pending = čeka registraciju na Cloud API kroz app)
+## WhatsApp (slanje RADI, stanje 15.7.)
+- Meta app "BravelBot" (unpublished), preko bratovog (Roko) računa.
+  WABA "Bravel doo", WABA ID 1482419453685574 (raniji 2489346474912515 je
+  vjerojatno Business Portfolio ID, ne WABA)
+- Broj +385 1 6539 906 REGISTRIRAN na Cloud API (Connected), Phone number
+  ID 1270404739480944, dvokoračni PIN postavljen (u password manageru)
 - Broj je na Yealink VoIP centrali — buduće verifikacije: Yealink →
   Menu → Features → Call Forward → Always Forward na mobitel → primi
   kod → Forward OFF
-- BLOKADA: Meta app još ne postoji. Tonijev FB odbijen za developer
-  registraciju; radi se preko bratovog (Roko) računa — stalo na SMS
-  verifikaciji. Nakon app-a: system user "bravel-bot" (Admin) → token
-  (Never, whatsapp_business_messaging + management) → fly secrets
-  WHATSAPP_TOKEN + WHATSAPP_PHONE_ID
+- Modul whatsapp.py: register(pin), send_text, send_template. Admin
+  Telegram komande (owner-only):
+  - /wa_register <pin> — registracija broja / prikaz točne Meta greške
+  - /wa_test <broj>    — hello_world (RADI SAMO s Metinog Public Test
+    Numbera, ne s pravog broja → koristi se samo za dijagnostiku)
+  - /wa_send <broj> <tekst> — obična poruka; RADI unutar 24 h prozora
+    (korisnik mora prvi pisati poslovnom broju). Broj se normalizira
+    (0994396448 → 385994396448)
+- POTVRĐENO 15.7.: /wa_send šalje poruku na mobitel (bot → korisnik).
+- TODO: token provjeriti da je permanentni (System User, Never-expire) —
+  inače istječe za 24 h; predlošci poruka_dispecera / potvrda_racuna na
+  odobrenje (+ payment method za business-initiated izvan 24 h prozora);
+  webhook GET/POST /whatsapp/webhook za PRIMANJE (još ne postoji);
+  publish app (dok je unpublished, slanje samo na test-primatelje)
 - Template-i Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
@@ -70,3 +95,7 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   brisati Delete → Table Rows
 - PowerShell: curl.exe (ne curl); API ključevi samo slova+brojevi
 - Graph API formule: zarez separator; upload slike PRIJE append retka
+- WhatsApp: hello_world ide SAMO s Public Test Numbera (#131058) — s
+  pravog broja koristi vlastite odobrene predloške ili /wa_send unutar
+  24 h prozora; WHATSAPP_TOKEN mora biti čist (bez " za whatsapp" i sl.,
+  inače #190 malformed)
