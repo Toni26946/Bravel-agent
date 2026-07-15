@@ -349,7 +349,26 @@ def get_history(device_id, frm, to):
         raw = data
     tocke = [t for t in (_parse_history_point(p) for p in raw) if t]
     tocke.sort(key=lambda t: t.get("vrijeme") or "")
-    return tocke
+    return _prorijedi(tocke)
+
+
+def _prorijedi(tocke, limit=4000):
+    """Za duge raspone (npr. tjedan) ograniči broj točaka radi mreže/crtanja,
+    ali UVIJEK zadrži prvu točku svakog dana (≈ dnevni start) + zadnju."""
+    if len(tocke) <= limit:
+        return tocke
+    keep = set()
+    zadnji_dan = None
+    for i, t in enumerate(tocke):
+        dan = (t.get("vrijeme") or "")[:10]  # YYYY-MM-DD (UTC) — dovoljno za dnevni start
+        if dan != zadnji_dan:
+            keep.add(i)
+            zadnji_dan = dan
+    korak = max(1, len(tocke) // limit)
+    for i in range(0, len(tocke), korak):
+        keep.add(i)
+    keep.add(len(tocke) - 1)
+    return [tocke[i] for i in sorted(keep)]
 
 
 def id_za_reg(reg):

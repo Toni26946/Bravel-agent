@@ -156,7 +156,7 @@ async def handle_putanja(request):
         sati = float(request.query.get("sati", "6"))
     except ValueError:
         sati = 6.0
-    sati = max(0.5, min(sati, 72.0))  # ograniči raspon (0.5–72 h)
+    sati = max(0.5, min(sati, 336.0))  # ograniči raspon (0.5 h – 14 dana)
 
     try:
         loop = asyncio.get_event_loop()
