@@ -246,8 +246,8 @@ i obrađuje putem svojih internih alata za upravljanje flotom (Telegram bot,
 WhatsApp poslovni broj, praćenje vozila) te u koju svrhu.</p>
 
 <h2>1. Voditelj obrade</h2>
-<p>Bravel d.o.o., Republika Hrvatska. Kontakt za privatnost:
-<a href="mailto:tonij.bravel@gmail.com">tonij.bravel@gmail.com</a>.</p>
+<p>Bravel d.o.o., Republika Hrvatska. Zahtjeve vezane uz privatnost možete
+uputiti društvu Bravel d.o.o.</p>
 
 <h2>2. Koje podatke prikupljamo i zašto</h2>
 <ul>
@@ -273,7 +273,7 @@ propisi (npr. računovodstveni rokovi), nakon čega se brišu ili anonimiziraju.
 
 <h2>5. Vaša prava (GDPR)</h2>
 <p>Imate pravo na pristup, ispravak, brisanje i ograničenje obrade svojih
-podataka te na prigovor. Zahtjev pošaljite na gornji kontakt e-mail.</p>
+podataka te na prigovor. Zahtjev možete uputiti društvu Bravel d.o.o.</p>
 
 <h2>6. Izmjene</h2>
 <p>Ova pravila možemo povremeno ažurirati; nova verzija objavljuje se na ovoj
