@@ -964,15 +964,61 @@ def _wa_test_worker(chat_id, broj):
         safe_send(chat_id, f"❌ Greška pri slanju: {e}")
 
 
+def _wa_broj(s):
+    """Normaliziraj broj u međunarodni oblik bez +: 0994396448 -> 385994396448."""
+    b = s.strip().replace("+", "").replace(" ", "").replace("-", "").replace("/", "")
+    if b.startswith("00"):
+        b = b[2:]
+    elif b.startswith("0"):
+        b = "385" + b[1:]
+    return b
+
+
 def handle_wa_test(message):
     parts = message.text.split(maxsplit=1)
-    broj = parts[1].strip().replace("+", "").replace(" ", "") if len(parts) > 1 else ""
+    broj = _wa_broj(parts[1]) if len(parts) > 1 else ""
     if not broj.isdigit():
-        bot.reply_to(message, "Upiši broj primatelja (s pozivnim, bez +), npr:\n"
-                              "/wa_test 3859xxxxxxx")
+        bot.reply_to(message, "Upiši broj primatelja, npr:\n"
+                              "/wa_test 0994396448   ili   /wa_test 385994396448")
         return
     bot.reply_to(message, "⏳ Šaljem test predložak (hello_world)…")
     threading.Thread(target=_wa_test_worker, args=(message.chat.id, broj),
+                     daemon=True).start()
+
+
+def _wa_send_worker(chat_id, broj, tekst):
+    try:
+        res = whatsapp.send_text(broj, tekst)
+        if res["ok"]:
+            safe_send(chat_id, f"✅ Poslano na {broj}. Provjeri WhatsApp.")
+        else:
+            safe_send(chat_id,
+                      "❌ Slanje nije uspjelo.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_send", source="wa_send", exc=e)
+        safe_send(chat_id, f"❌ Greška pri slanju: {e}")
+
+
+def handle_wa_send(message):
+    # /wa_send <broj> <tekst poruke>
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3:
+        bot.reply_to(message, "Format:\n/wa_send <broj> <poruka>\n"
+                              "npr: /wa_send 0994396448 Pozdrav iz bota 🚛\n\n"
+                              "(obična poruka; radi samo unutar 24 h otkako je "
+                              "korisnik zadnji pisao poslovnom broju)")
+        return
+    broj = _wa_broj(parts[1])
+    tekst = parts[2].strip()
+    if not broj.isdigit():
+        bot.reply_to(message, "Neispravan broj. Npr: /wa_send 0994396448 Pozdrav")
+        return
+    bot.reply_to(message, "⏳ Šaljem poruku…")
+    threading.Thread(target=_wa_send_worker, args=(message.chat.id, broj, tekst),
                      daemon=True).start()
 
 
@@ -980,7 +1026,7 @@ def handle_wa_test(message):
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
-                               'wa_register', 'wa_test'])
+                               'wa_register', 'wa_test', 'wa_send'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -989,6 +1035,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_send'):
+        handle_wa_send(message)
         return
 
     if cmd.startswith('/wa_register'):
