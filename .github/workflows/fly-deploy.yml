@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:   # ručno pokretanje (npr. primjena staged fly secreta bez promjene koda)
 jobs:
   deploy:
     name: Deploy app
