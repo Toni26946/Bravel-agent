@@ -39,6 +39,12 @@ _BIND_RETRY_DELAY = 2.0  # sekundi izmedu pokusaja
 
 _API_KEY = os.getenv("FLOTA_OS_KEY", "").strip()
 
+# WhatsApp webhook: verify token (proizvoljan niz koji odaberemo; isti se
+# upisuje u Meta App → WhatsApp → Configuration). _on_incoming je callback
+# koji main.py registrira da proslijedi dolazne poruke na Telegram.
+_WA_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip()
+_on_incoming = None
+
 # ---- Kes zadnjeg uspjesnog dohvata (dijeljen unutar jednog event loopa) ----
 #   ts   = time.monotonic() zadnjeg uspjesnog dohvata (za TTL)
 #   iso  = ISO8601 UTC vrijeme tog dohvata (za "vrijeme_dohvata")
@@ -165,6 +171,59 @@ async def handle_putanja(request):
     return _json(rez)
 
 
+# ==================== WhatsApp webhook ====================
+
+async def handle_wa_webhook_verify(request):
+    """GET — Meta verifikacija pretplate. Vrati hub.challenge (plain text)
+    ako se hub.verify_token slaže s WHATSAPP_VERIFY_TOKEN; inače 403."""
+    mode = request.query.get("hub.mode")
+    token = request.query.get("hub.verify_token")
+    challenge = request.query.get("hub.challenge", "")
+    if mode == "subscribe" and _WA_VERIFY_TOKEN and token == _WA_VERIFY_TOKEN:
+        _log("WhatsApp webhook verificiran")
+        return web.Response(text=challenge, status=200)
+    _log("WhatsApp webhook verifikacija odbijena (mode/token se ne slažu)")
+    return web.Response(text="Forbidden", status=403)
+
+
+def _obradi_wa_event(data):
+    """Izvuci dolazne poruke iz Meta payloada i proslijedi ih _on_incoming."""
+    if not isinstance(data, dict):
+        return
+    for entry in data.get("entry", []) or []:
+        for change in entry.get("changes", []) or []:
+            value = change.get("value", {}) or {}
+            ime_po_broju = {}
+            for c in value.get("contacts", []) or []:
+                wa = c.get("wa_id")
+                if wa:
+                    ime_po_broju[wa] = (c.get("profile") or {}).get("name")
+            for m in value.get("messages", []) or []:
+                frm = m.get("from")
+                tip = m.get("type")
+                if tip == "text":
+                    tekst = (m.get("text") or {}).get("body", "")
+                else:
+                    tekst = f"[{tip}]"  # slika/audio/lokacija… — samo oznaka tipa
+                ime = ime_po_broju.get(frm) or frm
+                if _on_incoming:
+                    _on_incoming(frm, ime, tekst, tip)
+
+
+async def handle_wa_webhook_event(request):
+    """POST — dolazne poruke i statusi dostave. Meta očekuje brz 200 (inače
+    ponavlja isporuku), pa nikad ne vraćamo grešku prema Meti."""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.Response(text="EVENT_RECEIVED", status=200)
+    try:
+        _obradi_wa_event(data)
+    except Exception as e:
+        monitoring.warning(f"WhatsApp webhook obrada nije uspjela: {e}", source="web_api")
+    return web.Response(text="EVENT_RECEIVED", status=200)
+
+
 # ==================== CORS ====================
 
 @web.middleware
@@ -218,13 +277,15 @@ def _run():
         app.router.add_get("/zdrav", handle_zdrav)
         app.router.add_get("/api/pozicije", handle_pozicije)
         app.router.add_get("/api/putanja", handle_putanja)
+        app.router.add_get("/whatsapp/webhook", handle_wa_webhook_verify)
+        app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
         _bind_site(loop, runner)
 
         _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
-             f"(rute: /zdrav, /api/pozicije, /api/putanja)")
+             f"(rute: /zdrav, /api/pozicije, /api/putanja, /whatsapp/webhook)")
         monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
         loop.run_forever()
     except Exception as e:
@@ -233,14 +294,19 @@ def _run():
                          source="web_api", exc=e)
 
 
-def start():
+def start(on_incoming=None):
     """UVIJEK diže HTTP server u zasebnom daemon threadu. Server mora slušati
     na portu 8080 da Fly health/smoke check kod deploya prođe (fly.toml ima
     [http_service]) i da /zdrav odgovara. Ako FLOTA_OS_KEY nije postavljen,
     server i dalje radi, ali /api/pozicije vraća 503 dok se tajna ne postavi.
 
     Sve je omotano u try/except s glasnim logiranjem (logger + monitoring) da
-    se problem s pokretanjem NIKAD ne izgubi tiho."""
+    se problem s pokretanjem NIKAD ne izgubi tiho.
+
+    on_incoming(from, ime, tekst, tip) — opcionalni callback za dolazne
+    WhatsApp poruke (main.py ga veže na Telegram obavijest vlasniku)."""
+    global _on_incoming
+    _on_incoming = on_incoming
     try:
         if not is_configured():
             _log("UPOZORENJE: FLOTA_OS_KEY nije postavljen — /api/pozicije vraća 503 "
