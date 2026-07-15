@@ -96,10 +96,15 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   (Test događaj stigao na Telegram).
 - APP LIVE 15.7. → webhook prima STVARNE dolazne poruke; slanje nije
   ograničeno na test-brojeve.
+- Display name "Bravel doo" ODOBREN i vidljiv klijentima (15.7.), Quality High.
+- Payment method DODAN na WABA "Bravel doo" (MasterCard, 15.7.) → otključano
+  slanje business-initiated predložaka (podsjetnici izvan 24 h prozora).
+  Balance 0 € dok se ne pošalje naplativi predložak.
 - TODO: token provjeriti da je permanentni (System User, Never-expire) —
-  inače istječe za 24 h; display name "Bravel" na Metino odobrenje;
-  payment method na WABA-i (za business-initiated izvan 24 h prozora);
-  predlošci poruka_dispecera / potvrda_racuna na odobrenje
+  inače istječe za 24 h; predlošci na odobrenje — tekstovi skicirani u
+  WHATSAPP_PREDLOSCI.md (potvrda_racuna, podsjetnik_racun, podsjetnik_voznje,
+  poruka_dispecera; Utility, jezik hr). Pri slanju zvati send_template s
+  lang_code="hr" (default u modulu je en_US).
 - SELIDBA NA WHATSAPP — FAZA 1 RADI (potvrđeno 15.7.): ovlašteni zaposlenik
   (WHATSAPP_ALLOWED) šalje FOTO računa/primke → whatsapp_racuni.py: slika →
   racuni._read_document (vision) → pita GB → gumbi ✅/❌ → racuni._prepare_image
