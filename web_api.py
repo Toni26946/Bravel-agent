@@ -224,6 +224,70 @@ async def handle_wa_webhook_event(request):
     return web.Response(text="EVENT_RECEIVED", status=200)
 
 
+# ==================== Pravila privatnosti (za Meta Live mode) ====================
+
+_PRIVATNOST_HTML = """<!doctype html>
+<html lang="hr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pravila privatnosti — Bravel d.o.o.</title>
+<style>
+ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.65;
+   color:#1c2333;max-width:760px;margin:0 auto;padding:32px 20px;background:#fff}
+ h1{font-size:26px;margin:0 0 4px} h2{font-size:18px;margin:28px 0 8px;color:#0f4c81}
+ .datum{color:#667085;font-size:14px;margin-bottom:24px}
+ ul{padding-left:20px} li{margin:4px 0} a{color:#0f4c81}
+ footer{margin-top:36px;padding-top:16px;border-top:1px solid #e4e7ec;color:#667085;font-size:13px}
+</style></head><body>
+<h1>Pravila privatnosti</h1>
+<div class="datum">Bravel d.o.o. · zadnje ažuriranje: 15. srpnja 2026.</div>
+
+<p>Ova pravila objašnjavaju koje osobne podatke Bravel d.o.o. („mi") prikuplja
+i obrađuje putem svojih internih alata za upravljanje flotom (Telegram bot,
+WhatsApp poslovni broj, praćenje vozila) te u koju svrhu.</p>
+
+<h2>1. Voditelj obrade</h2>
+<p>Bravel d.o.o., Republika Hrvatska. Kontakt za privatnost:
+<a href="mailto:tonij.bravel@gmail.com">tonij.bravel@gmail.com</a>.</p>
+
+<h2>2. Koje podatke prikupljamo i zašto</h2>
+<ul>
+ <li><b>Telegram:</b> identifikator računa i sadržaj poruka te fotografije
+   računa/primki — radi evidencije troškova i dokumenata poslovanja.</li>
+ <li><b>WhatsApp:</b> telefonski broj i sadržaj poruka — radi poslovne
+   komunikacije, obavijesti i potvrda.</li>
+ <li><b>Lokacija vozila (GPS):</b> pozicija, brzina i status vozila flote —
+   radi operativnog upravljanja i nadzora prijevoza.</li>
+</ul>
+<p>Ne prikupljamo podatke u marketinške svrhe i ne prodajemo osobne podatke.</p>
+
+<h2>3. Gdje se podaci pohranjuju i tko ih obrađuje</h2>
+<p>Podaci se pohranjuju u poslovnom okruženju Microsoft 365 (SharePoint) i na
+poslužiteljima naših pružatelja usluga. Kao izvršitelji obrade koriste se:
+Meta Platforms (WhatsApp Business Platform), Mobilisis (GPS praćenje),
+Microsoft (pohrana i Graph API) te Anthropic (obrada teksta i slika računa).
+Podaci se ne dijele s trećim stranama izvan navedenih izvršitelja.</p>
+
+<h2>4. Rok čuvanja</h2>
+<p>Podatke čuvamo dok traje poslovna svrha odnosno koliko nalažu zakonski
+propisi (npr. računovodstveni rokovi), nakon čega se brišu ili anonimiziraju.</p>
+
+<h2>5. Vaša prava (GDPR)</h2>
+<p>Imate pravo na pristup, ispravak, brisanje i ograničenje obrade svojih
+podataka te na prigovor. Zahtjev pošaljite na gornji kontakt e-mail.</p>
+
+<h2>6. Izmjene</h2>
+<p>Ova pravila možemo povremeno ažurirati; nova verzija objavljuje se na ovoj
+adresi s ažuriranim datumom.</p>
+
+<footer>© Bravel d.o.o. Sva prava pridržana.</footer>
+</body></html>"""
+
+
+async def handle_privatnost(request):
+    """Javna stranica s pravilima privatnosti (Privacy Policy URL za Meta)."""
+    return web.Response(text=_PRIVATNOST_HTML, content_type="text/html", charset="utf-8")
+
+
 # ==================== CORS ====================
 
 @web.middleware
@@ -279,13 +343,14 @@ def _run():
         app.router.add_get("/api/putanja", handle_putanja)
         app.router.add_get("/whatsapp/webhook", handle_wa_webhook_verify)
         app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
+        app.router.add_get("/privatnost", handle_privatnost)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
         _bind_site(loop, runner)
 
         _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
-             f"(rute: /zdrav, /api/pozicije, /api/putanja, /whatsapp/webhook)")
+             f"(rute: /zdrav, /api/pozicije, /api/putanja, /whatsapp/webhook, /privatnost)")
         monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
         loop.run_forever()
     except Exception as e:
