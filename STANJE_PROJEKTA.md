@@ -26,6 +26,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   upisan u Meta App → WhatsApp → Configuration → Callback URL
 - WHATSAPP_ALLOWED — brojevi zaposlenika (385…, zarezom) koji smiju slati
   račune/primke preko WhatsAppa; prazno = nitko (samo obavijest vlasnicima)
+- WHATSAPP_DRIVERS — (opcionalno) mapa broj→ime vozača za tablicu; format
+  "385994396448=Ivan Ivić:GB123-AB; 385…=Marko Marić" (dio ":GB" opcionalan,
+  koristi se kao zadani GB na „.”). Prazno = koristi se WhatsApp profil/broj.
+- WHATSAPP_PAGE_WINDOW — (opcionalno) sekunde čekanja daljnjih stranica kod
+  višestraničnih dokumenata; default 8
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -103,9 +108,17 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   Obrada u zasebnom threadu (webhook odmah 200 → nema duplikata).
   v2 RADI (15.7.): provjera duplikata (racuni._find_duplicate, dup se NE upisuje)
   + "Ispravi" polje (3. gumb, racuni._edit_aliases/_edit_field_names).
-  v3 TODO: "Promijeni vrstu" (račun↔primka), višestranični dokumenti,
-  /gdje na WhatsApp (ovisi o Mobilisis IP), podsjetnici (trebaju odobrene
-  predloške jer su izvan 24 h prozora), imena vozača po broju.
+  v3 (15.7.): tri stavke gotove u kodu (whatsapp_racuni.py):
+  - "Promijeni vrstu" (račun↔primka): tijekom potvrde napiši „vrsta” →
+    racuni._read_document(images, force_vrsta=…), ponovni sažetak. Ide tekstom
+    a ne 4. gumbom jer WhatsApp interactive dopušta max 3 reply-gumba.
+  - Višestranični dokumenti: uzastopne fotke se sakupe (debounce _PAGE_WINDOW,
+    default 8 s; „gotovo” završava odmah) → _read_document čita sve stranice,
+    _prepare_image uploada _str1/_str2… Buffer po broju (_pending), thread-safe.
+  - Imena vozača po broju: WHATSAPP_DRIVERS (broj→ime[:GB]) → pravo ime u
+    tablicu; „.” u koraku GB prihvaća zadani GB iz mape.
+  v3 PREOSTALO (blokirano vanjski): /gdje na WhatsApp (čeka Mobilisis IP
+  whitelist), podsjetnici (trebaju odobrene Meta predloške — izvan 24 h prozora).
 - Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
