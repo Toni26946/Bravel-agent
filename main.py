@@ -24,6 +24,7 @@ import racuni      # obrada fotki racuna + upis u Excel na SharePointu
 import backup      # dnevni backup bot.db na SharePoint
 import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
 import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin komande
+import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposlenici)
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
@@ -1022,8 +1023,18 @@ def handle_wa_send(message):
                      daemon=True).start()
 
 
-# Dolazna WhatsApp poruka (iz web_api webhooka) -> obavijest vlasnicima na Telegram
-def wa_dolazna_poruka(frm, ime, tekst, tip):
+# Dolazna WhatsApp poruka (iz web_api webhooka).
+#  - ovlašteni zaposlenik (WHATSAPP_ALLOWED) -> obrada računa/primki na WhatsApp
+#  - ostali -> obavijest vlasnicima na Telegram (kao dosad)
+def wa_dolazna_poruka(frm, ime, msg):
+    try:
+        if whatsapp_racuni.is_allowed(frm):
+            whatsapp_racuni.handle(frm, ime, msg)
+            return
+    except Exception as e:
+        monitoring.error("WhatsApp dispatch nije uspio", source="main", exc=e)
+    tip = msg.get("type")
+    tekst = (msg.get("text") or {}).get("body", "") if tip == "text" else f"[{tip}]"
     poruka = (f"📱 WhatsApp poruka\n"
               f"od: {ime}" + (f" ({frm})" if ime != frm else "") + "\n\n"
               f"{tekst}")
