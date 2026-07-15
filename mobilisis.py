@@ -336,10 +336,8 @@ def _parse_history_point(p):
     }
 
 
-def get_history(device_id, frm, to):
-    """POST /positions/history -> lista točaka {lat, lon, vrijeme, brzina, smjer}
-    za uređaj u periodu [frm, to] (aware datetime). Sortirano po vremenu; točke
-    bez koordinata se preskaču."""
+def _history_chunk(device_id, frm, to):
+    """Jedan POST /positions/history za period ≤ 24 h (Mobilisis ograničenje)."""
     body = {"id": int(device_id), "from": _iso_utc(frm), "to": _iso_utc(to)}
     resp = _auth_request("POST", "/positions/history", json_body=body)
     data = resp.json()
@@ -347,9 +345,30 @@ def get_history(device_id, frm, to):
                    "Items", "items", "Route", "route", "Points", "points")
     if not raw and isinstance(data, list):
         raw = data
-    tocke = [t for t in (_parse_history_point(p) for p in raw) if t]
+    return [t for t in (_parse_history_point(p) for p in raw) if t]
+
+
+def get_history(device_id, frm, to):
+    """Povijest za [frm, to] (aware datetime). Mobilisis dopušta max 24 h po
+    pozivu, pa dulje razdoblje razbijamo na 24-satne prozore i spajamo. Vraća
+    sortirane, dedupleirane i (za duge raspone) prorijeđene točke."""
+    tocke = []
+    korak = timedelta(hours=24)
+    a = frm
+    while a < to:
+        b = min(a + korak, to)
+        tocke.extend(_history_chunk(device_id, a, b))
+        a = b
     tocke.sort(key=lambda t: t.get("vrijeme") or "")
-    return _prorijedi(tocke)
+    # dedup (granice prozora se mogu preklopiti u istoj sekundi/točki)
+    out, vid = [], set()
+    for t in tocke:
+        k = (t.get("vrijeme"), t.get("lat"), t.get("lon"))
+        if k in vid:
+            continue
+        vid.add(k)
+        out.append(t)
+    return _prorijedi(out)
 
 
 def _prorijedi(tocke, limit=4000):
