@@ -24,6 +24,8 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - WHATSAPP_PHONE_ID — 1270404739480944 (Phone number ID, nije osjetljivo)
 - WHATSAPP_VERIFY_TOKEN — proizvoljan niz za verifikaciju webhooka; isti
   upisan u Meta App → WhatsApp → Configuration → Callback URL
+- WHATSAPP_ALLOWED — brojevi zaposlenika (385…, zarezom) koji smiju slati
+  račune/primke preko WhatsAppa; prazno = nitko (samo obavijest vlasnicima)
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -93,7 +95,15 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   inače istječe za 24 h; display name "Bravel" na Metino odobrenje;
   payment method na WABA-i (za business-initiated izvan 24 h prozora);
   predlošci poruka_dispecera / potvrda_racuna na odobrenje
-- Template-i Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
+- SELIDBA NA WHATSAPP — FAZA 1 RADI (potvrđeno 15.7.): ovlašteni zaposlenik
+  (WHATSAPP_ALLOWED) šalje FOTO računa/primke → whatsapp_racuni.py: slika →
+  racuni._read_document (vision) → pita GB → gumbi ✅/❌ → racuni._prepare_image
+  (upload slike) → racuni._write_once (upis na SharePoint). Ponovno koristi
+  ČISTU jezgru iz racuni.py; Telegram tok netaknut (vlasnici ostaju na TG).
+  Obrada u zasebnom threadu (webhook odmah 200 → nema duplikata).
+  v2 TODO: "Ispravi"/"Promijeni vrstu", provjera duplikata, /gdje na WhatsApp,
+  podsjetnici (trebaju odobrene predloške jer su izvan 24 h prozora).
+- Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 
 ## Poznate zamke
