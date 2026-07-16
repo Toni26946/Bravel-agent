@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from aiohttp import web
 
 import mobilisis
+import benzinske
 import monitoring
 
 # ---- Konfiguracija ----
@@ -169,6 +170,24 @@ async def handle_putanja(request):
         return _json({"error": f"Putanja nedostupna: {e}"}, status=503)
 
     return _json(rez)
+
+
+async def handle_benzinske(request):
+    """GET /api/benzinske — registar benzinskih lanaca s lokacijama i zadnjim
+    cijenama goriva + zabiljezena promjena. Stiti X-Api-Key. Cita iz baze
+    (cijene puni scheduled scraper), pa je poziv brz i bez vanjskih poziva."""
+    err = _check_key(request)
+    if err is not None:
+        return err
+    try:
+        loop = asyncio.get_event_loop()
+        podaci = await loop.run_in_executor(None, benzinske.trenutno)
+    except Exception as e:
+        _log(f"benzinske GRESKA: {e}")
+        monitoring.error("Web API: dohvat benzinskih nije uspio",
+                         source="web_api", exc=e)
+        return _json({"error": f"Benzinske trenutno nedostupne: {e}"}, status=503)
+    return _json({"vrijeme_dohvata": _now_iso(), "lanci": podaci})
 
 
 # ==================== WhatsApp webhook ====================
@@ -340,6 +359,7 @@ def _run():
         app.router.add_get("/zdrav", handle_zdrav)
         app.router.add_get("/api/pozicije", handle_pozicije)
         app.router.add_get("/api/putanja", handle_putanja)
+        app.router.add_get("/api/benzinske", handle_benzinske)
         app.router.add_get("/whatsapp/webhook", handle_wa_webhook_verify)
         app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
         app.router.add_get("/privatnost", handle_privatnost)
@@ -349,7 +369,8 @@ def _run():
         _bind_site(loop, runner)
 
         _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
-             f"(rute: /zdrav, /api/pozicije, /api/putanja, /whatsapp/webhook, /privatnost)")
+             f"(rute: /zdrav, /api/pozicije, /api/putanja, /api/benzinske, "
+             f"/whatsapp/webhook, /privatnost)")
         monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
         loop.run_forever()
     except Exception as e:

@@ -26,6 +26,7 @@ import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
 import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin komande
 import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposlenici)
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
+import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
@@ -498,6 +499,18 @@ def _wa_auto_podsjetnici():
         monitoring.error("WhatsApp auto podsjetnici pali", source="wa_podsjetnici", exc=e)
 
 
+def _benzinske_auto():
+    """Pozvano iz rasporeda: osvježi cijene goriva (evidencija) i, ako je bilo
+    promjena, javi kratki sažetak vlasnicima. Best-effort — nikad ne ruši petlju."""
+    try:
+        sazetak, promjena = benzinske.osvjezi_sve()
+        if promjena > 0:
+            for uid in ALLOWED_USERS:
+                safe_send(uid, sazetak)
+    except Exception as e:
+        monitoring.error("Benzinske auto osvježavanje palo", source="benzinske", exc=e)
+
+
 def check_reminders():
     while True:
         # Cijeli ciklus u try/except - thread ne smije umrijeti.
@@ -565,6 +578,20 @@ def check_reminders():
                 except Exception as e:
                     monitoring.warning(f"WhatsApp podsjetnik raspored: {e}",
                                        source="wa_podsjetnici")
+
+            # --- benzinske: periodicko osvjezavanje cijena (best-effort) ---
+            # Okida se samo ako je ukljucen prekidac BENZINSKE_ON=1, u satima iz
+            # BENZINSKE_SATI (default "7,13,19"), u minuti 5. _job_fire_once cuva
+            # od dvostrukog okidanja kod restarta u istoj minuti.
+            if os.getenv("BENZINSKE_ON", "").strip() == "1" and now.minute == 5:
+                try:
+                    sati = [int(x) for x in os.getenv("BENZINSKE_SATI", "7,13,19")
+                            .split(",") if x.strip().isdigit()]
+                    if now.hour in sati and _job_fire_once(
+                            f"benzinske_{now.hour}", fired_key):
+                        threading.Thread(target=_benzinske_auto, daemon=True).start()
+                except Exception as e:
+                    monitoring.warning(f"Benzinske raspored: {e}", source="benzinske")
 
             # --- ciscenje: poslani jednokratni stariji od 2 dana ---
             with db() as conn:
@@ -1227,6 +1254,66 @@ def handle_wa_podsjetnici(message):
                      daemon=True).start()
 
 
+def _benzinske_worker(chat_id, arg):
+    """Ručna komanda /benzinske:
+      /benzinske            -> osvježi sve i prikaži sažetak
+      /benzinske stanje     -> zadnje zabilježene cijene iz baze (bez dohvata)
+      /benzinske probe URL  -> dijagnostika jednog izvora (dostupnost + uzorak)."""
+    try:
+        arg = (arg or "").strip()
+        if arg.startswith("probe"):
+            url = arg[len("probe"):].strip()
+            if not url:
+                safe_send(chat_id, "Format: /benzinske probe <URL>")
+                return
+            r = benzinske.probe(url)
+            if r.get("greska"):
+                safe_send(chat_id, f"🔎 probe {url}\n❌ {r['greska']}")
+                return
+            cijene = ", ".join(f"{g}={c}" for g, c in r["nadjene_cijene"].items()) or "—"
+            safe_send(chat_id,
+                      f"🔎 probe {url}\n"
+                      f"HTTP {r['status']}, {r['duljina']} znakova\n"
+                      f"nađene cijene: {cijene}\n\n"
+                      f"uzorak:\n{r['uzorak']}"[:3800])
+            return
+        if arg.startswith("stanje"):
+            podaci = benzinske.trenutno()
+            linije = []
+            for l in podaci:
+                if l["goriva"]:
+                    dijelovi = ", ".join(
+                        f"{g['gorivo']}={g['cijena']:.3f}"
+                        + (f" ({'▲' if g['smjer']=='gore' else '▼'}{abs(g['promjena']):.3f})"
+                           if g.get("promjena") else "")
+                        for g in l["goriva"])
+                    linije.append(f"• {l['naziv']}: {dijelovi}")
+                else:
+                    tip = " (kartica)" if l["tip"] == "kartica" else ""
+                    linije.append(f"• {l['naziv']}{tip}: nema zabilježenih cijena")
+            safe_send(chat_id, "⛽ Zadnje zabilježene cijene:\n" + "\n".join(linije))
+            return
+        # default: osvježi sve
+        sazetak, _ = benzinske.osvjezi_sve()
+        safe_send(chat_id, sazetak[:3900])
+    except Exception as e:
+        monitoring.error("Greška u /benzinske", source="benzinske", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_benzinske(message):
+    parts = message.text.split(maxsplit=1)
+    arg = parts[1] if len(parts) > 1 else ""
+    if arg.strip().startswith("probe"):
+        bot.reply_to(message, "🔎 Provjeravam izvor…")
+    elif arg.strip().startswith("stanje"):
+        bot.reply_to(message, "⛽ Dohvaćam zadnje cijene…")
+    else:
+        bot.reply_to(message, "⏳ Osvježavam cijene goriva…")
+    threading.Thread(target=_benzinske_worker, args=(message.chat.id, arg),
+                     daemon=True).start()
+
+
 def _wa_send_worker(chat_id, broj, tekst):
     try:
         res = whatsapp.send_text(broj, tekst)
@@ -1288,7 +1375,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
-                               'wa_kreiraj_predloske'])
+                               'wa_kreiraj_predloske', 'benzinske'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1297,6 +1384,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/benzinske'):
+        handle_benzinske(message)
         return
 
     if cmd.startswith('/wa_kreiraj_predloske'):
@@ -1511,6 +1602,9 @@ if __name__ == "__main__":
     # Dnevni backup baze na SharePoint (03:00 Europe/Zagreb, best-effort).
     backup.setup(DB_FILE, TZ)
     backup.start()
+
+    # Registar benzinskih + tablica povijesti cijena (ista baza).
+    benzinske.setup(DB_FILE)
 
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
