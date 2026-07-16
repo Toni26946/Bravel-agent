@@ -38,6 +38,9 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - WHATSAPP_PODSJETNIK_DANI — preskoči vozača koji je slao unutar toliko dana (5)
 - WHATSAPP_PODSJETNIK_PERIOD — tekst {{2}} u predlošku ("ovaj tjedan")
 - WHATSAPP_PODSJETNIK_TMPL — naziv predloška ("podsjetnik_racun")
+- BENZINSKE_ON — "1" uključuje automatsko osvježavanje cijena goriva;
+  prazno/≠1 = isključeno (ručni /benzinske radi uvijek)
+- BENZINSKE_SATI — sati osvježavanja, zarezom (default "7,13,19"; minuta 5)
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -56,7 +59,31 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - GET /zdrav → {"status":"ok"} (bez ključa)
 - GET /api/pozicije → pozicije flote; header X-Api-Key = FLOTA_OS_KEY;
   keš 30 s; 401 bez ključa; 503 + "zastarjelo" ako Mobilisis padne
+- GET /api/benzinske → registar lanaca (Adria Oil, Tifon, Shell, Petrol,
+  Brebrić, AS24, DKV) s lokacijom/izvorom + zadnjim cijenama i promjenom;
+  header X-Api-Key = FLOTA_OS_KEY; čita iz baze (bez vanjskih poziva)
 - Namjena: Flota OS (Jarvis) živa karta — FAZA 2 u tijeku
+
+## Benzinske / cijene goriva (od 16.7., modul benzinske.py)
+- Registar lanaca koje Bravel koristi: maloprodaja (Adria Oil, Tifon, Shell,
+  Petrol, Brebrić) → javni dnevni cjenik; kartice (AS24, DKV) → B2B, cijena
+  ugovorna, bez javnog cjenika (pratimo samo mrežu/lokaciju).
+- Cijene: scraping (nema službenog HR API-ja za cijene goriva). Generički
+  ekstraktor (ključna riječ goriva + najbliža cijena, sanity 0,3–3,0 €/l).
+  Pohrana povijesti u bot.db (tablica benzinske_cijene) — upis SAMO na
+  promjenu cijene. Snapshot preko benzinske.trenutno() (zadnja + prethodna +
+  smjer) služi /api/benzinske.
+- Scheduler: check_reminders okida osvježavanje ako je BENZINSKE_ON=1, u
+  satima BENZINSKE_SATI (default "7,13,19"), u minuti 5; kod promjene javi
+  sažetak vlasnicima na Telegram. Default OFF dok se parseri ne potvrde.
+- Telegram (owner): /benzinske (osvježi), /benzinske stanje (zadnje iz baze),
+  /benzinske probe <URL> (dijagnostika izvora — dostupnost + uzorak HTML-a).
+- ⚠️ STATUS: infrastruktura (registar, pohrana, detekcija promjene, API,
+  scheduler, dijagnostika) RADI i testirana lokalno. Scraperi po lancu NISU
+  potvrđeni (dev okruženje ne može do vanjskih sajtova). Sljedeći korak:
+  s Fly-a pokrenuti /benzinske probe <cjenik_url> da se vidi stvarni HTML pa
+  se generički parser po potrebi zamijeni preciznim po provideru. AS24/DKV
+  ostaju bez cijene (kartica).
 - ⚠️ BLOKADA (15.7.): fly app NE MOŽE do fleet2.mobilisis.hr —
   ConnectTimeout (TCP spajanje istekne, nema odgovora). /api/pozicije i
   /gdje padaju S FLY-A. Potpis firewalla koji tiho odbacuje pakete →
