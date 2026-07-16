@@ -177,11 +177,12 @@ def _waba_id():
     return os.getenv("WHATSAPP_WABA_ID", "1482419453685574").strip()
 
 
-def list_templates():
+def list_templates(waba_id=None):
     """Popis predložaka i njihov status s Graph API-ja (scope
     whatsapp_business_management). Vrati {ok, status, data}; data['data'] je
-    lista {name, status, category, language}. Status: APPROVED/PENDING/REJECTED…"""
-    waba = _waba_id()
+    lista {name, status, category, language}. Status: APPROVED/PENDING/REJECTED…
+    waba_id: ako se ne zada, koristi _waba_id() (env/fallback)."""
+    waba = (waba_id or _waba_id()).strip()
     if not waba:
         raise WhatsAppError("WHATSAPP_WABA_ID nije postavljen.")
     r = requests.get(
@@ -199,6 +200,31 @@ def list_templates():
         monitoring.warning(f"WhatsApp list_templates nije uspio: HTTP {r.status_code} {data}",
                            source="whatsapp")
     return {"ok": ok, "status": r.status_code, "data": data}
+
+
+def list_wabas():
+    """Sve WABA-e dodijeljene ovom (System User) tokenu — da vidimo GDJE su
+    predlošci i kojoj WABA-i pripada broj. Vrati {ok, status, wabas:[{id,name}]}.
+    Koristi /me?fields=assigned_whatsapp_business_accounts (System User node)."""
+    r = requests.get(
+        f"{GRAPH_BASE}/me",
+        headers={"Authorization": f"Bearer {_token()}"},
+        params={"fields": "id,name,assigned_whatsapp_business_accounts.limit(50){id,name}"},
+        timeout=TIMEOUT)
+    try:
+        data = r.json()
+    except ValueError:
+        data = {"raw": r.text}
+    wabas = []
+    if isinstance(data, dict):
+        awba = data.get("assigned_whatsapp_business_accounts")
+        if isinstance(awba, dict):
+            wabas = [w for w in (awba.get("data") or []) if isinstance(w, dict)]
+    ok = r.status_code == 200 and bool(wabas)
+    if not ok:
+        monitoring.warning(f"WhatsApp list_wabas nije uspio/prazan: HTTP {r.status_code} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": r.status_code, "wabas": wabas, "data": data}
 
 
 def opisi_gresku(res):

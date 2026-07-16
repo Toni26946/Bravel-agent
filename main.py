@@ -1089,34 +1089,49 @@ _WA_STATUS_EMOJI = {
 }
 
 
-def _wa_predlosci_worker(chat_id):
+_WA_NASI = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje", "poruka_dispecera"}
+
+
+def _wa_predlosci_jedna_waba(waba_id, naziv_wabe):
+    """Vrati (linije, odobreni_nasi) za jednu WABA-u."""
+    res = whatsapp.list_templates(waba_id)
+    glava = f"🏢 {naziv_wabe} ({waba_id})"
+    if not res["ok"]:
+        return [f"{glava}\n  ❌ {whatsapp.opisi_gresku(res)}"], 0
+    stavke = res["data"].get("data") or []
+    if not stavke:
+        return [f"{glava}\n  — nema predložaka"], 0
+    stavke.sort(key=lambda t: (t.get("name") not in _WA_NASI, t.get("name") or ""))
+    linije = [f"{glava} — {len(stavke)} predložaka:"]
+    for t in stavke:
+        naziv = t.get("name", "?")
+        st = (t.get("status") or "?").upper()
+        emo = _WA_STATUS_EMOJI.get(st, "⚪")
+        zvj = "⭐ " if naziv in _WA_NASI else ""
+        linije.append(f"  {emo} {zvj}{naziv} — {st} ({t.get('language','')})")
+    odobreni = sum(1 for t in stavke if (t.get("status") or "").upper() == "APPROVED"
+                   and t.get("name") in _WA_NASI)
+    return linije, odobreni
+
+
+def _wa_predlosci_worker(chat_id, waba_arg=None):
     try:
-        res = whatsapp.list_templates()
-        if not res["ok"]:
-            safe_send(chat_id,
-                      "❌ Ne mogu dohvatiti predloške.\n\n"
-                      f"{whatsapp.opisi_gresku(res)}\n\n"
-                      f"Sirovi odgovor:\n{res['data']}"[:3800])
-            return
-        stavke = res["data"].get("data") or []
-        if not stavke:
-            safe_send(chat_id, "Nema nijednog predloška na WABA-i.")
-            return
-        # Naši predlošci prvi, pa ostali; unutar grupe abecedno.
-        nasi = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje", "poruka_dispecera"}
-        stavke.sort(key=lambda t: (t.get("name") not in nasi, t.get("name") or ""))
-        linije = ["📋 WhatsApp predlošci (status):"]
-        for t in stavke:
-            naziv = t.get("name", "?")
-            st = (t.get("status") or "?").upper()
-            emo = _WA_STATUS_EMOJI.get(st, "⚪")
-            jezik = t.get("language", "")
-            zvj = "⭐ " if naziv in nasi else ""
-            linije.append(f"{emo} {zvj}{naziv} — {st} ({jezik})")
-        odobreni = sum(1 for t in stavke if (t.get("status") or "").upper() == "APPROVED"
-                       and t.get("name") in nasi)
-        linije.append(f"\nNaši odobreni: {odobreni}/4 "
-                      "(za automatiku treba barem podsjetnik_racun)")
+        if waba_arg:
+            wabas = [{"id": waba_arg, "name": "(zadano)"}]
+        else:
+            wres = whatsapp.list_wabas()
+            wabas = wres.get("wabas") or []
+            if not wabas:
+                # fallback: bar konfigurirani WABA
+                wabas = [{"id": whatsapp._waba_id(), "name": "(konfigurirani)"}]
+        linije, ukupno_odobreni = ["📋 WhatsApp predlošci po WABA-i:"], 0
+        for w in wabas:
+            dio, odo = _wa_predlosci_jedna_waba(w.get("id"), w.get("name") or "?")
+            linije += [""] + dio
+            ukupno_odobreni += odo
+        linije.append(f"\n⭐ = naši · Odobrenih naših ukupno: {ukupno_odobreni}/4")
+        linije.append("Za slanje predložak mora biti na ISTOJ WABA-i kao broj "
+                      f"(WHATSAPP_WABA_ID = {whatsapp._waba_id()}).")
         safe_send(chat_id, "\n".join(linije)[:3900])
     except whatsapp.WhatsAppError as e:
         safe_send(chat_id, f"⚠️ {e}")
@@ -1126,8 +1141,11 @@ def _wa_predlosci_worker(chat_id):
 
 
 def handle_wa_predlosci(message):
-    bot.reply_to(message, "⏳ Pitam Metu za status predložaka…")
-    threading.Thread(target=_wa_predlosci_worker, args=(message.chat.id,),
+    # /wa_predlosci [WABA_ID]  — bez argumenta lista sve WABA-e tokena
+    parts = message.text.split(maxsplit=1)
+    waba_arg = parts[1].strip() if len(parts) > 1 else None
+    bot.reply_to(message, "⏳ Pitam Metu za predloške po WABA-ama…")
+    threading.Thread(target=_wa_predlosci_worker, args=(message.chat.id, waba_arg),
                      daemon=True).start()
 
 
