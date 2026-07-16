@@ -110,6 +110,7 @@ PROVIDERI = [
         "postaje_url": "https://bp-brebric.hr/",
         "cjenik_url": _AUTOPORTAL + "/benzinska-pumpa-brebric-doo",   # potvrđen slug (-doo)
         "adresa": "Zagrebačka ulica 51B, Lipovljani",
+        "lat": 45.3963848, "lon": 16.901858,   # točna lokacija postaje (za kartu)
         "goriva": ["dizel", "eurosuper95"],
     },
     {
@@ -412,6 +413,9 @@ def trenutno():
             }
             if p.get("adresa"):
                 zapis["adresa"] = p["adresa"]
+            if p.get("lat") is not None and p.get("lon") is not None:
+                zapis["lat"] = p["lat"]
+                zapis["lon"] = p["lon"]
             out.append(zapis)
     return out
 
