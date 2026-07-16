@@ -108,7 +108,7 @@ PROVIDERI = [
         "naziv": "Brebrić (Lipovljani)",
         "tip": "maloprodaja",
         "postaje_url": "https://bp-brebric.hr/",
-        "cjenik_url": None,   # slug /benzinska-pumpa-brebric = 404; treba točan URL s autoportala
+        "cjenik_url": _AUTOPORTAL + "/benzinska-pumpa-brebric-doo",   # potvrđen slug (-doo)
         "adresa": "Zagrebačka ulica 51B, Lipovljani",
         "goriva": ["dizel", "eurosuper95"],
     },
