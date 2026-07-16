@@ -263,22 +263,31 @@ def _izvuci_cijene(text):
 
     out = {}
     for kljuc, rijeci in _GORIVO_KLJUC:
-        cij = _nadji_cijenu(plain, low, rijeci, _IZBJEGNI.get(kljuc, ()))
+        cij = _nadji_cijenu(plain, low, rijeci, _IZBJEGNI.get(kljuc, ()),
+                            uzmi_min=(kljuc in _MIN_SVE))
         if cij is not None:
             out[kljuc] = cij
     return out
 
 
-# Varijante goriva koje NE zelimo hvatati (uzimamo obicnu, ne premium/EVO).
+# Varijante goriva koje NE zelimo hvatati kod tog goriva (kontekst oko naziva).
+#  - dizel: preskoci PLAVI dizel (poljoprivredni, ~1€) i EVO/premium varijantu.
 _IZBJEGNI = {
-    "dizel": ("premium", "evo"),   # obicni eurodizel, ne EVO/premium
+    "dizel": ("plavi", "premium", "evo"),
 }
 
+# Goriva kod kojih uzimamo NAJNIZU cijenu medu svim (ne-izbjegnutim) pojavama.
+#  - dizel: lanci znaju imati 'Eurodizel sa aditivima' (skuplji) i 'bez aditiva'
+#    (obicni, jeftiniji) -> obicni = najnizi. Dosljedno i za lance s jednom stavkom.
+_MIN_SVE = {"dizel"}
 
-def _nadji_cijenu(plain, low, rijeci, izbjegni):
+
+def _nadji_cijenu(plain, low, rijeci, izbjegni, uzmi_min=False):
     """Nadji cijenu za gorivo: za svaku pojavu naziva uzmi cijenu(e) NEPOSREDNO
-    PRIJE njega (donja granica raspona). Preskace varijante ciji naziv sadrzi
-    'izbjegni' rijec (npr. EVO/premium dizel). Vrati float ili None."""
+    PRIJE njega (donja granica raspona). Preskace varijante ciji naziv (kontekst)
+    sadrzi 'izbjegni' rijec (plavi/EVO/premium dizel). Ako uzmi_min: vrati najnizu
+    medu svim pojavama; inace prvu nadenu. Vrati float ili None."""
+    najdene = []
     for r in rijeci:
         start = 0
         while True:
@@ -286,8 +295,8 @@ def _nadji_cijenu(plain, low, rijeci, izbjegni):
             if idx == -1:
                 break
             start = idx + 1
-            # Kontekst oko naziva (i prije zbog 'EVO', i poslije zbog 'Premium').
-            kontekst = low[max(0, idx - 10): idx + len(r) + 22]
+            # Kontekst oko naziva (i prije zbog 'EVO/plavi', i poslije zbog 'Premium').
+            kontekst = low[max(0, idx - 12): idx + len(r) + 22]
             if any(x in kontekst for x in izbjegni):
                 continue
             prije = plain[max(0, idx - 45): idx]
@@ -296,8 +305,11 @@ def _nadji_cijenu(plain, low, rijeci, izbjegni):
                 vals = [_parse_cijena(m.group(1), m.group(2)) for m in matches[-2:]]
                 vals = [v for v in vals if v is not None]
                 if vals:
-                    return min(vals)
-    return None
+                    v = min(vals)
+                    if not uzmi_min:
+                        return v
+                    najdene.append(v)
+    return min(najdene) if najdene else None
 
 
 # ==================== OSVJEZAVANJE / POHRANA ====================
