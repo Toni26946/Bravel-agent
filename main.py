@@ -499,10 +499,25 @@ def _wa_auto_podsjetnici():
         monitoring.error("WhatsApp auto podsjetnici pali", source="wa_podsjetnici", exc=e)
 
 
+def _benzinske_warm():
+    """Zagrij keš lokacija postaja (OSM) na startu — best-effort."""
+    try:
+        benzinske.dohvati_postaje()
+    except Exception as e:
+        monitoring.warning(f"Benzinske postaje (OSM) warm: {e}", source="benzinske")
+
+
 def _benzinske_auto():
     """Pozvano iz rasporeda: osvježi cijene goriva (evidencija) i, ako je bilo
     promjena, javi kratki sažetak vlasnicima. Best-effort — nikad ne ruši petlju."""
     try:
+        # Osvjezi i lokacije postaja (OSM) — dohvati_postaje ima tjedni TTL,
+        # pa se stvarni Overpass poziv dogodi najvise jednom tjedno.
+        try:
+            benzinske.dohvati_postaje()
+        except Exception as e:
+            monitoring.warning(f"Benzinske postaje (OSM) osvježavanje: {e}",
+                               source="benzinske")
         sazetak, promjena = benzinske.osvjezi_sve()
         if promjena > 0:
             for uid in ALLOWED_USERS:
@@ -1261,6 +1276,9 @@ def _benzinske_worker(chat_id, arg):
       /benzinske probe URL  -> dijagnostika jednog izvora (dostupnost + uzorak)."""
     try:
         arg = (arg or "").strip()
+        if arg.startswith("postaje"):
+            safe_send(chat_id, benzinske.osvjezi_postaje())
+            return
         if arg.startswith("probe"):
             url = arg[len("probe"):].strip()
             if not url:
@@ -1605,6 +1623,9 @@ if __name__ == "__main__":
 
     # Registar benzinskih + tablica povijesti cijena (ista baza).
     benzinske.setup(DB_FILE)
+    # Zagrij keš lokacija postaja (OSM/Overpass) u pozadini — /api/benzinske
+    # ih onda vraća bez čekanja; best-effort, ne blokira start.
+    threading.Thread(target=lambda: _benzinske_warm(), daemon=True).start()
 
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.

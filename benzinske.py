@@ -263,21 +263,41 @@ def _izvuci_cijene(text):
 
     out = {}
     for kljuc, rijeci in _GORIVO_KLJUC:
-        for r in rijeci:
-            idx = low.find(r)
+        cij = _nadji_cijenu(plain, low, rijeci, _IZBJEGNI.get(kljuc, ()))
+        if cij is not None:
+            out[kljuc] = cij
+    return out
+
+
+# Varijante goriva koje NE zelimo hvatati (uzimamo obicnu, ne premium/EVO).
+_IZBJEGNI = {
+    "dizel": ("premium", "evo"),   # obicni eurodizel, ne EVO/premium
+}
+
+
+def _nadji_cijenu(plain, low, rijeci, izbjegni):
+    """Nadji cijenu za gorivo: za svaku pojavu naziva uzmi cijenu(e) NEPOSREDNO
+    PRIJE njega (donja granica raspona). Preskace varijante ciji naziv sadrzi
+    'izbjegni' rijec (npr. EVO/premium dizel). Vrati float ili None."""
+    for r in rijeci:
+        start = 0
+        while True:
+            idx = low.find(r, start)
             if idx == -1:
+                break
+            start = idx + 1
+            # Kontekst oko naziva (i prije zbog 'EVO', i poslije zbog 'Premium').
+            kontekst = low[max(0, idx - 10): idx + len(r) + 22]
+            if any(x in kontekst for x in izbjegni):
                 continue
-            # Prozor ~45 znakova PRIJE naziva goriva — ondje je pripadna cijena.
             prije = plain[max(0, idx - 45): idx]
             matches = list(_CIJENA_RE.finditer(prije))
             if matches:
-                # Zadnje (najbliže nazivu) 1–2 cijene = raspon tog goriva; uzmi donju.
                 vals = [_parse_cijena(m.group(1), m.group(2)) for m in matches[-2:]]
                 vals = [v for v in vals if v is not None]
-                if vals and kljuc not in out:
-                    out[kljuc] = min(vals)
-                    break  # nasli za ovo gorivo -> sljedeci tip
-    return out
+                if vals:
+                    return min(vals)
+    return None
 
 
 # ==================== OSVJEZAVANJE / POHRANA ====================
@@ -379,6 +399,7 @@ def trenutno():
           {gorivo, cijena, valuta, prethodna, promjena, smjer, vrijeme}]}.
     smjer: 'gore'|'dolje'|'isto'|None. Vozila bez zabiljezene cijene -> prazna lista."""
     out = []
+    lokacije = postaje_cache()   # iz OSM kesa (ako je vec dohvaceno); bez mreze
     with _db() as conn:
         for p in PROVIDERI:
             stavke = []
@@ -413,9 +434,13 @@ def trenutno():
             }
             if p.get("adresa"):
                 zapis["adresa"] = p["adresa"]
-            if p.get("lat") is not None and p.get("lon") is not None:
-                zapis["lat"] = p["lat"]
-                zapis["lon"] = p["lon"]
+            # Lokacije postaja: iz OSM kesa; fallback na rucnu tocku (lat/lon) ako
+            # je zadana u registru (npr. Brebric) a OSM nema nista.
+            tocke = list(lokacije.get(p["kljuc"], []))
+            if not tocke and p.get("lat") is not None and p.get("lon") is not None:
+                tocke = [{"lat": p["lat"], "lon": p["lon"],
+                          "naziv": p["naziv"], "grad": ""}]
+            zapis["postaje"] = tocke
             out.append(zapis)
     return out
 
@@ -439,3 +464,100 @@ def probe(url):
         "nadjene_cijene": cijene,
         "uzorak": plain[:600],
     }
+
+
+# ==================== LOKACIJE POSTAJA (OpenStreetMap / Overpass) ====================
+#  Koordinate SVIH postaja nasih brendova povlacimo automatski iz OpenStreetMapa
+#  preko Overpass API-ja (jedan uniforman izvor, bez rucnog upisa i bez scrapinga
+#  svakog brenda posebno). Filtriramo po OSM tagovima brand/operator/name.
+#  Kes: tjedan dana (postaje se rijetko mijenjaju). Ne dira cijene.
+
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+_POSTAJE_TTL = 7 * 24 * 3600
+_postaje_cache = {"ts": 0.0, "data": None}
+
+# brand kljuc -> kljucne rijeci za match OSM tagova (lowercase). Shell u HR posluje
+# kao "Coral"; oba se matchaju. DKV nema vlastite postaje (partnerska mreza) -> izostavljen.
+_OSM_MATCH = {
+    "adria_oil": ["adria oil", "adria-oil", "adriaoil"],
+    "tifon": ["tifon"],
+    "shell": ["shell", "coral"],
+    "petrol": ["petrol"],
+    "brebric": ["brebric", "brebrić"],
+    "as24": ["as24", "as 24", "as 24 "],
+}
+
+# Overpass upit: sve benzinske (amenity=fuel) unutar granica Hrvatske.
+_OVERPASS_Q = (
+    "[out:json][timeout:90];"
+    'area["ISO3166-1"="HR"][admin_level=2]->.hr;'
+    'nwr["amenity"="fuel"](area.hr);'
+    "out center tags;"
+)
+
+
+def _match_brand(tags):
+    hay = " ".join([tags.get("brand", ""), tags.get("operator", ""),
+                    tags.get("name", "")]).lower()
+    for kljuc, rijeci in _OSM_MATCH.items():
+        if any(r in hay for r in rijeci):
+            return kljuc
+    return None
+
+
+def dohvati_postaje(force=False):
+    """Povuci lokacije (lat/lon) svih postaja nasih brendova iz OpenStreetMapa
+    (Overpass). Kesirano tjedno. Vrati {brand_kljuc: [{lat,lon,naziv,grad}]}.
+    Baca iznimku na mreznu/Overpass gresku."""
+    now = time.time()
+    if (not force and _postaje_cache["data"] is not None
+            and (now - _postaje_cache["ts"]) < _POSTAJE_TTL):
+        return _postaje_cache["data"]
+    resp = requests.post(_OVERPASS_URL, data={"data": _OVERPASS_Q},
+                         timeout=120, headers={"User-Agent": _UA})
+    if resp.status_code != 200:
+        raise RuntimeError(f"Overpass HTTP {resp.status_code}")
+    elems = resp.json().get("elements", []) or []
+    out = {}
+    for e in elems:
+        tags = e.get("tags", {}) or {}
+        brand = _match_brand(tags)
+        if not brand:
+            continue
+        lat = e.get("lat")
+        lon = e.get("lon")
+        if lat is None or lon is None:
+            c = e.get("center") or {}
+            lat, lon = c.get("lat"), c.get("lon")
+        if lat is None or lon is None:
+            continue
+        out.setdefault(brand, []).append({
+            "lat": lat, "lon": lon,
+            "naziv": tags.get("name") or tags.get("brand") or "",
+            "grad": tags.get("addr:city") or "",
+        })
+    _postaje_cache.update(ts=now, data=out)
+    return out
+
+
+def postaje_cache():
+    """Zadnje dohvacene postaje iz kesa (bez mreznog poziva) ili {}."""
+    return _postaje_cache["data"] or {}
+
+
+def osvjezi_postaje():
+    """Prisilno osvjezi lokacije postaja i vrati citljiv sazetak (str) po brendu."""
+    try:
+        data = dohvati_postaje(force=True)
+    except Exception as e:
+        monitoring.warning(f"Benzinske postaje (OSM): {e}", source="benzinske")
+        return f"❌ Ne mogu dohvatiti postaje iz OpenStreetMapa: {e}"
+    linije = [f"📍 Lokacije postaja (OpenStreetMap), "
+              f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}:"]
+    for p in PROVIDERI:
+        n = len(data.get(p["kljuc"], []))
+        if p["kljuc"] in _OSM_MATCH:
+            linije.append(f"• {p['naziv']}: {n} postaja")
+    ukupno = sum(len(v) for v in data.values())
+    linije.append(f"Ukupno: {ukupno}")
+    return "\n".join(linije)
