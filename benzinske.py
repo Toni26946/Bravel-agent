@@ -577,6 +577,35 @@ def postaje_cache():
     return _postaje_cache["data"] or {}
 
 
+def debug_postaje(pojam, limit=40):
+    """Dijagnostika: iz SVIH benzinski u HR (OSM) izdvoji one cija oznaka
+    (brand/operator/name) sadrzi 'pojam'. Vrati citljiv popis distinct
+    'brand | operator | name' + broj pojava. Otkriva kako je brend STVARNO
+    oznacen u OSM-u -> da se _OSM_MATCH namjesti tocno (bez pogadanja)."""
+    pojam = (pojam or "").lower().strip()
+    if not pojam:
+        return "Format: /benzinske postaje_debug <pojam>  (npr. adria, as, total)"
+    try:
+        data = _overpass(_OVERPASS_Q)
+    except Exception as e:
+        return f"❌ Overpass: {e}"
+    from collections import Counter
+    c = Counter()
+    for e in data.get("elements", []) or []:
+        t = e.get("tags", {}) or {}
+        oznaka = f"{t.get('brand','')} | {t.get('operator','')} | {t.get('name','')}"
+        if pojam in oznaka.lower():
+            c[oznaka] += 1
+    if not c:
+        return (f"🔎 '{pojam}': ništa u OSM-u — nijedna benzinska u HR nema tu "
+                f"riječ u brand/operator/name. (Vjerojatno nije u OSM-u pod tim "
+                f"imenom → treba ručne točke.)")
+    linije = [f"🔎 OSM benzinske s '{pojam}' (brand | operator | name):"]
+    for oznaka, n in c.most_common(limit):
+        linije.append(f"{n}× {oznaka}")
+    return "\n".join(linije)[:3800]
+
+
 def osvjezi_postaje():
     """Prisilno osvjezi lokacije postaja i vrati citljiv sazetak (str) po brendu."""
     try:
