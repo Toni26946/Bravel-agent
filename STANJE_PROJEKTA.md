@@ -31,6 +31,13 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   koristi se kao zadani GB na „.”). Prazno = koristi se WhatsApp profil/broj.
 - WHATSAPP_PAGE_WINDOW — (opcionalno) sekunde čekanja daljnjih stranica kod
   višestraničnih dokumenata; default 8
+- WHATSAPP_PODSJETNICI_ON — "1" uključuje automatske tjedne podsjetnike
+  vozačima; prazno/≠1 = isključeno (raspored se ne okida). Ručni /wa_podsjetnici
+  radi i dok je isključeno (force).
+- WHATSAPP_PODSJETNIK_DAN/SAT/MIN — raspored (default petak=4, 15, 0)
+- WHATSAPP_PODSJETNIK_DANI — preskoči vozača koji je slao unutar toliko dana (5)
+- WHATSAPP_PODSJETNIK_PERIOD — tekst {{2}} u predlošku ("ovaj tjedan")
+- WHATSAPP_PODSJETNIK_TMPL — naziv predloška ("podsjetnik_racun")
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -91,6 +98,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - /wa_token — dijagnostika tokena preko Graph /debug_token (ne otkriva
     token): tip, valjanost, kad istječe (expires_at=0 → permanentni ✅),
     dozvole. Ako nije permanentan → uputa za System User token „Never"
+    POTVRĐENO 16.7.: token je SYSTEM_USER, permanentni (istječe NIKAD) ✅
+  - /wa_predlosci — status svih Meta predložaka preko Graph
+    /{WABA}/message_templates (APPROVED/PENDING/REJECTED); naši označeni ⭐.
+    WABA ID iz env WHATSAPP_WABA_ID (fallback 1482419453685574)
+  - /wa_podsjetnici — ručno okine tjedne podsjetnike (force; v. dolje)
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
@@ -126,7 +138,14 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - Imena vozača po broju: WHATSAPP_DRIVERS (broj→ime[:GB]) → pravo ime u
     tablicu; „.” u koraku GB prihvaća zadani GB iz mape.
   v3 PREOSTALO (blokirano vanjski): /gdje na WhatsApp (čeka Mobilisis IP
-  whitelist), podsjetnici (trebaju odobrene Meta predloške — izvan 24 h prozora).
+  whitelist).
+- AUTOMATSKI PODSJETNICI (kod gotov, whatsapp_podsjetnici.py): petkom (env
+  DAN/SAT/MIN) bot šalje predložak podsjetnik_racun vozačima iz WHATSAPP_DRIVERS
+  koji nisu slali zadnjih N dana (aktivne preskače; aktivnost se bilježi u
+  tablicu wa_aktivnost pri uspješnom WhatsApp upisu). Prekidač
+  WHATSAPP_PODSJETNICI_ON=1 (default OFF). Ručni test: /wa_podsjetnici (force).
+  Šalje TEK kad Meta odobri predložak podsjetnik_racun; do tad send_template
+  vraća grešku koja se uredno prikaže u sažetku (ne ruši).
 - Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
   fale: podsjetnik_racun, podsjetnik_voznje
 

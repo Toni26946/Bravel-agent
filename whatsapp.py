@@ -172,6 +172,35 @@ def debug_token():
     return {"ok": ok, "status": r.status_code, "data": data}
 
 
+def _waba_id():
+    """WABA ID iz env-a; fallback na poznati (nije osjetljivo, u STANJE_PROJEKTA)."""
+    return os.getenv("WHATSAPP_WABA_ID", "1482419453685574").strip()
+
+
+def list_templates():
+    """Popis predložaka i njihov status s Graph API-ja (scope
+    whatsapp_business_management). Vrati {ok, status, data}; data['data'] je
+    lista {name, status, category, language}. Status: APPROVED/PENDING/REJECTED…"""
+    waba = _waba_id()
+    if not waba:
+        raise WhatsAppError("WHATSAPP_WABA_ID nije postavljen.")
+    r = requests.get(
+        f"{GRAPH_BASE}/{waba}/message_templates",
+        headers={"Authorization": f"Bearer {_token()}"},
+        params={"fields": "name,status,category,language", "limit": 200},
+        timeout=TIMEOUT)
+    try:
+        data = r.json()
+    except ValueError:
+        data = {"raw": r.text}
+    ok = (r.status_code == 200 and isinstance(data, dict)
+          and isinstance(data.get("data"), list))
+    if not ok:
+        monitoring.warning(f"WhatsApp list_templates nije uspio: HTTP {r.status_code} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": r.status_code, "data": data}
+
+
 def opisi_gresku(res):
     """Pretvori {ok,status,data} u čitljiv sažetak (za Telegram/log)."""
     d = res.get("data") if isinstance(res, dict) else None
