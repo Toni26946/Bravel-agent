@@ -76,7 +76,12 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - Scheduler: check_reminders okida osvježavanje ako je BENZINSKE_ON=1, u
   satima BENZINSKE_SATI (default "7,13,19"), u minuti 5; kod promjene javi
   sažetak vlasnicima na Telegram. Default OFF dok se parseri ne potvrde.
-- Telegram (owner): /benzinske (osvježi), /benzinske stanje (zadnje iz baze),
+- Lokacije postaja: automatski iz OpenStreetMapa (Overpass API) po brendu
+  (benzinske.dohvati_postaje, tjedni keš); /api/benzinske vraća "postaje"
+  (lat/lon/naziv/grad) po lancu. Fallback: ručna točka iz registra (Brebrić).
+  Keš se zagrijava na startu (thread) i osvježava uz cijene (tjedni TTL).
+- Telegram (owner): /benzinske (osvježi cijene), /benzinske stanje (zadnje iz
+  baze), /benzinske postaje (osvježi+prebroji lokacije iz OSM-a),
   /benzinske probe <URL> (dijagnostika izvora — dostupnost + uzorak HTML-a).
 - Izvor cijena: cijene-goriva.autoportal.hr (po kompaniji; podaci iz
   ministarskog mzoe-gor.hr). POTVRĐENO s Fly-a (16.7.): autoportal se
