@@ -227,6 +227,30 @@ def list_wabas():
     return {"ok": ok, "status": r.status_code, "wabas": wabas, "data": data}
 
 
+def create_template(name, category, language, components, waba_id=None):
+    """Kreiraj Message Template na WABA-i (scope whatsapp_business_management).
+    category: 'UTILITY'/'MARKETING'/'AUTHENTICATION'; language npr. 'hr'.
+    components: Graph lista (BODY/FOOTER/…). Vrati {ok, status, data}; Meta na
+    uspjeh vraća {id, status:'PENDING', category}. Ne baca na HTTP grešci."""
+    waba = (waba_id or _waba_id()).strip()
+    if not waba:
+        raise WhatsAppError("WHATSAPP_WABA_ID nije postavljen.")
+    payload = {"name": name, "language": language,
+               "category": category, "components": components}
+    r = requests.post(f"{GRAPH_BASE}/{waba}/message_templates",
+                      headers=_headers(), json=payload, timeout=TIMEOUT)
+    try:
+        data = r.json()
+    except ValueError:
+        data = {"raw": r.text}
+    ok = (r.status_code == 200 and isinstance(data, dict)
+          and (data.get("id") or data.get("status")))
+    if not ok:
+        monitoring.warning(f"WhatsApp create_template '{name}' nije uspio: "
+                           f"HTTP {r.status_code} {data}", source="whatsapp")
+    return {"ok": bool(ok), "status": r.status_code, "data": data}
+
+
 def opisi_gresku(res):
     """Pretvori {ok,status,data} u čitljiv sažetak (za Telegram/log)."""
     d = res.get("data") if isinstance(res, dict) else None
