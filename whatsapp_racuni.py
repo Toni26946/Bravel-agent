@@ -33,6 +33,7 @@ import monitoring
 
 _sessions = {}          # broj → sess (racuni-kompatibilan dict)
 _pending = {}           # broj → {"images":[(bytes,mime)], "ime":str, "timer":Timer}
+_obrada = set()         # brojevi kojima upravo čitamo dokument (vision u tijeku)
 _lock = threading.RLock()
 
 # Koliko sekundi čekamo daljnje stranice prije obrade (album/više fotki zaredom).
@@ -225,6 +226,8 @@ def _zavrsi_prijem(frm, odmah=False):
         if buf and odmah and buf.get("timer"):
             buf["timer"].cancel()
         buf = _pending.pop(frm, None)
+        if buf and buf["images"]:
+            _obrada.add(frm)   # označi obradu (vision) → nema fallback poruke
     if not buf or not buf["images"]:
         return
     try:
@@ -236,6 +239,9 @@ def _zavrsi_prijem(frm, odmah=False):
             whatsapp.send_text(frm, "❌ Greška pri obradi dokumenta. Pošalji ponovno.")
         except Exception:
             pass
+    finally:
+        with _lock:
+            _obrada.discard(frm)
 
 
 def _pokreni_dokument(frm, ime, images):
@@ -312,8 +318,14 @@ def _promijeni_vrstu(frm, sess):
 def _odgovor(frm, tekst):
     with _lock:
         sess = _sessions.get(frm)
+        u_obradi = frm in _obrada or frm in _pending
     if not sess:
-        whatsapp.send_text(frm, "Pošalji fotografiju računa ili primke pa te vodim dalje.")
+        # Ne dobacuj uputu ako smo usred sakupljanja/čitanja dokumenta —
+        # sesija tad još ne postoji, a poruka bi zbunila (npr. „gotovo”).
+        if u_obradi:
+            whatsapp.send_text(frm, "⏳ Samo trenutak, još obrađujem dokument…")
+        else:
+            whatsapp.send_text(frm, "Pošalji fotografiju računa ili primke pa te vodim dalje.")
         return
 
     stage = sess.get("stage")
