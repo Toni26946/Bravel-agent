@@ -1276,6 +1276,10 @@ def _benzinske_worker(chat_id, arg):
       /benzinske probe URL  -> dijagnostika jednog izvora (dostupnost + uzorak)."""
     try:
         arg = (arg or "").strip()
+        if arg.startswith("postaje_debug"):
+            term = arg[len("postaje_debug"):].strip()
+            safe_send(chat_id, benzinske.debug_postaje(term))
+            return
         if arg.startswith("postaje"):
             safe_send(chat_id, benzinske.osvjezi_postaje())
             return
