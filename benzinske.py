@@ -247,13 +247,16 @@ def _ocisti_tekst(html):
 
 
 def _izvuci_cijene(text):
-    """GENERICKI ekstraktor: za svaku kljucnu rijec goriva nadji najblizu
-    cijenu (broj iza kojeg stoji €) u tekstu koji slijedi. Vrati {gorivo: cijena}.
+    """GENERICKI ekstraktor za autoportal.hr. Vrati {gorivo: cijena}.
 
-    Prilagodeno autoportal.hr layoutu 'Eurosuper 95 sa aditivima 1,85€ - 2,00€'
-    (uzima donju/prvu prikazanu cijenu uz naziv goriva). Stranice prikazuju
-    RASPON i varijante sa/bez aditiva — za pracenje PROMJENE je dosljedno i
-    dovoljno; nije nuzno cijena bas svake postaje."""
+    VAZNO — RASPORED: na autoportalu cijena stoji ISPRED naziva goriva, npr.
+      '… 1,54€ - 1,64€  Eurosuper 95 sa aditivima  2,02€ - 2,10€  Eurosuper 100…'
+    Dakle za svaki naziv goriva uzimamo cijenu(e) NEPOSREDNO PRIJE njega
+    (donja granica raspona = 'od' cijena). Trazi se samo broj iza kojeg je €
+    (vidljivi cjenik), a <script>/<style> su vec izbaceni u _ocisti_tekst.
+
+    Stranice prikazuju RASPON (min–max) i varijante sa/bez aditiva — za pracenje
+    PROMJENE je dosljedno i dovoljno; nije nuzno cijena bas svake postaje."""
     plain = _ocisti_tekst(text)
     low = plain.lower()
 
@@ -263,13 +266,15 @@ def _izvuci_cijene(text):
             idx = low.find(r)
             if idx == -1:
                 continue
-            # Prozor ~45 znakova iza kljucne rijeci — ondje je vidljiva cijena.
-            prozor = plain[idx + len(r): idx + len(r) + 45]
-            m = _CIJENA_RE.search(prozor)
-            if m:
-                cij = _parse_cijena(m.group(1), m.group(2))
-                if cij is not None and kljuc not in out:
-                    out[kljuc] = cij
+            # Prozor ~45 znakova PRIJE naziva goriva — ondje je pripadna cijena.
+            prije = plain[max(0, idx - 45): idx]
+            matches = list(_CIJENA_RE.finditer(prije))
+            if matches:
+                # Zadnje (najbliže nazivu) 1–2 cijene = raspon tog goriva; uzmi donju.
+                vals = [_parse_cijena(m.group(1), m.group(2)) for m in matches[-2:]]
+                vals = [v for v in vals if v is not None]
+                if vals and kljuc not in out:
+                    out[kljuc] = min(vals)
                     break  # nasli za ovo gorivo -> sljedeci tip
     return out
 
