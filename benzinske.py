@@ -472,7 +472,14 @@ def probe(url):
 #  svakog brenda posebno). Filtriramo po OSM tagovima brand/operator/name.
 #  Kes: tjedan dana (postaje se rijetko mijenjaju). Ne dira cijene.
 
-_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# VAZNO: Overpass odbija browser User-Agent (vraca HTTP 406) — koristi OPISNI UA.
+# Vise mirrora radi otpornosti (rate-limit/nedostupnost jednog).
+_OVERPASS_UA = "BravelAgent/1.0 (fleet fuel map; +https://bravel-agent.fly.dev)"
+_OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+]
 _POSTAJE_TTL = 7 * 24 * 3600
 _postaje_cache = {"ts": 0.0, "data": None}
 
@@ -505,6 +512,23 @@ def _match_brand(tags):
     return None
 
 
+def _overpass(query):
+    """Posalji Overpass upit (GET ?data=). Opisni UA (browser UA -> HTTP 406).
+    Vrti kroz mirrore dok jedan ne vrati 200. Vrati parsirani JSON ili baci."""
+    last = None
+    for url in _OVERPASS_URLS:
+        try:
+            resp = requests.get(url, params={"data": query}, timeout=120,
+                                headers={"User-Agent": _OVERPASS_UA,
+                                         "Accept": "application/json"})
+            if resp.status_code == 200:
+                return resp.json()
+            last = f"HTTP {resp.status_code}"
+        except requests.RequestException as e:
+            last = str(e)
+    raise RuntimeError(f"Overpass nedostupan ({last})")
+
+
 def dohvati_postaje(force=False):
     """Povuci lokacije (lat/lon) svih postaja nasih brendova iz OpenStreetMapa
     (Overpass). Kesirano tjedno. Vrati {brand_kljuc: [{lat,lon,naziv,grad}]}.
@@ -513,11 +537,7 @@ def dohvati_postaje(force=False):
     if (not force and _postaje_cache["data"] is not None
             and (now - _postaje_cache["ts"]) < _POSTAJE_TTL):
         return _postaje_cache["data"]
-    resp = requests.post(_OVERPASS_URL, data={"data": _OVERPASS_Q},
-                         timeout=120, headers={"User-Agent": _UA})
-    if resp.status_code != 200:
-        raise RuntimeError(f"Overpass HTTP {resp.status_code}")
-    elems = resp.json().get("elements", []) or []
+    elems = _overpass(_OVERPASS_Q).get("elements", []) or []
     out = {}
     for e in elems:
         tags = e.get("tags", {}) or {}
