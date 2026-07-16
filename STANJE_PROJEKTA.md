@@ -78,12 +78,16 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   sažetak vlasnicima na Telegram. Default OFF dok se parseri ne potvrde.
 - Telegram (owner): /benzinske (osvježi), /benzinske stanje (zadnje iz baze),
   /benzinske probe <URL> (dijagnostika izvora — dostupnost + uzorak HTML-a).
+- Izvor cijena: cijene-goriva.autoportal.hr (po kompaniji; podaci iz
+  ministarskog mzoe-gor.hr). POTVRĐENO s Fly-a (16.7.): autoportal se
+  razrješava i parser hvata cijene; cijenegoriva.hr NE (DNS greška),
+  nafta.hr 200 ali bez cijena u HTML-u. Slugovi potvrđeni: tifon-doo,
+  adria-oil-doo; shell(coral-croatia-doo)/petrol-doo/benzinska-pumpa-brebric
+  su POGODAK — potvrditi /benzinske probe.
 - ⚠️ STATUS: infrastruktura (registar, pohrana, detekcija promjene, API,
-  scheduler, dijagnostika) RADI i testirana lokalno. Scraperi po lancu NISU
-  potvrđeni (dev okruženje ne može do vanjskih sajtova). Sljedeći korak:
-  s Fly-a pokrenuti /benzinske probe <cjenik_url> da se vidi stvarni HTML pa
-  se generički parser po potrebi zamijeni preciznim po provideru. AS24/DKV
-  ostaju bez cijene (kartica).
+  scheduler, dijagnostika) RADI. Parser potvrđen za Tifon/Adria Oil na
+  autoportalu. PREOSTAJE: potvrditi slugove za Shell/Petrol/Brebrić i
+  uključiti BENZINSKE_ON=1. AS24/DKV ostaju bez cijene (kartica).
 - ⚠️ BLOKADA (15.7.): fly app NE MOŽE do fleet2.mobilisis.hr —
   ConnectTimeout (TCP spajanje istekne, nema odgovora). /api/pozicije i
   /gdje padaju S FLY-A. Potpis firewalla koji tiho odbacuje pakete →

@@ -51,13 +51,24 @@ _DB_FILE = "bot.db"  # postavlja se preko setup()
 #  tip:  'maloprodaja' -> javni dnevni cjenik (scrapamo cijene)
 #        'kartica'     -> B2B kartica/mreza, cijena ugovorna (bez javnog cjenika)
 #
-#  cjenik_url: stranica s cijenama (agregator dok se ne potvrdi sluzbeni izvor).
+#  cjenik_url: stranica s cijenama po kompaniji na agregatoru
+#    cijene-goriva.autoportal.hr (podaci iz ministarskog izvora mzoe-gor.hr;
+#    stranice su staticne pa ih parser cita). POTVRDENO s Fly-a (16.7.):
+#    autoportal se razrjesava i parser hvata cijene; cijenegoriva.hr NE
+#    (DNS 'Name or service not known'), nafta.hr vraca 200 ali bez cijena u HTML-u.
 #  postaje_url: sluzbeni pretrazivac postaja (za lokacije).
 #  goriva: koja goriva pratimo za taj lanac (nazivi se normaliziraju u ekstraktoru).
 #
-#  NAPOMENA: cjenik_url-ovi su POCETNI (agregator cijenegoriva.hr po kompaniji);
-#  na produkciji se probe-om potvrdi dostupnost i po potrebi zamijeni.
+#  NAPOMENA o cijenama: autoportal prikazuje RASPON (min–max po postajama) i
+#  varijante "sa aditivima/bez aditiva"; genericki ekstraktor uzima prvu cijenu
+#  uz naziv goriva (donja granica / reprezentativna). Za pracenje PROMJENE je
+#  dovoljno (dosljedno iz runda u rundu); nije nuzno cijena bas svake postaje.
+#
+#  SLUG: potvrdeni tifon-doo, adria-oil-doo. Za shell/petrol/brebric slug je
+#  POGODAK — potvrdi /benzinske probe pa po potrebi ispravi.
 # ============================================================
+
+_AUTOPORTAL = "https://cijene-goriva.autoportal.hr"
 
 PROVIDERI = [
     {
@@ -65,7 +76,7 @@ PROVIDERI = [
         "naziv": "Adria Oil",
         "tip": "maloprodaja",
         "postaje_url": "https://www.adriaoil.hr/benzinske-postaje/",
-        "cjenik_url": "https://cijenegoriva.hr/kompanije/adria-oil",
+        "cjenik_url": _AUTOPORTAL + "/adria-oil-doo",   # potvrđen slug
         "goriva": ["dizel", "eurosuper95", "lpg"],
     },
     {
@@ -73,7 +84,7 @@ PROVIDERI = [
         "naziv": "Tifon",
         "tip": "maloprodaja",
         "postaje_url": "https://pretrazivacpostaja.tifon.hr/",
-        "cjenik_url": "https://cijenegoriva.hr/kompanije/tifon",
+        "cjenik_url": _AUTOPORTAL + "/tifon-doo",   # potvrđen slug
         "goriva": ["dizel", "eurosuper95", "eurosuper100", "lpg"],
     },
     {
@@ -81,7 +92,7 @@ PROVIDERI = [
         "naziv": "Shell",
         "tip": "maloprodaja",
         "postaje_url": "https://find.shell.com/hr",
-        "cjenik_url": "https://cijenegoriva.hr/kompanije/shell",
+        "cjenik_url": _AUTOPORTAL + "/coral-croatia-doo",   # POGODAK (Shell = Coral Croatia) — potvrdi probe-om
         "goriva": ["dizel", "eurosuper95"],
     },
     {
@@ -89,7 +100,7 @@ PROVIDERI = [
         "naziv": "Petrol",
         "tip": "maloprodaja",
         "postaje_url": "https://www.petrol.hr/na-putu/benzinske-postaje",
-        "cjenik_url": "https://cijenegoriva.hr/kompanije/petrol",
+        "cjenik_url": _AUTOPORTAL + "/petrol-doo",   # POGODAK — potvrdi probe-om
         "goriva": ["dizel", "eurosuper95", "lpg"],
     },
     {
@@ -97,7 +108,7 @@ PROVIDERI = [
         "naziv": "Brebrić (Lipovljani)",
         "tip": "maloprodaja",
         "postaje_url": "https://bp-brebric.hr/",
-        "cjenik_url": "https://bp-brebric.hr/",
+        "cjenik_url": _AUTOPORTAL + "/benzinska-pumpa-brebric",   # POGODAK — potvrdi probe-om
         "adresa": "Zagrebačka ulica 51B, Lipovljani",
         "goriva": ["dizel", "eurosuper95"],
     },
