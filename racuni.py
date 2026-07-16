@@ -292,13 +292,17 @@ def _vision_prompt(force_vrsta=None):
         "artikla\" (npr. 038103385A) — NE barkod/EAN kolona.\n"
         "- skupi stavke sa SVIH stranica.\n\n"
         "Sve novcane iznose vrati kao brojeve u eurima (npr. 12.50). Ako polje "
-        "ne postoji ili je necitljivo, stavi null (nemoj izmisljati). "
-        "Vrati SAMO JSON."
+        "ne postoji ili je necitljivo, stavi null (nemoj izmisljati).\n"
+        "VAZNO za valjan JSON: unutar tekstualnih vrijednosti NE koristi znak "
+        "dvostrukog navodnika (\"). Ako artikl ima oznaku cola/inca (npr. 12\"), "
+        "napisi to kao 12 inch ili izostavi taj znak. Vrati SAMO ispravan JSON."
     )
 
 
 def _extract_json(text):
-    """Izvuci JSON objekt iz Claudeova odgovora (skini ograde, nadji {...})."""
+    """Izvuci JSON objekt iz Claudeova odgovora (skini ograde, nadji {...}).
+    Prva pomoc: makni kontrolne znakove i visak zareza prije } ]. Baca
+    ValueError (json.JSONDecodeError) ako ni nakon toga nije valjan JSON."""
     t = text.strip()
     if t.startswith("```"):
         t = re.sub(r"^```(?:json)?\s*", "", t)
@@ -307,28 +311,52 @@ def _extract_json(text):
     end = t.rfind("}")
     if start != -1 and end != -1 and end > start:
         t = t[start:end + 1]
+    # Prva pomoc: makni kontrolne znakove (osim uobicajenih razmaka) i
+    # visak zareza (", }" / ", ]") koji cesto pokvare inace valjan JSON.
+    t = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", t)
+    t = re.sub(r",\s*([}\]])", r"\1", t)
     return json.loads(t)
 
 
 def _read_document(images, force_vrsta=None):
     """images: lista (bytes, media_type). Posalji SVE stranice u jednom pozivu
-    Claude visionu i vrati parsirani dict (ukljucivo 'vrsta')."""
+    Claude visionu i vrati parsirani dict (ukljucivo 'vrsta'). Ako model vrati
+    nevaljan JSON (npr. nezasticen navodnik u nazivu artikla), ponovi poziv
+    JEDNOM sa strozom uputom prije nego odustane."""
     content = []
     for (b, mt) in images:
         b64 = base64.standard_b64encode(b).decode("utf-8")
         content.append({"type": "image", "source": {
             "type": "base64", "media_type": mt, "data": b64}})
-    content.append({"type": "text", "text": _vision_prompt(force_vrsta)})
+    base_prompt = _vision_prompt(force_vrsta)
+    content.append({"type": "text", "text": base_prompt})
 
-    resp = _client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=2500,
-        system=_VISION_SYSTEM,
-        messages=[{"role": "user", "content": content}],
-        temperature=0,
-    )
-    text = next((b.text for b in resp.content if b.type == "text"), "")
-    data = _extract_json(text)
+    def _pozovi(extra_uputa=""):
+        msgs = content
+        if extra_uputa:
+            msgs = content[:-1] + [{"type": "text",
+                                    "text": base_prompt + "\n\n" + extra_uputa}]
+        resp = _client.messages.create(
+            model=VISION_MODEL,
+            max_tokens=4000,
+            system=_VISION_SYSTEM,
+            messages=[{"role": "user", "content": msgs}],
+            temperature=0,
+        )
+        return next((b.text for b in resp.content if b.type == "text"), "")
+
+    text = _pozovi()
+    try:
+        data = _extract_json(text)
+    except ValueError as e:
+        monitoring.warning(f"Vision JSON nevaljan, ponavljam strože: {e}",
+                           source="racuni")
+        strict = ("PRETHODNI ODGOVOR NIJE BIO VALJAN JSON. Vrati ISKLJUČIVO "
+                  "ispravan JSON (bez teksta okolo, bez ograda). Unutar vrijednosti "
+                  "NE koristi znak dvostrukog navodnika.")
+        text = _pozovi(strict)
+        data = _extract_json(text)  # ako i sad padne, iznimka ide pozivatelju
+
     if force_vrsta:
         data["vrsta"] = force_vrsta
     if data.get("vrsta") not in ("racun", "primka"):
