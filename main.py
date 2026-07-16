@@ -1140,6 +1140,68 @@ def _wa_predlosci_worker(chat_id, waba_arg=None):
         safe_send(chat_id, f"❌ Greška pri dohvaćanju predložaka: {e}")
 
 
+# Definicije 4 predloška (UTILITY, hr) — za kreiranje preko Graph API-ja.
+# example.body_text = jedan primjer po varijabli (redom {{1}}, {{2}}…).
+_WA_PREDLOSCI_DEF = [
+    {"name": "potvrda_racuna", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "Bok {{1}}, zaprimili smo tvoj dokument ({{2}}) broj {{3}} "
+                 "na iznos {{4}} €. Hvala!",
+         "example": {"body_text": [["Ivan", "račun", "123/1/1", "85,40"]]}},
+        {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+    {"name": "podsjetnik_racun", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "Bok {{1}}, podsjetnik: još nismo primili račune/primke za {{2}}. "
+                 "Molimo te da ih fotografiraš i pošalješ na ovaj broj čim budeš u "
+                 "mogućnosti. Hvala!",
+         "example": {"body_text": [["Ivan", "ovaj tjedan"]]}},
+        {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+    {"name": "podsjetnik_voznje", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "Bok {{1}}, podsjetnik za vožnju: {{2}}, polazak {{3}}. "
+                 "Ako nešto ne odgovara, javi nam na ovaj broj.",
+         "example": {"body_text": [["Ivan", "Zagreb - Split", "sutra u 06:00"]]}},
+        {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+    {"name": "poruka_dispecera", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "Bok {{1}}, nova poruka od dispečera:\n{{2}}\n"
+                 "Za pitanja odgovori na ovaj broj.",
+         "example": {"body_text": [["Ivan", "Molim te nazovi ured kad staneš."]]}},
+        {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+]
+
+
+def _wa_kreiraj_worker(chat_id, waba_arg=None):
+    waba = waba_arg or whatsapp._waba_id()
+    linije = [f"🛠️ Kreiram 4 predloška na WABA {waba}:"]
+    for d in _WA_PREDLOSCI_DEF:
+        try:
+            res = whatsapp.create_template(d["name"], d["category"], d["language"],
+                                           d["components"], waba_id=waba)
+        except whatsapp.WhatsAppError as e:
+            linije.append(f"⚠️ {d['name']}: {e}")
+            continue
+        except Exception as e:
+            linije.append(f"❌ {d['name']}: {e}")
+            continue
+        if res["ok"]:
+            st = (res["data"].get("status") or "PENDING")
+            linije.append(f"✅ {d['name']} — {st}")
+        else:
+            linije.append(f"❌ {d['name']}: {whatsapp.opisi_gresku(res)}")
+    linije.append("\nProvjeri s /wa_predlosci — bit će PENDING dok Meta ne odobri.")
+    safe_send(chat_id, "\n".join(linije)[:3900])
+
+
+def handle_wa_kreiraj_predloske(message):
+    # /wa_kreiraj_predloske [WABA_ID]  — default WHATSAPP_WABA_ID (Bravel doo)
+    parts = message.text.split(maxsplit=1)
+    waba_arg = parts[1].strip() if len(parts) > 1 else None
+    bot.reply_to(message, "⏳ Kreiram predloške na Meti…")
+    threading.Thread(target=_wa_kreiraj_worker, args=(message.chat.id, waba_arg),
+                     daemon=True).start()
+
+
 def handle_wa_predlosci(message):
     # /wa_predlosci [WABA_ID]  — bez argumenta lista sve WABA-e tokena
     parts = message.text.split(maxsplit=1)
@@ -1225,7 +1287,8 @@ def wa_dolazna_poruka(frm, ime, msg):
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
-                               'wa_podsjetnici', 'wa_predlosci'])
+                               'wa_podsjetnici', 'wa_predlosci',
+                               'wa_kreiraj_predloske'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1234,6 +1297,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_kreiraj_predloske'):
+        handle_wa_kreiraj_predloske(message)
         return
 
     if cmd.startswith('/wa_predlosci'):
