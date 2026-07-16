@@ -108,7 +108,7 @@ PROVIDERI = [
         "naziv": "Brebrić (Lipovljani)",
         "tip": "maloprodaja",
         "postaje_url": "https://bp-brebric.hr/",
-        "cjenik_url": _AUTOPORTAL + "/benzinska-pumpa-brebric",   # POGODAK — potvrdi probe-om
+        "cjenik_url": None,   # slug /benzinska-pumpa-brebric = 404; treba točan URL s autoportala
         "adresa": "Zagrebačka ulica 51B, Lipovljani",
         "goriva": ["dizel", "eurosuper95"],
     },
@@ -206,7 +206,10 @@ _GORIVO_KLJUC = [
 ]
 
 # Cijena goriva u HR: ~0,3–3,0 €/l, obicno 3 decimale ("1,452 €"), ponekad 2.
-_CIJENA_RE = re.compile(r"(\d{1,2})[.,](\d{2,3})(?!\d)")
+# VAZNO: trazimo SAMO broj iza kojeg stoji € (ili EUR) — to je vidljivi cjenik.
+# Bez toga bi parser hvatao gole brojeve iz Next.js JSON blobova u <script>
+# tagovima (npr. dizel=0.64) umjesto stvarnih cijena.
+_CIJENA_RE = re.compile(r"(\d{1,2})[.,](\d{2,3})\s*(?:€|eur\b)", re.IGNORECASE)
 
 
 def _norm_gorivo(tekst):
@@ -230,17 +233,28 @@ def _parse_cijena(token_int, token_dec):
     return None
 
 
-def _izvuci_cijene(text):
-    """GENERICKI ekstraktor: za svaku kljucnu rijec goriva nadji najblizu cijenu
-    u tekstu koji slijedi. Vrati {gorivo: cijena}. Best-effort — HTML se cisti
-    grubo (skini tagove) pa se trazi 'gorivo … broj'.
+def _ocisti_tekst(html):
+    """HTML -> citljiv plain tekst. VAZNO: prvo izbaci <script>/<style> blokove
+    (Next.js JSON, Google Tag Manager) jer sadrze gole brojeve koji zavaraju
+    ekstraktor; tek onda skini tagove i entitete."""
+    h = re.sub(r"(?is)<script\b.*?</script>", " ", html)
+    h = re.sub(r"(?is)<style\b.*?</style>", " ", h)
+    h = re.sub(r"<[^>]+>", " ", h)
+    # Euro entitet -> znak € PRIJE brisanja ostalih entiteta (inace nestane).
+    h = re.sub(r"&euro;|&#8364;|&#x20ac;", "€", h, flags=re.IGNORECASE)
+    h = re.sub(r"&[a-z]+;|&#\d+;", " ", h)
+    return re.sub(r"\s+", " ", h)
 
-    NAPOMENA: ovo je pocetni parser dok se s Fly-a ne vidi stvarni HTML svakog
-    izvora; tada se po potrebi zamijeni preciznim parserom po provideru."""
-    # Skini HTML tagove -> ostane citljiv tekst; &nbsp; itd. u razmak.
-    plain = re.sub(r"<[^>]+>", " ", text)
-    plain = re.sub(r"&[a-z]+;", " ", plain)
-    plain = re.sub(r"\s+", " ", plain)
+
+def _izvuci_cijene(text):
+    """GENERICKI ekstraktor: za svaku kljucnu rijec goriva nadji najblizu
+    cijenu (broj iza kojeg stoji €) u tekstu koji slijedi. Vrati {gorivo: cijena}.
+
+    Prilagodeno autoportal.hr layoutu 'Eurosuper 95 sa aditivima 1,85€ - 2,00€'
+    (uzima donju/prvu prikazanu cijenu uz naziv goriva). Stranice prikazuju
+    RASPON i varijante sa/bez aditiva — za pracenje PROMJENE je dosljedno i
+    dovoljno; nije nuzno cijena bas svake postaje."""
+    plain = _ocisti_tekst(text)
     low = plain.lower()
 
     out = {}
@@ -249,8 +263,8 @@ def _izvuci_cijene(text):
             idx = low.find(r)
             if idx == -1:
                 continue
-            # Prozor od ~40 znakova iza kljucne rijeci — ondje je obicno cijena.
-            prozor = plain[idx + len(r): idx + len(r) + 40]
+            # Prozor ~45 znakova iza kljucne rijeci — ondje je vidljiva cijena.
+            prozor = plain[idx + len(r): idx + len(r) + 45]
             m = _CIJENA_RE.search(prozor)
             if m:
                 cij = _parse_cijena(m.group(1), m.group(2))
@@ -294,8 +308,10 @@ def osvjezi_provider(p):
     Karticne mreze (bez cjenik_url) preskace (cijena ugovorna)."""
     rez = {"kljuc": p["kljuc"], "naziv": p["naziv"], "tip": p["tip"],
            "cijene": {}, "promjene": [], "greska": None}
-    if p["tip"] == "kartica" or not p.get("cjenik_url"):
-        rez["greska"] = "kartična mreža — nema javnog cjenika (cijena ugovorna)"
+    if not p.get("cjenik_url"):
+        rez["greska"] = ("kartična mreža — nema javnog cjenika (cijena ugovorna)"
+                         if p["tip"] == "kartica"
+                         else "izvor cijena još nije postavljen (treba točan slug)")
         return rez
     try:
         status, text = _fetch(p["cjenik_url"])
@@ -406,8 +422,7 @@ def probe(url):
     except Exception as e:
         return {"url": url, "greska": str(e)}
     cijene = _izvuci_cijene(text)
-    plain = re.sub(r"<[^>]+>", " ", text)
-    plain = re.sub(r"\s+", " ", plain).strip()
+    plain = _ocisti_tekst(text).strip()
     return {
         "url": url,
         "status": status,
