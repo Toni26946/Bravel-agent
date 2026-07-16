@@ -1082,6 +1082,55 @@ def handle_wa_token(message):
                      daemon=True).start()
 
 
+_WA_STATUS_EMOJI = {
+    "APPROVED": "✅", "PENDING": "🟡", "IN_APPEAL": "🟡",
+    "PENDING_DELETION": "🟡", "REJECTED": "🔴", "DISABLED": "🔴",
+    "PAUSED": "⏸️", "LIMIT_EXCEEDED": "⚠️",
+}
+
+
+def _wa_predlosci_worker(chat_id):
+    try:
+        res = whatsapp.list_templates()
+        if not res["ok"]:
+            safe_send(chat_id,
+                      "❌ Ne mogu dohvatiti predloške.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+            return
+        stavke = res["data"].get("data") or []
+        if not stavke:
+            safe_send(chat_id, "Nema nijednog predloška na WABA-i.")
+            return
+        # Naši predlošci prvi, pa ostali; unutar grupe abecedno.
+        nasi = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje", "poruka_dispecera"}
+        stavke.sort(key=lambda t: (t.get("name") not in nasi, t.get("name") or ""))
+        linije = ["📋 WhatsApp predlošci (status):"]
+        for t in stavke:
+            naziv = t.get("name", "?")
+            st = (t.get("status") or "?").upper()
+            emo = _WA_STATUS_EMOJI.get(st, "⚪")
+            jezik = t.get("language", "")
+            zvj = "⭐ " if naziv in nasi else ""
+            linije.append(f"{emo} {zvj}{naziv} — {st} ({jezik})")
+        odobreni = sum(1 for t in stavke if (t.get("status") or "").upper() == "APPROVED"
+                       and t.get("name") in nasi)
+        linije.append(f"\nNaši odobreni: {odobreni}/4 "
+                      "(za automatiku treba barem podsjetnik_racun)")
+        safe_send(chat_id, "\n".join(linije)[:3900])
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_predlosci", source="wa_predlosci", exc=e)
+        safe_send(chat_id, f"❌ Greška pri dohvaćanju predložaka: {e}")
+
+
+def handle_wa_predlosci(message):
+    bot.reply_to(message, "⏳ Pitam Metu za status predložaka…")
+    threading.Thread(target=_wa_predlosci_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 def _wa_podsjetnici_worker(chat_id):
     try:
         # Rucno okidanje radi i kad je automatika iskljucena (force=True).
@@ -1158,7 +1207,7 @@ def wa_dolazna_poruka(frm, ime, msg):
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
-                               'wa_podsjetnici'])
+                               'wa_podsjetnici', 'wa_predlosci'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1167,6 +1216,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_predlosci'):
+        handle_wa_predlosci(message)
         return
 
     if cmd.startswith('/wa_podsjetnici'):

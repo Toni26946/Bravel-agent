@@ -98,6 +98,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   - /wa_token — dijagnostika tokena preko Graph /debug_token (ne otkriva
     token): tip, valjanost, kad istječe (expires_at=0 → permanentni ✅),
     dozvole. Ako nije permanentan → uputa za System User token „Never"
+    POTVRĐENO 16.7.: token je SYSTEM_USER, permanentni (istječe NIKAD) ✅
+  - /wa_predlosci — status svih Meta predložaka preko Graph
+    /{WABA}/message_templates (APPROVED/PENDING/REJECTED); naši označeni ⭐.
+    WABA ID iz env WHATSAPP_WABA_ID (fallback 1482419453685574)
+  - /wa_podsjetnici — ručno okine tjedne podsjetnike (force; v. dolje)
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
