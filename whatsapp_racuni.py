@@ -94,6 +94,44 @@ def driver_for(frm):
     return _drivers_map().get(frm, (None, None))
 
 
+# ==================== AKTIVNOST (za tjedne podsjetnike) ====================
+# Bilježimo kad je koji broj zadnji put USPJEŠNO poslao dokument, da tjedni
+# podsjetnik preskoči one koji su nedavno slali. Koristi glavnu bazu (racuni._db).
+
+def _ensure_akt():
+    with racuni._db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS wa_aktivnost "
+                     "(broj TEXT PRIMARY KEY, zadnja_ts INTEGER)")
+
+
+def zabiljezi_aktivnost(frm):
+    """Upamti da je broj upravo poslao dokument (za preskakanje u podsjetniku)."""
+    try:
+        _ensure_akt()
+        with racuni._db() as conn:
+            conn.execute(
+                "INSERT INTO wa_aktivnost (broj, zadnja_ts) VALUES (?, ?) "
+                "ON CONFLICT(broj) DO UPDATE SET zadnja_ts = excluded.zadnja_ts",
+                (str(frm), int(time.time())))
+    except Exception as e:
+        monitoring.warning(f"WhatsApp aktivnost upis nije uspio: {e}", source="wa_racuni")
+
+
+def dani_od_zadnje(frm):
+    """Broj dana (float) od zadnjeg uspješnog slanja tog broja; None ako nikad."""
+    try:
+        _ensure_akt()
+        with racuni._db() as conn:
+            row = conn.execute("SELECT zadnja_ts FROM wa_aktivnost WHERE broj = ?",
+                               (str(frm),)).fetchone()
+        if not row or row[0] is None:
+            return None
+        return (time.time() - row[0]) / 86400.0
+    except Exception as e:
+        monitoring.warning(f"WhatsApp aktivnost čitanje nije uspio: {e}", source="wa_racuni")
+        return None
+
+
 def handle(frm, ime, msg):
     """Ulazna WhatsApp poruka ovlaštenog zaposlenika (msg = raw message dict)."""
     try:
@@ -352,6 +390,7 @@ def _upisi(sess):
         monitoring.warning(f"WhatsApp računi: dedupe nije uspio: {e}", source="wa_racuni")
         dup = None
     if dup:
+        zabiljezi_aktivnost(sess["user_id"])  # ipak je poslao (samo je duplikat)
         return racuni._dup_text(sess["spec"], dup)
 
     # Slika se MORA uploadati PRIJE _write_once — ona postavlja sess['slika_url']
@@ -365,6 +404,7 @@ def _upisi(sess):
     for pokusaj in range(4):
         try:
             ok, poruka = racuni._write_once(sess)
+            zabiljezi_aktivnost(sess["user_id"])
             return poruka + (sess.get("slika_note") or "")
         except racuni._Locked:
             time.sleep(2 * (pokusaj + 1))

@@ -25,6 +25,7 @@ import backup      # dnevni backup bot.db na SharePoint
 import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
 import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin komande
 import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposlenici)
+import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
@@ -472,6 +473,31 @@ def _interval_due(r, today):
     return (days // 7) % n == 0  # weekly
 
 
+def _job_fire_once(name, fired_key):
+    """True samo prvi put za dani (name, fired_key) — perzistentni guard u bazi
+    da se scheduled job ne okine dvaput (npr. kod restarta u istoj minuti)."""
+    with db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS jobs "
+                     "(name TEXT PRIMARY KEY, last_fired TEXT)")
+        row = conn.execute("SELECT last_fired FROM jobs WHERE name = ?", (name,)).fetchone()
+        if row and row[0] == fired_key:
+            return False
+        conn.execute("INSERT INTO jobs (name, last_fired) VALUES (?, ?) "
+                     "ON CONFLICT(name) DO UPDATE SET last_fired = excluded.last_fired",
+                     (name, fired_key))
+    return True
+
+
+def _wa_auto_podsjetnici():
+    """Pozvano iz rasporeda: pošalji tjedne podsjetnike i javi sažetak vlasnicima."""
+    try:
+        sazetak = whatsapp_podsjetnici.posalji_tjedne()
+        for uid in ALLOWED_USERS:
+            safe_send(uid, sazetak)
+    except Exception as e:
+        monitoring.error("WhatsApp auto podsjetnici pali", source="wa_podsjetnici", exc=e)
+
+
 def check_reminders():
     while True:
         # Cijeli ciklus u try/except - thread ne smije umrijeti.
@@ -525,6 +551,20 @@ def check_reminders():
                                      (fired_key, r["id"]))
                     safe_send(r["chat_id"],
                               f"🔄 PODSJETNIK ({recurring_label(r)})\n\n{r['text']}")
+
+            # --- tjedni WhatsApp podsjetnik vozacima (best-effort, gura predloske) ---
+            # Okida se samo ako je ukljucen prekidac; raspored: DAN/SAT/MIN (env).
+            if os.getenv("WHATSAPP_PODSJETNICI_ON", "").strip() == "1":
+                try:
+                    wd = int(os.getenv("WHATSAPP_PODSJETNIK_DAN", "4"))   # 4 = petak
+                    hh = int(os.getenv("WHATSAPP_PODSJETNIK_SAT", "15"))
+                    mm = int(os.getenv("WHATSAPP_PODSJETNIK_MIN", "0"))
+                    if (now.weekday() == wd and now.hour == hh and now.minute == mm
+                            and _job_fire_once("wa_podsjetnici", fired_key)):
+                        threading.Thread(target=_wa_auto_podsjetnici, daemon=True).start()
+                except Exception as e:
+                    monitoring.warning(f"WhatsApp podsjetnik raspored: {e}",
+                                       source="wa_podsjetnici")
 
             # --- ciscenje: poslani jednokratni stariji od 2 dana ---
             with db() as conn:
@@ -1042,6 +1082,22 @@ def handle_wa_token(message):
                      daemon=True).start()
 
 
+def _wa_podsjetnici_worker(chat_id):
+    try:
+        # Rucno okidanje radi i kad je automatika iskljucena (force=True).
+        sazetak = whatsapp_podsjetnici.posalji_tjedne(force=True)
+        safe_send(chat_id, sazetak)
+    except Exception as e:
+        monitoring.error("Greska u /wa_podsjetnici", source="wa_podsjetnici", exc=e)
+        safe_send(chat_id, f"❌ Greška pri slanju podsjetnika: {e}")
+
+
+def handle_wa_podsjetnici(message):
+    bot.reply_to(message, "⏳ Šaljem tjedne podsjetnike vozačima…")
+    threading.Thread(target=_wa_podsjetnici_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 def _wa_send_worker(chat_id, broj, tekst):
     try:
         res = whatsapp.send_text(broj, tekst)
@@ -1101,7 +1157,8 @@ def wa_dolazna_poruka(frm, ime, msg):
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
-                               'wa_register', 'wa_test', 'wa_send', 'wa_token'])
+                               'wa_register', 'wa_test', 'wa_send', 'wa_token',
+                               'wa_podsjetnici'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1110,6 +1167,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/wa_podsjetnici'):
+        handle_wa_podsjetnici(message)
         return
 
     if cmd.startswith('/wa_token'):
