@@ -22,7 +22,13 @@ from datetime import timedelta
 import racuni
 import whatsapp
 import whatsapp_racuni
+import graph_client
 import monitoring
+
+# Evidencija sati → SharePoint Excel (uz bazu wa_sati)
+_SATI_FILE = "Evidencija_sati.xlsx"
+_SATI_TABLE = "Sati"
+_SATI_COLS = ["Datum", "Vrijeme", "Ime", "Broj", "Tip"]
 
 _stanje = {}            # broj → {"tok": ..., ...}  (meni-tokovi, ne računi)
 _lock = threading.RLock()
@@ -268,6 +274,43 @@ def _tok(frm, ime, msg, st):
     _posalji_meni(frm, ime)
 
 
+def _sati_workbook_bytes(rows):
+    """Novi xlsx s tablicom 'Sati' (za prvi upis kad datoteka ne postoji)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.worksheet.table import Table, TableStyleInfo
+    from openpyxl.utils import get_column_letter
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _SATI_TABLE
+    ws.append(_SATI_COLS)
+    for r in rows:
+        ws.append(r)
+    last = get_column_letter(len(_SATI_COLS))
+    tab = Table(displayName=_SATI_TABLE, ref=f"A1:{last}{ws.max_row}")
+    tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True)
+    ws.add_table(tab)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _sati_u_excel(now, ime, broj, tip):
+    """Dopiši redak u Evidencija_sati.xlsx na SharePointu (best-effort).
+    Kreira datoteku ako ne postoji. Zove se u pozadinskom threadu."""
+    if not graph_client.is_configured():
+        return
+    row = [now.strftime("%d.%m.%Y"), now.strftime("%H:%M"),
+           ime, broj, "Dolazak" if tip == "dolazak" else "Odlazak"]
+    try:
+        if not graph_client.file_exists(_SATI_FILE):
+            graph_client.upload_file(_SATI_FILE, _sati_workbook_bytes([row]))
+            return
+        graph_client.append_or_fill_table_rows(_SATI_FILE, _SATI_TABLE, [row])
+    except Exception as e:
+        monitoring.warning(f"WA sati → SharePoint nije uspio: {e}", source="wa_meni")
+
+
 def _zabiljezi_sat(frm, ime, tip):
     _clear(frm)
     now = racuni._now()
@@ -282,6 +325,9 @@ def _zabiljezi_sat(frm, ime, tip):
     rijec = "Dolazak" if tip == "dolazak" else "Odlazak"
     kada = now.strftime("%d.%m.%Y %H:%M")
     whatsapp.send_text(frm, f"✅ {rijec} zabilježen: {kada}.")
+    # SharePoint Excel upis u pozadini (ne blokira odgovor radniku).
+    threading.Thread(target=_sati_u_excel, args=(now, ime or frm, frm, tip),
+                     daemon=True).start()
     if _obavijesti:
         try:
             _obavijesti(f"🕒 {rijec} — {ime or frm} ({frm}) u {kada}")
