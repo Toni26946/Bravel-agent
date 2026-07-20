@@ -455,28 +455,67 @@ def send_msg(chat_id, text, markup=None):
         return None
 
 
-# ==================== ŽIVI CHAT (PODRŠKA) ====================
-# Most Flota OS chat <-> Telegram vlasnici. Dolazna korisnikova poruka -> svim
-# vlasnicima; njihov odgovor (/podrska <id> <tekst> ili reply na obavijest) ->
-# natrag korisniku preko WebSocketa (podrska.posalji_klijentu).
-_podrska_reply_map = {}   # (chat_id, message_id) -> session_id  (za reply-routing)
+# ==================== ŽIVI CHAT (PODRŠKA) — AI ASISTENT ====================
+# Dispečeri na Floti OS razgovaraju s AI-jem (Claude). Dolazna poruka -> AI
+# generira odgovor -> natrag korisniku preko WebSocketa (podrska.posalji_klijentu).
+# Povijest po sesiji (za kontekst razgovora) drži se u RAM-u; briše se kad se
+# sesija zatvori. Vlasnici NE moraju odgovarati; /podrska ostaje kao admin uvid
+# (popis) i ručno ubacivanje poruke (override) ako baš treba ljudski upad.
+PODRSKA_SYSTEM_PROMPT = (
+    "Ti si podrška za web-aplikaciju Flota OS (Jarvis) tvrtke Bravel d.o.o. "
+    "Razgovaraš s internim korisnicima (dispečerima i uredom). Pomoć je o KORIŠTENJU "
+    "Flote OS: živa karta i pozicije vozila, rute i putanje, planirane i optimalne ture, "
+    "gorivo i potrošnja, prihod, benzinske i cijene goriva, status vozila, usporedbe vozača. "
+    "Odgovaraj KRATKO, jasno i na hrvatskom, praktičnim koracima. "
+    "NEMAŠ pristup uživo podacima (ne vidiš trenutne pozicije/brojke) — objasni kako korisnik "
+    "to sam pronađe u aplikaciji, ne izmišljaj konkretne podatke. Ako je pitanje izvan Flote OS "
+    "ili traži ljudsku intervenciju/ovlasti, reci da to proslijede vlasnicima (Toni/ured). "
+    "Budi ljubazan i konkretan; bez izmišljanja funkcija kojih nema."
+)
+_podrska_hist = {}          # session_id -> [{"role","content"}]
+_podrska_hist_lock = threading.Lock()
+_PODRSKA_HIST_LIMIT = 20    # zadnjih 20 poruka (10 izmjena) po sesiji
 
 
-def _podrska_dolazna(session_id, ime, tekst):
-    """Callback iz web_api/podrska (aiohttp thread, preko executora): javi
-    dolaznu chat poruku svim vlasnicima i zapamti message_id za reply-routing."""
-    poruka = (f"🆘 Podrška #{session_id} · {ime}:\n{tekst}\n\n"
-              f"↩️ Odgovori: /podrska {session_id} <poruka>  (ili reply na ovu poruku)")
-    for uid in ALLOWED_USERS:
-        m = send_msg(uid, poruka)
-        if m is not None:
-            _podrska_reply_map[(uid, m.message_id)] = session_id
+def _podrska_ai_odgovori(session_id, ime, tekst):
+    """Callback iz podrska (aiohttp executor thread): AI generira odgovor na
+    korisnikovu poruku i šalje ga natrag u chat. Povijest po sesiji za kontekst."""
+    try:
+        with _podrska_hist_lock:
+            hist = list(_podrska_hist.get(session_id, []))
+        messages = hist + [{"role": "user", "content": tekst}]
+        resp = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=800,
+            system=PODRSKA_SYSTEM_PROMPT,
+            messages=messages,
+            temperature=0.4,
+        )
+        odg = resp.content[0].text
+        with _podrska_hist_lock:
+            h = _podrska_hist.setdefault(session_id, [])
+            h.append({"role": "user", "content": tekst})
+            h.append({"role": "assistant", "content": odg})
+            _podrska_hist[session_id] = h[-_PODRSKA_HIST_LIMIT:]
+        podrska.posalji_klijentu(session_id, odg, od="Podrška")
+    except Exception as e:
+        monitoring.error("Podrška AI odgovor nije uspio", source="podrska", exc=e)
+        podrska.posalji_klijentu(
+            session_id,
+            "Ispričavam se, trenutno ne mogu odgovoriti. Pokušajte ponovno za koji trenutak.",
+            od="Podrška")
+
+
+def _podrska_zatvori(session_id):
+    """Sesija zatvorena -> oslobodi povijest razgovora."""
+    with _podrska_hist_lock:
+        _podrska_hist.pop(session_id, None)
 
 
 def _podrska_worker(chat_id, arg):
-    """Komanda /podrska:
+    """Komanda /podrska (admin uvid; na podršku odgovara AI):
       /podrska                 -> popis aktivnih chat sesija
-      /podrska <id> <tekst>    -> pošalji odgovor korisniku u tu sesiju."""
+      /podrska <id> <tekst>    -> ručno ubaci poruku korisniku (ljudski override)."""
     try:
         arg = (arg or "").strip()
         if not arg:
@@ -484,11 +523,11 @@ def _podrska_worker(chat_id, arg):
             if not sesije:
                 safe_send(chat_id, "💬 Nema aktivnih chat sesija podrške.")
                 return
-            linije = ["💬 Aktivne sesije podrške:"]
+            linije = ["💬 Aktivne sesije podrške (odgovara AI):"]
             for s in sesije:
                 zadnja = f" — „{s['zadnja']}”" if s.get("zadnja") else ""
                 linije.append(f"• #{s['id']} · {s['ime']}{zadnja}")
-            linije.append("\nOdgovori: /podrska <id> <poruka>")
+            linije.append("\nRučni upad (override): /podrska <id> <poruka>")
             safe_send(chat_id, "\n".join(linije))
             return
         parts = arg.split(maxsplit=1)
@@ -511,25 +550,6 @@ def handle_podrska(message):
     arg = parts[1] if len(parts) > 1 else ""
     threading.Thread(target=_podrska_worker, args=(message.chat.id, arg),
                      daemon=True).start()
-
-
-def _podrska_reply_routing(message):
-    """Ako je poruka reply na obavijest o chatu, proslijedi je korisniku.
-    Vrati True ako je obrađena (dalje se ne procesira kao AI/podsjetnik)."""
-    r = getattr(message, "reply_to_message", None)
-    if r is None:
-        return False
-    sid = _podrska_reply_map.get((message.chat.id, r.message_id))
-    if not sid:
-        return False
-    tekst = (message.text or "").strip()
-    if not tekst:
-        return False
-    if podrska.posalji_klijentu(sid, tekst):
-        bot.reply_to(message, f"✅ Poslano korisniku (#{sid}).")
-    else:
-        bot.reply_to(message, f"⚠️ Sesija #{sid} više nije aktivna.")
-    return True
 
 
 def snooze_markup(reminder_id):
@@ -1680,10 +1700,6 @@ def handle(message):
     text = message.text.strip()
     lower = text.lower()
 
-    # 0a. Zivi chat (podrska): reply na obavijest o chatu -> proslijedi korisniku.
-    if _podrska_reply_routing(message):
-        return
-
     # 0. Racuni: pending stanja (npr. cekamo GB ili ispravak) i /vozac_*
     #    komande. Ako racuni "pojede" poruku, ne idemo dalje.
     if racuni.handle_text(message):
@@ -1809,7 +1825,8 @@ if __name__ == "__main__":
 
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
-    web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_dolazna)
+    podrska.set_on_zatvoreno(_podrska_zatvori)
+    web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_ai_odgovori)
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()

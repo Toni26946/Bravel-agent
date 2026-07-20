@@ -67,21 +67,22 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   stranica chata (bez frontenda)
 - Namjena: Flota OS (Jarvis) živa karta — FAZA 2 u tijeku
 
-## Podrška — živi chat (od 20.7., modul podrska.py)
-- Namjena: interni korisnici (dispečeri) na Floti OS otvore chat; vlasnici su
-  podrška na Telegramu. Odabir opsega: interni + web forma + živi chat.
+## Podrška — živi chat s AI-jem (od 20.7., modul podrska.py)
+- Namjena: interni korisnici (dispečeri) na Floti OS razgovaraju s AI ASISTENTOM
+  (Claude haiku) o korištenju Flote OS. NIJE most na čovjeka — AI odgovara.
 - Backend: WebSocket u web_api (aiohttp) — /api/podrska/ws (štiti key=FLOTA_OS_KEY).
-  Sesija = kratki numerički id. Korisnikova poruka → callback _podrska_dolazna
-  → svim ALLOWED_USERS na Telegram. Vlasnik odgovori: /podrska <id> <tekst> ILI
-  reply na obavijest → podrska.posalji_klijentu → natrag korisniku preko WS-a.
-- Niti: aiohttp loop (WS) i Telegram thread razdvojeni; korisnik→Telegram ide
-  run_in_executor (ne blokira loop), Telegram→korisnik ide call_soon_threadsafe
-  u sesijin asyncio.Queue. Sesije u memoriji (ephemeralno; nestaju na restart).
-- Telegram (owner): /podrska (popis aktivnih sesija), /podrska <id> <tekst>.
-- Demo/test: GET /api/podrska (samostalna HTML chat stranica; upišeš
-  FLOTA_OS_KEY i ime pa testiraš bez Flota OS frontenda).
-- Frontend (Flota OS) samo otvori WS na /api/podrska/ws?key=…&ime=…, šalje
-  {tekst:"…"} i prima {tip:"podrska"|"sustav", od, tekst, vrijeme}.
+  Korisnikova poruka → callback _podrska_ai_odgovori (main.py): client.messages.create
+  s PODRSKA_SYSTEM_PROMPT + povijest sesije → odgovor natrag preko WS-a
+  (podrska.posalji_klijentu). Povijest po sesiji u RAM-u (_podrska_hist), briše se
+  na zatvaranje (set_on_zatvoreno → _podrska_zatvori).
+- Niti: AI poziv (blokirajući) ide u run_in_executor (ne blokira aiohttp loop);
+  odgovor u sesijin asyncio.Queue preko call_soon_threadsafe. Sesije ephemeralne.
+- Telegram (owner): /podrska (popis aktivnih sesija; odgovara AI), /podrska <id>
+  <tekst> = ručni ljudski upad (override) ako baš treba.
+- Demo/test: GET /api/podrska (samostalna HTML chat stranica; FLOTA_OS_KEY + ime).
+- Flota OS (repo toni26946/flota-os): frontend widget PodrskaChat.jsx + backend
+  WS proxy /api/podrska/ws (dodaje server-side ključ) → spaja se na ovaj WS.
+  Poruke: šalje {tekst}, prima {tip:"podrska"|"sustav", od, tekst, vrijeme}.
 
 ## Benzinske / cijene goriva (od 16.7., modul benzinske.py)
 - Registar lanaca koje Bravel koristi: maloprodaja (Adria Oil, Tifon, Shell,

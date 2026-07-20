@@ -32,7 +32,8 @@ import monitoring
 MAX_HIST = 50  # koliko zadnjih poruka pamtimo po sesiji (za kontekst)
 
 _loop = None        # aiohttp event loop (postavlja se u configure)
-_on_client = None   # callback(session_id, ime, text) -> forward na Telegram
+_on_client = None   # callback(session_id, ime, text) -> generira AI odgovor
+_on_zatvoreno = None  # callback(session_id) -> pospremi (npr. obrisi povijest)
 _sessions = {}      # id(str) -> Session
 _seq = count(1)     # izvor kratkih numerickih id-eva
 
@@ -69,6 +70,11 @@ def set_on_client(cb):
     _on_client = cb
 
 
+def set_on_zatvoreno(cb):
+    global _on_zatvoreno
+    _on_zatvoreno = cb
+
+
 # ==================== WEBSOCKET (klijent <-> podrska) ====================
 
 async def ws_handler(request):
@@ -84,11 +90,8 @@ async def ws_handler(request):
     _log(f"nova sesija #{sid} ({ime})")
 
     await ws.send_json({"tip": "sustav", "session": sid,
-                        "tekst": f"Spojeni ste na podršku (#{sid}). Napišite poruku.",
+                        "tekst": "Podrška Flota OS (AI asistent). Kako vam mogu pomoći?",
                         "vrijeme": _now_iso()})
-
-    # Obavijesti vlasnike da je chat otvoren (best-effort, ne blokira).
-    await _forward(sid, ime, "[otvoren chat]")
 
     async def pump():
         """Salje poruke podrske (iz reda) klijentu."""
@@ -121,10 +124,12 @@ async def ws_handler(request):
         sess.queue.put_nowait(None)
         pump_task.cancel()
         _sessions.pop(sid, None)
+        if _on_zatvoreno:
+            try:
+                _on_zatvoreno(sid)
+            except Exception:
+                pass
         _log(f"zatvorena sesija #{sid}")
-        # Obavijest o zatvaranju (fire-and-forget, ne blokira gasenje).
-        if _on_client and _loop is not None:
-            _loop.run_in_executor(None, _safe_on_client, sid, ime, "[zatvoren chat]")
     return ws
 
 
