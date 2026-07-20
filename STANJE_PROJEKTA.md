@@ -62,7 +62,26 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - GET /api/benzinske → registar lanaca (Adria Oil, Tifon, Shell, Petrol,
   Brebrić, AS24, DKV) s lokacijom/izvorom + zadnjim cijenama i promjenom;
   header X-Api-Key = FLOTA_OS_KEY; čita iz baze (bez vanjskih poziva)
+- WS /api/podrska/ws?key=FLOTA_OS_KEY&ime=… → živi chat podrške (interni
+  korisnici Flote OS ↔ vlasnici na Telegramu); GET /api/podrska = demo/test
+  stranica chata (bez frontenda)
 - Namjena: Flota OS (Jarvis) živa karta — FAZA 2 u tijeku
+
+## Podrška — živi chat (od 20.7., modul podrska.py)
+- Namjena: interni korisnici (dispečeri) na Floti OS otvore chat; vlasnici su
+  podrška na Telegramu. Odabir opsega: interni + web forma + živi chat.
+- Backend: WebSocket u web_api (aiohttp) — /api/podrska/ws (štiti key=FLOTA_OS_KEY).
+  Sesija = kratki numerički id. Korisnikova poruka → callback _podrska_dolazna
+  → svim ALLOWED_USERS na Telegram. Vlasnik odgovori: /podrska <id> <tekst> ILI
+  reply na obavijest → podrska.posalji_klijentu → natrag korisniku preko WS-a.
+- Niti: aiohttp loop (WS) i Telegram thread razdvojeni; korisnik→Telegram ide
+  run_in_executor (ne blokira loop), Telegram→korisnik ide call_soon_threadsafe
+  u sesijin asyncio.Queue. Sesije u memoriji (ephemeralno; nestaju na restart).
+- Telegram (owner): /podrska (popis aktivnih sesija), /podrska <id> <tekst>.
+- Demo/test: GET /api/podrska (samostalna HTML chat stranica; upišeš
+  FLOTA_OS_KEY i ime pa testiraš bez Flota OS frontenda).
+- Frontend (Flota OS) samo otvori WS na /api/podrska/ws?key=…&ime=…, šalje
+  {tekst:"…"} i prima {tip:"podrska"|"sustav", od, tekst, vrijeme}.
 
 ## Benzinske / cijene goriva (od 16.7., modul benzinske.py)
 - Registar lanaca koje Bravel koristi: maloprodaja (Adria Oil, Tifon, Shell,
