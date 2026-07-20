@@ -28,6 +28,7 @@ import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposle
 import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
+import podrska     # živi chat (podrška) za internu Flotu OS
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
 
 # ==================== KONFIGURACIJA ====================
@@ -442,6 +443,93 @@ def safe_send(chat_id, text, markup=None):
         print(f"Greska pri slanju poruke ({chat_id}): {e}")
         monitoring.warning(f"Slanje poruke nije uspjelo ({chat_id}): {e}", source="safe_send")
         return False
+
+
+def send_msg(chat_id, text, markup=None):
+    """Kao safe_send, ali vrati message objekt (ili None) — treba za mapiranje
+    reply-a (živi chat podrške) na message_id."""
+    try:
+        return bot.send_message(chat_id, text, reply_markup=markup)
+    except Exception as e:
+        monitoring.warning(f"Slanje poruke nije uspjelo ({chat_id}): {e}", source="send_msg")
+        return None
+
+
+# ==================== ŽIVI CHAT (PODRŠKA) ====================
+# Most Flota OS chat <-> Telegram vlasnici. Dolazna korisnikova poruka -> svim
+# vlasnicima; njihov odgovor (/podrska <id> <tekst> ili reply na obavijest) ->
+# natrag korisniku preko WebSocketa (podrska.posalji_klijentu).
+_podrska_reply_map = {}   # (chat_id, message_id) -> session_id  (za reply-routing)
+
+
+def _podrska_dolazna(session_id, ime, tekst):
+    """Callback iz web_api/podrska (aiohttp thread, preko executora): javi
+    dolaznu chat poruku svim vlasnicima i zapamti message_id za reply-routing."""
+    poruka = (f"🆘 Podrška #{session_id} · {ime}:\n{tekst}\n\n"
+              f"↩️ Odgovori: /podrska {session_id} <poruka>  (ili reply na ovu poruku)")
+    for uid in ALLOWED_USERS:
+        m = send_msg(uid, poruka)
+        if m is not None:
+            _podrska_reply_map[(uid, m.message_id)] = session_id
+
+
+def _podrska_worker(chat_id, arg):
+    """Komanda /podrska:
+      /podrska                 -> popis aktivnih chat sesija
+      /podrska <id> <tekst>    -> pošalji odgovor korisniku u tu sesiju."""
+    try:
+        arg = (arg or "").strip()
+        if not arg:
+            sesije = podrska.aktivne()
+            if not sesije:
+                safe_send(chat_id, "💬 Nema aktivnih chat sesija podrške.")
+                return
+            linije = ["💬 Aktivne sesije podrške:"]
+            for s in sesije:
+                zadnja = f" — „{s['zadnja']}”" if s.get("zadnja") else ""
+                linije.append(f"• #{s['id']} · {s['ime']}{zadnja}")
+            linije.append("\nOdgovori: /podrska <id> <poruka>")
+            safe_send(chat_id, "\n".join(linije))
+            return
+        parts = arg.split(maxsplit=1)
+        sid = parts[0]
+        tekst = parts[1].strip() if len(parts) > 1 else ""
+        if not tekst:
+            safe_send(chat_id, f"Napiši poruku: /podrska {sid} <poruka>")
+            return
+        if podrska.posalji_klijentu(sid, tekst):
+            safe_send(chat_id, f"✅ Poslano korisniku (#{sid}).")
+        else:
+            safe_send(chat_id, f"⚠️ Sesija #{sid} više nije aktivna (korisnik je zatvorio chat).")
+    except Exception as e:
+        monitoring.error("Greška u /podrska", source="podrska", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_podrska(message):
+    parts = message.text.split(maxsplit=1)
+    arg = parts[1] if len(parts) > 1 else ""
+    threading.Thread(target=_podrska_worker, args=(message.chat.id, arg),
+                     daemon=True).start()
+
+
+def _podrska_reply_routing(message):
+    """Ako je poruka reply na obavijest o chatu, proslijedi je korisniku.
+    Vrati True ako je obrađena (dalje se ne procesira kao AI/podsjetnik)."""
+    r = getattr(message, "reply_to_message", None)
+    if r is None:
+        return False
+    sid = _podrska_reply_map.get((message.chat.id, r.message_id))
+    if not sid:
+        return False
+    tekst = (message.text or "").strip()
+    if not tekst:
+        return False
+    if podrska.posalji_klijentu(sid, tekst):
+        bot.reply_to(message, f"✅ Poslano korisniku (#{sid}).")
+    else:
+        bot.reply_to(message, f"⚠️ Sesija #{sid} više nije aktivna.")
+    return True
 
 
 def snooze_markup(reminder_id):
@@ -1459,7 +1547,8 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
-                               'wa_kreiraj_predloske', 'wa_predlozak', 'benzinske'])
+                               'wa_kreiraj_predloske', 'wa_predlozak',
+                               'benzinske', 'podrska'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1472,6 +1561,10 @@ def command_handler(message):
 
     if cmd.startswith('/benzinske'):
         handle_benzinske(message)
+        return
+
+    if cmd.startswith('/podrska'):
+        handle_podrska(message)
         return
 
     if cmd.startswith('/wa_kreiraj_predloske'):
@@ -1586,6 +1679,10 @@ def handle(message):
 
     text = message.text.strip()
     lower = text.lower()
+
+    # 0a. Zivi chat (podrska): reply na obavijest o chatu -> proslijedi korisniku.
+    if _podrska_reply_routing(message):
+        return
 
     # 0. Racuni: pending stanja (npr. cekamo GB ili ispravak) i /vozac_*
     #    komande. Ako racuni "pojede" poruku, ne idemo dalje.
@@ -1712,7 +1809,7 @@ if __name__ == "__main__":
 
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
-    web_api.start(on_incoming=wa_dolazna_poruka)
+    web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_dolazna)
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()

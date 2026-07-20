@@ -27,6 +27,7 @@ from aiohttp import web
 
 import mobilisis
 import benzinske
+import podrska
 import monitoring
 
 # ---- Konfiguracija ----
@@ -45,6 +46,7 @@ _API_KEY = os.getenv("FLOTA_OS_KEY", "").strip()
 # koji main.py registrira da proslijedi dolazne poruke na Telegram.
 _WA_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip()
 _on_incoming = None
+_on_support = None   # callback za dolazne poruke iz živog chata (podrška)
 
 # ---- Kes zadnjeg uspjesnog dohvata (dijeljen unutar jednog event loopa) ----
 #   ts   = time.monotonic() zadnjeg uspjesnog dohvata (za TTL)
@@ -190,6 +192,21 @@ async def handle_benzinske(request):
     return _json({"vrijeme_dohvata": _now_iso(), "lanci": podaci})
 
 
+async def handle_podrska_ws(request):
+    """WebSocket živog chata (podrška). Štiti ?key=FLOTA_OS_KEY (isti kao API);
+    zatim delegira na podrska.ws_handler."""
+    if not _API_KEY:
+        return _json({"error": "Server nije konfiguriran (FLOTA_OS_KEY)."}, status=503)
+    if request.query.get("key", "") != _API_KEY:
+        return _json({"error": "Neispravan ili nedostajući key."}, status=401)
+    return await podrska.ws_handler(request)
+
+
+async def handle_podrska_demo(request):
+    """Demo/test chat stranica (bez frontenda). Ključ se upisuje u samoj stranici."""
+    return await podrska.handle_demo(request)
+
+
 # ==================== WhatsApp webhook ====================
 
 async def handle_wa_webhook_verify(request):
@@ -315,6 +332,9 @@ async def _cors_mw(request, handler):
         resp = web.Response(status=204)
     else:
         resp = await handler(request)
+    # WebSocket odgovor je vec pripremljen (upgrade) — ne diraj mu headere.
+    if isinstance(resp, web.WebSocketResponse) or getattr(resp, "prepared", False):
+        return resp
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     resp.headers["Access-Control-Allow-Headers"] = "X-Api-Key, Content-Type"
@@ -355,11 +375,17 @@ def _run():
         asyncio.set_event_loop(loop)
         _fetch_lock = asyncio.Lock()
 
+        # Živi chat (podrška): dajemo mu ovaj loop (za thread-safe predaju
+        # poruka) i callback prema Telegramu.
+        podrska.configure(loop, _on_support)
+
         app = web.Application(middlewares=[_cors_mw])
         app.router.add_get("/zdrav", handle_zdrav)
         app.router.add_get("/api/pozicije", handle_pozicije)
         app.router.add_get("/api/putanja", handle_putanja)
         app.router.add_get("/api/benzinske", handle_benzinske)
+        app.router.add_get("/api/podrska/ws", handle_podrska_ws)
+        app.router.add_get("/api/podrska", handle_podrska_demo)
         app.router.add_get("/whatsapp/webhook", handle_wa_webhook_verify)
         app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
         app.router.add_get("/privatnost", handle_privatnost)
@@ -370,7 +396,7 @@ def _run():
 
         _log(f"HTTP server sluša na 0.0.0.0:{PORT} "
              f"(rute: /zdrav, /api/pozicije, /api/putanja, /api/benzinske, "
-             f"/whatsapp/webhook, /privatnost)")
+             f"/api/podrska(+/ws), /whatsapp/webhook, /privatnost)")
         monitoring.info(f"Web API pokrenut na portu {PORT}", source="web_api")
         loop.run_forever()
     except Exception as e:
@@ -379,7 +405,7 @@ def _run():
                          source="web_api", exc=e)
 
 
-def start(on_incoming=None):
+def start(on_incoming=None, on_support=None):
     """UVIJEK diže HTTP server u zasebnom daemon threadu. Server mora slušati
     na portu 8080 da Fly health/smoke check kod deploya prođe (fly.toml ima
     [http_service]) i da /zdrav odgovara. Ako FLOTA_OS_KEY nije postavljen,
@@ -390,9 +416,14 @@ def start(on_incoming=None):
 
     on_incoming(from, ime, msg) — opcionalni callback za dolazne WhatsApp
     poruke; msg je cijeli message dict (tip, text, image, interactive…).
-    main.py ga veže na dispatcher (obrada računa / obavijest vlasniku)."""
-    global _on_incoming
+    main.py ga veže na dispatcher (obrada računa / obavijest vlasniku).
+
+    on_support(session_id, ime, tekst) — opcionalni callback za dolazne poruke
+    iz živog chata (podrška); main.py javi vlasnicima na Telegram."""
+    global _on_incoming, _on_support
     _on_incoming = on_incoming
+    if on_support is not None:
+        _on_support = on_support
     try:
         if not is_configured():
             _log("UPOZORENJE: FLOTA_OS_KEY nije postavljen — /api/pozicije vraća 503 "
