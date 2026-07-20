@@ -63,6 +63,13 @@ def is_allowed(frm):
     return frm in allowed_set()
 
 
+def zauzet(frm):
+    """True ako je za taj broj aktivan tok računa/primke (sesija, sakupljanje
+    stranica ili obrada) — izbornik tad ne preuzima poruku."""
+    with _lock:
+        return frm in _sessions or frm in _pending or frm in _obrada
+
+
 def _drivers_map():
     """WHATSAPP_DRIVERS → {broj: (ime, zadani_gb ili None)}.
     Format (entry sep ';' ili novi red): '385994396448=Ivan Ivić:GB123-AB'

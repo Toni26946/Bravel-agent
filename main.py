@@ -25,6 +25,7 @@ import backup      # dnevni backup bot.db na SharePoint
 import mobilisis   # GPS pozicije vozila (Mobilisis Fleet) za /gdje
 import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin komande
 import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposlenici)
+import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
@@ -607,6 +608,12 @@ def check_reminders():
                         threading.Thread(target=_benzinske_auto, daemon=True).start()
                 except Exception as e:
                     monitoring.warning(f"Benzinske raspored: {e}", source="benzinske")
+
+            # --- radnički WhatsApp podsjetnici (dospjeli) ---
+            try:
+                whatsapp_meni.posalji_dospjele()
+            except Exception as e:
+                monitoring.warning(f"WA podsjetnici isporuka: {e}", source="wa_meni")
 
             # --- ciscenje: poslani jednokratni stariji od 2 dana ---
             with db() as conn:
@@ -1255,6 +1262,11 @@ _WA_PREDLOSCI_DEF = [
                  "Za pitanja odgovori na ovaj broj.",
          "example": {"body_text": [["Ivan", "Molim te nazovi ured kad staneš."]]}},
         {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+    {"name": "podsjetnik_opci", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "🔔 Podsjetnik: {{1}}",
+         "example": {"body_text": [["natoči gorivo prije polaska"]]}},
+        {"type": "FOOTER", "text": "Bravel d.o.o."}]},
 ]
 
 
@@ -1423,7 +1435,7 @@ def handle_wa_send(message):
 def wa_dolazna_poruka(frm, ime, msg):
     try:
         if whatsapp_racuni.is_allowed(frm):
-            whatsapp_racuni.handle(frm, ime, msg)
+            whatsapp_meni.obradi(frm, ime, msg)   # izbornik + tokovi (računi, kvar, sati…)
             return
     except Exception as e:
         monitoring.error("WhatsApp dispatch nije uspio", source="main", exc=e)
@@ -1652,6 +1664,19 @@ if __name__ == "__main__":
                  allowed_users=ALLOWED_USERS, tz=TZ, log_note=log_note)
     racuni.init_db()
     racuni.register(bot)
+
+    # WhatsApp izbornik (upravljačka ploča za radnike): ubrizgaj Mobilisis lookup
+    # (za „Gdje je vozilo”) i obavijest vlasnicima na Telegram (za „Prijava kvara”,
+    # „Evidencija sati”). Kreira tablice wa_sati / wa_podsjetnici.
+    def _wa_obavijesti_vlasnike(text):
+        for uid in ALLOWED_USERS:
+            safe_send(uid, text)
+
+    def _wa_gdje_lookup(query):
+        return _format_gdje(mobilisis.lookup(query), query)
+
+    whatsapp_meni.setup(gdje_lookup=_wa_gdje_lookup,
+                        obavijesti=_wa_obavijesti_vlasnike)
 
     # Ispis registriranih handlera (redoslijed = prioritet matchanja u telebotu).
     def _dump_handlers():

@@ -149,6 +149,31 @@ def send_buttons(to, body, buttons):
     return {"ok": ok, "status": status, "data": data}
 
 
+def send_list(to, body, button_label, rows, header=None):
+    """Interaktivni IZBORNIK (list) s do 10 stavki — više od 3 gumba.
+    rows = [(id, naslov, opis), …] (opis može biti ""). Radi unutar 24 h prozora.
+    Naslov stavke max 24 znaka, opis max 72, gumb max 20."""
+    r = [{"id": str(rid)[:200], "title": naslov[:24],
+          **({"description": opis[:72]} if opis else {})}
+         for rid, naslov, opis in rows[:10]]
+    inter = {"type": "list",
+             "body": {"text": body[:1024]},
+             "action": {"button": button_label[:20],
+                        "sections": [{"title": "Opcije", "rows": r}]}}
+    if header:
+        inter["header"] = {"type": "text", "text": header[:60]}
+    status, data = _post(
+        f"{_phone_id()}/messages",
+        {"messaging_product": "whatsapp", "to": str(to), "type": "interactive",
+         "interactive": inter},
+    )
+    ok = status == 200 and isinstance(data, dict) and "messages" in data
+    if not ok:
+        monitoring.warning(f"WhatsApp send_list nije uspio: HTTP {status} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": status, "data": data}
+
+
 def debug_token():
     """Provjeri metapodatke WHATSAPP_TOKEN-a preko Graph /debug_token — BEZ
     otkrivanja samog tokena. Vrati {ok, status, data}. Ključno u data['data']:
