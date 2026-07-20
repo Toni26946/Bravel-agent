@@ -1124,6 +1124,51 @@ def handle_wa_token(message):
                      daemon=True).start()
 
 
+def _wa_predlozak_worker(chat_id, broj, naziv, varovi):
+    try:
+        comps = None
+        if varovi:
+            comps = [{"type": "body",
+                      "parameters": [{"type": "text", "text": v} for v in varovi]}]
+        res = whatsapp.send_template(broj, naziv, "hr", components=comps)
+        if res["ok"]:
+            safe_send(chat_id, f"✅ Predložak „{naziv}” poslan na {broj}. Provjeri WhatsApp.")
+        else:
+            safe_send(chat_id,
+                      "❌ Slanje predloška nije uspjelo.\n\n"
+                      f"{whatsapp.opisi_gresku(res)}\n\n"
+                      f"Sirovi odgovor:\n{res['data']}"[:3800])
+    except whatsapp.WhatsAppError as e:
+        safe_send(chat_id, f"⚠️ {e}")
+    except Exception as e:
+        monitoring.error("Greska u /wa_predlozak", source="wa_predlozak", exc=e)
+        safe_send(chat_id, f"❌ Greška pri slanju predloška: {e}")
+
+
+def handle_wa_predlozak(message):
+    # /wa_predlozak <broj> <naziv> [var1 | var2 | ...]  (varijable odvojene s |)
+    parts = message.text.split(maxsplit=3)
+    if len(parts) < 3:
+        bot.reply_to(message,
+                     "Format:\n/wa_predlozak <broj> <naziv> [var1 | var2 | ...]\n"
+                     "npr: /wa_predlozak 0994396448 podsjetnik_racun Ivan | ovaj tjedan\n\n"
+                     "(šalje ODOBRENI predložak, jezik hr; varijable {{1}},{{2}}… "
+                     "odvoji znakom „|”)")
+        return
+    broj = _wa_broj(parts[1])
+    naziv = parts[2].strip()
+    varovi = []
+    if len(parts) > 3 and parts[3].strip():
+        varovi = [v.strip() for v in parts[3].split("|")]
+    if not broj.isdigit():
+        bot.reply_to(message, "Neispravan broj. Npr: /wa_predlozak 0994396448 "
+                              "podsjetnik_racun Ivan | ovaj tjedan")
+        return
+    bot.reply_to(message, "⏳ Šaljem predložak…")
+    threading.Thread(target=_wa_predlozak_worker,
+                     args=(message.chat.id, broj, naziv, varovi), daemon=True).start()
+
+
 _WA_STATUS_EMOJI = {
     "APPROVED": "✅", "PENDING": "🟡", "IN_APPEAL": "🟡",
     "PENDING_DELETION": "🟡", "REJECTED": "🔴", "DISABLED": "🔴",
@@ -1397,7 +1442,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
-                               'wa_kreiraj_predloske', 'benzinske'])
+                               'wa_kreiraj_predloske', 'wa_predlozak', 'benzinske'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1414,6 +1459,10 @@ def command_handler(message):
 
     if cmd.startswith('/wa_kreiraj_predloske'):
         handle_wa_kreiraj_predloske(message)
+        return
+
+    if cmd.startswith('/wa_predlozak'):
+        handle_wa_predlozak(message)
         return
 
     if cmd.startswith('/wa_predlosci'):
