@@ -135,10 +135,19 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
     token): tip, valjanost, kad istječe (expires_at=0 → permanentni ✅),
     dozvole. Ako nije permanentan → uputa za System User token „Never"
     POTVRĐENO 16.7.: token je SYSTEM_USER, permanentni (istječe NIKAD) ✅
-  - /wa_predlosci — status svih Meta predložaka preko Graph
-    /{WABA}/message_templates (APPROVED/PENDING/REJECTED); naši označeni ⭐.
-    WABA ID iz env WHATSAPP_WABA_ID (fallback 1482419453685574)
+  - /wa_predlosci [WABA_ID] — status predložaka; bez arg. lista SVE WABA-e
+    tokena (list_wabas), s arg. ciljanu. Naši označeni ⭐. WABA iz
+    WHATSAPP_WABA_ID (fallback 1482419453685574)
+  - /wa_kreiraj_predloske [WABA_ID] — kreira 4 UTILITY predloška (hr) na WABA-i
+    (default 1482) preko Graph API-ja (whatsapp.create_template)
+  - /wa_predlozak <broj> <naziv> [var1 | var2 | ...] — pošalji BILO KOJI
+    odobreni predložak (jezik hr; varijable odvojene s „|")
   - /wa_podsjetnici — ručno okine tjedne podsjetnike (force; v. dolje)
+  VAŽNO (16.7.): predlošci su bili kreirani na Test WABA-i (1596…), a broj je
+  na „Bravel doo" (1482…). Presloženi (kreirani) na 1482 preko
+  /wa_kreiraj_predloske → sad na ISTOJ WABA-i kao broj. Čekaju odobrenje.
+  Profilna slika (logo „B" iz brand loga) — postavlja se ručno u WhatsApp
+  Manageru (Phone numbers → Profile). Display name „Bravel doo" odobren.
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
