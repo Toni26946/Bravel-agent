@@ -1264,7 +1264,7 @@ _WA_PREDLOSCI_DEF = [
         {"type": "FOOTER", "text": "Bravel d.o.o."}]},
     {"name": "podsjetnik_opci", "category": "UTILITY", "language": "hr", "components": [
         {"type": "BODY",
-         "text": "🔔 Podsjetnik: {{1}}",
+         "text": "🔔 Podsjetnik koji si postavio:\n{{1}}\nHvala i ugodan dan!",
          "example": {"body_text": [["natoči gorivo prije polaska"]]}},
         {"type": "FOOTER", "text": "Bravel d.o.o."}]},
 ]
@@ -1272,7 +1272,7 @@ _WA_PREDLOSCI_DEF = [
 
 def _wa_kreiraj_worker(chat_id, waba_arg=None):
     waba = waba_arg or whatsapp._waba_id()
-    linije = [f"🛠️ Kreiram 4 predloška na WABA {waba}:"]
+    linije = [f"🛠️ Kreiram predloške na WABA {waba}:"]
     for d in _WA_PREDLOSCI_DEF:
         try:
             res = whatsapp.create_template(d["name"], d["category"], d["language"],
@@ -1287,7 +1287,12 @@ def _wa_kreiraj_worker(chat_id, waba_arg=None):
             st = (res["data"].get("status") or "PENDING")
             linije.append(f"✅ {d['name']} — {st}")
         else:
-            linije.append(f"❌ {d['name']}: {whatsapp.opisi_gresku(res)}")
+            err = (res.get("data") or {}).get("error", {}) if isinstance(res.get("data"), dict) else {}
+            sub = err.get("error_subcode") if isinstance(err, dict) else None
+            if sub == 2388024:   # ime već postoji na WABA-i → nije greška
+                linije.append(f"ℹ️ {d['name']} — već postoji")
+            else:
+                linije.append(f"❌ {d['name']}: {whatsapp.opisi_gresku(res)}")
     linije.append("\nProvjeri s /wa_predlosci — bit će PENDING dok Meta ne odobri.")
     safe_send(chat_id, "\n".join(linije)[:3900])
 
