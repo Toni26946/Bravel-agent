@@ -10,6 +10,7 @@
 import os
 import re
 import time
+import json
 import sqlite3
 import calendar
 import threading
@@ -462,36 +463,115 @@ def send_msg(chat_id, text, markup=None):
 # sesija zatvori. Vlasnici NE moraju odgovarati; /podrska ostaje kao admin uvid
 # (popis) i ručno ubacivanje poruke (override) ako baš treba ljudski upad.
 PODRSKA_SYSTEM_PROMPT = (
-    "Ti si podrška za web-aplikaciju Flota OS (Jarvis) tvrtke Bravel d.o.o. "
-    "Razgovaraš s internim korisnicima (dispečerima i uredom). Pomoć je o KORIŠTENJU "
-    "Flote OS: živa karta i pozicije vozila, rute i putanje, planirane i optimalne ture, "
-    "gorivo i potrošnja, prihod, benzinske i cijene goriva, status vozila, usporedbe vozača. "
-    "Odgovaraj KRATKO, jasno i na hrvatskom, praktičnim koracima. "
-    "NEMAŠ pristup uživo podacima (ne vidiš trenutne pozicije/brojke) — objasni kako korisnik "
-    "to sam pronađe u aplikaciji, ne izmišljaj konkretne podatke. Ako je pitanje izvan Flote OS "
-    "ili traži ljudsku intervenciju/ovlasti, reci da to proslijede vlasnicima (Toni/ured). "
-    "Budi ljubazan i konkretan; bez izmišljanja funkcija kojih nema."
+    "Ti si stručna podrška za web-aplikaciju Flota OS (Jarvis) tvrtke Bravel d.o.o. — "
+    "sustav za upravljanje flotom kamiona. Razgovaraš s internim korisnicima (dispečeri, ured).\n\n"
+    "ŠTO FLOTA OS IMA (ekrani/funkcije):\n"
+    "• Živa karta — trenutne GPS pozicije vozila (Mobilisis); klik na vozilo daje brzinu, "
+    "status motora i vrijeme; ruta/putanja vozila za zadnjih N sati.\n"
+    "• Planirane rute i Ture — dnevni nalozi i slaganje u ture; Optimalne ture / Optimizator "
+    "grupira naloge da se smanji prazan hod (VRP).\n"
+    "• Profitabilnost / Isplativost — marža po ruti/turi (km × stope: gorivo, cestarina, puni "
+    "trošak €/km, korekcija praznog hoda).\n"
+    "• Gorivo i Potrošnja — točenja i l/100km po vozilu/vozaču; Prihod — dnevni prihod iz naloga.\n"
+    "• Usporedba vozača, Troškovi, Status vozila (aktivno/pasivno/prodano), Benzinske i cijene goriva.\n\n"
+    "ALATI: imaš alate za ŽIVE podatke — cijene goriva (cijene_goriva) i GPS lokaciju vozila "
+    "(pozicija_vozila po registraciji ili garažnom broju). KORISTI ih kad korisnik pita o cijenama "
+    "goriva ili gdje je neki kamion; ne nagađaj brojke — dohvati ih. Ostale žive brojke (prihod, "
+    "profitabilnost, ture) NEMAŠ kao alat — uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
+    "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
+    "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
+    "uputi da proslijede vlasnicima (Toni/ured)."
 )
+
+# Anthropic tool-use: alati kojima podrška ČITA žive podatke (bravel-agent ih servira).
+PODRSKA_TOOLS = [
+    {
+        "name": "cijene_goriva",
+        "description": ("Trenutne cijene goriva po lancu (Adria Oil, Tifon, Shell, Petrol, "
+                        "Brebrić) sa smjerom promjene. Koristi za pitanja o cijenama goriva, "
+                        "najjeftinijem gorivu ili usporedbi lanaca."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "pozicija_vozila",
+        "description": ("Trenutna GPS lokacija jednog vozila po registraciji (npr. ZG1234AB) ILI "
+                        "garažnom broju (GB). Vraća koordinate, brzinu, status motora i vrijeme. "
+                        "Koristi kad korisnik pita gdje je neki kamion."),
+        "input_schema": {
+            "type": "object",
+            "properties": {"vozilo": {"type": "string",
+                           "description": "registracija ili garažni broj (GB) vozila"}},
+            "required": ["vozilo"],
+        },
+    },
+]
 _podrska_hist = {}          # session_id -> [{"role","content"}]
 _podrska_hist_lock = threading.Lock()
 _PODRSKA_HIST_LIMIT = 20    # zadnjih 20 poruka (10 izmjena) po sesiji
 
 
+def _podrska_cijene_kompaktno():
+    """Kompaktan sažetak cijena (bez lokacija postaja) za AI alat."""
+    out = []
+    for l in benzinske.trenutno():
+        if l.get("goriva"):
+            g = {x["gorivo"]: {"cijena": x["cijena"], "smjer": x.get("smjer")}
+                 for x in l["goriva"]}
+            out.append({"lanac": l["naziv"], "goriva": g})
+        elif l.get("tip") == "kartica":
+            out.append({"lanac": l["naziv"], "napomena": "kartična mreža — nema javne cijene"})
+    return out
+
+
+def _podrska_alat(naziv, ulaz):
+    """Izvrši alat koji je AI zatražio. Vrati JSON-spreman rezultat."""
+    try:
+        if naziv == "cijene_goriva":
+            return {"cijene": _podrska_cijene_kompaktno()}
+        if naziv == "pozicija_vozila":
+            return mobilisis.lookup((ulaz or {}).get("vozilo", ""))
+        return {"greska": f"nepoznat alat: {naziv}"}
+    except Exception as e:
+        return {"greska": str(e)}
+
+
 def _podrska_ai_odgovori(session_id, ime, tekst):
-    """Callback iz podrska (aiohttp executor thread): AI generira odgovor na
-    korisnikovu poruku i šalje ga natrag u chat. Povijest po sesiji za kontekst."""
+    """Callback iz podrska (aiohttp executor thread): AI (s alatima za žive
+    podatke) generira odgovor i šalje ga natrag u chat. Povijest po sesiji."""
     try:
         with _podrska_hist_lock:
             hist = list(_podrska_hist.get(session_id, []))
         messages = hist + [{"role": "user", "content": tekst}]
-        resp = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=800,
-            system=PODRSKA_SYSTEM_PROMPT,
-            messages=messages,
-            temperature=0.4,
-        )
-        odg = resp.content[0].text
+
+        odg = ""
+        for _ in range(5):  # agentic petlja: dopusti nekoliko poziva alata
+            resp = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1024,
+                system=PODRSKA_SYSTEM_PROMPT,
+                tools=PODRSKA_TOOLS,
+                messages=messages,
+                temperature=0.3,
+            )
+            if resp.stop_reason == "tool_use":
+                messages.append({"role": "assistant", "content": resp.content})
+                rezultati = []
+                for blok in resp.content:
+                    if getattr(blok, "type", None) == "tool_use":
+                        rez = _podrska_alat(blok.name, blok.input or {})
+                        rezultati.append({
+                            "type": "tool_result",
+                            "tool_use_id": blok.id,
+                            "content": json.dumps(rez, ensure_ascii=False)[:5000],
+                        })
+                messages.append({"role": "user", "content": rezultati})
+                continue
+            odg = "".join(b.text for b in resp.content
+                          if getattr(b, "type", None) == "text").strip()
+            break
+
+        if not odg:
+            odg = "Možete li malo pojasniti pitanje? Rado ću pomoći oko Flote OS."
         with _podrska_hist_lock:
             h = _podrska_hist.setdefault(session_id, [])
             h.append({"role": "user", "content": tekst})
