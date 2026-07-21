@@ -267,3 +267,15 @@ posebno na EU rutama. Razrada:
 - OTVORENO (treba od vlasnika): (1) koje kartice/mreže vozači stvarno koriste na
   EU rutama (AS24/DKV/Shell/UTA…) → određuje koje postaje indeksiramo; (2) imamo
   li pristup razini goriva iz Mobilisisa ili idemo na procjenu iz potrošnje.
+
+### WhatsApp — dovršetak (na čekanju do dodavanja vozača)
+Odluka (21.7.): NIŠTA što troši pravi novac dok se ne dodaju vozači; WhatsApp se
+još slaže, dovršava se TEK nakon dodavanja vozača.
+- Dodati vozače u WHATSAPP_DRIVERS (broj→ime[:GB]) — preduvjet za sve slanje.
+- Automatski tjedni podsjetnici (whatsapp_podsjetnici.py): kod gotov, predložak
+  podsjetnik_racun APPROVED. Uključiti WHATSAPP_PODSJETNICI_ON=1 TEK nakon vozača
+  (šalje prave poruke, mali trošak po poruci). Prije toga test /wa_podsjetnici.
+- Predložak podsjetnik_opci još PENDING na Meti (ostali odobreni) — provjeriti
+  /wa_predlosci da prođe.
+- Nakon vozača: proći kroz tok (izbornik, računi/primke, sati, podsjetnici) i
+  dovršiti/uglancati po potrebi.
