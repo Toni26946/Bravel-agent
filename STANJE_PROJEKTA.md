@@ -41,6 +41,10 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - BENZINSKE_ON — "1" uključuje automatsko osvježavanje cijena goriva;
   prazno/≠1 = isključeno (ručni /benzinske radi uvijek)
 - BENZINSKE_SATI — sati osvježavanja, zarezom (default "7,13,19"; minuta 5)
+- FLOTA_OS_SERVICE_KEY — servisni ključ kojim AI podrška čita flota-os API
+  (prihod/profitabilnost/ture); MORA biti ista vrijednost kao fly secret
+  SERVICE_KEY na app bravel-flota-os-api. Prazno = ti alati javljaju
+  "nije konfigurirano". (opcionalno FLOTA_OS_API_URL, ima default)
 
 ## Mobilisis API (od 14.7.)
 - Server: https://fleet2.mobilisis.hr/geocodeAndZoneAPI/api/v1
@@ -75,9 +79,12 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   petlja (client.messages.create s PODRSKA_SYSTEM_PROMPT + PODRSKA_TOOLS + povijest)
   → odgovor natrag preko WS-a. Povijest po sesiji u RAM-u (_podrska_hist), briše se
   na zatvaranje (set_on_zatvoreno → _podrska_zatvori).
-- ALATI (čita žive podatke): cijene_goriva (benzinske.trenutno, kompaktno) i
-  pozicija_vozila (mobilisis.lookup po reg/GB). Sistemski prompt opisuje ekrane
-  Flote OS; ostale žive brojke (prihod/profitabilnost) nema kao alat → upućuje na ekran.
+- ALATI (čita žive podatke): cijene_goriva (benzinske.trenutno), pozicija_vozila
+  (mobilisis.lookup po reg/GB), te FLOTA OS API (prihod, profitabilnost, ture) —
+  bravel-agent zove bravel-flota-os-api sa zaglavljem X-Service-Key (=fly secret
+  FLOTA_OS_SERVICE_KEY; ista tajna kao SERVICE_KEY na flota-os backendu). Ključ
+  nikad ne ide korisniku. FLOTA_OS_API_URL default https://bravel-flota-os-api.fly.dev.
+  ⚠️ Radi tek kad se postavi ista tajna na OBJE strane (v. dolje).
 - Niti: AI poziv (blokirajući) ide u run_in_executor (ne blokira aiohttp loop);
   odgovor u sesijin asyncio.Queue preko call_soon_threadsafe. Sesije ephemeralne.
 - Telegram (owner): /podrska (popis aktivnih sesija; odgovara AI), /podrska <id>

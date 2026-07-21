@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import telebot
 import anthropic
+import requests
 
 import monitoring  # slanje gresaka/logova zasebnom monitoring botu (no-op ako nije konfiguriran)
 import racuni      # obrada fotki racuna + upis u Excel na SharePointu
@@ -474,10 +475,11 @@ PODRSKA_SYSTEM_PROMPT = (
     "trošak €/km, korekcija praznog hoda).\n"
     "• Gorivo i Potrošnja — točenja i l/100km po vozilu/vozaču; Prihod — dnevni prihod iz naloga.\n"
     "• Usporedba vozača, Troškovi, Status vozila (aktivno/pasivno/prodano), Benzinske i cijene goriva.\n\n"
-    "ALATI: imaš alate za ŽIVE podatke — cijene goriva (cijene_goriva) i GPS lokaciju vozila "
-    "(pozicija_vozila po registraciji ili garažnom broju). KORISTI ih kad korisnik pita o cijenama "
-    "goriva ili gdje je neki kamion; ne nagađaj brojke — dohvati ih. Ostale žive brojke (prihod, "
-    "profitabilnost, ture) NEMAŠ kao alat — uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
+    "ALATI za ŽIVE podatke (KORISTI ih, ne nagađaj brojke): cijene_goriva (cijene po lancu), "
+    "pozicija_vozila (GPS po registraciji/GB), prihod (pregled po mjesecu ILI po vozaču za dan "
+    "YYYY-MM-DD), profitabilnost (marža/prihod/trošak/dobit po kamionu, zadnji dan), ture "
+    "(trenutna tura po kamionu). Ako alat vrati grešku/nekonfigurirano, reci to iskreno i po "
+    "potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
     "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
     "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
     "uputi da proslijede vlasnicima (Toni/ured)."
@@ -504,6 +506,30 @@ PODRSKA_TOOLS = [
             "required": ["vozilo"],
         },
     },
+    {
+        "name": "prihod",
+        "description": ("Prihod flote iz Flota OS-a. Bez datuma: pregled (broj naloga i prihod "
+                        "po mjesecu/režimu). S datumom (YYYY-MM-DD): prihod po vozaču za taj dan. "
+                        "Koristi za pitanja o prihodu/zaradi po danu ili mjesecu."),
+        "input_schema": {
+            "type": "object",
+            "properties": {"datum": {"type": "string",
+                           "description": "opcionalno, YYYY-MM-DD za dnevni prihod po vozaču"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "profitabilnost",
+        "description": ("Isplativost po kamionu (GB) iz zadnjeg radnog dana: marža, prihod, "
+                        "trošak, dobit. Koristi za pitanja o profitabilnosti/marži vozila."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "ture",
+        "description": ("Trenutna tura po kamionu (GB) iz Flota OS-a — tekuća tura vozača s "
+                        "odredištem. Koristi za pitanja o trenutnim turama/gdje ide koji kamion."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 _podrska_hist = {}          # session_id -> [{"role","content"}]
 _podrska_hist_lock = threading.Lock()
@@ -523,13 +549,45 @@ def _podrska_cijene_kompaktno():
     return out
 
 
+# Flota OS API (prihod/profitabilnost/ture) — servisni pristup preko X-Service-Key
+# (ista tajna kao SERVICE_KEY na flota-os backendu; ključ NIKAD ne ide korisniku).
+_FLOTA_OS_API = os.getenv("FLOTA_OS_API_URL", "https://bravel-flota-os-api.fly.dev").rstrip("/")
+_FLOTA_OS_SERVICE_KEY = os.getenv("FLOTA_OS_SERVICE_KEY", "").strip()
+
+
+def _flota_os_get(path, params=None):
+    """GET na flota-os backend sa servisnim ključem. Vrati JSON ili {greska}."""
+    if not _FLOTA_OS_SERVICE_KEY:
+        return {"greska": "Flota OS servisni pristup nije konfiguriran (FLOTA_OS_SERVICE_KEY)."}
+    try:
+        r = requests.get(f"{_FLOTA_OS_API}{path}", params=params,
+                         headers={"X-Service-Key": _FLOTA_OS_SERVICE_KEY}, timeout=25)
+        if r.status_code == 401:
+            return {"greska": "servisni ključ odbijen (provjeri da je isti na obje strane)"}
+        if r.status_code != 200:
+            return {"greska": f"Flota OS HTTP {r.status_code}"}
+        return r.json()
+    except Exception as e:
+        return {"greska": f"Flota OS nedostupan: {e}"}
+
+
 def _podrska_alat(naziv, ulaz):
     """Izvrši alat koji je AI zatražio. Vrati JSON-spreman rezultat."""
+    ulaz = ulaz or {}
     try:
         if naziv == "cijene_goriva":
             return {"cijene": _podrska_cijene_kompaktno()}
         if naziv == "pozicija_vozila":
-            return mobilisis.lookup((ulaz or {}).get("vozilo", ""))
+            return mobilisis.lookup(ulaz.get("vozilo", ""))
+        if naziv == "prihod":
+            datum = (ulaz.get("datum") or "").strip()
+            if datum:
+                return _flota_os_get("/api/prihod/dan", params={"datum": datum})
+            return _flota_os_get("/api/prihod/pregled")
+        if naziv == "profitabilnost":
+            return _flota_os_get("/api/flota/profitabilnost")
+        if naziv == "ture":
+            return _flota_os_get("/api/flota/ture")
         return {"greska": f"nepoznat alat: {naziv}"}
     except Exception as e:
         return {"greska": str(e)}
