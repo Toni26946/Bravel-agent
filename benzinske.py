@@ -525,11 +525,13 @@ def _dohvati_popis_url(url):
 
 
 def _union_postaje(postoje, parovi, naziv):
-    """Dodaj sluzbene (lat,lon) parove koji NISU blizu (~300 m) neke vec poznate
-    (OSM) postaje — da se ista postaja ne pojavi dvaput. Vrati prosirenu listu."""
+    """Dodaj sluzbene (lat,lon) parove koji NISU blizu (~500 m) neke vec poznate
+    (OSM) postaje — da se ista postaja ne pojavi dvaput (isti objekt u OSM-u i
+    sluzbenom popisu zna biti par stotina m razmaknut). Vrati prosirenu listu.
+    Prag ~500 m je siguran jer su nase postaje raštrkane, ne u gustom nizu."""
     rez = list(postoje)
     for (la, lo) in parovi:
-        if any(abs(la - p["lat"]) < 0.003 and abs(lo - p["lon"]) < 0.004 for p in rez):
+        if any(abs(la - p["lat"]) < 0.0045 and abs(lo - p["lon"]) < 0.0065 for p in rez):
             continue
         rez.append({"lat": la, "lon": lo, "naziv": naziv, "grad": ""})
     return rez
@@ -605,8 +607,9 @@ _OVERPASS_Q = (
 # Poznati DRUGI lanci (koje ne pratimo): ako je OSM 'brand' jasno jedan od njih,
 # NE pripisuj postaju nama, čak i ako joj ime slučajno sadrži naš pojam
 # (npr. Crodux postaja s name="Adriaoil" — brand je Crodux, nije Adria Oil).
-_STRANI_BRENDOVI = ("crodux", "ina", "lukoil", "mol", "omv", "eni", "agip",
-                    "gazprom", "avia")
+# NAPOMENA: NE stavljati "ina" — Tifon je INA-in brend pa je dio Tifon postaja u
+# OSM-u tagiran brand=INA (name=Tifon…); "ina" bi ih pogrešno izbacio.
+_STRANI_BRENDOVI = ("crodux", "lukoil", "omv", "agip", "gazprom", "avia")
 
 
 def _match_brand(tags):
