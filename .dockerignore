@@ -16,3 +16,5 @@ monitor.db
 .gitignore
 .dockerignore
 README.md
+# testovi se ne pakiraju u produkcijski image
+tests/

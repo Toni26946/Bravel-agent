@@ -1,0 +1,25 @@
+name: Testovi
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:   # rucno pokretanje
+jobs:
+  unittest:
+    name: Python unittest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Testovi diraju samo cistu logiku benzinske.py; jedina vanjska ovisnost
+      # potrebna za import je 'requests' (monitoring.py je cisti stdlib).
+      - name: Instaliraj ovisnosti
+        run: pip install requests
+
+      - name: Pokreni testove
+        run: python -m unittest discover -s tests -v
