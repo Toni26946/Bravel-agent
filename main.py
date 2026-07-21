@@ -484,6 +484,10 @@ PODRSKA_SYSTEM_PROMPT = (
     "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
     "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
     "uputi da proslijede vlasnicima (Toni/ured).\n\n"
+    "NIKAD NE IZMIŠLJAJ pojedinačne podatke (registracije, modele, GB brojeve, iznose) kojih NEMA u "
+    "rezultatu alata. Koristi TOČNO ono što alat vrati. Ako je popis dug ili je u rezultatu naznaka da "
+    "je skraćen/nepotpun (npr. 'napomena_popis'), reci to i ponudi filtriranje (po statusu, GB-u ili "
+    "registraciji) umjesto da nabrajaš izmišljene stavke.\n\n"
     "FORMAT: odgovaraj u ČISTOM TEKSTU — chat prikazuje običan tekst pa se Markdown NE renderira. "
     "NE koristi zvjezdice za podebljano (**), NE koristi Markdown tablice (retke s |), ni # naslove. "
     "Za popise koristi jednostavne retke s crticom (-) ili emoji. Brojke piši u tekstu "
@@ -610,10 +614,39 @@ def _podrska_alat(naziv, ulaz):
         if naziv == "potrosnja":
             return _flota_os_get("/api/gorivo/pregled")
         if naziv == "status_vozila":
-            return _flota_os_get("/api/flota/status")
+            d = _flota_os_get("/api/flota/status")
+            # Flota zna imati stotine vozila; cijeli popis ne stane u rezultat
+            # alata (rezanje -> model bi izmišljao registracije). Aktivnih je
+            # najviše i nitko ih ne nabraja pojedinačno, pa u POPISU šaljemo samo
+            # NE-aktivna vozila; ukupni broj po statusu ostaje u 'po_statusu'.
+            if isinstance(d, dict) and isinstance(d.get("vozila"), list):
+                akt = {"aktivno", "aktivan"}
+                neaktivna = [v for v in d["vozila"]
+                             if (v.get("status") or "").strip().lower() not in akt]
+                broj_akt = d.get("po_statusu", {}).get("Aktivno", 0)
+                d = {**d, "vozila": neaktivna,
+                     "napomena_popis": (f"'vozila' sadrži SAMO ne-aktivna vozila "
+                                        f"({len(neaktivna)}); aktivnih je {broj_akt} i "
+                                        f"NISU u popisu. Ne izmišljaj pojedinačna aktivna vozila.")}
+            return d
         return {"greska": f"nepoznat alat: {naziv}"}
     except Exception as e:
         return {"greska": str(e)}
+
+
+def _ocisti_markdown(text):
+    """Chat prikazuje ČIST tekst — Markdown se ne renderira, pa se ** i # vide
+    doslovno. Model (haiku) povremeno svejedno ubaci Markdown; ovo ga uklanja
+    kao zadnju liniju obrane (neovisno o promptu). Zadržava čitljive retke."""
+    if not text:
+        return text
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", text)       # **podebljano** -> podebljano
+    t = re.sub(r"__(.+?)__", r"\1", t)               # __podebljano__ -> podebljano
+    t = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", t)      # # naslovi -> obican redak
+    t = re.sub(r"(?m)^\s*\|.*\|\s*$", "", t)         # retci Markdown tablice -> makni
+    t = re.sub(r"(?m)^\s*[-*]{3,}\s*$", "", t)       # --- / *** razdjelnici -> makni
+    t = re.sub(r"\n{3,}", "\n\n", t)                 # ne ostavljaj 3+ praznih redaka
+    return t.strip()
 
 
 def _podrska_ai_odgovori(session_id, ime, tekst):
@@ -643,7 +676,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
                         rezultati.append({
                             "type": "tool_result",
                             "tool_use_id": blok.id,
-                            "content": json.dumps(rez, ensure_ascii=False)[:5000],
+                            "content": json.dumps(rez, ensure_ascii=False)[:12000],
                         })
                 messages.append({"role": "user", "content": rezultati})
                 continue
@@ -663,6 +696,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
 
         if not odg:
             odg = "Možete li malo pojasniti pitanje? Rado ću pomoći oko Flote OS."
+        odg = _ocisti_markdown(odg)   # chat ne renderira Markdown -> makni ** __ # | itd.
         with _podrska_hist_lock:
             h = _podrska_hist.setdefault(session_id, [])
             h.append({"role": "user", "content": tekst})
