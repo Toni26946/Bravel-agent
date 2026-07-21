@@ -110,6 +110,12 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   (benzinske.dohvati_postaje, tjedni keš); /api/benzinske vraća "postaje"
   (lat/lon/naziv/grad) po lancu. Fallback: ručna točka iz registra (Brebrić).
   Keš se zagrijava na startu (thread) i osvježava uz cijene (tjedni TTL).
+- Službeni popis (popis=True, npr. Adria Oil s adriaoil.hr) je AUTORITATIVAN:
+  prikazujemo točno lokacije koje lanac sam objavljuje, a OSM služi samo za
+  čitljivije ime/grad gdje se poklapa (~500 m). OSM točke koje popis ne potvrdi
+  se izbacuju (zatvorene/prebrendirane zaostale u OSM-u zavaraju vozača).
+  Rezultat (21.7.): Adria 44 → 40 (očišćeni zaostaci), Tifon 53. Vidi
+  benzinske._spoji_popis.
 - Telegram (owner): /benzinske (osvježi cijene), /benzinske stanje (zadnje iz
   baze), /benzinske postaje (osvježi+prebroji lokacije iz OSM-a),
   /benzinske probe <URL> (dijagnostika izvora — dostupnost + uzorak HTML-a).
@@ -252,6 +258,10 @@ posebno na EU rutama. Razrada:
   - Prag: razina/domet ispod praga ILI ne može do odredišta + rezerva → "točiti".
 - GDJE (postaje mreža kojima se plaća karticom, po Europi):
   - AS24 (kamionska mreža) — vlastite postaje, iz OSM-a po Europi (bounded). ✅ prioritet.
+    - NAPOMENA (21.7.): u HR OSM-u AS24 ne postoji ni pod "as24"/"as 24" ni pod
+      "total"/"totalenergies" (potvrđeno /benzinske postaje_debug) → na karti 0.
+      Odluka vlasnika: AS24 se NE popravlja HR-only; rješava se tek uz europsko
+      proširenje (ovaj savjetnik) — vlastiti AS24 station-finder / OSM po Europi.
   - Shell — OSM po brendu (velik → clustering).
   - DKV/UTA — kartica na ~60k partnerskih pumpi; NEMA brenda u OSM-u → treba
     njihov službeni station-finder (kasnija faza).
