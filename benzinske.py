@@ -483,6 +483,26 @@ _LAT_RE = re.compile(r"4[2-6]\.\d{4,}")
 _IZVOR_RE = re.compile(
     r"[A-Za-z0-9_./:?=&%-]*(?:admin-ajax\.php|wp-json[A-Za-z0-9_./?=&%-]*|"
     r"[A-Za-z0-9_./-]+\.json)")
+# Par (lat, lon) u HR rasponu, u OBA redoslijeda, odvojeni s malo ne-brojčanih znakova.
+_PAR_RE = re.compile(
+    r"(4[2-6]\.\d{3,})[^0-9\-]{1,10}(1[3-9]\.\d{3,})"        # lat, lon
+    r"|(1[3-9]\.\d{3,})[^0-9\-]{1,10}(4[2-6]\.\d{3,})")      # lon, lat
+
+
+def _izvuci_parove(text):
+    """Izvuci deduplicirane (lat, lon) parove u HR rasponu iz sirovog teksta
+    (oba redoslijeda). Dedup zaokruživanjem na ~100 m (3 decimale)."""
+    parovi, vid = [], set()
+    for m in _PAR_RE.finditer(text):
+        if m.group(1):
+            lat, lon = float(m.group(1)), float(m.group(2))
+        else:
+            lat, lon = float(m.group(4)), float(m.group(3))
+        k = (round(lat, 3), round(lon, 3))
+        if k not in vid:
+            vid.add(k)
+            parovi.append((round(lat, 6), round(lon, 6)))
+    return parovi
 
 
 def probe_postaje(url):
@@ -494,6 +514,7 @@ def probe_postaje(url):
     except Exception as e:
         return {"url": url, "greska": str(e)}
     lat = _LAT_RE.findall(text)
+    parovi = _izvuci_parove(text)
     izvori = []
     for m in _IZVOR_RE.findall(text):
         if len(m) > 8 and m not in izvori:
@@ -507,9 +528,10 @@ def probe_postaje(url):
         "status": status,
         "duljina": len(text),
         "broj_lat": len(lat),
-        "prvih_lat": lat[:12],
+        "broj_parova": len(parovi),
+        "prvih_parova": parovi[:15],
         "izvori": izvori[:8],
-        "uzorak_oko_koord": uzorak[:600],
+        "uzorak_oko_koord": uzorak[:500],
     }
 
 
