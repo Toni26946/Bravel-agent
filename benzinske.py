@@ -524,16 +524,27 @@ def _dohvati_popis_url(url):
             if (round(la, 3), round(lo, 3)) not in izbaci]
 
 
-def _union_postaje(postoje, parovi, naziv):
-    """Dodaj sluzbene (lat,lon) parove koji NISU blizu (~500 m) neke vec poznate
-    (OSM) postaje — da se ista postaja ne pojavi dvaput (isti objekt u OSM-u i
-    sluzbenom popisu zna biti par stotina m razmaknut). Vrati prosirenu listu.
-    Prag ~500 m je siguran jer su nase postaje raštrkane, ne u gustom nizu."""
-    rez = list(postoje)
+def _spoji_popis(osm_postaje, parovi, naziv):
+    """Sluzbeni popis lanca (npr. adriaoil.hr) je AUTORITATIVAN skup lokacija —
+    to su postaje koje sam lanac objavljuje. Prikazujemo tocno taj skup, a OSM
+    koristimo samo da preuzmemo citljivije ime/grad tamo gdje se OSM postaja
+    poklapa (~500 m). OSM postaje koje sluzbeni popis NE potvrdi izbacujemo:
+    obicno su to zatvorene/prebrendirane postaje zaostale u OSM-u koje bi
+    zavarale vozaca (navigira na postaju koje vise nema).
+
+    Prag ~500 m je siguran jer su postaje rastrkane, ne u gustom nizu."""
+    rez = []
     for (la, lo) in parovi:
+        # dedup unutar samog sluzbenog popisa (ista tocka zapisana dvaput)
         if any(abs(la - p["lat"]) < 0.0045 and abs(lo - p["lon"]) < 0.0065 for p in rez):
             continue
-        rez.append({"lat": la, "lon": lo, "naziv": naziv, "grad": ""})
+        naz, grad = naziv, ""
+        for op in osm_postaje:
+            if abs(la - op["lat"]) < 0.0045 and abs(lo - op["lon"]) < 0.0065:
+                naz = op.get("naziv") or naziv
+                grad = op.get("grad") or ""
+                break
+        rez.append({"lat": la, "lon": lo, "naziv": naz, "grad": grad})
     return rez
 
 
@@ -676,8 +687,8 @@ def dohvati_postaje(force=False):
         try:
             parovi = _dohvati_popis_url(p["postaje_url"])
             if parovi:
-                out[p["kljuc"]] = _union_postaje(out.get(p["kljuc"], []),
-                                                 parovi, p["naziv"])
+                out[p["kljuc"]] = _spoji_popis(out.get(p["kljuc"], []),
+                                               parovi, p["naziv"])
                 _log(f"popis {p['kljuc']}: +{len(parovi)} sa stranice "
                      f"-> ukupno {len(out[p['kljuc']])}")
         except Exception as e:
