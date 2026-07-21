@@ -116,16 +116,11 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   scheduler, dijagnostika) RADI. Parser potvrđen za Tifon/Adria Oil na
   autoportalu. PREOSTAJE: potvrditi slugove za Shell/Petrol/Brebrić i
   uključiti BENZINSKE_ON=1. AS24/DKV ostaju bez cijene (kartica).
-- ⚠️ BLOKADA (15.7.): fly app NE MOŽE do fleet2.mobilisis.hr —
-  ConnectTimeout (TCP spajanje istekne, nema odgovora). /api/pozicije i
-  /gdje padaju S FLY-A. Potpis firewalla koji tiho odbacuje pakete →
-  vjerojatno IP whitelist na Mobilisis strani (fly izlazna IP nije
-  dopuštena). Rješenje: whitelistati fly izlaznu IP
-  (fly ssh console -a bravel-agent -C "curl -s https://api.ipify.org")
-  kod API računa "bravel-api"; fly IP se zna mijenjati → možda treba
-  fiksni egress/proxy. NAPOMENA: živa karta zove /api/pozicije svakih
-  30 s → dok Mobilisis pada, monitoring se puni istim errorom
-  (kandidat za rate-limit)
+- ✅ RIJEŠENO (21.7.): fly app SADA doseže fleet2.mobilisis.hr (Mobilisis IP
+  whitelist za "bravel-api" sređen). /api/pozicije, /gdje (Telegram) i
+  📍 lokacija na WhatsAppu RADE s Fly-a. Živa karta (Flota OS) povlači pozicije.
+  (Povijesna napomena: 15.7.–20.7. je bila ConnectTimeout blokada dok fly
+  izlazna IP nije bila dopuštena.)
 
 ## Telegram bot — funkcije
 - Računi/primke: slika → Claude vision → potvrda → SharePoint Excel
@@ -169,8 +164,8 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   VAŽNO (16.7.): predlošci su bili kreirani na Test WABA-i (1596…), a broj je
   na „Bravel doo" (1482…). Presloženi (kreirani) na 1482 preko
   /wa_kreiraj_predloske → sad na ISTOJ WABA-i kao broj. Čekaju odobrenje.
-  Profilna slika (logo „B" iz brand loga) — postavlja se ručno u WhatsApp
-  Manageru (Phone numbers → Profile). Display name „Bravel doo" odobren.
+  Profilna slika (logo „B" iz brand loga) POSTAVLJENA ✅ (21.7.). Display name
+  „Bravel doo" odobren.
 - PRIMANJE: webhook GET/POST /whatsapp/webhook (web_api.py) VERIFICIRAN;
   dolazne poruke → Telegram obavijest svim ALLOWED_USERS
   (main.py wa_dolazna_poruka). Verify token = WHATSAPP_VERIFY_TOKEN;
@@ -207,8 +202,8 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
     _prepare_image uploada _str1/_str2… Buffer po broju (_pending), thread-safe.
   - Imena vozača po broju: WHATSAPP_DRIVERS (broj→ime[:GB]) → pravo ime u
     tablicu; „.” u koraku GB prihvaća zadani GB iz mape.
-  v3 PREOSTALO (blokirano vanjski): /gdje na WhatsApp (čeka Mobilisis IP
-  whitelist).
+  v3 ZAVRŠENO ✅ (21.7.): 📍 lokacija vozila na WhatsAppu (whatsapp_meni.py,
+  _gdje_lookup → Mobilisis) RADI — Mobilisis whitelist sređen, ništa blokirano.
 - AUTOMATSKI PODSJETNICI (kod gotov, whatsapp_podsjetnici.py): petkom (env
   DAN/SAT/MIN) bot šalje predložak podsjetnik_racun vozačima iz WHATSAPP_DRIVERS
   koji nisu slali zadnjih N dana (aktivne preskače; aktivnost se bilježi u
