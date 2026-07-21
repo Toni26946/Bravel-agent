@@ -98,7 +98,7 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   smjer) služi /api/benzinske.
 - Scheduler: check_reminders okida osvježavanje ako je BENZINSKE_ON=1, u
   satima BENZINSKE_SATI (default "7,13,19"), u minuti 5; kod promjene javi
-  sažetak vlasnicima na Telegram. Default OFF dok se parseri ne potvrde.
+  sažetak vlasnicima na Telegram. UKLJUČENO ✅ (21.7., BENZINSKE_ON=1 u fly.toml [env]).
 - Lokacije postaja: automatski iz OpenStreetMapa (Overpass API) po brendu
   (benzinske.dohvati_postaje, tjedni keš); /api/benzinske vraća "postaje"
   (lat/lon/naziv/grad) po lancu. Fallback: ručna točka iz registra (Brebrić).
@@ -112,10 +112,9 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   nafta.hr 200 ali bez cijena u HTML-u. Slugovi potvrđeni: tifon-doo,
   adria-oil-doo; shell(coral-croatia-doo)/petrol-doo/benzinska-pumpa-brebric
   su POGODAK — potvrditi /benzinske probe.
-- ⚠️ STATUS: infrastruktura (registar, pohrana, detekcija promjene, API,
-  scheduler, dijagnostika) RADI. Parser potvrđen za Tifon/Adria Oil na
-  autoportalu. PREOSTAJE: potvrditi slugove za Shell/Petrol/Brebrić i
-  uključiti BENZINSKE_ON=1. AS24/DKV ostaju bez cijene (kartica).
+- ✅ STATUS (21.7.): potvrđeni slugovi i parser za svih 5 lanaca (Tifon, Adria
+  Oil, Shell, Petrol, Brebrić); lokacije iz OSM-a (251 postaja); automatsko
+  praćenje UKLJUČENO (BENZINSKE_ON=1). AS24/DKV ostaju bez cijene (kartica).
 - ✅ RIJEŠENO (21.7.): fly app SADA doseže fleet2.mobilisis.hr (Mobilisis IP
   whitelist za "bravel-api" sređen). /api/pozicije, /gdje (Telegram) i
   📍 lokacija na WhatsAppu RADE s Fly-a. Živa karta (Flota OS) povlači pozicije.
