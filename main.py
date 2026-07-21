@@ -806,6 +806,65 @@ def _benzinske_auto():
         monitoring.error("Benzinske auto osvježavanje palo", source="benzinske", exc=e)
 
 
+# ==================== ZDRAVLJE VANJSKIH OVISNOSTI ====================
+# Heartbeat javlja samo da je PROCES bota živ. Ovo aktivno provjerava jesu li
+# vanjske ovisnosti (Mobilisis GPS, Flota OS API) stvarno dostupne — bot zna
+# biti živ a karta prazna jer Mobilisis ne odgovara. Alarmira SAMO na prijelaz
+# radi→pao (jednom), i javi oporavak. Sve best-effort; ne smije rušiti scheduler.
+_health_stanje = {}          # naziv ovisnosti -> "ok" | "down"
+_health_zadnji_ts = 0.0      # unix vrijeme zadnje provjere
+HEALTH_INTERVAL = int(os.getenv("HEALTH_INTERVAL", "300"))   # koliko često (s), default 5 min
+
+
+def _health_mobilisis():
+    """(ok, poruka). Ako Mobilisis nije konfiguriran -> ne alarmiraj (namjerno isključen)."""
+    if not mobilisis.is_configured():
+        return True, "nije konfiguriran (preskačem)"
+    poz = mobilisis.get_positions()
+    if isinstance(poz, list):
+        return True, f"{len(poz)} pozicija"
+    return False, "neočekivan odgovor (nije lista)"
+
+
+def _health_flota_os():
+    """(ok, poruka). Ako servisni pristup nije postavljen -> ne alarmiraj."""
+    if not _FLOTA_OS_SERVICE_KEY:
+        return True, "servisni pristup nije konfiguriran (preskačem)"
+    r = requests.get(f"{_FLOTA_OS_API}/health", timeout=15)
+    if r.status_code == 200:
+        return True, "200 OK"
+    return False, f"HTTP {r.status_code}"
+
+
+_HEALTH_PROVJERE = [
+    ("Mobilisis (GPS pozicije)", _health_mobilisis),
+    ("Flota OS API", _health_flota_os),
+]
+
+
+def provjeri_zdravlje():
+    """Provjeri sve ovisnosti. Vrati listu (naziv, ok, poruka). Uz to alarmira
+    admina na prijelaz radi->pao i javi oporavak (preko monitoringa)."""
+    rezultati = []
+    for naziv, fn in _HEALTH_PROVJERE:
+        try:
+            ok, poruka = fn()
+            ok = bool(ok)
+        except Exception as e:
+            ok, poruka = False, str(e)
+        rezultati.append((naziv, ok, poruka))
+        prije = _health_stanje.get(naziv)
+        if not ok and prije != "down":
+            monitoring.error(f"Ovisnost PALA: {naziv} — {poruka}", source="health")
+            _health_stanje[naziv] = "down"
+        elif ok and prije == "down":
+            monitoring.info(f"Ovisnost se oporavila: {naziv} — {poruka}", source="health")
+            _health_stanje[naziv] = "ok"
+        elif ok:
+            _health_stanje[naziv] = "ok"
+    return rezultati
+
+
 def check_reminders():
     while True:
         # Cijeli ciklus u try/except - thread ne smije umrijeti.
@@ -887,6 +946,15 @@ def check_reminders():
                         threading.Thread(target=_benzinske_auto, daemon=True).start()
                 except Exception as e:
                     monitoring.warning(f"Benzinske raspored: {e}", source="benzinske")
+
+            # --- zdravlje vanjskih ovisnosti (Mobilisis, Flota OS) svakih HEALTH_INTERVAL s ---
+            global _health_zadnji_ts
+            if now_ts - _health_zadnji_ts >= HEALTH_INTERVAL:
+                _health_zadnji_ts = now_ts
+                try:
+                    provjeri_zdravlje()
+                except Exception as e:
+                    monitoring.warning(f"Health provjera: {e}", source="health")
 
             # --- radnički WhatsApp podsjetnici (dospjeli) ---
             try:
@@ -1682,6 +1750,27 @@ def _benzinske_worker(chat_id, arg):
         safe_send(chat_id, f"❌ Greška: {e}")
 
 
+def _zdravlje_worker(chat_id):
+    try:
+        rez = provjeri_zdravlje()
+        linije = ["🩺 Zdravlje sustava (žive provjere):", ""]
+        for naziv, ok, poruka in rez:
+            linije.append(f"{'✅' if ok else '❌'} {naziv} — {poruka}")
+        linije.append("")
+        linije.append("✅ Bot (proces) — živ (vidiš ovu poruku).")
+        linije.append("ℹ️ Ovisnosti se automatski provjeravaju u pozadini svakih "
+                      f"{HEALTH_INTERVAL // 60} min; pad se javlja na monitor bot.")
+        safe_send(chat_id, "\n".join(linije))
+    except Exception as e:
+        safe_send(chat_id, f"❌ Provjera zdravlja pala: {e}")
+
+
+def handle_zdravlje(message):
+    bot.reply_to(message, "🩺 Provjeravam ovisnosti (Mobilisis, Flota OS)…")
+    threading.Thread(target=_zdravlje_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 def handle_benzinske(message):
     parts = message.text.split(maxsplit=1)
     arg = parts[1] if len(parts) > 1 else ""
@@ -1757,7 +1846,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak',
-                               'benzinske', 'podrska'])
+                               'benzinske', 'podrska', 'zdravlje'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -1766,6 +1855,10 @@ def command_handler(message):
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
+        return
+
+    if cmd.startswith('/zdravlje'):
+        handle_zdravlje(message)
         return
 
     if cmd.startswith('/benzinske'):
@@ -1854,7 +1947,8 @@ def command_handler(message):
             "/vozac_dodaj <id> <GB> <ime> – dodaj/uredi vozača (admin)\n"
             "/vozac_lista – popis vozača (admin)\n"
             "/backup_sada – ručni backup baze na SharePoint (admin)\n"
-            "/gdje <GB ili registracija> – GPS lokacija vozila (Mobilisis)\n\n"
+            "/gdje <GB ili registracija> – GPS lokacija vozila (Mobilisis)\n"
+            "/zdravlje – provjera Mobilisis/Flota OS veza (admin)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )
         return
