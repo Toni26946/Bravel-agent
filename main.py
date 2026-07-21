@@ -843,11 +843,17 @@ def _benzinske_auto():
 # ==================== ZDRAVLJE VANJSKIH OVISNOSTI ====================
 # Heartbeat javlja samo da je PROCES bota živ. Ovo aktivno provjerava jesu li
 # vanjske ovisnosti (Mobilisis GPS, Flota OS API) stvarno dostupne — bot zna
-# biti živ a karta prazna jer Mobilisis ne odgovara. Alarmira SAMO na prijelaz
-# radi→pao (jednom), i javi oporavak. Sve best-effort; ne smije rušiti scheduler.
-_health_stanje = {}          # naziv ovisnosti -> "ok" | "down"
+# biti živ a karta prazna jer Mobilisis ne odgovara.
+#
+# LAŽNE UZBUNE: Flota OS API se na Fly-u gasi kad je neaktivan (auto_stop,
+# min_machines_running=0) radi štednje. Prvi poziv nakon mirovanja budi stroj i
+# zna trajati dulje -> jednokratni timeout NIJE stvarni pad. Zato: (1) veći
+# timeout, i (2) alarmiramo TEK nakon HEALTH_PRAG_PADOVA uzastopnih padova.
+_health_stanje = {}          # naziv ovisnosti -> "ok" | "down" (down = već alarmirano)
+_health_padovi = {}          # naziv -> broj UZASTOPNIH padova (reset na uspjeh)
 _health_zadnji_ts = 0.0      # unix vrijeme zadnje provjere
-HEALTH_INTERVAL = int(os.getenv("HEALTH_INTERVAL", "300"))   # koliko često (s), default 5 min
+HEALTH_INTERVAL = int(os.getenv("HEALTH_INTERVAL", "300"))       # koliko često (s), default 5 min
+HEALTH_PRAG_PADOVA = int(os.getenv("HEALTH_PRAG_PADOVA", "2"))   # uzastopnih padova prije alarma
 
 
 def _health_mobilisis():
@@ -861,13 +867,20 @@ def _health_mobilisis():
 
 
 def _health_flota_os():
-    """(ok, poruka). Ako servisni pristup nije postavljen -> ne alarmiraj."""
+    """(ok, poruka). Ako servisni pristup nije postavljen -> ne alarmiraj. Na
+    timeout jednom ponovi (stroj se možda budi iz auto-stopa)."""
     if not _FLOTA_OS_SERVICE_KEY:
         return True, "servisni pristup nije konfiguriran (preskačem)"
-    r = requests.get(f"{_FLOTA_OS_API}/health", timeout=15)
-    if r.status_code == 200:
-        return True, "200 OK"
-    return False, f"HTTP {r.status_code}"
+    for pokusaj in (1, 2):
+        try:
+            r = requests.get(f"{_FLOTA_OS_API}/health", timeout=25)
+            if r.status_code == 200:
+                return True, ("200 OK" if pokusaj == 1 else "200 OK (nakon buđenja)")
+            return False, f"HTTP {r.status_code}"
+        except requests.exceptions.Timeout:
+            if pokusaj == 1:
+                continue   # prvi poziv je vjerojatno probudio stroj; pokušaj još jednom
+            return False, "timeout (2×) — ni nakon buđenja"
 
 
 _HEALTH_PROVJERE = [
@@ -877,8 +890,9 @@ _HEALTH_PROVJERE = [
 
 
 def provjeri_zdravlje():
-    """Provjeri sve ovisnosti. Vrati listu (naziv, ok, poruka). Uz to alarmira
-    admina na prijelaz radi->pao i javi oporavak (preko monitoringa)."""
+    """Provjeri sve ovisnosti. Vrati listu (naziv, ok, poruka). Alarmira admina
+    TEK nakon HEALTH_PRAG_PADOVA uzastopnih padova (da cold-start blip ne lažira
+    uzbunu) i javi oporavak (preko monitoringa)."""
     rezultati = []
     for naziv, fn in _HEALTH_PROVJERE:
         try:
@@ -888,13 +902,17 @@ def provjeri_zdravlje():
             ok, poruka = False, str(e)
         rezultati.append((naziv, ok, poruka))
         prije = _health_stanje.get(naziv)
-        if not ok and prije != "down":
-            monitoring.error(f"Ovisnost PALA: {naziv} — {poruka}", source="health")
-            _health_stanje[naziv] = "down"
-        elif ok and prije == "down":
-            monitoring.info(f"Ovisnost se oporavila: {naziv} — {poruka}", source="health")
-            _health_stanje[naziv] = "ok"
-        elif ok:
+        if not ok:
+            _health_padovi[naziv] = _health_padovi.get(naziv, 0) + 1
+            if _health_padovi[naziv] >= HEALTH_PRAG_PADOVA and prije != "down":
+                monitoring.error(
+                    f"Ovisnost PALA: {naziv} — {poruka} "
+                    f"({_health_padovi[naziv]} uzastopnih)", source="health")
+                _health_stanje[naziv] = "down"
+        else:
+            if prije == "down":
+                monitoring.info(f"Ovisnost se oporavila: {naziv} — {poruka}", source="health")
+            _health_padovi[naziv] = 0
             _health_stanje[naziv] = "ok"
     return rezultati
 
