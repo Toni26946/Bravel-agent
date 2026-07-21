@@ -1,4 +1,4 @@
-# STANJE PROJEKTA — Bravel / Jarvis (ažurirano 14.7.2026.)
+# STANJE PROJEKTA — Bravel / Jarvis (ažurirano 21.7.2026.)
 
 ## Infrastruktura
 - bravel-agent (fly.io, ams): Telegram bot + web API. Deploy: push na main
@@ -183,11 +183,13 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - Payment method DODAN na WABA "Bravel doo" (MasterCard, 15.7.) → otključano
   slanje business-initiated predložaka (podsjetnici izvan 24 h prozora).
   Balance 0 € dok se ne pošalje naplativi predložak.
-- TODO: token provjeriti da je permanentni (System User, Never-expire) —
-  inače istječe za 24 h; predlošci na odobrenje — tekstovi skicirani u
-  WHATSAPP_PREDLOSCI.md (potvrda_racuna, podsjetnik_racun, podsjetnik_voznje,
-  poruka_dispecera; Utility, jezik hr). Pri slanju zvati send_template s
-  lang_code="hr" (default u modulu je en_US).
+- Token: POTVRĐEN permanentnim (System User, Never-expire) ✅ (16.7., /wa_token).
+- PREDLOŠCI (5, definirani u main.py _WA_PREDLOSCI_DEF; svi UTILITY, hr):
+  potvrda_racuna, podsjetnik_racun, podsjetnik_voznje, poruka_dispecera,
+  podsjetnik_opci. Kreiranje /wa_kreiraj_predloske (na WABA 1482), status
+  /wa_predlosci. Čekaju Meta odobrenje (PENDING → APPROVED/REJECTED). Puni
+  submission/approval vodič + compliance checklist + rejection playbook:
+  WHATSAPP_PREDLOSCI.md. Pri slanju send_template s lang_code="hr" (default en_US).
 - SELIDBA NA WHATSAPP — FAZA 1 RADI (potvrđeno 15.7.): ovlašteni zaposlenik
   (WHATSAPP_ALLOWED) šalje FOTO računa/primke → whatsapp_racuni.py: slika →
   racuni._read_document (vision) → pita GB → gumbi ✅/❌ → racuni._prepare_image
@@ -214,8 +216,12 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   WHATSAPP_PODSJETNICI_ON=1 (default OFF). Ručni test: /wa_podsjetnici (force).
   Šalje TEK kad Meta odobri predložak podsjetnik_racun; do tad send_template
   vraća grešku koja se uredno prikaže u sažetku (ne ruši).
-- Predlošci Faza 1 (skicirani): poruka_dispecera, potvrda_racuna;
-  fale: podsjetnik_racun, podsjetnik_voznje
+- WhatsApp IZBORNIK / upravljačka ploča (whatsapp_meni.py, #37): dolazni tekst
+  vozača/radnika → interaktivni izbornik (prijava kvara, podsjetnik, evidencija
+  sati…). Vlastiti podsjetnik radnika ide predloškom podsjetnik_opci izvan prozora.
+- EVIDENCIJA SATI (#39): radnik preko WhatsAppa upisuje radne sate → uz bazu i
+  u SharePoint Excel.
+- Predlošci: v. gore (5 komada, čekaju Meta odobrenje) — WHATSAPP_PREDLOSCI.md.
 
 ## Poznate zamke
 - monitoring.install() guta iznimke threadova → greške idu u monitoring
