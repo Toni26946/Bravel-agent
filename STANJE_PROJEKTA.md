@@ -5,6 +5,11 @@
   → GitHub Actions. Manualni deploy samo iznimno.
 - bravel-monitor (fly.io): monitoring bot, prima na
   http://bravel-monitor.internal:8080/ingest
+- Zdravlje ovisnosti (od 21.7.): scheduler svakih HEALTH_INTERVAL s (default 300)
+  aktivno provjerava Mobilisis (get_positions) i Flota OS API (/health). Alarmira
+  admina SAMO na prijelaz radi→pao (i javi oporavak) preko monitoringa. Ručno:
+  Telegram /zdravlje. Heartbeat i dalje pokriva „je li proces živ"; ovo pokriva
+  „radi li vanjska ovisnost" (bot zna biti živ a karta prazna).
 - SharePoint: braveldoo.sharepoint.com/sites/tendenzanova, biblioteka
   "Zajednički dokumenti", mapa BRAVEL
 
