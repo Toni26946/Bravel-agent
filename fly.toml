@@ -8,6 +8,13 @@ primary_region = 'ams'
 [processes]
   app = 'python main.py'
 
+# Ne-tajne env varijable (verzionirano; primjenjuju se na deploy).
+# BENZINSKE_ON=1 uključuje automatsko osvježavanje cijena goriva (sati
+# BENZINSKE_SATI, default 7,13,19; kod promjene javi vlasnicima). Isključi:
+# ukloni ovu liniju ili nadjačaj fly secret-om (`fly secrets set BENZINSKE_ON=0`).
+[env]
+  BENZINSKE_ON = '1'
+
 # HTTP API (GET /api/pozicije, /zdrav) — aiohttp u istom procesu, port 8080.
 # VAZNO: auto_stop_machines = false jer bot MORA stalno raditi zbog Telegram
 # polinga (inace bi se stroj ugasio kad nema HTTP prometa i podsjetnici bi stali).
