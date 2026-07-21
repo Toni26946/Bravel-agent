@@ -515,9 +515,19 @@ _OVERPASS_Q = (
 )
 
 
+# Poznati DRUGI lanci (koje ne pratimo): ako je OSM 'brand' jasno jedan od njih,
+# NE pripisuj postaju nama, čak i ako joj ime slučajno sadrži naš pojam
+# (npr. Crodux postaja s name="Adriaoil" — brand je Crodux, nije Adria Oil).
+_STRANI_BRENDOVI = ("crodux", "ina", "lukoil", "mol", "omv", "eni", "agip",
+                    "gazprom", "avia")
+
+
 def _match_brand(tags):
-    hay = " ".join([tags.get("brand", ""), tags.get("operator", ""),
-                    tags.get("name", "")]).lower()
+    brand = (tags.get("brand") or "").lower()
+    # Brand je autoritativan: ako pripada drugom lancu, preskoči (bez obzira na name).
+    if any(s in brand for s in _STRANI_BRENDOVI):
+        return None
+    hay = f"{brand} {(tags.get('operator') or '').lower()} {(tags.get('name') or '').lower()}"
     for kljuc, rijeci in _OSM_MATCH.items():
         if any(r in hay for r in rijeci):
             return kljuc
