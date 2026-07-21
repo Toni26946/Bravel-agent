@@ -1604,12 +1604,14 @@ def _benzinske_worker(chat_id, arg):
             if r.get("greska"):
                 safe_send(chat_id, f"🔎 probe_postaje {url}\n❌ {r['greska']}")
                 return
+            parovi_txt = "; ".join(f"{la},{lo}" for la, lo in r.get("prvih_parova", []))
             safe_send(chat_id,
                       f"🔎 probe_postaje {url}\n"
                       f"HTTP {r['status']}, {r['duljina']} znakova\n"
-                      f"HR koordinata (lat): {r['broj_lat']}  → {', '.join(r['prvih_lat'])}\n"
+                      f"HR lat brojeva: {r['broj_lat']} · PAROVA (lat,lon): {r.get('broj_parova', 0)}\n"
+                      f"prvih parova: {parovi_txt}\n"
                       f"data-izvori: {', '.join(r['izvori']) or '—'}\n\n"
-                      f"uzorak oko koordinate:\n{r['uzorak_oko_koord']}"[:3800])
+                      f"uzorak:\n{r['uzorak_oko_koord']}"[:3800])
             return
         if arg.startswith("probe"):
             url = arg[len("probe"):].strip()
