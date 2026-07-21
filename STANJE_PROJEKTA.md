@@ -238,3 +238,32 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
   pravog broja koristi vlastite odobrene predloške ili /wa_send unutar
   24 h prozora; WHATSAPP_TOKEN mora biti čist (bez " za whatsapp" i sl.,
   inače #190 malformed)
+
+## TODO / planirano
+
+### Savjetnik za točenje goriva (KADA + GDJE) — planirano
+Cilj: AI javi KADA kamion treba točiti i GDJE vozač može natočiti (kartice/mreže),
+posebno na EU rutama. Razrada:
+- KADA (razina goriva/domet):
+  - Mobilisis sonda goriva (stvarna razina %) — PREDUVJET, sonda još
+    nekalibrirana / grupa "Gorivo" neistražena; treba istražiti + kalibrirati.
+  - Fallback procjena: zadnje točenje + prijeđeni km + prosječna potrošnja
+    (l/100km iz Flote OS) → procijenjeni domet.
+  - Prag: razina/domet ispod praga ILI ne može do odredišta + rezerva → "točiti".
+- GDJE (postaje mreža kojima se plaća karticom, po Europi):
+  - AS24 (kamionska mreža) — vlastite postaje, iz OSM-a po Europi (bounded). ✅ prioritet.
+  - Shell — OSM po brendu (velik → clustering).
+  - DKV/UTA — kartica na ~60k partnerskih pumpi; NEMA brenda u OSM-u → treba
+    njihov službeni station-finder (kasnija faza).
+  - HR: Adria Oil/Tifon/Petrol/Brebrić (već imamo).
+  - Najbliže po RUTI (Flota OS već ima kamionski routing), ne zračnoj liniji.
+- Kako AI javlja:
+  - Na upit (podrska AI): "gdje kamion GB X može natočiti?" → GPS pozicija →
+    najbliže postaje mreža → adrese + udaljenost.
+  - Proaktivno: raspored provjerava razine; nisko + daleko od cilja → obavijest
+    vlasnicima ("kamion X ≈120 km dometa, najbliža AS24: Y, 18 km").
+- Redoslijed: Faza 1 GDJE na upit (AS24 index + AI alat najbliza_pumpa); Faza 2
+  KADA (Mobilisis gorivo/procjena + pragovi + proaktivno); Faza 3 DKV/UTA finder.
+- OTVORENO (treba od vlasnika): (1) koje kartice/mreže vozači stvarno koriste na
+  EU rutama (AS24/DKV/Shell/UTA…) → određuje koje postaje indeksiramo; (2) imamo
+  li pristup razini goriva iz Mobilisisa ili idemo na procjenu iz potrošnje.
