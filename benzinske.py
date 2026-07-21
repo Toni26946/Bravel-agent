@@ -76,6 +76,7 @@ PROVIDERI = [
         "naziv": "Adria Oil",
         "tip": "maloprodaja",
         "postaje_url": "https://www.adriaoil.hr/benzinske-postaje/",
+        "popis": True,   # postaje_url je izvlačiv (koordinate u stranici) -> dopuni OSM
         "cjenik_url": _AUTOPORTAL + "/adria-oil-doo",   # potvrđen slug
         "goriva": ["dizel", "eurosuper95", "lpg"],
     },
@@ -505,6 +506,35 @@ def _izvuci_parove(text):
     return parovi
 
 
+# Centar ugradene HAK karte (iframe ?c=lat,lon) — NIJE postaja, izbaci ga.
+_HAK_CENTAR_RE = re.compile(r"[?&]c=(4[2-6]\.\d{3,})\D{1,4}(1[3-9]\.\d{3,})")
+
+
+def _dohvati_popis_url(url):
+    """Sluzbeni pretrazivac postaja (npr. adriaoil.hr) -> (lat,lon) parovi,
+    bez centra ugradene HAK karte. Vraca [] na gresku/nedostupno."""
+    status, text = _fetch(url)
+    if status != 200:
+        return []
+    parovi = _izvuci_parove(text)
+    izbaci = set()
+    for m in _HAK_CENTAR_RE.finditer(text):
+        izbaci.add((round(float(m.group(1)), 3), round(float(m.group(2)), 3)))
+    return [(la, lo) for (la, lo) in parovi
+            if (round(la, 3), round(lo, 3)) not in izbaci]
+
+
+def _union_postaje(postoje, parovi, naziv):
+    """Dodaj sluzbene (lat,lon) parove koji NISU blizu (~300 m) neke vec poznate
+    (OSM) postaje — da se ista postaja ne pojavi dvaput. Vrati prosirenu listu."""
+    rez = list(postoje)
+    for (la, lo) in parovi:
+        if any(abs(la - p["lat"]) < 0.003 and abs(lo - p["lon"]) < 0.004 for p in rez):
+            continue
+        rez.append({"lat": la, "lon": lo, "naziv": naziv, "grad": ""})
+    return rez
+
+
 def probe_postaje(url):
     """Izvidi lokacijski (pretrazivac postaja) izvor: iz SIROVOG HTML-a izvuci
     koordinate (HR raspon), moguce data-izvore (JSON/ajax/wp-json) i uzorak oko
@@ -635,6 +665,20 @@ def dohvati_postaje(force=False):
             "naziv": tags.get("name") or tags.get("brand") or "",
             "grad": tags.get("addr:city") or "",
         })
+    # Dopuna iz sluzbenog popisa postaja (za lance kojima OSM fali pokrivenost,
+    # npr. Adria Oil): povuci parove sa stranice i spoji (dedup) s OSM-om.
+    for p in PROVIDERI:
+        if not (p.get("popis") and p.get("postaje_url")):
+            continue
+        try:
+            parovi = _dohvati_popis_url(p["postaje_url"])
+            if parovi:
+                out[p["kljuc"]] = _union_postaje(out.get(p["kljuc"], []),
+                                                 parovi, p["naziv"])
+                _log(f"popis {p['kljuc']}: +{len(parovi)} sa stranice "
+                     f"-> ukupno {len(out[p['kljuc']])}")
+        except Exception as e:
+            monitoring.warning(f"Benzinske popis {p['kljuc']}: {e}", source="benzinske")
     _postaje_cache.update(ts=now, data=out)
     return out
 
