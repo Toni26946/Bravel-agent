@@ -71,10 +71,13 @@ manageru vlasnika (Toni) i NIKAD u repo/chat:
 - Namjena: interni korisnici (dispečeri) na Floti OS razgovaraju s AI ASISTENTOM
   (Claude haiku) o korištenju Flote OS. NIJE most na čovjeka — AI odgovara.
 - Backend: WebSocket u web_api (aiohttp) — /api/podrska/ws (štiti key=FLOTA_OS_KEY).
-  Korisnikova poruka → callback _podrska_ai_odgovori (main.py): client.messages.create
-  s PODRSKA_SYSTEM_PROMPT + povijest sesije → odgovor natrag preko WS-a
-  (podrska.posalji_klijentu). Povijest po sesiji u RAM-u (_podrska_hist), briše se
+  Korisnikova poruka → callback _podrska_ai_odgovori (main.py): agentic tool-use
+  petlja (client.messages.create s PODRSKA_SYSTEM_PROMPT + PODRSKA_TOOLS + povijest)
+  → odgovor natrag preko WS-a. Povijest po sesiji u RAM-u (_podrska_hist), briše se
   na zatvaranje (set_on_zatvoreno → _podrska_zatvori).
+- ALATI (čita žive podatke): cijene_goriva (benzinske.trenutno, kompaktno) i
+  pozicija_vozila (mobilisis.lookup po reg/GB). Sistemski prompt opisuje ekrane
+  Flote OS; ostale žive brojke (prihod/profitabilnost) nema kao alat → upućuje na ekran.
 - Niti: AI poziv (blokirajući) ide u run_in_executor (ne blokira aiohttp loop);
   odgovor u sesijin asyncio.Queue preko call_soon_threadsafe. Sesije ephemeralne.
 - Telegram (owner): /podrska (popis aktivnih sesija; odgovara AI), /podrska <id>
