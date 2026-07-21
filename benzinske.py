@@ -478,6 +478,41 @@ def probe(url):
     }
 
 
+# HR koordinate: latitude 42–47, longitude 13–20.
+_LAT_RE = re.compile(r"4[2-6]\.\d{4,}")
+_IZVOR_RE = re.compile(
+    r"[A-Za-z0-9_./:?=&%-]*(?:admin-ajax\.php|wp-json[A-Za-z0-9_./?=&%-]*|"
+    r"[A-Za-z0-9_./-]+\.json)")
+
+
+def probe_postaje(url):
+    """Izvidi lokacijski (pretrazivac postaja) izvor: iz SIROVOG HTML-a izvuci
+    koordinate (HR raspon), moguce data-izvore (JSON/ajax/wp-json) i uzorak oko
+    prve koordinate — da se napise parser za sluzbeni popis postaja. Ne baca."""
+    try:
+        status, text = _fetch(url)
+    except Exception as e:
+        return {"url": url, "greska": str(e)}
+    lat = _LAT_RE.findall(text)
+    izvori = []
+    for m in _IZVOR_RE.findall(text):
+        if len(m) > 8 and m not in izvori:
+            izvori.append(m)
+    idx = text.find(lat[0]) if lat else -1
+    uzorak = (text[max(0, idx - 140): idx + 380] if idx >= 0
+              else _ocisti_tekst(text)[:400])
+    uzorak = re.sub(r"\s+", " ", uzorak).strip()
+    return {
+        "url": url,
+        "status": status,
+        "duljina": len(text),
+        "broj_lat": len(lat),
+        "prvih_lat": lat[:12],
+        "izvori": izvori[:8],
+        "uzorak_oko_koord": uzorak[:600],
+    }
+
+
 # ==================== LOKACIJE POSTAJA (OpenStreetMap / Overpass) ====================
 #  Koordinate SVIH postaja nasih brendova povlacimo automatski iz OpenStreetMapa
 #  preko Overpass API-ja (jedan uniforman izvor, bez rucnog upisa i bez scrapinga
