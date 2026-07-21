@@ -478,8 +478,9 @@ PODRSKA_SYSTEM_PROMPT = (
     "ALATI za ŽIVE podatke (KORISTI ih, ne nagađaj brojke): cijene_goriva (cijene po lancu), "
     "pozicija_vozila (GPS po registraciji/GB), prihod (pregled po mjesecu ILI po vozaču za dan "
     "YYYY-MM-DD), profitabilnost (marža/prihod/trošak/dobit po kamionu, zadnji dan), ture "
-    "(trenutna tura po kamionu). Ako alat vrati grešku/nekonfigurirano, reci to iskreno i po "
-    "potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
+    "(trenutna tura po kamionu), potrosnja (litre i € goriva po mjesecu/režimu), status_vozila "
+    "(koliko vozila je aktivno/pasivno/prodano + popis). Ako alat vrati grešku/nekonfigurirano, "
+    "reci to iskreno i po potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
     "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
     "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
     "uputi da proslijede vlasnicima (Toni/ured).\n\n"
@@ -532,6 +533,20 @@ PODRSKA_TOOLS = [
         "name": "ture",
         "description": ("Trenutna tura po kamionu (GB) iz Flota OS-a — tekuća tura vozača s "
                         "odredištem. Koristi za pitanja o trenutnim turama/gdje ide koji kamion."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "potrosnja",
+        "description": ("Potrošnja goriva iz Flota OS-a — litre i € po mjesecu i režimu "
+                        "(Bravel / Bravel Logs). Koristi za pitanja o potrošnji goriva, "
+                        "litrama ili trošku goriva po razdoblju."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "status_vozila",
+        "description": ("Status flote iz Flota OS-a — ukupan broj vozila i razdioba po statusu "
+                        "(aktivno/pasivno/prodano) + popis {gb, status, model, reg}. Koristi za "
+                        "pitanja koliko vozila je aktivno, koji su pasivni/prodani i sl."),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
 ]
@@ -592,6 +607,10 @@ def _podrska_alat(naziv, ulaz):
             return _flota_os_get("/api/flota/profitabilnost")
         if naziv == "ture":
             return _flota_os_get("/api/flota/ture")
+        if naziv == "potrosnja":
+            return _flota_os_get("/api/gorivo/pregled")
+        if naziv == "status_vozila":
+            return _flota_os_get("/api/flota/status")
         return {"greska": f"nepoznat alat: {naziv}"}
     except Exception as e:
         return {"greska": str(e)}
@@ -631,6 +650,16 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
             odg = "".join(b.text for b in resp.content
                           if getattr(b, "type", None) == "text").strip()
             break
+        else:
+            # Petlja iscrpljena a model još traži alate -> još jedan poziv BEZ alata,
+            # da bude prisiljen dati tekstualni odgovor iz već prikupljenih podataka
+            # (umjesto da korisnik dobije prazan/generički fallback).
+            resp = client.messages.create(
+                model="claude-haiku-4-5", max_tokens=1024,
+                system=PODRSKA_SYSTEM_PROMPT, messages=messages, temperature=0.3,
+            )
+            odg = "".join(b.text for b in resp.content
+                          if getattr(b, "type", None) == "text").strip()
 
         if not odg:
             odg = "Možete li malo pojasniti pitanje? Rado ću pomoći oko Flote OS."
