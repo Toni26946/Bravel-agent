@@ -679,6 +679,18 @@ def dohvati_postaje(force=False):
                      f"-> ukupno {len(out[p['kljuc']])}")
         except Exception as e:
             monitoring.warning(f"Benzinske popis {p['kljuc']}: {e}", source="benzinske")
+    # Robusnost: Overpass zna vratiti NEPOTPUN skup (mirror/timeout) pa broj
+    # postaja naglo padne. Ako je novi ukupni broj puno manji od prethodnog
+    # (dobrog) keša, ne prepiši ga — zadrži staro (inače postaje nestanu s karte).
+    novo = sum(len(v) for v in out.values())
+    if _postaje_cache["data"] is not None:
+        staro = sum(len(v) for v in _postaje_cache["data"].values())
+        if staro >= 50 and novo < 0.75 * staro:
+            monitoring.warning(
+                f"Benzinske: novi dohvat ({novo}) puno manji od prethodnog "
+                f"({staro}) — vjerojatno nepotpun Overpass, zadržavam keš.",
+                source="benzinske")
+            return _postaje_cache["data"]
     _postaje_cache.update(ts=now, data=out)
     return out
 
