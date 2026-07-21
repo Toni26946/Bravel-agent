@@ -482,7 +482,11 @@ PODRSKA_SYSTEM_PROMPT = (
     "potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
     "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
     "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
-    "uputi da proslijede vlasnicima (Toni/ured)."
+    "uputi da proslijede vlasnicima (Toni/ured).\n\n"
+    "FORMAT: odgovaraj u ČISTOM TEKSTU — chat prikazuje običan tekst pa se Markdown NE renderira. "
+    "NE koristi zvjezdice za podebljano (**), NE koristi Markdown tablice (retke s |), ni # naslove. "
+    "Za popise koristi jednostavne retke s crticom (-) ili emoji. Brojke piši u tekstu "
+    "(npr. 'EU: 611 naloga, 512.316,74 €'), ne u tablici."
 )
 
 # Anthropic tool-use: alati kojima podrška ČITA žive podatke (bravel-agent ih servira).
