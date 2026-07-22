@@ -634,6 +634,21 @@ def _podrska_alat(naziv, ulaz):
         return {"greska": str(e)}
 
 
+_TOOL_REZ_LIMIT = 12000   # max znakova rezultata alata poslanog modelu
+
+
+def _skrati_rezultat(rez):
+    """Serijaliziraj rezultat alata za model. Ako je predug, NE reži tiho nasred
+    JSON-a (to je model tumačio kao 'nastavi sam' i izmišljao) — nego stavi JASNU
+    oznaku da je skraćeno, pa model (po promptu) kaže korisniku da suzi upit."""
+    sadrzaj = json.dumps(rez, ensure_ascii=False)
+    if len(sadrzaj) <= _TOOL_REZ_LIMIT:
+        return sadrzaj
+    return (sadrzaj[:_TOOL_REZ_LIMIT] +
+            " …⚠️[REZULTAT SKRAĆEN jer je predug — NE izmišljaj ostatak popisa; "
+            "reci korisniku da suzi upit (npr. po GB-u, datumu ili statusu)]")
+
+
 def _ocisti_markdown(text):
     """Chat prikazuje ČIST tekst — Markdown se ne renderira, pa se ** i # vide
     doslovno. Model (haiku) povremeno svejedno ubaci Markdown; ovo ga uklanja
@@ -676,7 +691,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
                         rezultati.append({
                             "type": "tool_result",
                             "tool_use_id": blok.id,
-                            "content": json.dumps(rez, ensure_ascii=False)[:12000],
+                            "content": _skrati_rezultat(rez),
                         })
                 messages.append({"role": "user", "content": rezultati})
                 continue
