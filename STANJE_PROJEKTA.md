@@ -294,3 +294,19 @@ još slaže, dovršava se TEK nakon dodavanja vozača.
   /wa_predlosci da prođe.
 - Nakon vozača: proći kroz tok (izbornik, računi/primke, sati, podsjetnici) i
   dovršiti/uglancati po potrebi.
+
+### Flota OS — sigurnosni hardening (pregled koda 21.7.)
+Ukupno: solidno osigurano (Entra JWT s provjerom potpisa/iss/aud, bcrypt lozinke,
+tajne server-side, HTTPS). Nalazi za doradu, po ozbiljnosti:
+- 🟡 SREDNJE: /api/login nema zaštitu od pogađanja lozinke (rate-limit/lockout).
+  Bcrypt usporava, korisnika malo, ali dodati npr. 5 pokušaja/min po IP-u.
+- 🟢 NISKO: /graph/test je otvoren (bez prijave) — vraća naziv+URL SharePoint
+  sitea. Zaštititi prijavom ili maknuti u produkciji.
+- 🟢 NISKO: usporedba tajni nije constant-time (x_service_key==…, x_refresh_secret
+  ==…). Zamijeniti s hmac.compare_digest (trivijalno).
+- ⚙️ PROVJERITI (operativno): CORS_ORIGINS u produkciji = točna domena frontenda
+  (ne "*", jer je allow_credentials=True); AUTH_SECRET i SERVICE_KEY dugi/nasumični.
+- Neauditirano: frontend XSS / gdje se token sprema u pregledniku; svaki SQL upit
+  u svim čitačima.
+- Brzi PR (nula rizika): zaštiti /graph/test + hmac.compare_digest; login
+  rate-limit posebno (dira tok prijave).
