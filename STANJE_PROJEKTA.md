@@ -310,3 +310,30 @@ tajne server-side, HTTPS). Nalazi za doradu, po ozbiljnosti:
   u svim čitačima.
 - Brzi PR (nula rizika): zaštiti /graph/test + hmac.compare_digest; login
   rate-limit posebno (dira tok prijave).
+
+### Nove ideje — backlog (istraživanje 22.7., čekaju odabir/prioritet)
+Sve owner-facing/interne → NE troše pravi novac (poštuju WhatsApp ograničenje).
+Izvedive s postojećim dijelovima (Mobilisis GPS, ture/nalozi, prihod/
+profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
+
+- "Kraj check-callova" — ETA + status ture (rješava dispečerski #1 problem
+  "gdje si/kad stižeš"). NE postoji: km se računa, ali ne VRIJEME dolaska.
+  Sloj 1: ETA = km(ORS ruta) ÷ prosj. brzina, prikaz na karti/turi.
+  Sloj 2: geofence "stigao/otišao" → auto-obavijest vlasnicima (bez zvanja).
+  Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km).
+  Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska.
+- Detektor uspavanih/neiskorištenih kamiona (real-time): GPS + ignition +
+  ture → kamion stoji/vozi prazan bez naloga dulje od praga → javi vlasniku
+  (po mogućnosti predloži najbliži planirani_nalog). Trud: srednji.
+- Tjedni AI sažetak vlasnicima (Telegram, pon ujutro): prihod vs prošli tjedan,
+  top/najgori po marži, potrošnja + trend cijena, prazni km, anomalije. Koristi
+  prihod/profitabilnost/gorivo/usporedba + AI (postoji summarize_day). Trud: nizak-sr.
+- Detektor anomalija u potrošnji (curenje/krađa goriva): l/100km po kamionu vs
+  vlastiti prosjek i prosjek flote → izbaci odstupanja. Koristi postojeće gorivo
+  podatke. Trud: nizak-sr.
+- Registar rokova + auto-podsjetnici (registracija, tehnički, tahograf, vozačke,
+  ADR): mali registar datuma + postojeći sustav podsjetnika → javi X dana prije.
+  Sprječava kazne/stajanje. Trud: nizak. (Najbrža pobjeda.)
+- Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
+  nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
+  Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
