@@ -1597,7 +1597,8 @@ _WA_STATUS_EMOJI = {
 }
 
 
-_WA_NASI = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje", "poruka_dispecera"}
+_WA_NASI = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje",
+            "poruka_dispecera", "podsjetnik_opci"}
 
 
 def _wa_predlosci_jedna_waba(waba_id, naziv_wabe):
@@ -1637,7 +1638,8 @@ def _wa_predlosci_worker(chat_id, waba_arg=None):
             dio, odo = _wa_predlosci_jedna_waba(w.get("id"), w.get("name") or "?")
             linije += [""] + dio
             ukupno_odobreni += odo
-        linije.append(f"\n⭐ = naši · Odobrenih naših ukupno: {ukupno_odobreni}/4")
+        linije.append(f"\n⭐ = naši · Odobrenih naših ukupno: "
+                      f"{ukupno_odobreni}/{len(_WA_NASI)}")
         linije.append("Za slanje predložak mora biti na ISTOJ WABA-i kao broj "
                       f"(WHATSAPP_WABA_ID = {whatsapp._waba_id()}).")
         safe_send(chat_id, "\n".join(linije)[:3900])
