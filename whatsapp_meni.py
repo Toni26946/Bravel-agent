@@ -46,7 +46,19 @@ _ROWS = [
 ]
 
 _MENI_RIJECI = {"meni", "menu", "izbornik", "start", "bok", "pozdrav", "hej",
-                "hi", "hello", "?", "help", "pomoc", "pomoć"}
+                "hi", "hello", "?"}
+
+# Utipkane ključne riječi → ista akcija kao klik na stavku izbornika.
+_KEYWORD_RID = {
+    "racun": "meni_racun", "račun": "meni_racun", "primka": "meni_racun",
+    "primku": "meni_racun", "racuni": "meni_racun", "računi": "meni_racun",
+    "lokacija": "meni_lokacija", "gdje": "meni_lokacija", "vozilo": "meni_lokacija",
+    "kvar": "meni_kvar", "kvara": "meni_kvar", "problem": "meni_kvar",
+    "sati": "meni_sati", "evidencija": "meni_sati", "dolazak": "meni_sati",
+    "odlazak": "meni_sati",
+    "podsjetnik": "meni_podsjetnik", "podsjetnici": "meni_podsjetnik",
+    "pomoc": "meni_pomoc", "pomoć": "meni_pomoc", "help": "meni_pomoc",
+}
 
 _POMOC = ("ℹ️ Kako koristiti Bravel broj:\n"
           "• 🧾 Račun/primka — pošalji fotografiju (više stranica: šalji pa „gotovo”)\n"
@@ -131,7 +143,13 @@ def _obradi(frm, ime, msg):
         whatsapp_racuni.handle(frm, ime, msg)
         return
 
-    # 5) Tekst (ili ostalo) → izbornik
+    # 5) Tekst: utipkana ključna riječ pokreće tok, inače prikaži izbornik.
+    if tip == "text":
+        low = (msg.get("text") or {}).get("body", "").strip().lower()
+        rid = _KEYWORD_RID.get(low)
+        if rid:
+            _izbor(frm, ime, rid)
+            return
     _posalji_meni(frm, ime)
 
 
