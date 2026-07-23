@@ -540,6 +540,11 @@ def lookup(query):
         return {"status": "error",
                 "message": "Ne mogu učitati GARAŽNI BROJEVI.xlsx (GB↔REG)."}
 
+    # "GB363" / "GB 363" / "gb-363" → goli GB broj (prefiks GB nije dio broja).
+    m = re.fullmatch(r"(?i)gb[\s\-]*(\d+)", q)
+    if m:
+        q = m.group(1)
+
     # Upit = samo znamenke -> GB; inace registracija
     if re.fullmatch(r"\d+", q):
         gb = norm_gb(q)
