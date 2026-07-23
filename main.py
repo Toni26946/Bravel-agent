@@ -1545,6 +1545,33 @@ def handle_wa_token(message):
                      daemon=True).start()
 
 
+def handle_wa_ovlasteni(message):
+    # /wa_ovlasteni [broj] — dijagnostika: koliko je brojeva u WHATSAPP_ALLOWED
+    # i (opcionalno) je li konkretan broj ovlašten + ime iz WHATSAPP_DRIVERS.
+    parts = message.text.split(maxsplit=1)
+    broj = parts[1].strip() if len(parts) > 1 else None
+    try:
+        allowed = whatsapp_racuni.allowed_set()
+        drivers = whatsapp_racuni._drivers_map()
+        linije = [f"👥 WHATSAPP_ALLOWED: {len(allowed)} brojeva",
+                  f"🚚 WHATSAPP_DRIVERS: {len(drivers)} mapiranih imena"]
+        if broj:
+            n = whatsapp_racuni._norm_broj(broj)
+            ime = drivers.get(n, (None, None))[0]
+            linije.append(f"\nProvjera: {broj} → {n}")
+            linije.append(f"• ovlašten (ALLOWED): {'DA ✅' if n in allowed else 'NE ❌'}")
+            linije.append(f"• ime (DRIVERS): {ime or '—'}")
+        else:
+            linije.append("\nProvjeri konkretan broj: /wa_ovlasteni 0994396448")
+        if not allowed:
+            linije.append("\n⚠️ ALLOWED je PRAZAN — secret WHATSAPP_ALLOWED nije "
+                          "postavljen (ili je krivo ime tajne / app nije restartan).")
+        bot.reply_to(message, "\n".join(linije))
+    except Exception as e:
+        monitoring.error("Greska /wa_ovlasteni", source="wa_ovlasteni", exc=e)
+        bot.reply_to(message, f"❌ Greška: {e}")
+
+
 def _wa_predlozak_worker(chat_id, broj, naziv, varovi):
     try:
         comps = None
@@ -1914,7 +1941,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'reset', 'izvjestaj', 'backup_sada', 'gdje',
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
-                               'wa_kreiraj_predloske', 'wa_predlozak',
+                               'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
                                'benzinske', 'podrska', 'zdravlje'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
@@ -1952,6 +1979,10 @@ def command_handler(message):
 
     if cmd.startswith('/wa_podsjetnici'):
         handle_wa_podsjetnici(message)
+        return
+
+    if cmd.startswith('/wa_ovlasteni'):
+        handle_wa_ovlasteni(message)
         return
 
     if cmd.startswith('/wa_token'):
