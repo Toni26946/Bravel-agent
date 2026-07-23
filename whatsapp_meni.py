@@ -60,13 +60,23 @@ _KEYWORD_RID = {
     "pomoc": "meni_pomoc", "pomoć": "meni_pomoc", "help": "meni_pomoc",
 }
 
-_POMOC = ("ℹ️ Kako koristiti Bravel broj:\n"
-          "• 🧾 Račun/primka — pošalji fotografiju (više stranica: šalji pa „gotovo”)\n"
-          "• 📍 Gdje je vozilo — upiši GB ili registraciju\n"
-          "• 🛠️ Prijava kvara — opiši problem (može i fotka)\n"
-          "• 🕒 Evidencija sati — dolazak / odlazak\n"
-          "• 🔔 Podsjetnik — postavi si podsjetnik\n\n"
-          "Bilo kad napiši „meni” za izbornik.")
+_POMOC = (
+    "ℹ️ *Bravel — upute za korištenje*\n\n"
+    "Napiši „meni” bilo kad da otvoriš izbornik. Opcije:\n\n"
+    "🧾 *Račun / primka*\n"
+    "Slikaj dokument i pošalji fotografiju. Pitam te za vozilo (GB) i pokažem što "
+    "sam pročitao — potvrdiš ✅. Više stranica? Šalji sve pa napiši „gotovo”. "
+    "Krivo prepoznata vrsta? Napiši „vrsta”. Krivo pročitano? Napiši „ispravi”.\n\n"
+    "📍 *Gdje je vozilo*\n"
+    "Upiši GB ili registraciju i dobiješ trenutnu lokaciju.\n\n"
+    "🛠️ *Prijava kvara*\n"
+    "Opiši kvar ili problem — javit ćemo se.\n\n"
+    "🕒 *Evidencija sati*\n"
+    "🟢 Dolazak kad počneš, 🔴 Odlazak kad završiš.\n\n"
+    "🔔 *Moj podsjetnik*\n"
+    "Upiši kada (npr. „sutra 08:00”) pa tekst — javim ti u to vrijeme.\n\n"
+    "💡 Savjet: pritisni i zadrži ovu poruku pa odaberi *Prikvači* (pin) — tako ti "
+    "upute uvijek stoje na vrhu razgovora.")
 
 
 def setup(gdje_lookup=None, obavijesti=None):

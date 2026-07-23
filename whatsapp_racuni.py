@@ -53,14 +53,27 @@ def _log(msg):
     print(f"[wa_racuni] {msg}", flush=True)
 
 
+def _norm_broj(s):
+    """Kanoniziraj broj na oblik koji WhatsApp šalje (samo znamenke, 385…):
+    makni sve osim znamenki; 00385→385; vodeća 0 (nacionalni)→385. Tako se
+    poklapa bez obzira je li u secretu upisan s razmakom, +, 00 ili 0."""
+    b = "".join(ch for ch in str(s) if ch.isdigit())
+    if b.startswith("00"):
+        b = b[2:]
+    elif b.startswith("0"):
+        b = "385" + b[1:]
+    return b
+
+
 def allowed_set():
-    """Skup ovlaštenih brojeva iz WHATSAPP_ALLOWED (zarez/točka-zarez)."""
+    """Skup ovlaštenih brojeva iz WHATSAPP_ALLOWED (zarez/točka-zarez),
+    normaliziranih na 385… oblik (otporno na format upisa)."""
     raw = os.getenv("WHATSAPP_ALLOWED", "")
-    return {b.strip() for b in raw.replace(";", ",").split(",") if b.strip()}
+    return {_norm_broj(b) for b in raw.replace(";", ",").split(",") if b.strip()}
 
 
 def is_allowed(frm):
-    return frm in allowed_set()
+    return _norm_broj(frm) in allowed_set()
 
 
 def zauzet(frm):
@@ -92,14 +105,14 @@ def _drivers_map():
             ime = ime_part.strip()
             gb = gb_part.strip() or None
         if num:
-            m[num] = (ime or None, gb)
+            m[_norm_broj(num)] = (ime or None, gb)
     _drivers_cache = m
     return m
 
 
 def driver_for(frm):
     """(ime, zadani_gb) za broj ili (None, None) ako nije mapiran."""
-    return _drivers_map().get(frm, (None, None))
+    return _drivers_map().get(_norm_broj(frm), (None, None))
 
 
 # ==================== AKTIVNOST (za tjedne podsjetnike) ====================
