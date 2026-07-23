@@ -310,7 +310,7 @@ def _pitaj_gb(frm, sess):
 def _posalji_potvrdu(frm, sess):
     """Sažetak + 3 gumba (Upiši / Ispravi / Odbaci) + uputa za promjenu vrste."""
     whatsapp.send_text(frm, racuni._summary_text(sess))
-    druga = "primku" if sess["vrsta"] == "racun" else "račun"
+    druga = "primka" if sess["vrsta"] == "racun" else "račun"
     whatsapp.send_buttons(
         frm, f"Upisati u SharePoint?\n🔄 Napiši „vrsta” ako je zapravo {druga}.",
         [("wa_ok", "✅ Upiši"), ("wa_ed", "✏️ Ispravi"), ("wa_no", "❌ Odbaci")])

@@ -128,17 +128,20 @@ def obradi(frm, ime, msg):
 def _obradi(frm, ime, msg):
     tip = msg.get("type")
 
-    # 1) Interaktivni odgovor (izbornik/gumbi)
+    # 1) Ako je aktivan tok RAČUNA (sesija/sakupljanje/obrada) → SVE njemu,
+    #    UKLJUČUJUĆI gumbe potvrde (Upiši/Ispravi/Odbaci). Mora biti prije
+    #    obrade izbornika, inače potvrda računa završi kao „nepoznata” stavka
+    #    izbornika (klik „Upiši” ne bi upisao).
+    if whatsapp_racuni.zauzet(frm):
+        whatsapp_racuni.handle(frm, ime, msg)
+        return
+
+    # 2) Interaktivni odgovor (izbornik/gumbi)
     if tip == "interactive":
         inter = msg.get("interactive") or {}
         rid = ((inter.get("list_reply") or {}).get("id")
                or (inter.get("button_reply") or {}).get("id") or "")
         _izbor(frm, ime, rid)
-        return
-
-    # 2) Ako je aktivan tok RAČUNA (sesija/sakupljanje/obrada) → njemu prepusti
-    if whatsapp_racuni.zauzet(frm):
-        whatsapp_racuni.handle(frm, ime, msg)
         return
 
     # 3) Ako smo u nekom meni-toku (lokacija/kvar/podsjetnik) → nastavi ga
