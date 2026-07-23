@@ -337,3 +337,17 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
 - Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
   nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
   Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
+- Prijava kvara (WhatsApp izbornik 🛠️) — proslijediti OPIS + FOTOGRAFIJE na
+  WhatsApp primatelja (voditelj/mehaničar), NE na Telegram. Opcija B: skupljati
+  poruke (tekst + više fotki) dok radnik ne kaže „gotovo", pa sve poslati kao
+  cjelinu. Trenutno: šalje samo TEKST vlasnicima na Telegram; fotka se NE
+  prosljeđuje (samo napomena da je poslana). Potrebno:
+  - novi env WHATSAPP_KVAR_PRIMATELJ (broj/evi koji primaju prijave);
+  - download WhatsApp medija → re-send kao slika primatelju (whatsapp treba
+    send_image/media by link ili upload);
+  - ⚠️ 24 h prozor: slobodan sadržaj (pogotovo slika) ide primatelju SAMO ako je
+    on u zadnjih 24 h pisao poslovnom broju; izvan prozora → samo predložak
+    (tekst). Fallback (da se prijava ne izgubi): predložak-obavijest primatelju
+    („nova prijava kvara od {{1}}, otvori WhatsApp") + spremiti prijavu.
+  OTVORENO od vlasnika: (1) broj(evi) primatelja; (2) je li ok fallback-predložak
+  kad je prozor zatvoren. Trud: srednji.
