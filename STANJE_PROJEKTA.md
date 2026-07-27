@@ -364,14 +364,19 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
   - Predložak potvrda_vozila (UTILITY, hr, 2 quick-reply gumba) DODAN u
     _WA_PREDLOSCI_DEF — kreirati /wa_kreiraj_predloske pa čeka Metu.
   - /tko <GB> (Telegram, owner) — pokaže zadnjeg vozača (test integracije). DONE.
+  - ISPRAVAK SE PIŠE NATRAG U FLOTU OS (DODAN 27.7.):
+    · Flota OS tablica potvrde_vozila (append-only dnevnik potvrda) +
+      POST /api/flota/potvrda-vozila {gb, vozac, vozi} (servisni ključ).
+    · GET /api/flota/zadnji-vozac sad prvo gleda najsvježiju potvrdu „Da vozim"
+      (vozi=1) pa tek onda voznje_dan → potvrda vozača nadglasava dnevne vožnje
+      (polje „izvor": potvrda|voznje_dan). Tako „/tko" i okidač vide živu istinu.
+    · bravel-agent: helper _flota_os_post + flota_zapisi_potvrdu(gb, vozac, vozi).
+      „Ne vozim" → vozi=False; „drugi kamion" → stari GB vozi=False + novi vozi=True.
   PREOSTAJE ZA GRADNJU:
   - scheduler: praćenje paljenja + debounce „jednom po smjeni" (prag >~6h ugašeno
     I nema svježe potvrde <~16h) da ne spama/troši;
-  - slanje predloška zadnjem vozaču na okidač + obrada odgovora (Da/Ne/drugi GB);
-  - živa evidencija (bravel-agent DB: kamion→trenutni vozač, seed iz Flote OS,
-    ažurira potvrdama); owner upiti;
+  - slanje predloška zadnjem vozaču na okidač + obrada odgovora (Da/Ne/drugi GB) →
+    zove flota_zapisi_potvrdu (write-back je spreman, gore);
+  - owner upiti nad živom evidencijom (/tko već čita najsvježiju potvrdu);
   - ⚠️ TROŠAK: svaka poruka je naplativi predložak (~par centi). Zato debounce.
     Uključivati iza flag-a (npr. WHATSAPP_IGNITION_ON) i tek nakon testa.
-  - „Ispravak" (Ne vozim / drugi GB): odluka piše li se natrag u Flotu OS
-    (treba write-endpoint) ili samo javi vlasnicima. Za v1: bravel-agent drži
-    živu evidenciju, Floti OS se NE piše (samo čita zadnjeg vozača kao seed).
