@@ -29,6 +29,7 @@ import whatsapp    # WhatsApp Cloud API (registracija broja, slanje) — admin k
 import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposlenici)
 import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
+import whatsapp_paljenje  # potvrda vozača na paljenje kamiona (živa evidencija; iza flaga)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import podrska     # živi chat (podrška) za internu Flotu OS
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
@@ -1058,6 +1059,14 @@ def check_reminders():
             except Exception as e:
                 monitoring.warning(f"WA podsjetnici isporuka: {e}", source="wa_meni")
 
+            # --- praćenje paljenja kamiona (potvrda vozača) ---
+            # Sam odlučuje je li vrijeme za novu provjeru pozicija; radi samo ako
+            # je WHATSAPP_IGNITION_ON=1. Teški dio (mreža) ide u zasebnu nit.
+            try:
+                whatsapp_paljenje.tick()
+            except Exception as e:
+                monitoring.warning(f"Paljenje tick: {e}", source="wa_paljenje")
+
             # --- ciscenje: poslani jednokratni stariji od 2 dana ---
             with db() as conn:
                 conn.execute("DELETE FROM reminders WHERE fired = 1 AND time_ts < ?",
@@ -1989,6 +1998,11 @@ def handle_wa_send(message):
 def wa_dolazna_poruka(frm, ime, msg):
     try:
         if whatsapp_racuni.is_allowed(frm):
+            # Ako čeka otvoreni upit o paljenju (a vozač nije usred slanja računa),
+            # najprije obradi taj odgovor (Da/Ne/drugi kamion).
+            if not whatsapp_racuni.zauzet(frm) and \
+                    whatsapp_paljenje.obradi_odgovor(frm, ime, msg):
+                return
             whatsapp_racuni.handle(frm, ime, msg)   # samo slanje računa/primki (bez izbornika)
             return
     except Exception as e:
@@ -2249,6 +2263,10 @@ if __name__ == "__main__":
 
     whatsapp_meni.setup(gdje_lookup=_wa_gdje_lookup,
                         obavijesti=_wa_obavijesti_vlasnike)
+
+    # Potvrda vozača na paljenje kamiona: injektiraj bazu + Flota OS helpere.
+    # Sve je iza prekidača WHATSAPP_IGNITION_ON (default OFF) — bez njega samo miruje.
+    whatsapp_paljenje.konfiguriraj(db, _flota_os_get, flota_zapisi_potvrdu)
 
     # Ispis registriranih handlera (redoslijed = prioritet matchanja u telebotu).
     def _dump_handlers():
