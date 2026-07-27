@@ -372,11 +372,25 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
       (polje „izvor": potvrda|voznje_dan). Tako „/tko" i okidač vide živu istinu.
     · bravel-agent: helper _flota_os_post + flota_zapisi_potvrdu(gb, vozac, vozi).
       „Ne vozim" → vozi=False; „drugi kamion" → stari GB vozi=False + novi vozi=True.
-  PREOSTAJE ZA GRADNJU:
-  - scheduler: praćenje paljenja + debounce „jednom po smjeni" (prag >~6h ugašeno
-    I nema svježe potvrde <~16h) da ne spama/troši;
-  - slanje predloška zadnjem vozaču na okidač + obrada odgovora (Da/Ne/drugi GB) →
-    zove flota_zapisi_potvrdu (write-back je spreman, gore);
-  - owner upiti nad živom evidencijom (/tko već čita najsvježiju potvrdu);
-  - ⚠️ TROŠAK: svaka poruka je naplativi predložak (~par centi). Zato debounce.
-    Uključivati iza flag-a (npr. WHATSAPP_IGNITION_ON) i tek nakon testa.
+  - SCHEDULER + OBRADA ODGOVORA (DODAN 27.7. — modul whatsapp_paljenje.py):
+    · tick() se zove iz check_reminders (svakih 10 s), sam throttla na
+      WHATSAPP_IGNITION_POLL_SEC (180 s), mrežni dio ide u nit;
+    · obradi_ciklus(): mobilisis.all_positions() → detekcija ugašeno→upaljeno po
+      GB-u; stanje u tablici ignition_state (bot.db); debounce „jednom po smjeni":
+      okine samo ako bio ugašen ≥ WHATSAPP_IGNITION_OFF_SATI (6 h) I zadnja
+      obavijest za taj GB ≥ WHATSAPP_IGNITION_TIHI_SATI (16 h). Prvi put viđen
+      kamion se samo zapamti (bez okidanja);
+    · _posalji_potvrdu(): Flota OS zadnji-vozač → ime→telefon (WHATSAPP_DRIVERS,
+      bez dijakritike) → predložak potvrda_vozila; upit se pamti u ignition_upit;
+    · obradi_odgovor() (zove se iz wa_dolazna_poruka PRIJE računa, osim ako je
+      vozač usred slanja računa): „Da"→zapiši vozi=1; „Ne"→vozi=0 pa pita koji
+      kamion; broj drugog kamiona→stari vozi=0 + novi vozi=1; sve preko
+      flota_zapisi_potvrdu (write-back). Upit vrijedi WHATSAPP_IGNITION_UPIT_SATI (20 h);
+    · TEST NAČIN: WHATSAPP_IGNITION_SAMO_GB="363" → nadzire samo taj kamion.
+  ⚠️ TROŠAK: svaka poruka je naplativi predložak (~par centi) — zato debounce.
+  UKLJUČIVANJE (tek nakon što je potvrda_vozila APPROVED):
+    1) /wa_kreiraj_predloske (kreira potvrda_vozila) → čekaj Metu;
+    2) (opcija) WHATSAPP_IGNITION_SAMO_GB=<jedan GB> za test na jednom kamionu;
+    3) WHATSAPP_IGNITION_ON=1. Isključenje: makni/na 0.
+  PREOSTAJE (opcionalno): owner pregled žive evidencije (/tko već čita najsvježiju
+  potvrdu); po želji noćni „tihi sati" da se ne javlja usred noći.
