@@ -1488,6 +1488,57 @@ def handle_tko(message):
                      daemon=True).start()
 
 
+def _gorivo_worker(chat_id):
+    try:
+        res = _flota_os_get("/api/flota/gorivo-anomalije")
+        if res.get("greska"):
+            safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
+            return
+        anom = res.get("anomalije") or []
+        fleet = (res.get("fleet") or {}).get("l100")
+        ukupno = res.get("ukupno_vozila") or 0
+        prag = res.get("pragovi") or {}
+
+        if not anom:
+            poruka = res.get("poruka")
+            if poruka:
+                safe_send(chat_id, f"ℹ️ Gorivo: {poruka}.")
+                return
+            safe_send(chat_id, f"✅ Gorivo: nema odstupanja.\n"
+                               f"Prosjek flote: {fleet} l/100km · {ukupno} kamiona.")
+            return
+
+        linije = [f"⛽ ANOMALIJE POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
+                  f"Prosjek flote: {fleet} l/100km"]
+        if prag:
+            linije.append(f"Pragovi: +{prag.get('svoj_pct')}% vlastiti · "
+                          f"+{prag.get('flota_pct')}% flota · min {int(prag.get('min_km', 0))} km")
+        linije.append("")
+        for n in anom[:20]:
+            gb = n.get("gb")
+            l100 = n.get("l100")
+            ekm = n.get("eur_km")
+            glava = f"🔴 GB {gb} — {l100} l/100km"
+            if ekm:
+                glava += f" (~{ekm} €/km)"
+            linije.append(glava)
+            for r in n.get("razlozi") or []:
+                linije.append(f"   • {r}")
+        if len(anom) > 20:
+            linije.append(f"\n…i još {len(anom) - 20}.")
+        safe_send(chat_id, "\n".join(linije)[:3900])
+    except Exception as e:
+        monitoring.error("Greska u /gorivo", source="gorivo", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_gorivo(message):
+    # /gorivo — kamioni s odstupanjem u potrošnji (curenje/krađa/kvar)
+    bot.reply_to(message, "⛽ Provjeravam potrošnju…")
+    threading.Thread(target=_gorivo_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 # ==================== WhatsApp admin komande (samo vlasnik) ====================
 
 def _wa_register_worker(chat_id, pin):
@@ -2023,7 +2074,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
-                               'benzinske', 'podrska', 'zdravlje', 'tko'])
+                               'benzinske', 'podrska', 'zdravlje', 'tko', 'gorivo'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -2032,6 +2083,10 @@ def command_handler(message):
 
     if cmd.startswith('/tko'):
         handle_tko(message)
+        return
+
+    if cmd.startswith('/gorivo'):
+        handle_gorivo(message)
         return
 
     if cmd.startswith('/gdje'):
