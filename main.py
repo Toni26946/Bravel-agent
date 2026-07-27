@@ -1524,30 +1524,38 @@ def _gorivo_worker(chat_id):
             safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
             return
         anom = res.get("anomalije") or []
+        najveci = res.get("najveci") or []
         fleet_obj = res.get("fleet") or {}
         median = fleet_obj.get("median")
         ukupno = res.get("ukupno_vozila") or 0
         prag = res.get("pragovi") or {}
-        outlier = prag.get("outlier_l100")
+        svoj = int(prag.get("svoj_pct", 40))
 
         sredina = f"Sredina kamiona: {median} l/100km (medijan) · {ukupno} kamiona"
 
-        if not anom:
-            poruka = res.get("poruka")
-            if poruka:
-                safe_send(chat_id, f"ℹ️ Gorivo: {poruka}.")
-                return
-            safe_send(chat_id, f"✅ Gorivo: nema izraženih odstupanja.\n{sredina}")
+        # Informativni podnožje: najveći potrošači (nisu nužno problem — obično
+        # su to teški kamioni koji prirodno troše više).
+        def _podnozje():
+            if not najveci:
+                return ""
+            dijelovi = [f"GB {n.get('gb')} ({n.get('l100')})" for n in najveci]
+            return ("\nℹ️ Najveći potrošači (nije nužno problem): "
+                    + ", ".join(dijelovi) + " l/100km")
+
+        poruka = res.get("poruka")
+        if poruka:
+            safe_send(chat_id, f"ℹ️ Gorivo: {poruka}.")
             return
 
-        linije = [f"⛽ ANOMALIJE POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
-                  sredina]
-        if prag:
-            krit = f"Kriterij: nagli skok ≥{int(prag.get('svoj_pct', 0))}% vs vlastiti prosjek"
-            if outlier:
-                krit += f" ili izraziti outlier (>{outlier} l/100km)"
-            linije.append(krit)
-        linije.append("")
+        if not anom:
+            safe_send(chat_id, f"✅ Gorivo: nema naglih skokova u potrošnji.\n"
+                               f"{sredina}{_podnozje()}")
+            return
+
+        linije = [f"⛽ NAGLI SKOKOVI POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
+                  sredina,
+                  f"Kriterij: potrošnja kamiona skočila ≥{svoj}% vs vlastiti prosjek",
+                  ""]
         for n in anom[:20]:
             gb = n.get("gb")
             l100 = n.get("l100")
@@ -1560,6 +1568,7 @@ def _gorivo_worker(chat_id):
                 linije.append(f"   • {r}")
         if len(anom) > 20:
             linije.append(f"\n…i još {len(anom) - 20}.")
+        linije.append(_podnozje())
         safe_send(chat_id, "\n".join(linije)[:3900])
     except Exception as e:
         monitoring.error("Greska u /gorivo", source="gorivo", exc=e)
