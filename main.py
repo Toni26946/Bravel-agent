@@ -1495,24 +1495,29 @@ def _gorivo_worker(chat_id):
             safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
             return
         anom = res.get("anomalije") or []
-        fleet = (res.get("fleet") or {}).get("l100")
+        fleet_obj = res.get("fleet") or {}
+        fleet = fleet_obj.get("l100")
+        median = fleet_obj.get("median")
         ukupno = res.get("ukupno_vozila") or 0
         prag = res.get("pragovi") or {}
+
+        sredina = (f"Sredina flote: {median} l/100km (medijan) · "
+                   f"prosjek {fleet} · {ukupno} kamiona")
 
         if not anom:
             poruka = res.get("poruka")
             if poruka:
                 safe_send(chat_id, f"ℹ️ Gorivo: {poruka}.")
                 return
-            safe_send(chat_id, f"✅ Gorivo: nema odstupanja.\n"
-                               f"Prosjek flote: {fleet} l/100km · {ukupno} kamiona.")
+            safe_send(chat_id, f"✅ Gorivo: nema izraženih odstupanja.\n{sredina}")
             return
 
         linije = [f"⛽ ANOMALIJE POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
-                  f"Prosjek flote: {fleet} l/100km"]
+                  sredina]
         if prag:
-            linije.append(f"Pragovi: +{prag.get('svoj_pct')}% vlastiti · "
-                          f"+{prag.get('flota_pct')}% flota · min {int(prag.get('min_km', 0))} km")
+            linije.append(f"Kriterij: skok ≥{int(prag.get('svoj_pct', 0))}% vs vlastiti "
+                          f"prosjek ili ≥{int(prag.get('flota_pct', 0))}% iznad sredine flote "
+                          f"(pravi outlier)")
         linije.append("")
         for n in anom[:20]:
             gb = n.get("gb")
