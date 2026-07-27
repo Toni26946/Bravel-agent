@@ -1525,13 +1525,12 @@ def _gorivo_worker(chat_id):
             return
         anom = res.get("anomalije") or []
         fleet_obj = res.get("fleet") or {}
-        fleet = fleet_obj.get("l100")
         median = fleet_obj.get("median")
         ukupno = res.get("ukupno_vozila") or 0
         prag = res.get("pragovi") or {}
+        outlier = prag.get("outlier_l100")
 
-        sredina = (f"Sredina flote: {median} l/100km (medijan) · "
-                   f"prosjek {fleet} · {ukupno} kamiona")
+        sredina = f"Sredina kamiona: {median} l/100km (medijan) · {ukupno} kamiona"
 
         if not anom:
             poruka = res.get("poruka")
@@ -1544,9 +1543,10 @@ def _gorivo_worker(chat_id):
         linije = [f"⛽ ANOMALIJE POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
                   sredina]
         if prag:
-            linije.append(f"Kriterij: skok ≥{int(prag.get('svoj_pct', 0))}% vs vlastiti "
-                          f"prosjek ili ≥{int(prag.get('flota_pct', 0))}% iznad sredine flote "
-                          f"(pravi outlier)")
+            krit = f"Kriterij: nagli skok ≥{int(prag.get('svoj_pct', 0))}% vs vlastiti prosjek"
+            if outlier:
+                krit += f" ili izraziti outlier (>{outlier} l/100km)"
+            linije.append(krit)
         linije.append("")
         for n in anom[:20]:
             gb = n.get("gb")
