@@ -283,17 +283,16 @@ posebno na EU rutama. Razrada:
   EU rutama (AS24/DKV/Shell/UTA…) → određuje koje postaje indeksiramo; (2) imamo
   li pristup razini goriva iz Mobilisisa ili idemo na procjenu iz potrošnje.
 
-### WhatsApp — dovršetak (na čekanju do dodavanja vozača)
-Odluka (21.7.): NIŠTA što troši pravi novac dok se ne dodaju vozači; WhatsApp se
-još slaže, dovršava se TEK nakon dodavanja vozača.
-- Dodati vozače u WHATSAPP_DRIVERS (broj→ime[:GB]) — preduvjet za sve slanje.
-- Automatski tjedni podsjetnici (whatsapp_podsjetnici.py): kod gotov, predložak
-  podsjetnik_racun APPROVED. Uključiti WHATSAPP_PODSJETNICI_ON=1 TEK nakon vozača
-  (šalje prave poruke, mali trošak po poruci). Prije toga test /wa_podsjetnici.
-- Predložak podsjetnik_opci još PENDING na Meti (ostali odobreni) — provjeriti
-  /wa_predlosci da prođe.
-- Nakon vozača: proći kroz tok (izbornik, računi/primke, sati, podsjetnici) i
-  dovršiti/uglancati po potrebi.
+### WhatsApp — dovršetak
+Odluka (21.7.): NIŠTA što troši pravi novac dok se ne dodaju vozači.
+- Vozači DODANI (23.7.): 95 vozača u WHATSAPP_ALLOWED + WHATSAPP_DRIVERS
+  (+ test broj). Panel je UŽIVO i radi (izbornik, računi, sati, kvar, lokacija).
+- SVIH 5 predložaka APPROVED (podsjetnik_opci potvrđen 27.7.) → radnički
+  podsjetnici izvan 24 h rade potpuno.
+- Automatski tjedni podsjetnici (whatsapp_podsjetnici.py): kod gotov, ali
+  WHATSAPP_PODSJETNICI_ON = ISKLJUČENO (namjerno, da ne šalje masi prije
+  onboardinga). Uključiti TEK nakon onboardinga; prije toga test /wa_podsjetnici.
+- Preostalo: onboarding vozača (uputa) pa po želji uključiti tjedne podsjetnike.
 
 ### Flota OS — sigurnosni hardening (pregled koda 21.7.)
 Ukupno: solidno osigurano (Entra JWT s provjerom potpisa/iss/aud, bcrypt lozinke,
