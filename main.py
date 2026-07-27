@@ -1530,6 +1530,7 @@ def _gorivo_worker(chat_id):
         ukupno = res.get("ukupno_vozila") or 0
         prag = res.get("pragovi") or {}
         svoj = int(prag.get("svoj_pct", 40))
+        mj_pov = prag.get("mjeseci_povijest")
 
         sredina = f"Sredina kamiona: {median} l/100km (medijan) · {ukupno} kamiona"
 
@@ -1552,9 +1553,11 @@ def _gorivo_worker(chat_id):
                                f"{sredina}{_podnozje()}")
             return
 
+        baza_opis = (f"vlastiti prosjek (zadnjih {mj_pov} mj)" if mj_pov
+                     else "vlastiti prosjek")
         linije = [f"⛽ NAGLI SKOKOVI POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
                   sredina,
-                  f"Kriterij: potrošnja kamiona skočila ≥{svoj}% vs vlastiti prosjek",
+                  f"Kriterij: potrošnja kamiona skočila ≥{svoj}% vs {baza_opis}",
                   ""]
         for n in anom[:20]:
             gb = n.get("gb")
