@@ -120,6 +120,19 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_daily_log_lookup "
             "ON daily_log (chat_id, day)"
         )
+        # Registar rokova (registracija, tehnički, tahograf, vozačke, ADR…).
+        # Samo evidencija/pregled — BEZ automatskih podsjetnika.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rokovi (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                kategorija TEXT NOT NULL,   -- Registracija/Tehnički/Tahograf/Vozačka/ADR…
+                subjekt    TEXT NOT NULL,   -- GB kamiona ili ime vozača
+                datum      TEXT NOT NULL,   -- ISO 'YYYY-MM-DD' (datum isteka)
+                napomena   TEXT,
+                created_ts REAL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_rokovi_datum ON rokovi (datum)")
     # Migracija starije baze (dodavanje stupaca ako ne postoje)
     with db() as conn:
         for stmt in [
@@ -1548,6 +1561,137 @@ def handle_tko(message):
                      daemon=True).start()
 
 
+# ==================== REGISTAR ROKOVA (bez podsjetnika) ====================
+# Evidencija datuma isteka (registracija, tehnički, tahograf, vozačke, ADR…).
+# Samo pregled — ništa se ne šalje automatski.
+
+_ROK_KAT = {  # normalizacija čestih kategorija za lijep prikaz
+    "registracija": "Registracija", "reg": "Registracija",
+    "tehnicki": "Tehnički", "tehnički": "Tehnički", "teh": "Tehnički",
+    "tahograf": "Tahograf", "taho": "Tahograf",
+    "vozacka": "Vozačka", "vozačka": "Vozačka", "vozac": "Vozačka",
+    "adr": "ADR", "lijecnicki": "Liječnički", "liječnički": "Liječnički",
+    "osiguranje": "Osiguranje", "sanduk": "Sanduk", "ppa": "PP aparat",
+}
+
+
+def _rok_label(kat):
+    return _ROK_KAT.get((kat or "").strip().lower(), (kat or "").strip().capitalize())
+
+
+def _parse_datum(s):
+    """'15.8.2026' / '15.08.2026.' / '2026-08-15' → date, inače None."""
+    s = (s or "").strip()
+    for fmt in ("%d.%m.%Y", "%d.%m.%Y.", "%Y-%m-%d", "%d.%m.%y", "%d.%m.%y."):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _rok_dana(dana):
+    """(emoji, opis) prema broju dana do isteka."""
+    if dana < 0:
+        return ("🔴", f"istekao prije {-dana} d")
+    if dana == 0:
+        return ("🔴", "ističe DANAS")
+    if dana <= 30:
+        return ("🟠", f"za {dana} d")
+    if dana <= 90:
+        return ("🟡", f"za {dana} d")
+    return ("🟢", f"za {dana} d")
+
+
+def handle_rok_dodaj(message):
+    # /rok_dodaj <kategorija> <subjekt…> <datum> [napomena…]
+    args = message.text.split()[1:]
+    if len(args) < 3:
+        bot.reply_to(
+            message,
+            "Format:\n/rok_dodaj <kategorija> <subjekt> <datum> [napomena]\n\n"
+            "npr:\n"
+            "/rok_dodaj registracija GB363 15.08.2026\n"
+            "/rok_dodaj vozacka Ivan Horvat 01.09.2026 kat C+E\n\n"
+            "Kategorije: registracija, tehnicki, tahograf, vozacka, ADR, "
+            "osiguranje, liječnički…")
+        return
+    kat = args[0]
+    # datum = zadnji token koji se parsira kao datum
+    datum_idx = None
+    for i in range(1, len(args)):
+        if _parse_datum(args[i]):
+            datum_idx = i
+    if not datum_idx or datum_idx < 1:
+        bot.reply_to(message, "Ne prepoznajem datum. Upiši npr. 15.08.2026 ili 2026-08-15.")
+        return
+    d = _parse_datum(args[datum_idx])
+    subjekt = " ".join(args[1:datum_idx]).strip()
+    if not subjekt:
+        bot.reply_to(message, "Fali subjekt (GB kamiona ili ime vozača).")
+        return
+    napomena = " ".join(args[datum_idx + 1:]).strip() or None
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO rokovi (kategorija, subjekt, datum, napomena, created_ts) "
+            "VALUES (?,?,?,?,?)",
+            (_rok_label(kat), subjekt, d.isoformat(), napomena, get_now().timestamp()))
+        rid = cur.lastrowid
+    dana = (d - get_now().date()).days
+    _, opis = _rok_dana(dana)
+    dod = f" — {napomena}" if napomena else ""
+    bot.reply_to(message, f"✅ Rok #{rid} spremljen: {_rok_label(kat)} — {subjekt}{dod}\n"
+                          f"📅 {d.strftime('%d.%m.%Y')} ({opis})")
+
+
+def handle_rokovi(message):
+    # /rokovi [filter] — popis rokova (po datumu). Filter po subjektu/kategoriji.
+    parts = message.text.split(maxsplit=1)
+    filtar = parts[1].strip().lower() if len(parts) > 1 else ""
+    with db() as conn:
+        redovi = conn.execute("SELECT * FROM rokovi ORDER BY datum").fetchall()
+    if filtar:
+        redovi = [r for r in redovi
+                  if filtar in (r["subjekt"] or "").lower()
+                  or filtar in (r["kategorija"] or "").lower()]
+    if not redovi:
+        bot.reply_to(message, "Nema upisanih rokova.\n"
+                              "Dodaj: /rok_dodaj <kategorija> <subjekt> <datum>")
+        return
+    danas = get_now().date()
+    linije = [f"📋 ROKOVI ({len(redovi)})"]
+    for r in redovi:
+        d = _parse_datum(r["datum"])
+        if d:
+            emo, opis = _rok_dana((d - danas).days)
+            dstr = d.strftime("%d.%m.%Y")
+        else:
+            emo, opis, dstr = "•", "?", r["datum"]
+        red = f"{emo} #{r['id']} {r['kategorija']} — {r['subjekt']} · {dstr} ({opis})"
+        if r["napomena"]:
+            red += f" — {r['napomena']}"
+        linije.append(red)
+    linije.append("\nBriši: /rok_obrisi <broj>")
+    bot.reply_to(message, "\n".join(linije)[:3900])
+
+
+def handle_rok_obrisi(message):
+    # /rok_obrisi <broj>
+    parts = message.text.split(maxsplit=1)
+    arg = parts[1].strip() if len(parts) > 1 else ""
+    if not arg.isdigit():
+        bot.reply_to(message, "Format: /rok_obrisi <broj> (broj vidiš u /rokovi)")
+        return
+    rid = int(arg)
+    with db() as conn:
+        r = conn.execute("SELECT * FROM rokovi WHERE id=?", (rid,)).fetchone()
+        if not r:
+            bot.reply_to(message, f"Nema roka #{rid}.")
+            return
+        conn.execute("DELETE FROM rokovi WHERE id=?", (rid,))
+    bot.reply_to(message, f"🗑️ Obrisan rok #{rid}: {r['kategorija']} — {r['subjekt']}")
+
+
 def _gorivo_tekst():
     """Dohvati anomalije goriva s Flote OS i složi poruku.
     Vrati (tekst, ima_anomalije). ima_anomalije=True samo ako postoje skokovi."""
@@ -2177,7 +2321,8 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
-                               'benzinske', 'podrska', 'zdravlje', 'tko', 'gorivo'])
+                               'benzinske', 'podrska', 'zdravlje', 'tko', 'gorivo',
+                               'rokovi', 'rok_dodaj', 'rok_obrisi'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -2190,6 +2335,18 @@ def command_handler(message):
 
     if cmd.startswith('/gorivo'):
         handle_gorivo(message)
+        return
+
+    if cmd.startswith('/rok_dodaj'):
+        handle_rok_dodaj(message)
+        return
+
+    if cmd.startswith('/rok_obrisi'):
+        handle_rok_obrisi(message)
+        return
+
+    if cmd.startswith('/rokovi'):
+        handle_rokovi(message)
         return
 
     if cmd.startswith('/gdje'):
@@ -2291,6 +2448,10 @@ def command_handler(message):
             "/vozac_lista – popis vozača (admin)\n"
             "/backup_sada – ručni backup baze na SharePoint (admin)\n"
             "/gdje <GB ili registracija> – GPS lokacija vozila (Mobilisis)\n"
+            "/gorivo – nagli skokovi u potrošnji goriva\n"
+            "/rokovi – registar rokova (registracija, tehnički, tahograf…)\n"
+            "/rok_dodaj <kategorija> <subjekt> <datum> – dodaj rok\n"
+            "/rok_obrisi <broj> – obriši rok\n"
             "/zdravlje – provjera Mobilisis/Flota OS veza (admin)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )

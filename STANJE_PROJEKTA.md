@@ -343,6 +343,12 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
 - Registar rokova + auto-podsjetnici (registracija, tehnički, tahograf, vozačke,
   ADR): mali registar datuma + postojeći sustav podsjetnika → javi X dana prije.
   Sprječava kazne/stajanje. Trud: nizak. (Najbrža pobjeda.)
+  ✅ REGISTAR NAPRAVLJEN (27.7., BEZ podsjetnika po želji): tablica rokovi u
+  bot.db + Telegram naredbe /rok_dodaj <kategorija> <subjekt> <datum> [napomena],
+  /rokovi [filter] (popis po datumu, emoji po hitnosti 🔴≤0/🟠≤30/🟡≤90/🟢),
+  /rok_obrisi <broj>. Datum: 15.08.2026 ili 2026-08-15; subjekt smije imati
+  razmake (ime vozača). PREOSTAJE (po želji): auto-podsjetnik X dana prije
+  (okvir check_reminders postoji) — namjerno NIJE uključeno.
 - Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
   nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
   Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
