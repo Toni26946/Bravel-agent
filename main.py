@@ -479,9 +479,16 @@ PODRSKA_SYSTEM_PROMPT = (
     "ALATI za ŽIVE podatke (KORISTI ih, ne nagađaj brojke): cijene_goriva (cijene po lancu), "
     "pozicija_vozila (GPS po registraciji/GB), prihod (pregled po mjesecu ILI po vozaču za dan "
     "YYYY-MM-DD), profitabilnost (marža/prihod/trošak/dobit po kamionu, zadnji dan), ture "
-    "(trenutna tura po kamionu), potrosnja (litre i € goriva po mjesecu/režimu), status_vozila "
+    "(trenutna tura po kamionu), potrosnja (litre i € goriva po mjesecu/režimu), gorivo_anomalije "
+    "(nagli skokovi u potrošnji po kamionu + najveći potrošači), status_vozila "
     "(koliko vozila je aktivno/pasivno/prodano + popis). Ako alat vrati grešku/nekonfigurirano, "
     "reci to iskreno i po potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
+    "PREGLED POSLOVANJA / TJEDNI SAŽETAK: kad korisnik traži „sažetak”, „pregled”, „kako posluje "
+    "flota” ili „tjedni izvještaj”, SAM pozovi više alata i sklopi kratak pregled u par jasnih "
+    "redaka s brojkama: prihod (pregled), profitabilnost (marža po kamionu — istakni NAJBOLJE i "
+    "NAJGORE), potrosnja + gorivo_anomalije (nagli skokovi u gorivu), po potrebi status_vozila. "
+    "Budi iskren o razdoblju — podaci su po mjesecu / zadnjem radnom danu, pa nije nužno točno "
+    "„ovaj tjedan”; ako korisnik traži baš tjedni presjek koji alat ne daje, reci to.\n\n"
     "STIL: odgovaraj KRATKO, jasno i na hrvatskom, konkretnim koracima. Ne izmišljaj funkcije ni "
     "podatke. Ako alat vrati grešku/nedostupno, reci to iskreno. Za ljudsku intervenciju ili ovlasti "
     "uputi da proslijede vlasnicima (Toni/ured).\n\n"
@@ -552,6 +559,14 @@ PODRSKA_TOOLS = [
         "description": ("Status flote iz Flota OS-a — ukupan broj vozila i razdioba po statusu "
                         "(aktivno/pasivno/prodano) + popis {gb, status, model, reg}. Koristi za "
                         "pitanja koliko vozila je aktivno, koji su pasivni/prodani i sl."),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "gorivo_anomalije",
+        "description": ("Nagli skokovi u potrošnji goriva po kamionu (mogući curenje/krađa/kvar) "
+                        "iz Flota OS-a: kamion čija je potrošnja naglo skočila vs vlastiti "
+                        "prosjek, uz sredinu flote i popis najvećih potrošača. Koristi za pitanja "
+                        "o anomalijama goriva ili u sklopu tjednog pregleda poslovanja."),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
 ]
@@ -643,6 +658,8 @@ def _podrska_alat(naziv, ulaz):
             return _flota_os_get("/api/flota/ture")
         if naziv == "potrosnja":
             return _flota_os_get("/api/gorivo/pregled")
+        if naziv == "gorivo_anomalije":
+            return _flota_os_get("/api/flota/gorivo-anomalije")
         if naziv == "status_vozila":
             d = _flota_os_get("/api/flota/status")
             # Flota zna imati stotine vozila; cijeli popis ne stane u rezultat
