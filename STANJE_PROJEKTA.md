@@ -330,6 +330,16 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
 - Detektor anomalija u potrošnji (curenje/krađa goriva): l/100km po kamionu vs
   vlastiti prosjek i prosjek flote → izbaci odstupanja. Koristi postojeće gorivo
   podatke. Trud: nizak-sr.
+  ✅ NAPRAVLJENO (27.7.): Flota OS GET /api/flota/gorivo-anomalije (potrosnja.
+  anomalije) — mjeri SVAKI kamion zasebno: zadnji čisti mjesec vs medijan njegovih
+  prethodnih (default 6 mj, param 'mjeseci'); prijava ako skok ≥ prag_svoj (40%).
+  NE uspoređuje s flotom (širok prirodan raspon 35–67 l/100km + ±30% šum pripisa
+  kartica → svaka „iznad prosjeka/outlier" varijanta prijavljivala pola flote).
+  Najveći potrošači se vraćaju zasebno (info, nije anomalija). Samo KAMIONI
+  (kamioni set iz GARAŽNI BROJEVI; svi=true za sva). bravel-agent: naredba /gorivo
+  (owner) + TJEDNI AUTO-IZVJEŠTAJ (_gorivo_auto) iza GORIVO_ANOM_ON=1, raspored
+  GORIVO_ANOM_DAN/SAT/MIN (pon 07:00), šalje samo kad ima skokova osim
+  GORIVO_ANOM_UVIJEK=1.
 - Registar rokova + auto-podsjetnici (registracija, tehnički, tahograf, vozačke,
   ADR): mali registar datuma + postojeći sustav podsjetnika → javi X dana prije.
   Sprječava kazne/stajanje. Trud: nizak. (Najbrža pobjeda.)
