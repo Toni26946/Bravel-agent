@@ -1053,6 +1053,20 @@ def check_reminders():
                 except Exception as e:
                     monitoring.warning(f"Benzinske raspored: {e}", source="benzinske")
 
+            # --- tjedni izvještaj goriva (anomalije potrošnje) na Telegram ---
+            # Samo ako je GORIVO_ANOM_ON=1; raspored DAN/SAT/MIN (default pon 07:00).
+            # Prema zadanom šalje samo kad ima skokova (bez tjednog šuma).
+            if os.getenv("GORIVO_ANOM_ON", "").strip() == "1":
+                try:
+                    gd = int(os.getenv("GORIVO_ANOM_DAN", "0"))   # 0 = ponedjeljak
+                    gh = int(os.getenv("GORIVO_ANOM_SAT", "7"))
+                    gm = int(os.getenv("GORIVO_ANOM_MIN", "0"))
+                    if (now.weekday() == gd and now.hour == gh and now.minute == gm
+                            and _job_fire_once("gorivo_tjedni", fired_key)):
+                        threading.Thread(target=_gorivo_auto, daemon=True).start()
+                except Exception as e:
+                    monitoring.warning(f"Gorivo raspored: {e}", source="gorivo")
+
             # --- zdravlje vanjskih ovisnosti (Mobilisis, Flota OS) svakih HEALTH_INTERVAL s ---
             global _health_zadnji_ts
             if now_ts - _health_zadnji_ts >= HEALTH_INTERVAL:
@@ -1517,65 +1531,91 @@ def handle_tko(message):
                      daemon=True).start()
 
 
+def _gorivo_tekst():
+    """Dohvati anomalije goriva s Flote OS i složi poruku.
+    Vrati (tekst, ima_anomalije). ima_anomalije=True samo ako postoje skokovi."""
+    res = _flota_os_get("/api/flota/gorivo-anomalije")
+    if res.get("greska"):
+        return (f"❌ Flota OS: {res['greska']}", False)
+
+    anom = res.get("anomalije") or []
+    najveci = res.get("najveci") or []
+    fleet_obj = res.get("fleet") or {}
+    median = fleet_obj.get("median")
+    ukupno = res.get("ukupno_vozila") or 0
+    prag = res.get("pragovi") or {}
+    svoj = int(prag.get("svoj_pct", 40))
+    mj_pov = prag.get("mjeseci_povijest")
+
+    sredina = f"Sredina kamiona: {median} l/100km (medijan) · {ukupno} kamiona"
+
+    def _eur(ekm):
+        try:
+            return f"{float(ekm):.2f}"
+        except (TypeError, ValueError):
+            return None
+
+    # Informativno podnožje: najveći potrošači (nisu nužno problem — obično su to
+    # teški kamioni koji prirodno troše više).
+    def _podnozje():
+        if not najveci:
+            return ""
+        dijelovi = [f"GB {n.get('gb')} ({n.get('l100')})" for n in najveci]
+        return ("\nℹ️ Najveći potrošači (nije nužno problem): "
+                + ", ".join(dijelovi) + " l/100km")
+
+    poruka = res.get("poruka")
+    if poruka:
+        return (f"ℹ️ Gorivo: {poruka}.", False)
+
+    if not anom:
+        return (f"✅ Gorivo: nema naglih skokova u potrošnji.\n"
+                f"{sredina}{_podnozje()}", False)
+
+    baza_opis = (f"vlastiti prosjek (zadnjih {mj_pov} mj)" if mj_pov
+                 else "vlastiti prosjek")
+    linije = [f"⛽ NAGLI SKOKOVI POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
+              sredina,
+              f"Kriterij: potrošnja kamiona skočila ≥{svoj}% vs {baza_opis}",
+              ""]
+    for n in anom[:20]:
+        gb = n.get("gb")
+        l100 = n.get("l100")
+        ekm = _eur(n.get("eur_km"))
+        glava = f"🔴 GB {gb} — {l100} l/100km"
+        if ekm:
+            glava += f" (~{ekm} €/km)"
+        linije.append(glava)
+        for r in n.get("razlozi") or []:
+            linije.append(f"   • {r}")
+    if len(anom) > 20:
+        linije.append(f"\n…i još {len(anom) - 20}.")
+    linije.append(_podnozje())
+    return ("\n".join(linije)[:3900], True)
+
+
 def _gorivo_worker(chat_id):
     try:
-        res = _flota_os_get("/api/flota/gorivo-anomalije")
-        if res.get("greska"):
-            safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
-            return
-        anom = res.get("anomalije") or []
-        najveci = res.get("najveci") or []
-        fleet_obj = res.get("fleet") or {}
-        median = fleet_obj.get("median")
-        ukupno = res.get("ukupno_vozila") or 0
-        prag = res.get("pragovi") or {}
-        svoj = int(prag.get("svoj_pct", 40))
-        mj_pov = prag.get("mjeseci_povijest")
-
-        sredina = f"Sredina kamiona: {median} l/100km (medijan) · {ukupno} kamiona"
-
-        # Informativni podnožje: najveći potrošači (nisu nužno problem — obično
-        # su to teški kamioni koji prirodno troše više).
-        def _podnozje():
-            if not najveci:
-                return ""
-            dijelovi = [f"GB {n.get('gb')} ({n.get('l100')})" for n in najveci]
-            return ("\nℹ️ Najveći potrošači (nije nužno problem): "
-                    + ", ".join(dijelovi) + " l/100km")
-
-        poruka = res.get("poruka")
-        if poruka:
-            safe_send(chat_id, f"ℹ️ Gorivo: {poruka}.")
-            return
-
-        if not anom:
-            safe_send(chat_id, f"✅ Gorivo: nema naglih skokova u potrošnji.\n"
-                               f"{sredina}{_podnozje()}")
-            return
-
-        baza_opis = (f"vlastiti prosjek (zadnjih {mj_pov} mj)" if mj_pov
-                     else "vlastiti prosjek")
-        linije = [f"⛽ NAGLI SKOKOVI POTROŠNJE ({len(anom)} od {ukupno} kamiona)",
-                  sredina,
-                  f"Kriterij: potrošnja kamiona skočila ≥{svoj}% vs {baza_opis}",
-                  ""]
-        for n in anom[:20]:
-            gb = n.get("gb")
-            l100 = n.get("l100")
-            ekm = n.get("eur_km")
-            glava = f"🔴 GB {gb} — {l100} l/100km"
-            if ekm:
-                glava += f" (~{ekm} €/km)"
-            linije.append(glava)
-            for r in n.get("razlozi") or []:
-                linije.append(f"   • {r}")
-        if len(anom) > 20:
-            linije.append(f"\n…i još {len(anom) - 20}.")
-        linije.append(_podnozje())
-        safe_send(chat_id, "\n".join(linije)[:3900])
+        tekst, _ = _gorivo_tekst()
+        safe_send(chat_id, tekst)
     except Exception as e:
         monitoring.error("Greska u /gorivo", source="gorivo", exc=e)
         safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def _gorivo_auto():
+    """Tjedni auto-izvještaj vlasnicima (Telegram). Prema zadanom šalje SAMO kad
+    ima skokova; GORIVO_ANOM_UVIJEK=1 šalje i „nema skokova" (potvrda da radi)."""
+    try:
+        tekst, ima = _gorivo_tekst()
+        uvijek = os.getenv("GORIVO_ANOM_UVIJEK", "").strip() == "1"
+        if not ima and not uvijek:
+            return  # nema skokova → tišina (bez tjednog šuma)
+        poruka = "📅 TJEDNI IZVJEŠTAJ — GORIVO\n\n" + tekst
+        for uid in ALLOWED_USERS:
+            safe_send(uid, poruka)
+    except Exception as e:
+        monitoring.error("Gorivo tjedni izvještaj", source="gorivo", exc=e)
 
 
 def handle_gorivo(message):
