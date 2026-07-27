@@ -594,6 +594,35 @@ def _flota_os_get(path, params=None):
         return {"greska": f"Flota OS nedostupan: {e}"}
 
 
+def _flota_os_post(path, telo=None):
+    """POST na flota-os backend sa servisnim ključem. Vrati JSON ili {greska}."""
+    if not _FLOTA_OS_SERVICE_KEY:
+        return {"greska": "Flota OS servisni pristup nije konfiguriran (FLOTA_OS_SERVICE_KEY)."}
+    try:
+        r = requests.post(f"{_FLOTA_OS_API}{path}", json=telo or {},
+                          headers={"X-Service-Key": _FLOTA_OS_SERVICE_KEY}, timeout=25)
+        if r.status_code == 401:
+            return {"greska": "servisni ključ odbijen (provjeri da je isti na obje strane)"}
+        if r.status_code != 200:
+            return {"greska": f"Flota OS HTTP {r.status_code}"}
+        return r.json()
+    except Exception as e:
+        return {"greska": f"Flota OS nedostupan: {e}"}
+
+
+def flota_zapisi_potvrdu(gb, vozac, vozi=True):
+    """Zapiši natrag u Flotu OS potvrdu/ispravak vozača za kamion (GB).
+    Zove se iz WhatsApp ignition-toka: „Da vozim” → vozi=True; „Ne vozim” →
+    vozi=False; ako vozač upiše da vozi drugi kamion, pošalje se dvaput
+    (stari GB vozi=False + novi GB vozi=True). Vrati odgovor Flote OS."""
+    gb = str(gb).strip()
+    vozac = str(vozac).strip()
+    if not gb or not vozac:
+        return {"greska": "gb i vozac su obavezni"}
+    return _flota_os_post("/api/flota/potvrda-vozila",
+                          {"gb": gb, "vozac": vozac, "vozi": bool(vozi)})
+
+
 def _podrska_alat(naziv, ulaz):
     """Izvrši alat koji je AI zatražio. Vrati JSON-spreman rezultat."""
     ulaz = ulaz or {}
