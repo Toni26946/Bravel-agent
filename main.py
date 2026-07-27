@@ -1960,7 +1960,7 @@ def handle_wa_send(message):
 def wa_dolazna_poruka(frm, ime, msg):
     try:
         if whatsapp_racuni.is_allowed(frm):
-            whatsapp_meni.obradi(frm, ime, msg)   # izbornik + tokovi (računi, kvar, sati…)
+            whatsapp_racuni.handle(frm, ime, msg)   # samo slanje računa/primki (bez izbornika)
             return
     except Exception as e:
         monitoring.error("WhatsApp dispatch nije uspio", source="main", exc=e)

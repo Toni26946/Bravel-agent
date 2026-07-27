@@ -46,6 +46,21 @@ _ISPRAVI = {"wa_ed", "ispravi", "✏️"}
 _VRSTA = {"vrsta", "promijeni", "promijeni vrstu", "druga vrsta", "preokreni", "🔄"}
 _GOTOVO = {"gotovo", "gotov", "kraj", "to je to", "završi", "zavrsi", "dosta"}
 
+# Upute radnicima — šalju se kad netko pošalje nešto što nije fotografija
+# (npr. tekst ili audio) i nema aktivne sesije. Sadrže ključne riječi naredbi.
+_UPUTE = (
+    "👋 Bok! Ovim brojem šalješ *fotografije računa i primki*.\n\n"
+    "📸 *Kako poslati:* uslikaj račun ili primku i pošalji fotografiju. "
+    "Ako dokument ima više stranica, pošalji sve fotografije zaredom, "
+    "pa napiši *gotovo* kad si poslao sve.\n\n"
+    "Kad ti pošaljem sažetak, odgovori jednom od ključnih riječi:\n"
+    "• *da* — potvrdi i upiši (ili gumb ✅)\n"
+    "• *ispravi* — popravi neki podatak (ili gumb ✏️)\n"
+    "• *ne* — odbaci (ili gumb ❌)\n"
+    "• *vrsta* — promijeni je li račun ili primka\n\n"
+    "💡 Savjet: prikvači (pin) ovu poruku u chatu da ti upute uvijek budu pri ruci."
+)
+
 _drivers_cache = None
 
 
@@ -203,8 +218,8 @@ def _handle(frm, ime, msg):
         _odgovor(frm, txt)
         return
 
-    # ostali tipovi (audio, lokacija…) — kratka uputa
-    whatsapp.send_text(frm, "Pošalji fotografiju računa ili primke pa te vodim dalje.")
+    # ostali tipovi (audio, lokacija…) — pošalji upute s ključnim riječima
+    whatsapp.send_text(frm, _UPUTE)
 
 
 # ==================== PRIJEM STRANICA (višestranično) ====================
@@ -345,7 +360,7 @@ def _odgovor(frm, tekst):
         if u_obradi:
             whatsapp.send_text(frm, "⏳ Samo trenutak, još obrađujem dokument…")
         else:
-            whatsapp.send_text(frm, "Pošalji fotografiju računa ili primke pa te vodim dalje.")
+            whatsapp.send_text(frm, _UPUTE)
         return
 
     stage = sess.get("stage")
