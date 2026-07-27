@@ -703,6 +703,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
         messages = hist + [{"role": "user", "content": tekst}]
 
         odg = ""
+        zadnja_poz = None   # zadnja uspješna GPS pozicija (za „prikaži na karti”)
         for _ in range(5):  # agentic petlja: dopusti nekoliko poziva alata
             resp = client.messages.create(
                 model="claude-haiku-4-5",
@@ -718,6 +719,9 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
                 for blok in resp.content:
                     if getattr(blok, "type", None) == "tool_use":
                         rez = _podrska_alat(blok.name, blok.input or {})
+                        if (blok.name == "pozicija_vozila" and isinstance(rez, dict)
+                                and rez.get("status") == "ok"):
+                            zadnja_poz = rez
                         rezultati.append({
                             "type": "tool_result",
                             "tool_use_id": blok.id,
@@ -742,6 +746,11 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
         if not odg:
             odg = "Možete li malo pojasniti pitanje? Rado ću pomoći oko Flote OS."
         odg = _ocisti_markdown(odg)   # chat ne renderira Markdown -> makni ** __ # | itd.
+        # Ako je u ovom odgovoru dohvaćena GPS pozicija, uvijek ponudi kartu
+        # (link je klikabilan i u web chatu). Ne dupliciraj ako model već ima link.
+        linija_karta = _karta_linija(zadnja_poz)
+        if linija_karta and "maps." not in odg and "google.com/maps" not in odg:
+            odg = f"{odg}\n\n{linija_karta}"
         with _podrska_hist_lock:
             h = _podrska_hist.setdefault(session_id, [])
             h.append({"role": "user", "content": tekst})
@@ -1392,6 +1401,26 @@ def _ignition_on(v):
                                       "ignition_on", "ignitionon")
 
 
+def _maps_url(lat, lon):
+    """Google Maps URL za koordinate (klikabilan i u Telegramu i u web chatu)."""
+    return f"https://maps.google.com/?q={_coord(lat)},{_coord(lon)}"
+
+
+def _karta_linija(res):
+    """'📍 Prikaži na karti: <url>' iz rezultata mobilisis.lookup (status ok) ili ''.
+    Koristi se da odgovor o lokaciji vozila uvijek ponudi kartu."""
+    try:
+        if not isinstance(res, dict) or res.get("status") != "ok":
+            return ""
+        pos = res.get("pos") or {}
+        lat, lon = pos.get("lat"), pos.get("lon")
+        if lat is None or lon is None:
+            return ""
+        return f"📍 Prikaži na karti: {_maps_url(lat, lon)}"
+    except Exception:
+        return ""
+
+
 def _format_gdje(res, query):
     st = res.get("status")
     if st == "empty":
@@ -1427,7 +1456,7 @@ def _format_gdje(res, query):
     odo_s = str(round(odo)) if isinstance(odo, (int, float)) else "?"
     return (
         f"🚛 {res['reg']} (GB {res.get('gb') or '?'})\n"
-        f"📍 Google Maps: https://maps.google.com/?q={lat_s},{lon_s}\n"
+        f"📍 Prikaži na karti: {_maps_url(lat_s, lon_s)}\n"
         f"🕐 {when}\n"
         f"⚡ {kretanje}, motor {motor}\n"
         f"🛣 Odometar: {odo_s} km"
