@@ -350,3 +350,28 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
     („nova prijava kvara od {{1}}, otvori WhatsApp") + spremiti prijavu.
   OTVORENO od vlasnika: (1) broj(evi) primatelja; (2) je li ok fallback-predložak
   kad je prozor zatvoren. Trud: srednji.
+- Potvrda vozača na PALJENJE kamiona (živa evidencija „tko vozi koji kamion"):
+  cilj — kad se kamion upali, WhatsApp poruka vozaču „voziš li kamion X?"
+  s gumbima [Da vozim]/[Ne vozim] (ili upiše drugi GB). Odgovor gradi/ažurira
+  živu dodjelu vozač↔kamion.
+  STANJE DIJELOVA:
+  - Mobilisis daje paljenje (ignitionState / mobilisis.ignition_on) — pratimo
+    prijelaz ugašeno→upaljeno po kamionu (poll pozicija, pamti prethodni motor).
+  - „Koga pitati" = zadnji vozač tog kamiona → Flota OS endpoint
+    GET /api/flota/zadnji-vozac?gb=X (DODAN 27.7., čita voznje_dan). bravel-agent
+    zove preko _flota_os_get. Ime→telefon mapiramo preko WHATSAPP_DRIVERS
+    (obrnuto: ime→broj) ili WHATSAPP_DRIVERS proširimo.
+  - Predložak potvrda_vozila (UTILITY, hr, 2 quick-reply gumba) DODAN u
+    _WA_PREDLOSCI_DEF — kreirati /wa_kreiraj_predloske pa čeka Metu.
+  - /tko <GB> (Telegram, owner) — pokaže zadnjeg vozača (test integracije). DONE.
+  PREOSTAJE ZA GRADNJU:
+  - scheduler: praćenje paljenja + debounce „jednom po smjeni" (prag >~6h ugašeno
+    I nema svježe potvrde <~16h) da ne spama/troši;
+  - slanje predloška zadnjem vozaču na okidač + obrada odgovora (Da/Ne/drugi GB);
+  - živa evidencija (bravel-agent DB: kamion→trenutni vozač, seed iz Flote OS,
+    ažurira potvrdama); owner upiti;
+  - ⚠️ TROŠAK: svaka poruka je naplativi predložak (~par centi). Zato debounce.
+    Uključivati iza flag-a (npr. WHATSAPP_IGNITION_ON) i tek nakon testa.
+  - „Ispravak" (Ne vozim / drugi GB): odluka piše li se natrag u Flotu OS
+    (treba write-endpoint) ili samo javi vlasnicima. Za v1: bravel-agent drži
+    živu evidenciju, Floti OS se NE piše (samo čita zadnjeg vozača kao seed).

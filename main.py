@@ -1420,6 +1420,36 @@ def handle_gdje(message):
                      daemon=True).start()
 
 
+def _tko_worker(chat_id, gb):
+    try:
+        res = _flota_os_get("/api/flota/zadnji-vozac", params={"gb": gb})
+        if res.get("greska"):
+            safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
+            return
+        vozac = res.get("vozac")
+        if not vozac:
+            safe_send(chat_id, f"ℹ️ Za kamion {gb} nema zabilježenog vozača "
+                               "(nema naloga/vožnji u zadnjem razdoblju).")
+            return
+        datum = res.get("datum") or "?"
+        safe_send(chat_id, f"🚚 Kamion {gb}\nZadnji vozač: {vozac}\n(zadnja vožnja: {datum})")
+    except Exception as e:
+        monitoring.error("Greska u /tko", source="tko", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_tko(message):
+    # /tko <GB> — tko je zadnji vozio kamion (iz Flote OS)
+    parts = message.text.split(maxsplit=1)
+    gb = parts[1].strip() if len(parts) > 1 else ""
+    if not gb:
+        bot.reply_to(message, "Napiši GB kamiona, npr:\n/tko 363   ili   /tko GB363")
+        return
+    bot.reply_to(message, "🔎 Pitam Flotu OS…")
+    threading.Thread(target=_tko_worker, args=(message.chat.id, gb),
+                     daemon=True).start()
+
+
 # ==================== WhatsApp admin komande (samo vlasnik) ====================
 
 def _wa_register_worker(chat_id, pin):
@@ -1625,7 +1655,7 @@ _WA_STATUS_EMOJI = {
 
 
 _WA_NASI = {"potvrda_racuna", "podsjetnik_racun", "podsjetnik_voznje",
-            "poruka_dispecera", "podsjetnik_opci"}
+            "poruka_dispecera", "podsjetnik_opci", "potvrda_vozila"}
 
 
 def _wa_predlosci_jedna_waba(waba_id, naziv_wabe):
@@ -1710,6 +1740,14 @@ _WA_PREDLOSCI_DEF = [
          "text": "🔔 Podsjetnik koji si postavio:\n{{1}}\nHvala i ugodan dan!",
          "example": {"body_text": [["natoči gorivo prije polaska"]]}},
         {"type": "FOOTER", "text": "Bravel d.o.o."}]},
+    {"name": "potvrda_vozila", "category": "UTILITY", "language": "hr", "components": [
+        {"type": "BODY",
+         "text": "Bok {{1}}, upalio se kamion {{2}}. Voziš li ga danas? "
+                 "Ako ne, napiši „ne” ili upiši broj kamiona koji voziš.",
+         "example": {"body_text": [["Ivan", "GB363"]]}},
+        {"type": "BUTTONS", "buttons": [
+            {"type": "QUICK_REPLY", "text": "Da, vozim"},
+            {"type": "QUICK_REPLY", "text": "Ne vozim"}]}]},
 ]
 
 
@@ -1942,12 +1980,16 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_register', 'wa_test', 'wa_send', 'wa_token',
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
-                               'benzinske', 'podrska', 'zdravlje'])
+                               'benzinske', 'podrska', 'zdravlje', 'tko'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
 
     cmd = message.text.lower().strip()
+
+    if cmd.startswith('/tko'):
+        handle_tko(message)
+        return
 
     if cmd.startswith('/gdje'):
         handle_gdje(message)
