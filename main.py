@@ -1722,18 +1722,19 @@ def _osiguranje_worker(chat_id, dana):
         if res.get("greska"):
             safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
             return
-        police = res.get("police") or []
+        # Samo AO (autoodgovornost) — AK (kasko) se ne prikazuje ovdje.
+        police = [p for p in (res.get("police") or [])
+                  if str(p.get("vrsta") or "").upper() == "AO"]
         if not police:
-            safe_send(chat_id, f"✅ Osiguranja: ništa ne ističe u sljedećih {dana} dana.")
+            safe_send(chat_id, f"✅ Osiguranja (AO): ništa ne ističe u sljedećih {dana} dana.")
             return
-        linije = [f"🛡️ OSIGURANJA — istječu (≤{dana} d) ili istekla ({len(police)})"]
+        linije = [f"🛡️ OSIGURANJA AO — istječu (≤{dana} d) ili istekla ({len(police)})"]
         for p in police:
             dd = p.get("dana_do")
             emo, opis = _rok_dana(dd if isinstance(dd, int) else 9999)
             gb = p.get("gb")
-            vrsta = p.get("vrsta") or ""
             osig = p.get("osiguravatelj") or "—"
-            red = f"{emo} GB {gb} {vrsta} · {osig} · {_dat_hr(p.get('istek'))} ({opis})"
+            red = f"{emo} GB {gb} · {osig} · {_dat_hr(p.get('istek'))} ({opis})"
             linije.append(red)
         linije.append("\n(prag mijenjaš: /osiguranje <dana>)")
         safe_send(chat_id, "\n".join(linije)[:3900])
