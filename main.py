@@ -493,7 +493,8 @@ PODRSKA_SYSTEM_PROMPT = (
     "pozicija_vozila (GPS po registraciji/GB), prihod (pregled po mjesecu ILI po vozaču za dan "
     "YYYY-MM-DD), profitabilnost (marža/prihod/trošak/dobit po kamionu, zadnji dan), ture "
     "(trenutna tura po kamionu), potrosnja (litre i € goriva po mjesecu/režimu), gorivo_anomalije "
-    "(nagli skokovi u potrošnji po kamionu + najveći potrošači), status_vozila "
+    "(nagli skokovi u potrošnji po kamionu + najveći potrošači), osiguranje_rokovi "
+    "(police AO/AK koje uskoro ističu ili su istekle, po vozilu), status_vozila "
     "(koliko vozila je aktivno/pasivno/prodano + popis). Ako alat vrati grešku/nekonfigurirano, "
     "reci to iskreno i po potrebi uputi korisnika na odgovarajući ekran u aplikaciji.\n\n"
     "PREGLED POSLOVANJA / TJEDNI SAŽETAK: kad korisnik traži „sažetak”, „pregled”, „kako posluje "
@@ -581,6 +582,18 @@ PODRSKA_TOOLS = [
                         "prosjek, uz sredinu flote i popis najvećih potrošača. Koristi za pitanja "
                         "o anomalijama goriva ili u sklopu tjednog pregleda poslovanja."),
         "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "osiguranje_rokovi",
+        "description": ("Police osiguranja (AO/AK) koje uskoro ističu ili su istekle, iz Flota "
+                        "OS-a: po vozilu (GB) osiguravatelj, premija i datum isteka + dana do "
+                        "isteka. Koristi za pitanja o osiguranju, isteku polica i rokovima."),
+        "input_schema": {
+            "type": "object",
+            "properties": {"dana": {"type": "integer",
+                           "description": "prag u danima (default 90) — koliko unaprijed gledati"}},
+            "required": [],
+        },
     },
 ]
 _podrska_hist = {}          # session_id -> [{"role","content"}]
@@ -673,6 +686,10 @@ def _podrska_alat(naziv, ulaz):
             return _flota_os_get("/api/gorivo/pregled")
         if naziv == "gorivo_anomalije":
             return _flota_os_get("/api/flota/gorivo-anomalije")
+        if naziv == "osiguranje_rokovi":
+            dana = ulaz.get("dana")
+            return _flota_os_get("/api/osiguranje/rokovi",
+                                 params={"dana": int(dana) if dana else 90})
         if naziv == "status_vozila":
             d = _flota_os_get("/api/flota/status")
             # Flota zna imati stotine vozila; cijeli popis ne stane u rezultat
@@ -1590,6 +1607,11 @@ def _parse_datum(s):
     return None
 
 
+def _dat_hr(iso):
+    d = _parse_datum(iso)
+    return d.strftime("%d.%m.%Y") if d else (iso or "?")
+
+
 def _rok_dana(dana):
     """(emoji, opis) prema broju dana do isteka."""
     if dana < 0:
@@ -1690,6 +1712,45 @@ def handle_rok_obrisi(message):
             return
         conn.execute("DELETE FROM rokovi WHERE id=?", (rid,))
     bot.reply_to(message, f"🗑️ Obrisan rok #{rid}: {r['kategorija']} — {r['subjekt']}")
+
+
+# ==================== OSIGURANJA (police iz Flote OS) ====================
+
+def _osiguranje_worker(chat_id, dana):
+    try:
+        res = _flota_os_get("/api/osiguranje/rokovi", params={"dana": dana})
+        if res.get("greska"):
+            safe_send(chat_id, f"❌ Flota OS: {res['greska']}")
+            return
+        police = res.get("police") or []
+        if not police:
+            safe_send(chat_id, f"✅ Osiguranja: ništa ne ističe u sljedećih {dana} dana.")
+            return
+        linije = [f"🛡️ OSIGURANJA — istječu (≤{dana} d) ili istekla ({len(police)})"]
+        for p in police:
+            dd = p.get("dana_do")
+            emo, opis = _rok_dana(dd if isinstance(dd, int) else 9999)
+            gb = p.get("gb")
+            vrsta = p.get("vrsta") or ""
+            osig = p.get("osiguravatelj") or "—"
+            red = f"{emo} GB {gb} {vrsta} · {osig} · {_dat_hr(p.get('istek'))} ({opis})"
+            linije.append(red)
+        linije.append("\n(prag mijenjaš: /osiguranje <dana>)")
+        safe_send(chat_id, "\n".join(linije)[:3900])
+    except Exception as e:
+        monitoring.error("Greska u /osiguranje", source="osiguranje", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_osiguranje(message):
+    # /osiguranje [dana] — police koje uskoro ističu ili su istekle (default 90 d)
+    parts = message.text.split(maxsplit=1)
+    dana = 90
+    if len(parts) > 1 and parts[1].strip().isdigit():
+        dana = int(parts[1].strip())
+    bot.reply_to(message, "🛡️ Provjeravam police osiguranja…")
+    threading.Thread(target=_osiguranje_worker, args=(message.chat.id, dana),
+                     daemon=True).start()
 
 
 def _gorivo_tekst():
@@ -2322,7 +2383,7 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
                                'benzinske', 'podrska', 'zdravlje', 'tko', 'gorivo',
-                               'rokovi', 'rok_dodaj', 'rok_obrisi'])
+                               'rokovi', 'rok_dodaj', 'rok_obrisi', 'osiguranje'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -2347,6 +2408,10 @@ def command_handler(message):
 
     if cmd.startswith('/rokovi'):
         handle_rokovi(message)
+        return
+
+    if cmd.startswith('/osiguranje'):
+        handle_osiguranje(message)
         return
 
     if cmd.startswith('/gdje'):
@@ -2452,6 +2517,7 @@ def command_handler(message):
             "/rokovi – registar rokova (registracija, tehnički, tahograf…)\n"
             "/rok_dodaj <kategorija> <subjekt> <datum> – dodaj rok\n"
             "/rok_obrisi <broj> – obriši rok\n"
+            "/osiguranje [dana] – police koje uskoro ističu (Flota OS)\n"
             "/zdravlje – provjera Mobilisis/Flota OS veza (admin)\n\n"
             "Sve ostalo što napišeš ide AI asistentu."
         )

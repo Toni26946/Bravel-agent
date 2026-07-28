@@ -349,6 +349,14 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
   /rok_obrisi <broj>. Datum: 15.08.2026 ili 2026-08-15; subjekt smije imati
   razmake (ime vozača). PREOSTAJE (po želji): auto-podsjetnik X dana prije
   (okvir check_reminders postoji) — namjerno NIJE uključeno.
+- Osiguranja (police) — spoj Excela „POLICE OSIGURANJA" s Flotom OS.
+  ✅ NAPRAVLJENO (28.7.): Flota OS citac_osiguranja čita SharePoint (listovi
+  AO/AK, stupci po nazivu), tablica `police`; endpointi POST /api/osiguranje/
+  osvjezi, GET /api/osiguranje/pregled, GET /api/osiguranje/rokovi?dana=. Dnevni
+  cron (osvjezi-prihod.yml) puni tablicu. bravel-agent: naredba /osiguranje
+  [dana] (police koje uskoro ističu/istekle) + AI podrška alat osiguranje_rokovi.
+  PREOSTAJE (po želji): AK list (ako mu se stupci razlikuju od AO — sad se čita
+  samo ako ima GB/ISTEK); prikaz u Flota OS sučelju; datumi u registar rokova.
 - Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
   nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
   Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
