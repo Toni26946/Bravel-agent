@@ -34,10 +34,14 @@ Postavke (env):
 import math
 import os
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import mobilisis
 import monitoring
 import podrska
+
+TZ = ZoneInfo("Europe/Zagreb")
 
 
 def _log(msg):
@@ -255,7 +259,8 @@ def _javi_dolazak(gb, t, dist):
     mjesto = ist.get("ime") or "odredište"
     nalog = t.get("nalogodavac")
     vozac = t.get("vozac")
-    reci = [f"📍 GB{gb} STIGAO na istovar",
+    vrijeme = datetime.now(TZ).strftime("%H:%M")
+    reci = [f"📍 GB{gb} STIGAO na istovar u {vrijeme}",
             mjesto + (f" · {nalog}" if nalog else "")]
     if vozac:
         reci.append(f"Vozač: {vozac}")
