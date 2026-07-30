@@ -321,9 +321,6 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
   Sloj 2: geofence "stigao/otišao" → auto-obavijest vlasnicima (bez zvanja).
   Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km).
   Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska.
-- Detektor uspavanih/neiskorištenih kamiona (real-time): GPS + ignition +
-  ture → kamion stoji/vozi prazan bez naloga dulje od praga → javi vlasniku
-  (po mogućnosti predloži najbliži planirani_nalog). Trud: srednji.
 - Tjedni AI sažetak vlasnicima (Telegram, pon ujutro): prihod vs prošli tjedan,
   top/najgori po marži, potrošnja + trend cijena, prazni km, anomalije. Koristi
   prihod/profitabilnost/gorivo/usporedba + AI (postoji summarize_day). Trud: nizak-sr.
@@ -355,11 +352,12 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
   osvjezi, GET /api/osiguranje/pregled, GET /api/osiguranje/rokovi?dana=. Dnevni
   cron (osvjezi-prihod.yml) puni tablicu. bravel-agent: naredba /osiguranje
   [dana] (police koje uskoro ističu/istekle) + AI podrška alat osiguranje_rokovi.
-  PREOSTAJE (po želji): AK list (ako mu se stupci razlikuju od AO — sad se čita
-  samo ako ima GB/ISTEK); prikaz u Flota OS sučelju; datumi u registar rokova.
-- Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
-  nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
-  Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
+  ✅ DORADA (30.7.): izvor prebačen na Google tablicu „POLICE OSIGURANJA" (tab
+  „POLICE AO i AK"), prati AO + istek REGISTRACIJE, kasko (AK) se NE prati.
+  Prikaz u Flota OS sučelju: crveni ❗ na karti (AO ili reg ističe ≤14 d) +
+  retci u panelu vozila + zasebna web stranica ROKOVI (zauzela mjesto KAMION).
+  PREOSTAJE (po želji): ručne kategorije (tahograf/tehnički/vozačke/ADR) iz
+  Telegram registra prikazati i na web stranici ROKOVI (sad su samo u /rokovi).
 - Prijava kvara (WhatsApp izbornik 🛠️) — proslijediti OPIS + FOTOGRAFIJE na
   WhatsApp primatelja (voditelj/mehaničar), NE na Telegram. Opcija B: skupljati
   poruke (tekst + više fotki) dok radnik ne kaže „gotovo", pa sve poslati kao
