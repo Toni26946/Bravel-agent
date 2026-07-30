@@ -317,13 +317,22 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
 
 - "Kraj check-callova" — ETA + status ture (rješava dispečerski #1 problem
   "gdje si/kad stižeš"). NE postoji: km se računa, ali ne VRIJEME dolaska.
-  Sloj 1: ETA = km(ORS ruta) ÷ prosj. brzina, prikaz na karti/turi.
-  Sloj 2: geofence "stigao/otišao" → auto-obavijest vlasnicima (bez zvanja).
-  Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km).
-  Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska.
-- Detektor uspavanih/neiskorištenih kamiona (real-time): GPS + ignition +
-  ture → kamion stoji/vozi prazan bez naloga dulje od praga → javi vlasniku
-  (po mogućnosti predloži najbliži planirani_nalog). Trud: srednji.
+  Sloj 1: ETA = km(ORS ruta) ÷ prosj. brzina, prikaz na karti/turi. (PREOSTAJE)
+  ✅ Sloj 2 NAPRAVLJEN (30.7. — modul dolasci.py): scheduler prati GPS pozicije
+     (mobilisis.all_positions) + tekuće ture (Flota OS /api/flota/ture, odredište =
+     geokodirani istovar). Kad kamion uđe u krug oko odredišta (DOLASCI_PRAG_KM,
+     default 3 km) I stane (≤ DOLASCI_MAX_BRZINA, 8 km/h) → obavijest u chat
+     PODRŠKA (podrska.posalji_svima). Fire-once po turi (istovar|datum); ako je
+     kamion već tu kad se tura prvi put vidi, tiho „stigao" (bez lažne obavijesti).
+     TRAJNA POHRANA: svaki dolazak u tablicu dolazak_log; ako nitko nije spojen na
+     Podršku (vidjeno=0), šalje se na sljedeće otvaranje sesije (podrska.set_on_open
+     → dolasci.posalji_backlog) — nijedan se ne izgubi. Owner test: /dolasci
+     (udaljenost svakog kamiona do odredišta + zadnji dolasci). Iza DOLASCI_ON=1
+     (default OFF), test na jednom kamionu DOLASCI_SAMO_GB=<GB>. tick() u
+     check_reminders (throttle DOLASCI_POLL_SEC, default 180 s).
+  Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km). (PREOSTAJE)
+  Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska;
+  Sloj 2 koristi radijus oko geokodiranog istovara ture (ne Mobilisis geofence).
 - Tjedni AI sažetak vlasnicima (Telegram, pon ujutro): prihod vs prošli tjedan,
   top/najgori po marži, potrošnja + trend cijena, prazni km, anomalije. Koristi
   prihod/profitabilnost/gorivo/usporedba + AI (postoji summarize_day). Trud: nizak-sr.
@@ -355,11 +364,12 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
   osvjezi, GET /api/osiguranje/pregled, GET /api/osiguranje/rokovi?dana=. Dnevni
   cron (osvjezi-prihod.yml) puni tablicu. bravel-agent: naredba /osiguranje
   [dana] (police koje uskoro ističu/istekle) + AI podrška alat osiguranje_rokovi.
-  PREOSTAJE (po želji): AK list (ako mu se stupci razlikuju od AO — sad se čita
-  samo ako ima GB/ISTEK); prikaz u Flota OS sučelju; datumi u registar rokova.
-- Profitabilnost po relaciji/klijentu: grupiraj naloge po utovar→istovar i po
-  nalogodavcu → marža po relaciji/klijentu → pricing odluke (koje rute gube).
-  Koristi prihod-po-relaciji + profitabilnost. Trud: srednji.
+  ✅ DORADA (30.7.): izvor prebačen na Google tablicu „POLICE OSIGURANJA" (tab
+  „POLICE AO i AK"), prati AO + istek REGISTRACIJE, kasko (AK) se NE prati.
+  Prikaz u Flota OS sučelju: crveni ❗ na karti (AO ili reg ističe ≤14 d) +
+  retci u panelu vozila + zasebna web stranica ROKOVI (zauzela mjesto KAMION).
+  PREOSTAJE (po želji): ručne kategorije (tahograf/tehnički/vozačke/ADR) iz
+  Telegram registra prikazati i na web stranici ROKOVI (sad su samo u /rokovi).
 - Prijava kvara (WhatsApp izbornik 🛠️) — proslijediti OPIS + FOTOGRAFIJE na
   WhatsApp primatelja (voditelj/mehaničar), NE na Telegram. Opcija B: skupljati
   poruke (tekst + više fotki) dok radnik ne kaže „gotovo", pa sve poslati kao
