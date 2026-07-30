@@ -317,10 +317,22 @@ profitabilnost, potrošnja, AI, Telegram). Provjereno: NIJEDNA još ne postoji.
 
 - "Kraj check-callova" — ETA + status ture (rješava dispečerski #1 problem
   "gdje si/kad stižeš"). NE postoji: km se računa, ali ne VRIJEME dolaska.
-  Sloj 1: ETA = km(ORS ruta) ÷ prosj. brzina, prikaz na karti/turi.
-  Sloj 2: geofence "stigao/otišao" → auto-obavijest vlasnicima (bez zvanja).
-  Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km).
-  Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska.
+  Sloj 1: ETA = km(ORS ruta) ÷ prosj. brzina, prikaz na karti/turi. (PREOSTAJE)
+  ✅ Sloj 2 NAPRAVLJEN (30.7. — modul dolasci.py): scheduler prati GPS pozicije
+     (mobilisis.all_positions) + tekuće ture (Flota OS /api/flota/ture, odredište =
+     geokodirani istovar). Kad kamion uđe u krug oko odredišta (DOLASCI_PRAG_KM,
+     default 3 km) I stane (≤ DOLASCI_MAX_BRZINA, 8 km/h) → obavijest u chat
+     PODRŠKA (podrska.posalji_svima). Fire-once po turi (istovar|datum); ako je
+     kamion već tu kad se tura prvi put vidi, tiho „stigao" (bez lažne obavijesti).
+     TRAJNA POHRANA: svaki dolazak u tablicu dolazak_log; ako nitko nije spojen na
+     Podršku (vidjeno=0), šalje se na sljedeće otvaranje sesije (podrska.set_on_open
+     → dolasci.posalji_backlog) — nijedan se ne izgubi. Owner test: /dolasci
+     (udaljenost svakog kamiona do odredišta + zadnji dolasci). Iza DOLASCI_ON=1
+     (default OFF), test na jednom kamionu DOLASCI_SAMO_GB=<GB>. tick() u
+     check_reminders (throttle DOLASCI_POLL_SEC, default 180 s).
+  Sloj 3: AI alat "kad stiže kamion X" (živi ETA + preostale km). (PREOSTAJE)
+  Napomena: geofence baza (~11,5k) je ŠIFRARNIK lokacija, NIJE okidač dolaska;
+  Sloj 2 koristi radijus oko geokodiranog istovara ture (ne Mobilisis geofence).
 - Tjedni AI sažetak vlasnicima (Telegram, pon ujutro): prihod vs prošli tjedan,
   top/najgori po marži, potrošnja + trend cijena, prazni km, anomalije. Koristi
   prihod/profitabilnost/gorivo/usporedba + AI (postoji summarize_day). Trud: nizak-sr.

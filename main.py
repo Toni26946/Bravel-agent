@@ -30,6 +30,7 @@ import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposle
 import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import whatsapp_paljenje  # potvrda vozača na paljenje kamiona (živa evidencija; iza flaga)
+import dolasci    # obavijest vlasnicima kad kamion stigne na istovar (iza flaga DOLASCI_ON)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import podrska     # živi chat (podrška) za internu Flotu OS
 import web_api     # lagani HTTP server (GET /api/pozicije, /zdrav)
@@ -1137,6 +1138,12 @@ def check_reminders():
             except Exception as e:
                 monitoring.warning(f"Paljenje tick: {e}", source="wa_paljenje")
 
+            # --- dolazak kamiona na istovar → obavijest vlasnicima (iza DOLASCI_ON) ---
+            try:
+                dolasci.tick()
+            except Exception as e:
+                monitoring.warning(f"Dolasci tick: {e}", source="dolasci")
+
             # --- ciscenje: poslani jednokratni stariji od 2 dana ---
             with db() as conn:
                 conn.execute("DELETE FROM reminders WHERE fired = 1 AND time_ts < ?",
@@ -1848,6 +1855,21 @@ def handle_gorivo(message):
                      daemon=True).start()
 
 
+def _dolasci_worker(chat_id):
+    try:
+        safe_send(chat_id, dolasci.pregled())
+    except Exception as e:
+        monitoring.error("/dolasci", source="dolasci", exc=e)
+        safe_send(chat_id, f"❌ Greška: {e}")
+
+
+def handle_dolasci(message):
+    # /dolasci — status dolazaka: udaljenost svakog kamiona do odredišta (istovar)
+    bot.reply_to(message, "📍 Provjeravam dolaske…")
+    threading.Thread(target=_dolasci_worker, args=(message.chat.id,),
+                     daemon=True).start()
+
+
 # ==================== WhatsApp admin komande (samo vlasnik) ====================
 
 def _wa_register_worker(chat_id, pin):
@@ -2384,7 +2406,8 @@ def wa_dolazna_poruka(frm, ime, msg):
                                'wa_podsjetnici', 'wa_predlosci',
                                'wa_kreiraj_predloske', 'wa_predlozak', 'wa_ovlasteni',
                                'benzinske', 'podrska', 'zdravlje', 'tko', 'gorivo',
-                               'rokovi', 'rok_dodaj', 'rok_obrisi', 'osiguranje'])
+                               'rokovi', 'rok_dodaj', 'rok_obrisi', 'osiguranje',
+                               'dolasci'])
 def command_handler(message):
     if message.chat.id not in ALLOWED_USERS:
         return
@@ -2397,6 +2420,10 @@ def command_handler(message):
 
     if cmd.startswith('/gorivo'):
         handle_gorivo(message)
+        return
+
+    if cmd.startswith('/dolasci'):
+        handle_dolasci(message)
         return
 
     if cmd.startswith('/rok_dodaj'):
@@ -2654,6 +2681,11 @@ if __name__ == "__main__":
     # Sve je iza prekidača WHATSAPP_IGNITION_ON (default OFF) — bez njega samo miruje.
     whatsapp_paljenje.konfiguriraj(db, _flota_os_get, flota_zapisi_potvrdu)
 
+    # Obavijest kad kamion stigne na istovar (Flota OS ture + GPS) → chat Podrška.
+    # Iza prekidača DOLASCI_ON (default OFF) — bez njega samo miruje. Obavijesti se
+    # trajno spremaju; propuštene (nitko nije spojen) šalju se na sljedeće otvaranje.
+    dolasci.konfiguriraj(db, _flota_os_get)
+
     # Ispis registriranih handlera (redoslijed = prioritet matchanja u telebotu).
     def _dump_handlers():
         parts = []
@@ -2684,6 +2716,8 @@ if __name__ == "__main__":
     # Lagani HTTP server (aiohttp) u zasebnom threadu — GET /api/pozicije
     # (pozicije vozila iz Mobilisisa) + /zdrav. Ne blokira polling.
     podrska.set_on_zatvoreno(_podrska_zatvori)
+    # Kad se netko spoji na Podršku, pošalji mu propuštene dolaske kamiona (backlog).
+    podrska.set_on_open(dolasci.posalji_backlog)
     web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_ai_odgovori)
 
     bot.delete_webhook(drop_pending_updates=True)

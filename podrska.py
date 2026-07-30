@@ -34,6 +34,7 @@ MAX_HIST = 50  # koliko zadnjih poruka pamtimo po sesiji (za kontekst)
 _loop = None        # aiohttp event loop (postavlja se u configure)
 _on_client = None   # callback(session_id, ime, text) -> generira AI odgovor
 _on_zatvoreno = None  # callback(session_id) -> pospremi (npr. obrisi povijest)
+_on_open = None     # callback(session_id) -> npr. pošalji backlog (propuštene obavijesti)
 _sessions = {}      # id(str) -> Session
 _seq = count(1)     # izvor kratkih numerickih id-eva
 
@@ -75,6 +76,21 @@ def set_on_zatvoreno(cb):
     _on_zatvoreno = cb
 
 
+def set_on_open(cb):
+    """cb(session_id) se zove kad se novi klijent spoji — za slanje backloga
+    (npr. propuštene obavijesti o dolasku kamiona). Radi u executoru (smije u bazu)."""
+    global _on_open
+    _on_open = cb
+
+
+def _safe_on_open(sid):
+    try:
+        if _on_open:
+            _on_open(sid)
+    except Exception as e:
+        monitoring.error("podrska on_open callback", source="podrska", exc=e)
+
+
 # ==================== WEBSOCKET (klijent <-> podrska) ====================
 
 async def ws_handler(request):
@@ -92,6 +108,14 @@ async def ws_handler(request):
     await ws.send_json({"tip": "sustav", "session": sid,
                         "tekst": "Podrška Flota OS (AI asistent). Kako vam mogu pomoći?",
                         "vrijeme": _now_iso()})
+
+    # Novi klijent → pošalji eventualni backlog (npr. propušteni dolasci kamiona).
+    # U executoru jer callback smije u bazu; poruke stižu klijentu preko sesijinog reda.
+    if _on_open:
+        try:
+            asyncio.get_running_loop().run_in_executor(None, _safe_on_open, sid)
+        except Exception:
+            pass
 
     async def pump():
         """Salje poruke podrske (iz reda) klijentu."""
@@ -169,6 +193,24 @@ def posalji_klijentu(session_id, text, od="Podrška"):
     except Exception as e:
         monitoring.warning(f"podrska posalji_klijentu: {e}", source="podrska")
         return False
+
+
+def posalji_svima(text, od="Podrška"):
+    """Broadcast poruke SVIM aktivnim sesijama (npr. obavijest o dolasku kamiona).
+    Thread-safe (zove se iz scheduler/Telegram threada). Vrati broj sesija kojima
+    je poruka predana (0 = nitko nije spojen → pozivatelj je treba trajno spremiti)."""
+    if _loop is None:
+        return 0
+    n = 0
+    for _sid, sess in list(_sessions.items()):
+        item = {"tip": "podrska", "od": od, "tekst": text, "vrijeme": _now_iso()}
+        sess.hist.append(("podrska", text, item["vrijeme"]))
+        try:
+            _loop.call_soon_threadsafe(sess.queue.put_nowait, item)
+            n += 1
+        except Exception:
+            pass
+    return n
 
 
 def aktivne():
