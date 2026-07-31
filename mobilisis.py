@@ -25,6 +25,7 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -348,17 +349,33 @@ def _history_chunk(device_id, frm, to):
     return [t for t in (_parse_history_point(p) for p in raw) if t]
 
 
+# Koliko 24-satnih prozora dohvaćamo ISTOVREMENO. Mobilisis dopušta max 24 h po pozivu, pa dugi raspon
+# (tjedan ≈ 7-11 poziva) je sekvencijalno trajao 10-23 s (svaki poziv ~1-2 s). Paralelno (do ovoliko
+# odjednom) traje ~broj_prozora/_HIST_PAR puta kraće. Umjereno (6) da ne izazovemo Mobilisis rate-limit.
+_HIST_PAR = 6
+
+
 def get_history(device_id, frm, to):
     """Povijest za [frm, to] (aware datetime). Mobilisis dopušta max 24 h po
-    pozivu, pa dulje razdoblje razbijamo na 24-satne prozore i spajamo. Vraća
-    sortirane, dedupleirane i (za duge raspone) prorijeđene točke."""
-    tocke = []
-    korak = timedelta(hours=24)
+    pozivu, pa dulje razdoblje razbijamo na 24-satne prozore i spajamo. Prozore
+    dohvaćamo PARALELNO (ThreadPool, do _HIST_PAR odjednom) — dug raspon je time
+    višestruko brži. Vraća sortirane, dedupleirane i (za duge raspone) prorijeđene točke."""
+    prozori = []
     a = frm
+    korak = timedelta(hours=24)
     while a < to:
         b = min(a + korak, to)
-        tocke.extend(_history_chunk(device_id, a, b))
+        prozori.append((a, b))
         a = b
+    tocke = []
+    if len(prozori) <= 1:
+        for pa, pb in prozori:
+            tocke.extend(_history_chunk(device_id, pa, pb))
+    else:
+        # ex.map čuva redoslijed i podiže PRVU iznimku (isto ponašanje kao sekvencijalno na grešci).
+        with ThreadPoolExecutor(max_workers=min(_HIST_PAR, len(prozori))) as ex:
+            for dio in ex.map(lambda w: _history_chunk(device_id, w[0], w[1]), prozori):
+                tocke.extend(dio)
     tocke.sort(key=lambda t: t.get("vrijeme") or "")
     # dedup (granice prozora se mogu preklopiti u istoj sekundi/točki)
     out, vid = [], set()
