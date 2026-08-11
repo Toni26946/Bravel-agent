@@ -159,7 +159,9 @@ function Vozila() {
         <div className="karta">
           <label style={{ marginTop: 0 }}>Zalijepi popis (jedan kamion po retku)</label>
           <p className="meta" style={{ marginTop: 0 }}>
-            Format: <strong>GB</strong>, ili <strong>GB, registracija, marka</strong>. Možeš direktno kopirati stupce iz Excela.
+            Svaki redak počinje <strong>GB</strong>. Možeš zalijepiti i cijele stupce iz Excela
+            (GB, VOZILO, REG OZNAKA) — registracija se prepozna sama, redoslijed nije bitan.
+            Postojeći kamioni se preskaču.
           </p>
           <textarea
             value={uvozTekst}

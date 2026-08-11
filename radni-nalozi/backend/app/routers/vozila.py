@@ -36,12 +36,26 @@ def kreiraj(podaci: VoziloCreate, _: Korisnik = Depends(samo_voditelj), db: Sess
     return v
 
 
+def _je_registracija(t: str) -> bool:
+    """Grubo prepoznavanje registarske oznake (npr. ZG3495FR, DQB2425):
+    bez razmaka/točke, kratka, ima i slova i brojke."""
+    return (
+        " " not in t and "." not in t
+        and 4 <= len(t) <= 9
+        and any(c.isdigit() for c in t)
+        and any(c.isalpha() for c in t)
+    )
+
+
 @router.post("/uvoz", response_model=VoziloUvozRezultat)
 def uvoz(podaci: VoziloUvoz, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
     """Skupni uvoz kamiona iz zalijepljenog popisa.
 
-    Svaki redak: GB[,reg[,marka]] (razdvojeno tabom, zarezom ili točka-zarezom).
-    Prvi stupac = garažni broj (obavezno). Postojeći GB se preskaču.
+    Svaki redak počinje garažnim brojem (GB). Ostali stupci (razdvojeni tabom,
+    zarezom ili točka-zarezom) prepoznaju se automatski: registracija po obliku
+    (npr. ZG1234AB), a ostalo je naziv vozila (marka). Redoslijed stupaca nije
+    bitan — može se lijepiti direktno iz Excela (GB, VOZILO, REG OZNAKA).
+    Postojeći GB i redak zaglavlja se preskaču.
     """
     postojeci = {v.gb.lower() for v in db.query(Vozilo).all()}
     dodano = 0
@@ -55,17 +69,15 @@ def uvoz(podaci: VoziloUvoz, _: Korisnik = Depends(samo_voditelj), db: Session =
         if not gb:
             continue
         # Preskoči vjerojatni redak zaglavlja ("GB", "Garažni broj"…)
-        if ukupno == 0 and gb.lower() in ("gb", "garažni broj", "garazni broj", "gb kamiona"):
+        if gb.lower() in ("gb", "garažni broj", "garazni broj", "gb kamiona", "gb vozila"):
             continue
         ukupno += 1
         if gb.lower() in postojeci:
             continue
-        v = Vozilo(
-            gb=gb,
-            registracija=(dijelovi[1] if len(dijelovi) > 1 and dijelovi[1] else None),
-            marka=(dijelovi[2] if len(dijelovi) > 2 and dijelovi[2] else None),
-        )
-        db.add(v)
+        ostali = [d for d in dijelovi[1:] if d and d != "0"]
+        reg = next((d for d in ostali if _je_registracija(d)), None)
+        marka = next((d for d in ostali if d != reg and not _je_registracija(d)), None)
+        db.add(Vozilo(gb=gb, registracija=reg, marka=marka))
         postojeci.add(gb.lower())
         dodano += 1
     db.commit()
