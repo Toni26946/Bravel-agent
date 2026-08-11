@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Layout from '../Layout'
-import { api, medijUrl } from '../api'
+import { api } from '../api'
 import { useAuth } from '../auth'
 import { Bedz, HITNOST, STATUS_PRIJAVA, Spinner, datumVrijeme, voziloLabel } from '../ui'
 
@@ -36,19 +36,6 @@ export default function PrijavaDetalj() {
         <p className="meta">Prijavio: <strong>{p.prijavio?.ime}</strong></p>
         <p className="meta">{datumVrijeme(p.kreirana)}</p>
       </div>
-
-      {p.fotografije?.length > 0 && (
-        <>
-          <div className="sekcija-naslov">Fotografije</div>
-          <div className="foto-grid">
-            {p.fotografije.map((f) => (
-              <a key={f.id} href={medijUrl(f.putanja)} target="_blank" rel="noreferrer">
-                <img src={medijUrl(f.putanja)} alt="foto" />
-              </a>
-            ))}
-          </div>
-        </>
-      )}
 
       {jeVoditelj && (
         <>
