@@ -200,6 +200,25 @@ class ZadatakUpdate(BaseModel):
     zaduzeni_id: int | None = None
 
 
+class GlasovniZahtjev(BaseModel):
+    tekst: str
+    kategorije: list[str] = []
+    voditelji: list[str] = []
+    vozaci: list[str] = []
+
+
+class GlasovnaOperacija(BaseModel):
+    kategorija: str
+    zadaci: list[str] = []
+
+
+class GlasovniOdgovor(BaseModel):
+    vozilo_gb: str | None = None
+    voditelj: str | None = None
+    vozac: str | None = None
+    operacije: list[GlasovnaOperacija] = []
+
+
 class NalogCreate(BaseModel):
     vozilo_id: int
     voditelj_id: int
