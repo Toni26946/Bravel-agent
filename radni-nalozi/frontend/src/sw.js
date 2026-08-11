@@ -1,5 +1,11 @@
 // Prilagođeni service worker: precache (offline) + push obavijesti.
+import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute } from 'workbox-precaching'
+
+// Nova verzija odmah preuzima kontrolu (bez čekanja da se zatvore sve kartice) —
+// inače PWA zna dugo posluživati staru verziju iz keša.
+self.skipWaiting()
+clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST || [])
 
