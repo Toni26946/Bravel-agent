@@ -34,6 +34,7 @@ export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZa
   const [greska, setGreska] = useState('')
   const recRef = useRef(null)
   const baseRef = useRef('')
+  const finalRef = useRef('')
 
   const Podrzano = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
@@ -46,9 +47,17 @@ export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZa
     rec.continuous = true
     rec.interimResults = true
     baseRef.current = tekst ? tekst.trim() + ' ' : ''
+    finalRef.current = ''
+    // Obrađuj SAMO nove rezultate (od resultIndex); finalne akumuliraj, međurezultat
+    // pokaži privremeno — inače se tekst gomila i ponavlja.
     rec.onresult = (e) => {
-      const dio = Array.from(e.results).map((r) => r[0].transcript).join(' ')
-      setTekst((baseRef.current + dio).replace(/\s+/g, ' '))
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i]
+        if (res.isFinal) finalRef.current += res[0].transcript + ' '
+        else interim += res[0].transcript
+      }
+      setTekst((baseRef.current + finalRef.current + interim).replace(/\s+/g, ' ').trimStart())
     }
     rec.onerror = () => setSlusa(false)
     rec.onend = () => setSlusa(false)
