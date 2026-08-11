@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { Bedz, PRIORITET, Prazno, STATUS_NALOG, Spinner, datum, voziloLabel } from '../ui'
+import { Bedz, Prazno, STATUS_NALOG, Spinner, datum, voziloLabel } from '../ui'
 
 const FILTERI = [
   { k: '', t: 'Sve' },
@@ -49,10 +49,7 @@ export default function Nalozi() {
               <Bedz vrsta={n.status} tekst={STATUS_NALOG[n.status]} />
             </div>
             <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
-            <p className="meta">
-              <Bedz vrsta={n.prioritet} tekst={PRIORITET[n.prioritet]} />
-              {n.rok && <> &nbsp; 📅 rok: {datum(n.rok)}</>}
-            </p>
+            {n.rok && <p className="meta">📅 rok: {datum(n.rok)}</p>}
             {(n.voditelj || n.vozac) && (
               <p className="meta">
                 {n.voditelj && <>🧑‍🔧 {n.voditelj.ime}</>}

@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import {
-  Bedz, KategorijaPicker, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
+  Bedz, KategorijaPicker, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
@@ -63,7 +63,6 @@ export default function NalogDetalj() {
         <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
         {n.voditelj && <p className="meta">🧑‍🔧 Voditelj: <strong>{n.voditelj.ime}</strong></p>}
         {n.vozac && <p className="meta">🚛 Vozač: <strong>{n.vozac.ime}</strong></p>}
-        <p className="meta"><Bedz vrsta={n.prioritet} tekst={'Prioritet: ' + PRIORITET[n.prioritet]} /></p>
         {n.rok && <p className="meta">📅 Rok: <strong>{datum(n.rok)}</strong></p>}
         {n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>}
         <p className="meta">Kreirao: <strong>{n.kreirao?.ime}</strong> · {datumVrijeme(n.kreiran)}</p>
