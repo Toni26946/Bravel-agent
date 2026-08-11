@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # CORS (zarezom odvojene domene; "*" = sve)
     cors_origins: str = "*"
 
+    # AI glasovni unos (Claude) — opcionalno; ako prazno, endpoint vraća 503
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5-20251001"
+
     # Web Push (VAPID) — opcionalno; ako prazno, push se ne šalje
     vapid_public_key: str = ""
     vapid_private_key: str = ""

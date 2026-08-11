@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { KategorijaPicker, MikrofonGumb, voziloLabel } from '../ui'
+import GlasovniUnos from '../GlasovniUnos'
 
 export default function NoviNalog() {
   const nav = useNavigate()
@@ -29,6 +30,19 @@ export default function NoviNalog() {
 
   const [greska, setGreska] = useState('')
   const [radi, setRadi] = useState(false)
+
+  // glasovni unos
+  const [glasOtvoren, setGlasOtvoren] = useState(false)
+  const [glasNapomene, setGlasNapomene] = useState([])
+
+  const primiGlas = ({ vozilo: v, voditeljId: vid, vozacId: zid, operacije: ops, napomene }) => {
+    if (v) { setVozilo(v); setGb(v.gb); setGbGreska('') }
+    if (vid) setVoditeljId(vid)
+    if (zid) setVozacId(zid)
+    if (ops && ops.length) setOperacije(ops)
+    setGlasNapomene(napomene || [])
+    setGlasOtvoren(false)
+  }
 
   useEffect(() => {
     Promise.all([api.vozila(), api.korisnici('voditelj'), api.korisnici('vozac')])
@@ -95,6 +109,25 @@ export default function NoviNalog() {
   return (
     <Layout naslov="Novi radni nalog" nazad={true}>
       {greska && <div className="greska">{greska}</div>}
+
+      <button type="button" className="btn" onClick={() => setGlasOtvoren(true)}>
+        🎙️ Diktiraj cijeli nalog
+      </button>
+      {glasNapomene.length > 0 && (
+        <div className="greska" style={{ background: '#fff8e1', color: '#8d6e00' }}>
+          {glasNapomene.map((n, i) => <div key={i}>⚠️ {n}</div>)}
+        </div>
+      )}
+
+      {glasOtvoren && (
+        <GlasovniUnos
+          vozila={vozila}
+          voditelji={voditelji}
+          vozaci={vozaci}
+          onPopuni={primiGlas}
+          onZatvori={() => setGlasOtvoren(false)}
+        />
+      )}
 
       {/* Korak 1 — kamion */}
       <div className="sekcija-naslov">1. Kamion (garažni broj)</div>

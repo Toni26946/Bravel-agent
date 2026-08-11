@@ -89,6 +89,8 @@ export const api = {
   kreirajNalog: (b) => zahtjev('/nalozi', { method: 'POST', body: b }),
   azurirajNalog: (id, b) => zahtjev(`/nalozi/${id}`, { method: 'PATCH', body: b }),
   obrisiNalog: (id) => zahtjev(`/nalozi/${id}`, { method: 'DELETE' }),
+  glasovniParse: (tekst, kategorije, voditelji, vozaci) =>
+    zahtjev('/nalozi/glasovni-parse', { method: 'POST', body: { tekst, kategorije, voditelji, vozaci } }),
   nalogStatus: (id, status, napomena) => zahtjev(`/nalozi/${id}/status`, { method: 'PATCH', body: { status, napomena } }),
   dodjele: (id, radnici_ids) => zahtjev(`/nalozi/${id}/dodjele`, { method: 'PUT', body: { radnici_ids } }),
   dodajSate: (id, b) => zahtjev(`/nalozi/${id}/sati`, { method: 'POST', body: b }),

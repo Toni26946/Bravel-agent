@@ -24,12 +24,15 @@ from ..models import (
     Vozilo,
     Zadatak,
 )
+from ..ai import ai_dostupan, parsiraj
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from ..schemas import (
     DioCreate,
     DioOut,
     DodjelaUpdate,
     FotografijaOut,
+    GlasovniOdgovor,
+    GlasovniZahtjev,
     NalogCreate,
     NalogListItem,
     NalogOut,
@@ -91,6 +94,31 @@ def _postavi_dodjele(db: Session, nalog: Nalog, radnici_ids: list[int]) -> None:
     for rid, d in postojeci.items():
         if rid not in trazeni:
             db.delete(d)
+
+
+# --- AI glasovni unos --------------------------------------------------------
+@router.post("/glasovni-parse", response_model=GlasovniOdgovor)
+def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)):
+    if not ai_dostupan():
+        raise HTTPException(status_code=503, detail="Glasovni unos nije konfiguriran (nedostaje ANTHROPIC_API_KEY).")
+    if not z.tekst.strip():
+        raise HTTPException(status_code=400, detail="Nema izgovorenog teksta.")
+    try:
+        podaci = parsiraj(z.tekst, z.kategorije, z.voditelji, z.vozaci)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"AI nije uspio obraditi govor: {e}")
+    operacije = [
+        {"kategorija": (o.get("kategorija") or "").strip(),
+         "zadaci": [t.strip() for t in (o.get("zadaci") or []) if t and t.strip()]}
+        for o in (podaci.get("operacije") or [])
+        if (o.get("kategorija") or "").strip()
+    ]
+    return GlasovniOdgovor(
+        vozilo_gb=podaci.get("vozilo_gb") or None,
+        voditelj=podaci.get("voditelj") or None,
+        vozac=podaci.get("vozac") or None,
+        operacije=operacije,
+    )
 
 
 # --- popis / detalj ----------------------------------------------------------
