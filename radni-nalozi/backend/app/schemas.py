@@ -26,6 +26,11 @@ class Token(BaseModel):
     korisnik: "KorisnikOut"
 
 
+class PromjenaLozinke(BaseModel):
+    stara_lozinka: str
+    nova_lozinka: str = Field(min_length=4)
+
+
 # --- Korisnik ----------------------------------------------------------------
 class KorisnikBase(BaseModel):
     ime: str
