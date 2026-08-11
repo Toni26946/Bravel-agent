@@ -2,6 +2,12 @@ name: Deploy Radni Nalozi
 
 # Deploya zasebnu aplikaciju "Bravel Radni Nalozi" (mapa radni-nalozi/) na fly.io.
 # Pokreće se na push u main kad se promijeni radni-nalozi/**, ili ručno.
+#
+# PREDUVJET (jednokratno, lokalno — jer fly token zbog SSO-a ne smije kreirati app):
+#   fly apps create bravel-radni-nalozi
+#   fly volumes create nalozi_data -a bravel-radni-nalozi -r ams -s 1 -y
+#   fly secrets set JWT_SECRET=<nasumično> -a bravel-radni-nalozi
+#   fly tokens create deploy -a bravel-radni-nalozi   → vrijednost ide u GitHub secret FLY_API_TOKEN2
 on:
   push:
     branches:
@@ -13,8 +19,6 @@ on:
 
 env:
   FLY_APP: bravel-radni-nalozi
-  FLY_REGION: ams
-  FLY_VOLUME: nalozi_data
 
 jobs:
   deploy:
@@ -26,35 +30,6 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      # Prvi put: kreiraj app, trajni volumen i JWT tajnu (sve idempotentno).
-      # Kasnije se ovi koraci samo preskoče jer već postoje.
-      - name: Bootstrap (app, volumen, tajne) — samo prvi put
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          set -e
-          if ! flyctl status --app "$FLY_APP" >/dev/null 2>&1; then
-            echo "Kreiram aplikaciju $FLY_APP…"
-            flyctl apps create "$FLY_APP"
-          else
-            echo "Aplikacija $FLY_APP već postoji."
-          fi
-
-          BROJ_VOL=$(flyctl volumes list --app "$FLY_APP" --json 2>/dev/null | jq 'length' || echo 0)
-          if [ "$BROJ_VOL" = "0" ]; then
-            echo "Kreiram volumen $FLY_VOLUME…"
-            flyctl volumes create "$FLY_VOLUME" --app "$FLY_APP" --region "$FLY_REGION" --size 1 --yes
-          else
-            echo "Volumen već postoji ($BROJ_VOL kom)."
-          fi
-
-          if ! flyctl secrets list --app "$FLY_APP" 2>/dev/null | grep -q '^JWT_SECRET'; then
-            echo "Postavljam JWT_SECRET (jednokratno)…"
-            flyctl secrets set JWT_SECRET="$(openssl rand -hex 32)" --app "$FLY_APP" --stage
-          else
-            echo "JWT_SECRET već postavljen."
-          fi
-
       - uses: docker/setup-buildx-action@v3
 
       - name: Prijava na Fly registry
@@ -62,7 +37,7 @@ jobs:
         with:
           registry: registry.fly.io
           username: x
-          password: ${{ secrets.FLY_API_TOKEN }}
+          password: ${{ secrets.FLY_API_TOKEN2 }}
 
       # Build iz mape radni-nalozi/ (tamo su Dockerfile, backend/, frontend/).
       - name: Build i push (GitHub Actions layer cache)
@@ -76,7 +51,7 @@ jobs:
 
       - name: Deploy gotove slike
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN2 }}
         run: |
           flyctl deploy \
             --app "$FLY_APP" \
