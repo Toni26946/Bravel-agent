@@ -33,49 +33,66 @@ export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZa
   const [radi, setRadi] = useState(false)
   const [greska, setGreska] = useState('')
   const recRef = useRef(null)
-  const baseRef = useRef('')
-  const finalRef = useRef('')
+  const accRef = useRef('')   // finalizirani tekst (baza + sve dovršene rečenice)
+  const sessRef = useRef('')  // tekst trenutne (kratke) sesije
+  const zeliRef = useRef(false) // želimo li nastaviti slušati (auto-restart)
 
   const Podrzano = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
-  const pokreni = () => {
-    if (!Podrzano) return
-    if (slusa) { recRef.current && recRef.current.stop(); return }
+  // Kratka sesija (continuous=false) koja se sama ponovno pokreće dok slušamo.
+  // Time se svaka izgovorena rečenica dodaje samo JEDNOM (na Androidu continuous
+  // vraća već-finalizirane rezultate iznova pa se tekst duplira).
+  const pokreniSesiju = () => {
     const R = window.SpeechRecognition || window.webkitSpeechRecognition
     const rec = new R()
     rec.lang = 'hr-HR'
-    rec.continuous = true
+    rec.continuous = false
     rec.interimResults = true
-    baseRef.current = tekst ? tekst.trim() + ' ' : ''
-    finalRef.current = ''
-    // Obrađuj SAMO nove rezultate (od resultIndex); finalne akumuliraj, međurezultat
-    // pokaži privremeno — inače se tekst gomila i ponavlja.
+    sessRef.current = ''
     rec.onresult = (e) => {
-      let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i]
-        if (res.isFinal) finalRef.current += res[0].transcript + ' '
-        else interim += res[0].transcript
-      }
-      setTekst((baseRef.current + finalRef.current + interim).replace(/\s+/g, ' ').trimStart())
+      let s = ''
+      for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript + ' '
+      sessRef.current = s.trim()
+      setTekst((accRef.current + ' ' + sessRef.current).replace(/\s+/g, ' ').trim())
     }
-    rec.onerror = () => setSlusa(false)
-    rec.onend = () => setSlusa(false)
+    rec.onerror = (ev) => {
+      if (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
+        zeliRef.current = false
+        setGreska('Mikrofon nije dopušten. Dopusti pristup mikrofonu u pregledniku.')
+      }
+    }
+    rec.onend = () => {
+      if (sessRef.current) {
+        accRef.current = (accRef.current + ' ' + sessRef.current).replace(/\s+/g, ' ').trim()
+        sessRef.current = ''
+      }
+      if (zeliRef.current) pokreniSesiju()  // nastavi slušati
+      else setSlusa(false)
+    }
     recRef.current = rec
+    try { rec.start() } catch (_) { /* ignore */ }
+  }
+
+  const pokreni = () => {
+    if (!Podrzano) return
+    if (slusa) { zeliRef.current = false; recRef.current && recRef.current.stop(); return }
+    accRef.current = tekst ? tekst.trim() : ''
+    zeliRef.current = true
     setSlusa(true)
-    try { rec.start() } catch (_) { setSlusa(false) }
+    pokreniSesiju()
   }
 
   // Automatski počni slušati kad se otvori
   useEffect(() => {
     if (Podrzano) pokreni()
-    return () => { try { recRef.current && recRef.current.stop() } catch (_) {} }
+    return () => { zeliRef.current = false; try { recRef.current && recRef.current.stop() } catch (_) {} }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const popuni = async () => {
     if (!tekst.trim()) return
     setGreska(''); setRadi(true)
+    zeliRef.current = false
     try { recRef.current && recRef.current.stop() } catch (_) {}
     try {
       const r = await api.glasovniParse(
