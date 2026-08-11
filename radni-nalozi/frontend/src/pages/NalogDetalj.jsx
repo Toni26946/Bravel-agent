@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import {
-  Bedz, KategorijaPicker, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
+  Bedz, KategorijaPicker, MikrofonGumb, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
@@ -316,9 +316,10 @@ function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
     catch (e) { naGresku(e.message) }
   }
   return (
-    <div className="btn-red" style={{ marginTop: 10 }}>
+    <div className="btn-red" style={{ marginTop: 10, alignItems: 'stretch' }}>
       <input value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="Novi zadatak"
         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), spremi())} />
+      <MikrofonGumb naslov="Diktiraj zadatak" onTekst={(t) => setOpis((v) => (v ? v + ' ' : '') + t)} />
       <button className="btn sekund mali" onClick={spremi} disabled={!opis.trim()}>+ Zadatak</button>
     </div>
   )

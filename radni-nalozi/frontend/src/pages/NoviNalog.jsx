@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { KategorijaPicker, voziloLabel } from '../ui'
+import { KategorijaPicker, MikrofonGumb, voziloLabel } from '../ui'
 
 export default function NoviNalog() {
   const nav = useNavigate()
@@ -157,8 +157,9 @@ export default function NoviNalog() {
                 <span className="x" onClick={() => makniOperaciju(oi)}>×</span>
               </div>
               {op.zadaci.map((z, zi) => (
-                <div key={zi} className="btn-red" style={{ marginTop: 8 }}>
+                <div key={zi} className="btn-red" style={{ marginTop: 8, alignItems: 'stretch' }}>
                   <input value={z} onChange={(e) => promijeniZadatak(oi, zi, e.target.value)} placeholder={`Zadatak ${zi + 1}`} />
+                  <MikrofonGumb naslov="Diktiraj zadatak" onTekst={(t) => promijeniZadatak(oi, zi, (z ? z + ' ' : '') + t)} />
                   {op.zadaci.length > 1 && <span className="x" onClick={() => makniZadatak(oi, zi)}>×</span>}
                 </div>
               ))}
