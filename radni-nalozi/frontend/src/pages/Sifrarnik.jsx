@@ -120,6 +120,10 @@ function Vozila() {
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
+  const [uvozOtvori, setUvozOtvori] = useState(false)
+  const [uvozTekst, setUvozTekst] = useState('')
+  const [uvozRezultat, setUvozRezultat] = useState(null)
+  const [uvozRadi, setUvozRadi] = useState(false)
   const [f, setF] = useState({ gb: '', registracija: '', marka: '', model: '' })
 
   const ucitaj = () => api.vozila().then(setLista).catch((e) => setGreska(e.message))
@@ -135,11 +139,45 @@ function Vozila() {
     } catch (err) { setGreska(err.message) }
   }
 
+  const uvezi = async () => {
+    setGreska(''); setUvozRezultat(null); setUvozRadi(true)
+    try {
+      const r = await api.uvozVozila(uvozTekst)
+      setUvozRezultat(r); setUvozTekst(''); ucitaj()
+    } catch (err) { setGreska(err.message) } finally { setUvozRadi(false) }
+  }
+
   if (lista === null) return <Spinner />
   return (
     <>
       {greska && <div className="greska">{greska}</div>}
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>+ Novo vozilo</button>}
+
+      {/* Uvoz postojećih kamiona */}
+      {!uvozOtvori ? (
+        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>📋 Uvezi popis kamiona (iz Excela)</button>
+      ) : (
+        <div className="karta">
+          <label style={{ marginTop: 0 }}>Zalijepi popis (jedan kamion po retku)</label>
+          <p className="meta" style={{ marginTop: 0 }}>
+            Format: <strong>GB</strong>, ili <strong>GB, registracija, marka</strong>. Možeš direktno kopirati stupce iz Excela.
+          </p>
+          <textarea
+            value={uvozTekst}
+            onChange={(e) => setUvozTekst(e.target.value)}
+            placeholder={'GB-101\nGB-102, ZG1234AB, MAN\nGB-103, ZG5678CD, Scania'}
+            style={{ minHeight: 140, fontFamily: 'monospace' }}
+          />
+          {uvozRezultat && (
+            <div className="uspjeh">Dodano {uvozRezultat.dodano}, preskočeno {uvozRezultat.preskoceno} (već postoje). Ukupno redaka: {uvozRezultat.ukupno}.</div>
+          )}
+          <div className="btn-red">
+            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? 'Uvozim…' : 'Uvezi'}</button>
+            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>Zatvori</button>
+          </div>
+        </div>
+      )}
+
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>+ Novo vozilo</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
           <label>Garažni broj (GB)</label>

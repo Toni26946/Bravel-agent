@@ -13,6 +13,7 @@ log = logging.getLogger("migrate")
 _STUPCI = [
     ("nalozi", "vozac_id", "INTEGER"),
     ("nalozi", "voditelj_id", "INTEGER"),
+    ("zadaci", "zaduzeni_id", "INTEGER"),
 ]
 
 
@@ -32,6 +33,9 @@ def migrate(engine: Engine) -> None:
     with engine.begin() as conn:
         for tablica, stupac, tip in _STUPCI:
             postojeci = _postojeci_stupci(conn, tablica, dialect)
+            if not postojeci:
+                # Tablica ne postoji (npr. create_all je nije stigao stvoriti) — preskoči.
+                continue
             if stupac not in postojeci:
                 conn.exec_driver_sql(f"ALTER TABLE {tablica} ADD COLUMN {stupac} {tip}")
                 log.info("Migracija: dodan stupac %s.%s", tablica, stupac)

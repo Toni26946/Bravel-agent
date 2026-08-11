@@ -70,6 +70,7 @@ export const api = {
   // Vozila
   vozila: () => zahtjev('/vozila'),
   kreirajVozilo: (b) => zahtjev('/vozila', { method: 'POST', body: b }),
+  uvozVozila: (tekst) => zahtjev('/vozila/uvoz', { method: 'POST', body: { tekst } }),
 
   // Korisnici
   korisnici: (uloga) => zahtjev('/korisnici' + (uloga ? `?uloga=${uloga}` : '')),
