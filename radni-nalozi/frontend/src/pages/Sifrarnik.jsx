@@ -71,12 +71,48 @@ function Korisnici() {
             <Bedz vrsta="srednji" tekst={ULOGA[k.uloga]} />
           </div>
           <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}</p>
-          <button className="btn sekund mali" onClick={() => prebaciAktivan(k)}>
-            {k.aktivan ? 'Deaktiviraj' : 'Aktiviraj'}
-          </button>
+          <div className="btn-red">
+            <button className="btn sekund mali" onClick={() => prebaciAktivan(k)}>
+              {k.aktivan ? 'Deaktiviraj' : 'Aktiviraj'}
+            </button>
+          </div>
+          <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
         </div>
       ))}
     </>
+  )
+}
+
+function ResetLozinke({ korisnikId, naGresku }) {
+  const [otvori, setOtvori] = useState(false)
+  const [nova, setNova] = useState('')
+  const [uspjeh, setUspjeh] = useState(false)
+  const [radi, setRadi] = useState(false)
+
+  if (uspjeh) return <p className="meta" style={{ color: 'var(--zelena)', marginTop: 8 }}>Lozinka resetirana ✅</p>
+  if (!otvori) {
+    return (
+      <button className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => setOtvori(true)}>
+        🔑 Resetiraj lozinku
+      </button>
+    )
+  }
+  const spremi = async () => {
+    if (nova.length < 4) { naGresku('Lozinka mora imati barem 4 znaka.'); return }
+    setRadi(true)
+    try {
+      await api.azurirajKorisnika(korisnikId, { lozinka: nova })
+      setUspjeh(true)
+    } catch (e) { naGresku(e.message) } finally { setRadi(false) }
+  }
+  return (
+    <div style={{ marginTop: 8 }}>
+      <input type="text" placeholder="Nova lozinka" value={nova} onChange={(e) => setNova(e.target.value)} />
+      <div className="btn-red">
+        <button className="btn mali" onClick={spremi} disabled={radi || !nova}>Postavi</button>
+        <button className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
+      </div>
+    </div>
   )
 }
 

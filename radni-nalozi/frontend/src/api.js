@@ -64,6 +64,8 @@ export const api = {
     return res.json()
   },
   me: () => zahtjev('/auth/me'),
+  promijeniLozinku: (stara_lozinka, nova_lozinka) =>
+    zahtjev('/auth/promijeni-lozinku', { method: 'POST', body: { stara_lozinka, nova_lozinka } }),
 
   // Vozila
   vozila: () => zahtjev('/vozila'),
