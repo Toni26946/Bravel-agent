@@ -189,6 +189,21 @@ def azuriraj(
     return nalog
 
 
+@router.delete("/{nalog_id}", status_code=204)
+def obrisi_nalog(nalog_id: int, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
+    nalog = db.get(Nalog, nalog_id)
+    if not nalog:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    # Ako je nalog nastao iz prijave kvara, odveži je i vrati na "nova"
+    if nalog.prijava_id:
+        prijava = db.get(Prijava, nalog.prijava_id)
+        if prijava and prijava.nalog_id == nalog.id:
+            prijava.nalog_id = None
+            prijava.status = StatusPrijave.nova
+    db.delete(nalog)  # kaskadno briše operacije, zadatke, sate, dijelove, povijest, dodjele
+    db.commit()
+
+
 # --- dodjele (voditelj) ------------------------------------------------------
 @router.put("/{nalog_id}/dodjele", response_model=NalogOut)
 def azuriraj_dodjele(
