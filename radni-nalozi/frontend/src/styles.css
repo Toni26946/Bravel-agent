@@ -131,6 +131,24 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .stavka { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rub); }
 .stavka:last-child { border-bottom: none; }
 .stavka .x { color: var(--crvena); font-size: 20px; padding: 4px 8px; cursor: pointer; }
+/* Tablica operacija/zadataka (Operacija | Radnik) */
+.op-tablica { border: 1px solid var(--rub); border-radius: var(--radius); overflow: hidden; background: var(--karta); box-shadow: var(--sjena); }
+.op-head { display: grid; grid-template-columns: 1fr 132px; }
+.op-head > div { padding: 10px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--sivo); background: #f4f6f9; }
+.op-head > div + div { border-left: 1px solid var(--rub); }
+.op-prazno { padding: 16px 12px; color: var(--sivo); font-size: 14px; border-top: 1px solid var(--rub); }
+.op-kat { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 12px; font-weight: 700; font-size: 14px; background: #fafbfc; border-top: 1px solid var(--rub); color: var(--tekst); text-transform: uppercase; letter-spacing: .2px; }
+.op-red { display: grid; grid-template-columns: 1fr 132px; border-top: 1px solid var(--rub); }
+.op-zad { padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
+.op-zad input[type="checkbox"] { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.op-zad > span:not(.x) { flex: 1; line-height: 1.35; }
+.op-zad .zad-gotov { text-decoration: line-through; color: var(--sivo); }
+.op-rad { border-left: 1px solid var(--rub); display: flex; align-items: center; padding: 4px; }
+.rad-select { border: none; background: transparent; padding: 6px 4px; font-size: 13px; width: 100%; color: var(--tekst); }
+.x.mini { font-size: 17px; line-height: 1; color: var(--crvena); padding: 0 2px; flex: none; }
+.op-dodaj { padding: 8px 12px 12px; border-top: 1px dashed var(--rub); }
+.op-dodaj input { font-size: 15px; }
+
 /* Mikrofon (diktiranje) */
 .polje-mik { display: flex; gap: 8px; align-items: stretch; }
 .polje-mik > input, .polje-mik > textarea { flex: 1; }

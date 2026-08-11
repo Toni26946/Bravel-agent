@@ -252,55 +252,46 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
 
   return (
     <>
-      {nalog.operacije.length === 0 && (
-        <div className="karta"><p className="meta" style={{ margin: 0 }}>Još nema operacija.</p></div>
-      )}
-
-      {nalog.operacije.map((op) => {
-        const gotovih = op.zadaci.filter((z) => z.gotovo).length
-        return (
-          <div key={op.id} className="karta">
-            <div className="naslov-red">
-              <h3 style={{ margin: 0 }}>
-                {op.kategorija}
-                {op.zadaci.length > 0 && <span className="meta" style={{ fontWeight: 400 }}> &nbsp;{gotovih}/{op.zadaci.length}</span>}
-              </h3>
-              <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
+      <div className="op-tablica">
+        <div className="op-head"><div>Operacija</div><div>Radnik</div></div>
+        {nalog.operacije.length === 0 && <div className="op-prazno">Još nema operacija.</div>}
+        {nalog.operacije.map((op) => (
+          <div key={op.id}>
+            <div className="op-kat">
+              <span>{op.kategorija}</span>
+              <span className="x mini" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
             </div>
-
             {op.zadaci.map((z) => (
-              <div key={z.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--rub)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0, cursor: 'pointer', flex: 1 }}>
-                    <input
-                      type="checkbox"
-                      checked={z.gotovo}
-                      onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
-                      style={{ width: 22, height: 22, flex: 'none' }}
-                    />
-                    <span style={{ textDecoration: z.gotovo ? 'line-through' : 'none', color: z.gotovo ? 'var(--sivo)' : 'inherit' }}>
-                      {z.opis}
-                    </span>
-                  </label>
-                  <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+              <div key={z.id} className="op-red">
+                <div className="op-zad">
+                  <input
+                    type="checkbox"
+                    checked={z.gotovo}
+                    onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+                  />
+                  <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
+                  <span className="x mini" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
                 </div>
-                <select
-                  value={z.zaduzeni?.id || ''}
-                  onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
-                  style={{ marginTop: 8, padding: '8px 10px', fontSize: 14 }}
-                >
-                  <option value="">👷 Nezaduženo</option>
-                  {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-                </select>
+                <div className="op-rad">
+                  <select
+                    className="rad-select"
+                    value={z.zaduzeni?.id || ''}
+                    onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
+                  >
+                    <option value="">—</option>
+                    {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+                  </select>
+                </div>
               </div>
             ))}
-
-            <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={ucitaj} naGresku={naGresku} />
+            <div className="op-dodaj">
+              <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={ucitaj} naGresku={naGresku} />
+            </div>
           </div>
-        )
-      })}
+        ))}
+      </div>
 
-      <div className="karta">
+      <div className="karta" style={{ marginTop: 12 }}>
         <label style={{ marginTop: 0 }}>Dodaj operaciju</label>
         <KategorijaPicker onOdaberi={dodajOp} />
       </div>
