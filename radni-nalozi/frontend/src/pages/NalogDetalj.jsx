@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Layout from '../Layout'
-import { api, medijUrl } from '../api'
+import { api } from '../api'
 import { useAuth } from '../auth'
 import {
   Bedz, KATEGORIJE, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
@@ -147,21 +147,6 @@ export default function NalogDetalj() {
         <DodajDio nalogId={id} naGotovo={ucitaj} naGresku={setGreska} />
       </div>
 
-      {/* Fotografije */}
-      <div className="sekcija-naslov">Fotografije</div>
-      <div className="karta">
-        {n.fotografije.length > 0 && (
-          <div className="foto-grid" style={{ marginBottom: 12 }}>
-            {n.fotografije.map((f) => (
-              <a key={f.id} href={medijUrl(f.putanja)} target="_blank" rel="noreferrer">
-                <img src={medijUrl(f.putanja)} alt={f.tip} />
-              </a>
-            ))}
-          </div>
-        )}
-        <DodajFoto nalogId={id} naGotovo={ucitaj} naGresku={setGreska} />
-      </div>
-
       {/* Povijest */}
       <div className="sekcija-naslov">Povijest</div>
       <div className="karta">
@@ -253,36 +238,6 @@ function DodajDio({ nalogId, naGotovo, naGresku }) {
         <button className="btn mali" onClick={spremi} disabled={!naziv}>Spremi</button>
         <button className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
       </div>
-    </div>
-  )
-}
-
-function DodajFoto({ nalogId, naGotovo, naGresku }) {
-  const [tip, setTip] = useState('poslije')
-  const [radi, setRadi] = useState(false)
-  const posalji = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setRadi(true)
-    try {
-      const fd = new FormData()
-      fd.append('tip', tip)
-      fd.append('slika', file)
-      await api.dodajFoto(nalogId, fd)
-      naGotovo()
-    } catch (err) { naGresku(err.message) } finally { setRadi(false); e.target.value = '' }
-  }
-  return (
-    <div>
-      <div className="multi" style={{ marginBottom: 10 }}>
-        {['prije', 'poslije', 'ostalo'].map((t) => (
-          <span key={t} className={`opt ${tip === t ? 'akt' : ''}`} onClick={() => setTip(t)}>{t}</span>
-        ))}
-      </div>
-      <label className="btn sekund mali" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-        {radi ? 'Šaljem…' : '📷 Dodaj fotografiju'}
-        <input type="file" accept="image/*" capture="environment" hidden onChange={posalji} disabled={radi} />
-      </label>
     </div>
   )
 }

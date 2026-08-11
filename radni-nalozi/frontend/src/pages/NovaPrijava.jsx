@@ -10,7 +10,6 @@ export default function NovaPrijava() {
   const [voziloId, setVoziloId] = useState('')
   const [opis, setOpis] = useState('')
   const [hitnost, setHitnost] = useState('srednja')
-  const [slike, setSlike] = useState([])
   const [greska, setGreska] = useState('')
   const [radi, setRadi] = useState(false)
 
@@ -31,7 +30,6 @@ export default function NovaPrijava() {
       fd.append('vozilo_id', voziloId)
       fd.append('opis', opis)
       fd.append('hitnost', hitnost)
-      for (const f of slike) fd.append('slike', f)
       await api.kreirajPrijavu(fd)
       nav('/prijave')
     } catch (err) {
@@ -58,9 +56,6 @@ export default function NovaPrijava() {
         <select value={hitnost} onChange={(e) => setHitnost(e.target.value)}>
           {Object.entries(HITNOST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-
-        <label>Fotografije (opcionalno)</label>
-        <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setSlike([...e.target.files])} />
 
         <button className="btn" disabled={radi}>{radi ? 'Šaljem…' : 'Pošalji prijavu'}</button>
       </form>
