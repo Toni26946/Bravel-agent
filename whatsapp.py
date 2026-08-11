@@ -54,9 +54,25 @@ def is_configured():
                 and os.getenv("WHATSAPP_PHONE_ID", "").strip())
 
 
+def _slanje_ukljuceno():
+    """TVRDI GLOBALNI PREKIDAČ SLANJA. ISKLJUČEN po defaultu: dok se izrijekom ne
+    postavi WHATSAPP_SLANJE_ON=1, bot NE ŠALJE NIJEDNU poruku vozačima — nikakav
+    predložak, tekst, gumbe, potvrde ni sažetke računa, podsjetnike ni paljenje.
+    Prijem (čitanje dolaznih računa) i dalje radi; samo se NE odgovara natrag.
+    Za ponovno uključivanje: fly secrets set WHATSAPP_SLANJE_ON=1."""
+    return os.getenv("WHATSAPP_SLANJE_ON", "").strip() == "1"
+
+
 def _post(path, payload):
     """POST na Graph; vrati (status_code, dict). Ne baca na HTTP grešci —
     tijelo greške je dio odgovora koji zovemo želi vidjeti."""
+    # Blokiraj SVAKO slanje poruke (…/messages) dok slanje nije izrijekom uključeno.
+    # register i ostali ne-message pozivi prolaze (ne šalju ništa vozaču).
+    if str(path).endswith("/messages") and not _slanje_ukljuceno():
+        print("[whatsapp] SLANJE BLOKIRANO (WHATSAPP_SLANJE_ON≠1) — poruka NIJE poslana",
+              flush=True)
+        return 0, {"blocked": True,
+                   "error": "WhatsApp slanje isključeno (WHATSAPP_SLANJE_ON≠1)"}
     url = f"{GRAPH_BASE}/{path}"
     r = requests.post(url, headers=_headers(), json=payload, timeout=TIMEOUT)
     try:

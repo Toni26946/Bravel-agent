@@ -284,6 +284,13 @@ posebno na EU rutama. Razrada:
   li pristup razini goriva iz Mobilisisa ili idemo na procjenu iz potrošnje.
 
 ### WhatsApp — dovršetak
+⛔ TVRDI PREKIDAČ SLANJA (30.7.): whatsapp._post blokira SVAKO slanje poruke
+(…/messages) dok NIJE postavljen WHATSAPP_SLANJE_ON=1. Default = slanje
+ISKLJUČENO → bot ne šalje nijednu poruku vozačima (predlošci, tekst, potvrde/
+sažetci računa, podsjetnici, paljenje). Prijem (čitanje dolaznih računa) i dalje
+radi; samo se ne odgovara natrag. Za ponovno slanje: fly secrets set
+WHATSAPP_SLANJE_ON=1. (Uvedeno jer su vozači dobivali neželjene poruke.)
+
 Odluka (21.7.): NIŠTA što troši pravi novac dok se ne dodaju vozači.
 - Vozači DODANI (23.7.): 95 vozača u WHATSAPP_ALLOWED + WHATSAPP_DRIVERS
   (+ test broj). Panel je UŽIVO i radi (izbornik, računi, sati, kvar, lokacija).
