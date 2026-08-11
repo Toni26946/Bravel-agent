@@ -1,5 +1,38 @@
 // Zajedničke oznake, prijevodi i male komponente.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+
+// Gumb za diktiranje (govor → tekst) preko ugrađenog prepoznavanja u pregledniku.
+// onTekst(prepoznatiTekst) — pozivatelj odlučuje hoće li dopisati ili zamijeniti.
+export function MikrofonGumb({ onTekst, naslov = 'Diktiraj' }) {
+  const [slusa, setSlusa] = useState(false)
+  const recRef = useRef(null)
+  const Podrzano = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
+  if (!Podrzano) return null
+
+  const kreni = () => {
+    if (slusa) { recRef.current && recRef.current.stop(); return }
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition
+    const rec = new R()
+    rec.lang = 'hr-HR'
+    rec.interimResults = false
+    rec.continuous = false
+    rec.onresult = (e) => {
+      const t = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim()
+      if (t) onTekst(t)
+    }
+    rec.onerror = () => setSlusa(false)
+    rec.onend = () => setSlusa(false)
+    recRef.current = rec
+    setSlusa(true)
+    try { rec.start() } catch (_) { setSlusa(false) }
+  }
+
+  return (
+    <button type="button" className={`mik ${slusa ? 'sluša' : ''}`} onClick={kreni} title={naslov} aria-label={naslov}>
+      {slusa ? '⏹' : '🎤'}
+    </button>
+  )
+}
 
 export const STATUS_NALOG = {
   otvoren: 'Otvoren',
@@ -67,13 +100,16 @@ export function KategorijaPicker({ onOdaberi, placeholder = 'Dodajte operaciju�
   const odaberi = (k) => { onOdaberi(k); setQ(''); setFokus(false) }
   return (
     <div style={{ position: 'relative' }}>
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        onFocus={() => setFokus(true)}
-        onBlur={() => setTimeout(() => setFokus(false), 150)}
-        placeholder={placeholder}
-      />
+      <div className="polje-mik">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFokus(true)}
+          onBlur={() => setTimeout(() => setFokus(false), 150)}
+          placeholder={placeholder}
+        />
+        <MikrofonGumb naslov="Izgovori kategoriju" onTekst={(t) => { setQ(t); setFokus(true) }} />
+      </div>
       {fokus && (
         <div className="kat-lista">
           {filt.map((k) => (

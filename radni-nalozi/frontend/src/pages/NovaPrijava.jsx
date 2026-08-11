@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { HITNOST, voziloLabel } from '../ui'
+import { HITNOST, MikrofonGumb, voziloLabel } from '../ui'
 
 export default function NovaPrijava() {
   const nav = useNavigate()
@@ -50,7 +50,10 @@ export default function NovaPrijava() {
         </select>
 
         <label>Opis kvara</label>
-        <textarea value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="Što ne valja s vozilom?" required />
+        <div className="polje-mik">
+          <textarea value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="Što ne valja s vozilom?" required />
+          <MikrofonGumb naslov="Diktiraj opis" onTekst={(t) => setOpis((v) => (v ? v + ' ' : '') + t)} />
+        </div>
 
         <label>Hitnost</label>
         <select value={hitnost} onChange={(e) => setHitnost(e.target.value)}>
