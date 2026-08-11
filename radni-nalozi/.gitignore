@@ -1,0 +1,16 @@
+# Node
+node_modules/
+frontend/dist/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Backend build/runtime
+backend/static/
+uploads/
+*.db
+
+# Okruženje
+.env
