@@ -8,8 +8,6 @@ import { Bedz, PRIORITET, Prazno, STATUS_NALOG, Spinner, datum, voziloLabel } fr
 const FILTERI = [
   { k: '', t: 'Sve' },
   { k: 'otvoren', t: 'Otvoreni' },
-  { k: 'u_radu', t: 'U radu' },
-  { k: 'ceka_dijelove', t: 'Čeka dijelove' },
   { k: 'gotov', t: 'Gotovi' },
 ]
 
