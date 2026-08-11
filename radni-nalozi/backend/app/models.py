@@ -153,13 +153,21 @@ class Nalog(Base):
     prioritet: Mapped[Prioritet] = mapped_column(Enum(Prioritet), default=Prioritet.srednji, index=True)
     status: Mapped[StatusNaloga] = mapped_column(Enum(StatusNaloga), default=StatusNaloga.otvoren, index=True)
     kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    vozac_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    voditelj_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     rok: Mapped[date | None] = mapped_column(Date, nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     zatvoren: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     vozilo: Mapped["Vozilo"] = relationship()
-    kreirao: Mapped["Korisnik"] = relationship()
+    kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
+    vozac: Mapped["Korisnik | None"] = relationship(foreign_keys=[vozac_id])
+    voditelj: Mapped["Korisnik | None"] = relationship(foreign_keys=[voditelj_id])
+    operacije: Mapped[list["Operacija"]] = relationship(
+        back_populates="nalog", cascade="all, delete-orphan",
+        order_by="Operacija.redoslijed",
+    )
     dodjele: Mapped[list["Dodjela"]] = relationship(
         back_populates="nalog", cascade="all, delete-orphan"
     )
@@ -255,3 +263,38 @@ class PovijestStatusa(Base):
 
     nalog: Mapped["Nalog"] = relationship(back_populates="povijest")
     promijenio: Mapped["Korisnik"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Operacija (kategorija posla na nalogu: motor, pneumatika, bojanje…)
+# ---------------------------------------------------------------------------
+class Operacija(Base):
+    __tablename__ = "operacije"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nalog_id: Mapped[int] = mapped_column(ForeignKey("nalozi.id", ondelete="CASCADE"), index=True)
+    kategorija: Mapped[str] = mapped_column(String(80))
+    redoslijed: Mapped[int] = mapped_column(Integer, default=0)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    nalog: Mapped["Nalog"] = relationship(back_populates="operacije")
+    zadaci: Mapped[list["Zadatak"]] = relationship(
+        back_populates="operacija", cascade="all, delete-orphan",
+        order_by="Zadatak.redoslijed",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Zadatak (stavka unutar operacije, s oznakom gotovo)
+# ---------------------------------------------------------------------------
+class Zadatak(Base):
+    __tablename__ = "zadaci"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    operacija_id: Mapped[int] = mapped_column(ForeignKey("operacije.id", ondelete="CASCADE"), index=True)
+    opis: Mapped[str] = mapped_column(Text)
+    gotovo: Mapped[bool] = mapped_column(Boolean, default=False)
+    redoslijed: Mapped[int] = mapped_column(Integer, default=0)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")

@@ -12,6 +12,7 @@ from ..models import (
     Fotografija,
     Korisnik,
     Nalog,
+    Operacija,
     PovijestStatusa,
     Prijava,
     Prioritet,
@@ -21,6 +22,7 @@ from ..models import (
     TipFotografije,
     Uloga,
     Vozilo,
+    Zadatak,
 )
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from ..schemas import (
@@ -33,8 +35,13 @@ from ..schemas import (
     NalogOut,
     NalogStatusUpdate,
     NalogUpdate,
+    OperacijaCreate,
+    OperacijaOut,
     RadniSatCreate,
     RadniSatOut,
+    ZadatakDodaj,
+    ZadatakOut,
+    ZadatakUpdate,
 )
 from ..storage import spremi_sliku
 
@@ -64,9 +71,8 @@ def _dohvati_ovlasten(db: Session, nalog_id: int, korisnik: Korisnik) -> Nalog:
     nalog = db.get(Nalog, nalog_id)
     if not nalog:
         raise HTTPException(status_code=404, detail="Nalog ne postoji")
-    if korisnik.uloga == Uloga.voditelj:
-        return nalog
-    if korisnik.uloga == Uloga.radnik and _je_dodijeljen(db, nalog_id, korisnik.id):
+    # Voditelj i radnik (mehaničar) rade na svim nalozima; vozač nema pristup.
+    if korisnik.uloga in (Uloga.voditelj, Uloga.radnik):
         return nalog
     raise HTTPException(status_code=403, detail="Nemate ovlasti za ovaj nalog")
 
@@ -96,9 +102,7 @@ def popis(
 ):
     if korisnik.uloga == Uloga.vozac:
         raise HTTPException(status_code=403, detail="Vozači nemaju pristup nalozima")
-    q = db.query(Nalog)
-    if korisnik.uloga == Uloga.radnik:
-        q = q.join(Dodjela).filter(Dodjela.radnik_id == korisnik.id)
+    q = db.query(Nalog)  # voditelj i radnik vide sve naloge
     if status:
         q = q.filter(Nalog.status == status)
     return q.order_by(Nalog.kreiran.desc()).all()
@@ -112,8 +116,18 @@ def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: S
 # --- kreiranje (voditelj) ----------------------------------------------------
 @router.post("", response_model=NalogOut, status_code=201)
 def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
-    if not db.get(Vozilo, podaci.vozilo_id):
-        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    vozilo = db.get(Vozilo, podaci.vozilo_id)
+    if not vozilo:
+        raise HTTPException(status_code=404, detail="Vozilo (kamion) ne postoji")
+
+    odabrani_voditelj = db.get(Korisnik, podaci.voditelj_id)
+    if not odabrani_voditelj or odabrani_voditelj.uloga != Uloga.voditelj:
+        raise HTTPException(status_code=400, detail="Odabrani voditelj nije valjan")
+
+    if podaci.vozac_id is not None:
+        vozac = db.get(Korisnik, podaci.vozac_id)
+        if not vozac or vozac.uloga != Uloga.vozac:
+            raise HTTPException(status_code=400, detail="Odabrani vozač nije valjan")
 
     prijava = None
     if podaci.prijava_id:
@@ -125,15 +139,25 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         broj=_sljedeci_broj(db),
         vozilo_id=podaci.vozilo_id,
         prijava_id=podaci.prijava_id,
-        naslov=podaci.naslov.strip(),
+        naslov=(podaci.naslov or "").strip() or f"Servis {vozilo.gb}",
         opis=podaci.opis,
         prioritet=podaci.prioritet,
         rok=podaci.rok,
         kreirao_id=voditelj.id,
+        voditelj_id=podaci.voditelj_id,
+        vozac_id=podaci.vozac_id,
     )
     db.add(nalog)
     db.flush()
     _postavi_dodjele(db, nalog, podaci.radnici_ids)
+    # Operacije (kategorije) i zadaci
+    for i, op in enumerate(podaci.operacije):
+        operacija = Operacija(nalog_id=nalog.id, kategorija=op.kategorija.strip(), redoslijed=i)
+        db.add(operacija)
+        db.flush()
+        for j, opis in enumerate(op.zadaci):
+            if opis.strip():
+                db.add(Zadatak(operacija_id=operacija.id, opis=opis.strip(), redoslijed=j))
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=None, novi_status=StatusNaloga.otvoren.value,
         napomena="Nalog kreiran", promijenio_id=voditelj.id,
@@ -143,11 +167,10 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         prijava.nalog_id = nalog.id
     db.commit()
     db.refresh(nalog)
-    for d in nalog.dodjele:
-        obavijesti_korisnika(
-            db, d.radnik_id, "Novi radni nalog",
-            f"{nalog.broj}: {nalog.naslov}", url=f"/nalozi/{nalog.id}",
-        )
+    obavijesti_ulogu(
+        db, Uloga.radnik, "Novi radni nalog",
+        f"{nalog.broj}: {vozilo.gb} — {nalog.naslov}", url=f"/nalozi/{nalog.id}",
+    )
     return nalog
 
 
@@ -290,3 +313,86 @@ def dodaj_foto(
     db.commit()
     db.refresh(f)
     return f
+
+
+# --- operacije (kategorije) --------------------------------------------------
+@router.post("/{nalog_id}/operacije", response_model=OperacijaOut, status_code=201)
+def dodaj_operaciju(
+    nalog_id: int, podaci: OperacijaCreate,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
+    redoslijed = len(nalog.operacije)
+    op = Operacija(nalog_id=nalog_id, kategorija=podaci.kategorija.strip(), redoslijed=redoslijed)
+    db.add(op)
+    db.flush()
+    for j, opis in enumerate(podaci.zadaci):
+        if opis.strip():
+            db.add(Zadatak(operacija_id=op.id, opis=opis.strip(), redoslijed=j))
+    db.commit()
+    db.refresh(op)
+    return op
+
+
+@router.delete("/{nalog_id}/operacije/{op_id}", status_code=204)
+def obrisi_operaciju(
+    nalog_id: int, op_id: int,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    op = db.get(Operacija, op_id)
+    if not op or op.nalog_id != nalog_id:
+        raise HTTPException(status_code=404, detail="Operacija ne postoji")
+    db.delete(op)
+    db.commit()
+
+
+# --- zadaci ------------------------------------------------------------------
+def _dohvati_zadatak(db: Session, nalog_id: int, zadatak_id: int) -> Zadatak:
+    z = db.get(Zadatak, zadatak_id)
+    if not z or z.operacija.nalog_id != nalog_id:
+        raise HTTPException(status_code=404, detail="Zadatak ne postoji")
+    return z
+
+
+@router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
+def dodaj_zadatak(
+    nalog_id: int, op_id: int, podaci: ZadatakDodaj,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    op = db.get(Operacija, op_id)
+    if not op or op.nalog_id != nalog_id:
+        raise HTTPException(status_code=404, detail="Operacija ne postoji")
+    z = Zadatak(operacija_id=op_id, opis=podaci.opis.strip(), redoslijed=len(op.zadaci))
+    db.add(z)
+    db.commit()
+    db.refresh(z)
+    return z
+
+
+@router.patch("/{nalog_id}/zadaci/{zadatak_id}", response_model=ZadatakOut)
+def azuriraj_zadatak(
+    nalog_id: int, zadatak_id: int, podaci: ZadatakUpdate,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    z = _dohvati_zadatak(db, nalog_id, zadatak_id)
+    if podaci.opis is not None:
+        z.opis = podaci.opis.strip()
+    if podaci.gotovo is not None:
+        z.gotovo = podaci.gotovo
+    db.commit()
+    db.refresh(z)
+    return z
+
+
+@router.delete("/{nalog_id}/zadaci/{zadatak_id}", status_code=204)
+def obrisi_zadatak(
+    nalog_id: int, zadatak_id: int,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    z = _dohvati_zadatak(db, nalog_id, zadatak_id)
+    db.delete(z)
+    db.commit()

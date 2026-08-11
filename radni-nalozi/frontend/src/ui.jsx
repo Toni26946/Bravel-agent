@@ -29,6 +29,9 @@ export const ULOGA = {
   radnik: 'Radnik',
 }
 
+// Predefinirane kategorije operacija (voditelj može dodati i vlastitu)
+export const KATEGORIJE = ['Motor', 'Pneumatika', 'Bojanje', 'Elektrika', 'Kočnice', 'Razno']
+
 export function Bedz({ vrsta, tekst }) {
   return <span className={`bedz b-${vrsta}`}>{tekst}</span>
 }

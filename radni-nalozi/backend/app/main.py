@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, SessionLocal, engine
+from .migrate import migrate
 from .routers import auth, korisnici, nalozi, prijave, push, vozila
 from .seed import seed
 
@@ -20,6 +21,7 @@ log = logging.getLogger("app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    migrate(engine)
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     with SessionLocal() as db:
         seed(db)
