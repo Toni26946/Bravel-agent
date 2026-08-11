@@ -131,6 +131,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .stavka { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rub); }
 .stavka:last-child { border-bottom: none; }
 .stavka .x { color: var(--crvena); font-size: 20px; padding: 4px 8px; cursor: pointer; }
+.kat-lista {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+  background: #fff; border: 1px solid var(--rub); border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14); max-height: 260px; overflow-y: auto;
+}
+.kat-opcija { padding: 12px 14px; font-size: 15px; cursor: pointer; border-bottom: 1px solid var(--rub); }
+.kat-opcija:last-child { border-bottom: none; }
+.kat-opcija:active, .kat-opcija:hover { background: #eef2f7; }
+.kat-opcija.kat-custom { color: var(--plava); font-weight: 600; }
 .multi { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .multi .opt { padding: 8px 14px; border-radius: 20px; border: 1px solid var(--rub); background: #fff; cursor: pointer; font-size: 14px; }
 .multi .opt.akt { background: var(--plava); color: #fff; border-color: var(--plava); }

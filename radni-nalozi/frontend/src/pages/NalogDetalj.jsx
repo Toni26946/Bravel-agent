@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import {
-  Bedz, KATEGORIJE, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
+  Bedz, KategorijaPicker, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
@@ -244,14 +244,10 @@ function DodajDio({ nalogId, naGotovo, naGresku }) {
 
 // --- Operacije i zadaci ------------------------------------------------------
 function Operacije({ nalog, radnici, ucitaj, naGresku }) {
-  const [prikaziCustom, setPrikaziCustom] = useState(false)
-  const [customKat, setCustomKat] = useState('')
-
   const wrap = (p) => p.then(ucitaj).catch((e) => naGresku(e.message))
   const dodajOp = (kat) => {
     const k = (kat || '').trim()
     if (!k) return
-    setCustomKat(''); setPrikaziCustom(false)
     wrap(api.dodajOperaciju(nalog.id, k))
   }
 
@@ -307,16 +303,7 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
 
       <div className="karta">
         <label style={{ marginTop: 0 }}>Dodaj operaciju</label>
-        <div className="multi">
-          {KATEGORIJE.map((k) => <span key={k} className="opt" onClick={() => dodajOp(k)}>{k}</span>)}
-          <span className="opt" onClick={() => setPrikaziCustom((v) => !v)}>＋ vlastita</span>
-        </div>
-        {prikaziCustom && (
-          <div className="btn-red" style={{ marginTop: 10 }}>
-            <input value={customKat} onChange={(e) => setCustomKat(e.target.value)} placeholder="Naziv kategorije" />
-            <button className="btn mali" onClick={() => dodajOp(customKat)}>Dodaj</button>
-          </div>
-        )}
+        <KategorijaPicker onOdaberi={dodajOp} />
       </div>
     </>
   )

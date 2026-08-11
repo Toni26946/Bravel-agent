@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { KATEGORIJE, voziloLabel } from '../ui'
+import { KategorijaPicker, voziloLabel } from '../ui'
 
 export default function NoviNalog() {
   const nav = useNavigate()
@@ -26,8 +26,6 @@ export default function NoviNalog() {
 
   // korak 3 — operacije
   const [operacije, setOperacije] = useState([]) // [{kategorija, zadaci:[str]}]
-  const [customKat, setCustomKat] = useState('')
-  const [prikaziCustom, setPrikaziCustom] = useState(false)
 
   const [greska, setGreska] = useState('')
   const [radi, setRadi] = useState(false)
@@ -60,10 +58,9 @@ export default function NoviNalog() {
   }
 
   const dodajOperaciju = (kategorija) => {
-    const k = kategorija.trim()
+    const k = (kategorija || '').trim()
     if (!k) return
     setOperacije((o) => [...o, { kategorija: k, zadaci: [''] }])
-    setCustomKat(''); setPrikaziCustom(false)
   }
   const makniOperaciju = (i) => setOperacije((o) => o.filter((_, idx) => idx !== i))
   const promijeniZadatak = (oi, zi, val) =>
@@ -171,18 +168,7 @@ export default function NoviNalog() {
 
           <div className="karta">
             <label style={{ marginTop: 0 }}>Dodaj operaciju (kategoriju)</label>
-            <div className="multi">
-              {KATEGORIJE.map((k) => (
-                <span key={k} className="opt" onClick={() => dodajOperaciju(k)}>{k}</span>
-              ))}
-              <span className="opt" onClick={() => setPrikaziCustom((v) => !v)}>＋ vlastita</span>
-            </div>
-            {prikaziCustom && (
-              <div className="btn-red" style={{ marginTop: 10 }}>
-                <input value={customKat} onChange={(e) => setCustomKat(e.target.value)} placeholder="Naziv kategorije" />
-                <button type="button" className="btn mali" onClick={() => dodajOperaciju(customKat)}>Dodaj</button>
-              </div>
-            )}
+            <KategorijaPicker onOdaberi={dodajOperaciju} />
           </div>
 
           <button className="btn" onClick={spremi} disabled={radi} style={{ marginTop: 8 }}>
