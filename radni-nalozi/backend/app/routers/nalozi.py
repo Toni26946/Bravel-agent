@@ -355,6 +355,12 @@ def _dohvati_zadatak(db: Session, nalog_id: int, zadatak_id: int) -> Zadatak:
     return z
 
 
+def _provjeri_radnik(db: Session, rid: int) -> None:
+    r = db.get(Korisnik, rid)
+    if not r or r.uloga != Uloga.radnik:
+        raise HTTPException(status_code=400, detail="Zaduženi nije valjan mehaničar")
+
+
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
 def dodaj_zadatak(
     nalog_id: int, op_id: int, podaci: ZadatakDodaj,
@@ -364,7 +370,12 @@ def dodaj_zadatak(
     op = db.get(Operacija, op_id)
     if not op or op.nalog_id != nalog_id:
         raise HTTPException(status_code=404, detail="Operacija ne postoji")
-    z = Zadatak(operacija_id=op_id, opis=podaci.opis.strip(), redoslijed=len(op.zadaci))
+    if podaci.zaduzeni_id is not None:
+        _provjeri_radnik(db, podaci.zaduzeni_id)
+    z = Zadatak(
+        operacija_id=op_id, opis=podaci.opis.strip(),
+        zaduzeni_id=podaci.zaduzeni_id, redoslijed=len(op.zadaci),
+    )
     db.add(z)
     db.commit()
     db.refresh(z)
@@ -382,6 +393,10 @@ def azuriraj_zadatak(
         z.opis = podaci.opis.strip()
     if podaci.gotovo is not None:
         z.gotovo = podaci.gotovo
+    if "zaduzeni_id" in podaci.model_fields_set:
+        if podaci.zaduzeni_id is not None:
+            _provjeri_radnik(db, podaci.zaduzeni_id)
+        z.zaduzeni_id = podaci.zaduzeni_id
     db.commit()
     db.refresh(z)
     return z

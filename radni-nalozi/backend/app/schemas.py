@@ -72,6 +72,16 @@ class VoziloCreate(VoziloBase):
     pass
 
 
+class VoziloUvoz(BaseModel):
+    tekst: str  # zalijepljeni popis: GB[,reg[,marka]] po retku (tab/zarez/točka-zarez)
+
+
+class VoziloUvozRezultat(BaseModel):
+    dodano: int
+    preskoceno: int
+    ukupno: int
+
+
 class VoziloUpdate(BaseModel):
     gb: str | None = None
     registracija: str | None = None
@@ -165,6 +175,7 @@ class ZadatakOut(ORM):
     id: int
     opis: str
     gotovo: bool
+    zaduzeni: KorisnikOut | None = None
 
 
 class OperacijaOut(ORM):
@@ -180,11 +191,13 @@ class OperacijaCreate(BaseModel):
 
 class ZadatakDodaj(BaseModel):
     opis: str
+    zaduzeni_id: int | None = None
 
 
 class ZadatakUpdate(BaseModel):
     opis: str | None = None
     gotovo: bool | None = None
+    zaduzeni_id: int | None = None
 
 
 class NalogCreate(BaseModel):

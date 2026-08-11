@@ -294,7 +294,9 @@ class Zadatak(Base):
     operacija_id: Mapped[int] = mapped_column(ForeignKey("operacije.id", ondelete="CASCADE"), index=True)
     opis: Mapped[str] = mapped_column(Text)
     gotovo: Mapped[bool] = mapped_column(Boolean, default=False)
+    zaduzeni_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     redoslijed: Mapped[int] = mapped_column(Integer, default=0)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")
+    zaduzeni: Mapped["Korisnik | None"] = relationship()

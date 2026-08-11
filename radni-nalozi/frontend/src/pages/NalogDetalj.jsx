@@ -37,7 +37,7 @@ export default function NalogDetalj() {
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
   useEffect(() => {
-    if (korisnik.uloga === 'voditelj') api.korisnici('radnik').then(setRadnici).catch(() => {})
+    api.korisnici('radnik').then(setRadnici).catch(() => {})
   }, [])
 
   if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
@@ -85,7 +85,7 @@ export default function NalogDetalj() {
 
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">Operacije i zadaci</div>
-      <Operacije nalog={n} ucitaj={ucitaj} naGresku={setGreska} />
+      <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
 
       {/* Dodijeljeni radnici */}
       <div className="sekcija-naslov">Dodijeljeni radnici</div>
@@ -288,7 +288,7 @@ function DodajFoto({ nalogId, naGotovo, naGresku }) {
 }
 
 // --- Operacije i zadaci ------------------------------------------------------
-function Operacije({ nalog, ucitaj, naGresku }) {
+function Operacije({ nalog, radnici, ucitaj, naGresku }) {
   const [prikaziCustom, setPrikaziCustom] = useState(false)
   const [customKat, setCustomKat] = useState('')
 
@@ -319,19 +319,29 @@ function Operacije({ nalog, ucitaj, naGresku }) {
             </div>
 
             {op.zadaci.map((z) => (
-              <div key={z.id} className="stavka">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0, cursor: 'pointer', flex: 1 }}>
-                  <input
-                    type="checkbox"
-                    checked={z.gotovo}
-                    onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
-                    style={{ width: 22, height: 22, flex: 'none' }}
-                  />
-                  <span style={{ textDecoration: z.gotovo ? 'line-through' : 'none', color: z.gotovo ? 'var(--sivo)' : 'inherit' }}>
-                    {z.opis}
-                  </span>
-                </label>
-                <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+              <div key={z.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--rub)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0, cursor: 'pointer', flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={z.gotovo}
+                      onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+                      style={{ width: 22, height: 22, flex: 'none' }}
+                    />
+                    <span style={{ textDecoration: z.gotovo ? 'line-through' : 'none', color: z.gotovo ? 'var(--sivo)' : 'inherit' }}>
+                      {z.opis}
+                    </span>
+                  </label>
+                  <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+                </div>
+                <select
+                  value={z.zaduzeni?.id || ''}
+                  onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
+                  style={{ marginTop: 8, padding: '8px 10px', fontSize: 14 }}
+                >
+                  <option value="">👷 Nezaduženo</option>
+                  {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+                </select>
               </div>
             ))}
 
