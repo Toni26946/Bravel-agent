@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { useAuth } from '../auth'
 import {
-  Bedz, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
+  Bedz, KATEGORIJE, PRIORITET, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
@@ -61,6 +61,8 @@ export default function NalogDetalj() {
           <Bedz vrsta={n.status} tekst={STATUS_NALOG[n.status]} />
         </div>
         <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
+        {n.voditelj && <p className="meta">🧑‍🔧 Voditelj: <strong>{n.voditelj.ime}</strong></p>}
+        {n.vozac && <p className="meta">🚛 Vozač: <strong>{n.vozac.ime}</strong></p>}
         <p className="meta"><Bedz vrsta={n.prioritet} tekst={'Prioritet: ' + PRIORITET[n.prioritet]} /></p>
         {n.rok && <p className="meta">📅 Rok: <strong>{datum(n.rok)}</strong></p>}
         {n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>}
@@ -80,6 +82,10 @@ export default function NalogDetalj() {
           </div>
         </>
       )}
+
+      {/* Operacije i zadaci */}
+      <div className="sekcija-naslov">Operacije i zadaci</div>
+      <Operacije nalog={n} ucitaj={ucitaj} naGresku={setGreska} />
 
       {/* Dodijeljeni radnici */}
       <div className="sekcija-naslov">Dodijeljeni radnici</div>
@@ -277,6 +283,92 @@ function DodajFoto({ nalogId, naGotovo, naGresku }) {
         {radi ? 'Šaljem…' : '📷 Dodaj fotografiju'}
         <input type="file" accept="image/*" capture="environment" hidden onChange={posalji} disabled={radi} />
       </label>
+    </div>
+  )
+}
+
+// --- Operacije i zadaci ------------------------------------------------------
+function Operacije({ nalog, ucitaj, naGresku }) {
+  const [prikaziCustom, setPrikaziCustom] = useState(false)
+  const [customKat, setCustomKat] = useState('')
+
+  const wrap = (p) => p.then(ucitaj).catch((e) => naGresku(e.message))
+  const dodajOp = (kat) => {
+    const k = (kat || '').trim()
+    if (!k) return
+    setCustomKat(''); setPrikaziCustom(false)
+    wrap(api.dodajOperaciju(nalog.id, k))
+  }
+
+  return (
+    <>
+      {nalog.operacije.length === 0 && (
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>Još nema operacija.</p></div>
+      )}
+
+      {nalog.operacije.map((op) => {
+        const gotovih = op.zadaci.filter((z) => z.gotovo).length
+        return (
+          <div key={op.id} className="karta">
+            <div className="naslov-red">
+              <h3 style={{ margin: 0 }}>
+                {op.kategorija}
+                {op.zadaci.length > 0 && <span className="meta" style={{ fontWeight: 400 }}> &nbsp;{gotovih}/{op.zadaci.length}</span>}
+              </h3>
+              <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
+            </div>
+
+            {op.zadaci.map((z) => (
+              <div key={z.id} className="stavka">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0, cursor: 'pointer', flex: 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={z.gotovo}
+                    onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+                    style={{ width: 22, height: 22, flex: 'none' }}
+                  />
+                  <span style={{ textDecoration: z.gotovo ? 'line-through' : 'none', color: z.gotovo ? 'var(--sivo)' : 'inherit' }}>
+                    {z.opis}
+                  </span>
+                </label>
+                <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+              </div>
+            ))}
+
+            <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={ucitaj} naGresku={naGresku} />
+          </div>
+        )
+      })}
+
+      <div className="karta">
+        <label style={{ marginTop: 0 }}>Dodaj operaciju</label>
+        <div className="multi">
+          {KATEGORIJE.map((k) => <span key={k} className="opt" onClick={() => dodajOp(k)}>{k}</span>)}
+          <span className="opt" onClick={() => setPrikaziCustom((v) => !v)}>＋ vlastita</span>
+        </div>
+        {prikaziCustom && (
+          <div className="btn-red" style={{ marginTop: 10 }}>
+            <input value={customKat} onChange={(e) => setCustomKat(e.target.value)} placeholder="Naziv kategorije" />
+            <button className="btn mali" onClick={() => dodajOp(customKat)}>Dodaj</button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
+  const [opis, setOpis] = useState('')
+  const spremi = async () => {
+    if (!opis.trim()) return
+    try { await api.dodajZadatak(nalogId, opId, opis.trim()); setOpis(''); naGotovo() }
+    catch (e) { naGresku(e.message) }
+  }
+  return (
+    <div className="btn-red" style={{ marginTop: 10 }}>
+      <input value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="Novi zadatak"
+        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), spremi())} />
+      <button className="btn sekund mali" onClick={spremi} disabled={!opis.trim()}>+ Zadatak</button>
     </div>
   )
 }

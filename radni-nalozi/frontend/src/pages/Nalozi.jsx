@@ -53,8 +53,11 @@ export default function Nalozi() {
               <Bedz vrsta={n.prioritet} tekst={PRIORITET[n.prioritet]} />
               {n.rok && <> &nbsp; 📅 rok: {datum(n.rok)}</>}
             </p>
-            {n.dodijeljeni?.length > 0 && (
-              <p className="meta">👷 {n.dodijeljeni.map((r) => r.ime).join(', ')}</p>
+            {(n.voditelj || n.vozac) && (
+              <p className="meta">
+                {n.voditelj && <>🧑‍🔧 {n.voditelj.ime}</>}
+                {n.vozac && <> &nbsp; 🚛 {n.vozac.ime}</>}
+              </p>
             )}
           </div>
         ))

@@ -95,6 +95,16 @@ export const api = {
   obrisiDio: (id, did) => zahtjev(`/nalozi/${id}/dijelovi/${did}`, { method: 'DELETE' }),
   dodajFoto: (id, fd) => zahtjev(`/nalozi/${id}/fotografije`, { method: 'POST', form: fd }),
 
+  // Operacije i zadaci
+  dodajOperaciju: (id, kategorija, zadaci = []) =>
+    zahtjev(`/nalozi/${id}/operacije`, { method: 'POST', body: { kategorija, zadaci } }),
+  obrisiOperaciju: (id, opId) => zahtjev(`/nalozi/${id}/operacije/${opId}`, { method: 'DELETE' }),
+  dodajZadatak: (id, opId, opis) =>
+    zahtjev(`/nalozi/${id}/operacije/${opId}/zadaci`, { method: 'POST', body: { opis } }),
+  azurirajZadatak: (id, zadatakId, izmjene) =>
+    zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'PATCH', body: izmjene }),
+  obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
+
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),
   pushPretplata: (subscription) => zahtjev('/push/pretplata', { method: 'POST', body: { subscription } }),

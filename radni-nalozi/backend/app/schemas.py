@@ -160,14 +160,44 @@ class PovijestOut(ORM):
 
 
 # --- Nalog -------------------------------------------------------------------
+# --- Operacije i zadaci ------------------------------------------------------
+class ZadatakOut(ORM):
+    id: int
+    opis: str
+    gotovo: bool
+
+
+class OperacijaOut(ORM):
+    id: int
+    kategorija: str
+    zadaci: list[ZadatakOut] = []
+
+
+class OperacijaCreate(BaseModel):
+    kategorija: str
+    zadaci: list[str] = []  # opisi zadataka
+
+
+class ZadatakDodaj(BaseModel):
+    opis: str
+
+
+class ZadatakUpdate(BaseModel):
+    opis: str | None = None
+    gotovo: bool | None = None
+
+
 class NalogCreate(BaseModel):
     vozilo_id: int
-    naslov: str
+    voditelj_id: int
+    vozac_id: int | None = None
+    naslov: str | None = None
     opis: str | None = None
     prioritet: Prioritet = Prioritet.srednji
     rok: date | None = None
     prijava_id: int | None = None
     radnici_ids: list[int] = []
+    operacije: list[OperacijaCreate] = []
 
 
 class NalogUpdate(BaseModel):
@@ -194,6 +224,8 @@ class NalogListItem(ORM):
     status: StatusNaloga
     rok: date | None = None
     vozilo: VoziloOut
+    vozac: KorisnikOut | None = None
+    voditelj: KorisnikOut | None = None
     dodijeljeni: list[KorisnikOut] = []
     kreiran: datetime
 
@@ -208,7 +240,10 @@ class NalogOut(ORM):
     rok: date | None = None
     vozilo: VoziloOut
     kreirao: KorisnikOut
+    vozac: KorisnikOut | None = None
+    voditelj: KorisnikOut | None = None
     prijava_id: int | None = None
+    operacije: list[OperacijaOut] = []
     dodijeljeni: list[KorisnikOut] = []
     radni_sati: list[RadniSatOut] = []
     dijelovi: list[DioOut] = []
