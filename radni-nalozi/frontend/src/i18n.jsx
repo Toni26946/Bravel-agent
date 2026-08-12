@@ -9,14 +9,18 @@ export const JEZICI = [
   { code: 'ne', naziv: 'नेपाली (Nepali)' },
   { code: 'bn', naziv: 'বাংলা (Bengali)' },
   { code: 'ur', naziv: 'اردو (Urdu)' },
+  { code: 'ar', naziv: 'العربية (Arabic)' },
+  { code: 'fr', naziv: 'Français (French)' },
+  { code: 'tl', naziv: 'Filipino (Tagalog)' },
 ]
 
 // Jezici koji se pišu zdesna nalijevo.
-const RTL = new Set(['ur'])
+const RTL = new Set(['ur', 'ar'])
 
 // Jezik za prepoznavanje govora (Web Speech API).
 export const GOVOR_JEZIK = {
   hr: 'hr-HR', en: 'en-US', hi: 'hi-IN', pa: 'pa-IN', ne: 'ne-NP', bn: 'bn-IN', ur: 'ur-PK',
+  ar: 'ar-EG', fr: 'fr-FR', tl: 'fil-PH',
 }
 
 const HR = {
@@ -455,7 +459,79 @@ const UR = {
   'mik.diktiraj': 'بول کر لکھیں',
 }
 
-const PRIJEVODI = { hr: HR, en: EN, hi: HI, pa: PA, ne: NE, bn: BN, ur: UR }
+const AR = {
+  'app.title': 'Bravel أوامر العمل', 'app.subtitle': 'صيانة الشاحنات',
+  'common.spremi': 'حفظ', 'common.odustani': 'إلغاء', 'common.spremam': 'جارٍ الحفظ…',
+  'common.obrisi': 'حذف', 'common.ucitavam': 'جارٍ التحميل…',
+  'login.username': 'اسم المستخدم', 'login.password': 'كلمة المرور', 'login.submit': 'تسجيل الدخول', 'login.submitting': 'جارٍ تسجيل الدخول…',
+  'tab.prijave': 'البلاغات', 'tab.nalozi': 'الأوامر', 'tab.sifrarnik': 'الإعدادات', 'tab.steta': 'الأضرار', 'tab.profil': 'الملف الشخصي',
+  'uloga.vozac': 'سائق', 'uloga.voditelj': 'مدير', 'uloga.radnik': 'ميكانيكي',
+  'status.otvoren': 'مفتوح', 'status.u_radu': 'قيد التنفيذ', 'status.ceka_dijelove': 'بانتظار القطع', 'status.gotov': 'منجز', 'status.zatvoren': 'مغلق',
+  'nalozi.title.radnik': 'أوامري', 'nalozi.title.ostalo': 'أوامر العمل', 'nalozi.prazno': 'لا توجد أوامر لعرضها.',
+  'filter.sve': 'الكل', 'filter.otvoreni': 'مفتوحة', 'filter.uradu': 'قيد التنفيذ', 'filter.gotovi': 'منجزة',
+  'nalog.promijeniStatus': 'تغيير الحالة', 'nalog.operacijeIZadaci': 'العمليات والمهام', 'nalog.shemaKamiona': 'مخطط الشاحنة',
+  'nalog.prikaziShemu': 'عرض مخطط الشاحنة', 'nalog.povijestStatusa': 'سجل الحالة',
+  'nalog.voditelj': 'مدير', 'nalog.vozac': 'سائق', 'nalog.rok': 'الموعد', 'nalog.kreirao': 'أنشأه',
+  'op.operacija': 'عملية', 'op.radnik': 'ميكانيكي', 'op.nemaOperacija': 'لا توجد عمليات بعد.',
+  'op.dodajOperaciju': 'إضافة عملية', 'op.noviZadatak': 'مهمة جديدة', 'op.zadatak': '+ مهمة', 'op.diktirajZadatak': 'إملاء المهمة',
+  'statusd.neutral': 'لا عمل', 'statusd.treba': 'للتنفيذ', 'statusd.djelomicno': 'جزئي', 'statusd.gotovo': 'تم',
+  'shema.nacrt': 'مخطط', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'أجزاء هذا الأمر',
+  'shema.ostaleOperacije': 'عمليات أخرى (غير مرتبطة بجزء)', 'shema.uputa2d': 'المس جزءاً من المخطط للتفاصيل',
+  'dio.zamjena': '+ استبدال قطعة', 'dio.nema': 'لا يوجد استبدال قطع مسجل بعد.',
+  'dio.koji': 'ما القطعة التي استُبدلت', 'dio.zasto': 'لماذا / ماذا حدث', 'dio.datum': 'التاريخ', 'dio.km': 'المسافة (اختياري)',
+  'profil.title': 'الملف الشخصي', 'profil.jezik': 'لغة التطبيق', 'profil.odjava': 'تسجيل الخروج', 'profil.korime': 'اسم المستخدم', 'profil.uloga': 'الدور',
+  'mik.diktiraj': 'إملاء',
+}
+
+const FR = {
+  'app.title': 'Bravel Ordres de travail', 'app.subtitle': 'Service de camions',
+  'common.spremi': 'Enregistrer', 'common.odustani': 'Annuler', 'common.spremam': 'Enregistrement…',
+  'common.obrisi': 'Supprimer', 'common.ucitavam': 'Chargement…',
+  'login.username': "Nom d'utilisateur", 'login.password': 'Mot de passe', 'login.submit': 'Se connecter', 'login.submitting': 'Connexion…',
+  'tab.prijave': 'Signalements', 'tab.nalozi': 'Ordres', 'tab.sifrarnik': 'Paramètres', 'tab.steta': 'Dommages', 'tab.profil': 'Profil',
+  'uloga.vozac': 'Chauffeur', 'uloga.voditelj': 'Responsable', 'uloga.radnik': 'Mécanicien',
+  'status.otvoren': 'Ouvert', 'status.u_radu': 'En cours', 'status.ceka_dijelove': 'En attente de pièces', 'status.gotov': 'Terminé', 'status.zatvoren': 'Fermé',
+  'nalozi.title.radnik': 'Mes ordres', 'nalozi.title.ostalo': 'Ordres de travail', 'nalozi.prazno': 'Aucun ordre à afficher.',
+  'filter.sve': 'Tous', 'filter.otvoreni': 'Ouverts', 'filter.uradu': 'En cours', 'filter.gotovi': 'Terminés',
+  'nalog.promijeniStatus': 'Changer le statut', 'nalog.operacijeIZadaci': 'Opérations et tâches', 'nalog.shemaKamiona': 'Schéma du camion',
+  'nalog.prikaziShemu': 'Afficher le schéma', 'nalog.povijestStatusa': 'Historique des statuts',
+  'nalog.voditelj': 'Responsable', 'nalog.vozac': 'Chauffeur', 'nalog.rok': 'Échéance', 'nalog.kreirao': 'Créé par',
+  'op.operacija': 'Opération', 'op.radnik': 'Mécanicien', 'op.nemaOperacija': 'Aucune opération pour le moment.',
+  'op.dodajOperaciju': 'Ajouter une opération', 'op.noviZadatak': 'Nouvelle tâche', 'op.zadatak': '+ Tâche', 'op.diktirajZadatak': 'Dicter la tâche',
+  'statusd.neutral': 'aucun travail', 'statusd.treba': 'à faire', 'statusd.djelomicno': 'partiel', 'statusd.gotovo': 'terminé',
+  'shema.nacrt': 'Schéma', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'Pièces de cet ordre',
+  'shema.ostaleOperacije': 'Autres opérations (non liées à une pièce)', 'shema.uputa2d': 'Touchez une pièce du schéma pour les détails',
+  'dio.zamjena': '+ Remplacement de pièce', 'dio.nema': 'Aucun remplacement de pièce enregistré.',
+  'dio.koji': 'Quelle pièce a été remplacée', 'dio.zasto': 'Pourquoi / que s’est-il passé', 'dio.datum': 'Date', 'dio.km': 'Kilométrage (optionnel)',
+  'profil.title': 'Profil', 'profil.jezik': "Langue de l'application", 'profil.odjava': 'Se déconnecter', 'profil.korime': "Nom d'utilisateur", 'profil.uloga': 'Rôle',
+  'mik.diktiraj': 'Dicter',
+}
+
+const TL = {
+  'app.title': 'Bravel Work Orders', 'app.subtitle': 'Serbisyo ng trak',
+  'common.spremi': 'I-save', 'common.odustani': 'Kanselahin', 'common.spremam': 'Nagse-save…',
+  'common.obrisi': 'Burahin', 'common.ucitavam': 'Naglo-load…',
+  'login.username': 'Username', 'login.password': 'Password', 'login.submit': 'Mag-sign in', 'login.submitting': 'Nagsa-sign in…',
+  'tab.prijave': 'Mga ulat', 'tab.nalozi': 'Mga order', 'tab.sifrarnik': 'Mga setting', 'tab.steta': 'Pinsala', 'tab.profil': 'Profile',
+  'uloga.vozac': 'Drayber', 'uloga.voditelj': 'Manedyer', 'uloga.radnik': 'Mekaniko',
+  'status.otvoren': 'Bukas', 'status.u_radu': 'Ginagawa', 'status.ceka_dijelove': 'Naghihintay ng parts', 'status.gotov': 'Tapos', 'status.zatvoren': 'Sarado',
+  'nalozi.title.radnik': 'Aking mga order', 'nalozi.title.ostalo': 'Work orders', 'nalozi.prazno': 'Walang order na ipapakita.',
+  'filter.sve': 'Lahat', 'filter.otvoreni': 'Bukas', 'filter.uradu': 'Ginagawa', 'filter.gotovi': 'Tapos',
+  'nalog.promijeniStatus': 'Palitan ang status', 'nalog.operacijeIZadaci': 'Mga operasyon at gawain', 'nalog.shemaKamiona': 'Diagram ng trak',
+  'nalog.prikaziShemu': 'Ipakita ang diagram', 'nalog.povijestStatusa': 'Kasaysayan ng status',
+  'nalog.voditelj': 'Manedyer', 'nalog.vozac': 'Drayber', 'nalog.rok': 'Takdang petsa', 'nalog.kreirao': 'Ginawa ni',
+  'op.operacija': 'Operasyon', 'op.radnik': 'Mekaniko', 'op.nemaOperacija': 'Wala pang operasyon.',
+  'op.dodajOperaciju': 'Magdagdag ng operasyon', 'op.noviZadatak': 'Bagong gawain', 'op.zadatak': '+ Gawain', 'op.diktirajZadatak': 'I-dikta ang gawain',
+  'statusd.neutral': 'walang gawa', 'statusd.treba': 'gagawin', 'statusd.djelomicno': 'bahagya', 'statusd.gotovo': 'tapos na',
+  'shema.nacrt': 'Diagram', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'Mga parte sa order na ito',
+  'shema.ostaleOperacije': 'Iba pang operasyon (hindi nakatali sa parte)', 'shema.uputa2d': 'Pindutin ang parte ng diagram para sa detalye',
+  'dio.zamjena': '+ Palit ng parte', 'dio.nema': 'Wala pang naitalang palit ng parte.',
+  'dio.koji': 'Anong parte ang pinalitan', 'dio.zasto': 'Bakit / ano ang nangyari', 'dio.datum': 'Petsa', 'dio.km': 'Milyahe (opsyonal)',
+  'profil.title': 'Profile', 'profil.jezik': 'Wika ng app', 'profil.odjava': 'Mag-sign out', 'profil.korime': 'Username', 'profil.uloga': 'Tungkulin',
+  'mik.diktiraj': 'I-dikta',
+}
+
+const PRIJEVODI = { hr: HR, en: EN, hi: HI, pa: PA, ne: NE, bn: BN, ur: UR, ar: AR, fr: FR, tl: TL }
 
 function prevedi(jezik, kljuc, vars) {
   let s = (PRIJEVODI[jezik] && PRIJEVODI[jezik][kljuc])
