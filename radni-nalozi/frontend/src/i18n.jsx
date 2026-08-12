@@ -6,10 +6,18 @@ export const JEZICI = [
   { code: 'en', naziv: 'English' },
   { code: 'hi', naziv: 'हिन्दी (Hindi)' },
   { code: 'pa', naziv: 'ਪੰਜਾਬੀ (Punjabi)' },
+  { code: 'ne', naziv: 'नेपाली (Nepali)' },
+  { code: 'bn', naziv: 'বাংলা (Bengali)' },
+  { code: 'ur', naziv: 'اردو (Urdu)' },
 ]
 
+// Jezici koji se pišu zdesna nalijevo.
+const RTL = new Set(['ur'])
+
 // Jezik za prepoznavanje govora (Web Speech API).
-export const GOVOR_JEZIK = { hr: 'hr-HR', en: 'en-US', hi: 'hi-IN', pa: 'pa-IN' }
+export const GOVOR_JEZIK = {
+  hr: 'hr-HR', en: 'en-US', hi: 'hi-IN', pa: 'pa-IN', ne: 'ne-NP', bn: 'bn-IN', ur: 'ur-PK',
+}
 
 const HR = {
   'app.title': 'Bravel Radni Nalozi',
@@ -80,6 +88,64 @@ const HR = {
   'profil.lozNePodudara': 'Nova lozinka i potvrda se ne podudaraju.',
   'profil.lozPromijenjena': 'Lozinka je promijenjena ✅',
   'mik.diktiraj': 'Diktiraj',
+  // hitnost / status prijave
+  'hitnost.niska': 'Niska', 'hitnost.srednja': 'Srednja', 'hitnost.visoka': 'Visoka',
+  'statusp.nova': 'Nova', 'statusp.u_obradi': 'U obradi', 'statusp.zatvorena': 'Zatvorena',
+  'hitnost.oznaka': 'Hitnost',
+  // prijave
+  'prijave.title.vozac': 'Moje prijave', 'prijave.title.ostalo': 'Prijave kvarova',
+  'prijave.prazno.vozac': 'Još nemaš prijavljenih kvarova.', 'prijave.prazno.ostalo': 'Nema prijava kvarova.',
+  'prijava.naslov': 'Nova prijava kvara', 'prijava.vozilo': 'Vozilo (kamion)', 'prijava.nemaVozila': 'Nema vozila',
+  'prijava.opisKvara': 'Opis kvara', 'prijava.phOpis': 'Što ne valja s vozilom?', 'prijava.diktirajOpis': 'Diktiraj opis',
+  'prijava.odaberiVozilo': 'Odaberi vozilo.', 'prijava.salji': 'Šaljem…', 'prijava.posalji': 'Pošalji prijavu',
+  'prijava.title': 'Prijava kvara', 'prijava.prijavio': 'Prijavio',
+  'prijava.otvoriNalog': 'Otvori povezani nalog →', 'prijava.kreirajNalog': '🔧 Kreiraj radni nalog',
+  'prijava.zatvori': 'Zatvori prijavu (bez naloga)',
+  // novi nalog
+  'noviNalog.title': 'Novi radni nalog', 'noviNalog.diktiraj': '🎙️ Diktiraj cijeli nalog',
+  'noviNalog.korak1': '1. Kamion (garažni broj)', 'noviNalog.phGb': 'npr. GB-500', 'noviNalog.pronadji': 'Pronađi',
+  'noviNalog.gbNema': 'Kamion s tim GB ne postoji. Dodaj ga u Šifrarniku.', 'noviNalog.promijeni': 'Promijeni',
+  'noviNalog.korak2': '2. Voditelj i vozač', 'noviNalog.voditelj': 'Voditelj', 'noviNalog.odaberi': '— odaberi —',
+  'noviNalog.vozacOpc': 'Vozač (opcionalno)', 'noviNalog.bezVozaca': '— bez vozača —',
+  'noviNalog.korak3': '3. Operacije i zadaci', 'noviNalog.zadatak': 'Zadatak', 'noviNalog.dodajZadatak': '+ Zadatak',
+  'noviNalog.dodajOperaciju': 'Dodaj operaciju (kategoriju)', 'noviNalog.kreiram': 'Kreiram…', 'noviNalog.kreiraj': 'Kreiraj nalog',
+  'noviNalog.prvoKamion': 'Prvo pronađi kamion po garažnom broju.', 'noviNalog.odaberiVoditelja': 'Odaberi voditelja.',
+  // glasovni unos
+  'glas.naslovNalog': '🎙️ Glasovni unos naloga', 'glas.naslovSteta': '🎙️ Glasovni unos štete',
+  'glas.primjerNalog': 'Reci npr.: „Kamion 21, voditelj Marko, motor – zamjena ulja i filtera; kočnice – zamjena pločica.”',
+  'glas.primjerSteta': 'Reci npr.: „Kamion 122, vozač Ivo, razbio prednji far i savijen blatobran.”',
+  'glas.ph': 'Ovdje se ispisuje što govoriš…', 'glas.phNema': 'Tvoj preglednik ne podržava govor — možeš upisati tekst.',
+  'glas.zaustavi': '⏹ Zaustavi slušanje', 'glas.nastavi': '🎤 Nastavi govoriti', 'glas.obradjujem': 'Obrađujem…',
+  'glas.popuniNalog': '✨ Popuni nalog', 'glas.popuniStetu': '✨ Popuni štetu',
+  'glas.kamionNijeNadjen': 'Kamion „{gb}” nije pronađen — odaberi ručno.',
+  'glas.voditeljNijePrepoznat': 'Voditelj „{ime}” nije prepoznat.', 'glas.vozacNijePrepoznat': 'Vozač „{ime}” nije prepoznat.',
+  // šteta
+  'steta.ukupno': 'ukupna procijenjena šteta', 'steta.stavki': 'stavki', 'steta.poVozacu': 'Po vozaču',
+  'steta.nova': '+ Nova šteta', 'steta.prazno': 'Još nema zabilježene štete.', 'steta.bezKamiona': 'Bez kamiona',
+  'steta.izgovori': '🎙️ Izgovori štetu', 'steta.kamion': 'Kamion (garažni broj)', 'steta.phGb': 'npr. 122 (opcionalno)',
+  'steta.gbNema': 'Kamion s tim GB ne postoji.', 'steta.vozac': 'Vozač koji je napravio štetu (opcionalno)',
+  'steta.bezVozaca': '— bez vozača —', 'steta.sto': 'Što je oštećeno / potrgano',
+  'steta.phOpis': 'npr. razbijen prednji far, savijen blatobran i puknuto retrovizor staklo',
+  'steta.diktiraj': 'Diktiraj štetu', 'steta.procijeni': '🤖 Procijeni štetu (AI)', 'steta.procjenjujem': '🤖 Procjenjujem…',
+  'steta.rucno': ' — upišite iznos ručno.', 'steta.trosak': 'Procijenjeni trošak (€)',
+  'steta.spremiStetu': 'Spremi štetu', 'steta.opisiSto': 'Opišite što je oštećeno.',
+  'steta.gbNePostoji': 'Kamion s tim GB ne postoji (ostavite prazno ako nije vezano za kamion).',
+  'steta.obrisati': 'Obrisati ovu štetu?',
+  // šifrarnik
+  'sif.title': 'Šifrarnik', 'sif.korisnici': 'Korisnici', 'sif.vozila': 'Vozila', 'sif.dijelovi': 'Dijelovi',
+  'sif.noviKorisnik': '+ Novi korisnik', 'sif.ime': 'Ime i prezime', 'sif.korime': 'Korisničko ime',
+  'sif.lozinka': 'Lozinka', 'sif.uloga': 'Uloga', 'sif.telefonOpc': 'Telefon (opcionalno)',
+  'sif.deaktiviraj': 'Deaktiviraj', 'sif.aktiviraj': 'Aktiviraj', 'sif.resetLoz': '🔑 Resetiraj lozinku',
+  'sif.novaLoz': 'Nova lozinka', 'sif.postavi': 'Postavi', 'sif.resetiran': 'Lozinka resetirana ✅',
+  'sif.lozKratka': 'Lozinka mora imati barem 4 znaka.',
+  'sif.uvezi': '📋 Uvezi popis kamiona (iz Excela)', 'sif.zalijepi': 'Zalijepi popis (jedan kamion po retku)',
+  'sif.uvozHint': 'Svaki redak počinje GB. Možeš zalijepiti i cijele stupce iz Excela (GB, VOZILO, REG OZNAKA) — registracija se prepozna sama, redoslijed nije bitan. Postojeći kamioni se preskaču.',
+  'sif.uvozRezultat': 'Dodano {d}, preskočeno {p} (već postoje). Ukupno redaka: {u}.',
+  'sif.uvozim': 'Uvozim…', 'sif.uveziBtn': 'Uvezi', 'sif.zatvori': 'Zatvori',
+  'sif.novoVozilo': '+ Novo vozilo', 'sif.gb': 'Garažni broj (GB)', 'sif.registracija': 'Registracija',
+  'sif.marka': 'Marka', 'sif.model': 'Model', 'sif.povijest': 'Povijest ›',
+  'sif.pretraziDio': 'Pretraži po nazivu dijela (npr. pločice)', 'sif.izgovoriDio': 'Izgovori naziv dijela',
+  'sif.rezultata': 'rezultata', 'sif.nemaRezultata': 'Nema rezultata za „{q}”.', 'sif.josNema': 'Još nema zabilježenih zamjena dijelova.',
 }
 
 const EN = {
@@ -139,6 +205,59 @@ const EN = {
   'profil.lozKratka': 'New password must be at least 4 characters.',
   'profil.lozNePodudara': 'New password and confirmation do not match.',
   'profil.lozPromijenjena': 'Password changed ✅',
+  'mik.diktiraj': 'Dictate',
+  'hitnost.niska': 'Low', 'hitnost.srednja': 'Medium', 'hitnost.visoka': 'High',
+  'statusp.nova': 'New', 'statusp.u_obradi': 'In progress', 'statusp.zatvorena': 'Closed',
+  'hitnost.oznaka': 'Urgency',
+  'prijave.title.vozac': 'My reports', 'prijave.title.ostalo': 'Fault reports',
+  'prijave.prazno.vozac': 'You have no reported faults yet.', 'prijave.prazno.ostalo': 'No fault reports.',
+  'prijava.naslov': 'New fault report', 'prijava.vozilo': 'Vehicle (truck)', 'prijava.nemaVozila': 'No vehicles',
+  'prijava.opisKvara': 'Fault description', 'prijava.phOpis': 'What is wrong with the vehicle?', 'prijava.diktirajOpis': 'Dictate description',
+  'prijava.odaberiVozilo': 'Select a vehicle.', 'prijava.salji': 'Sending…', 'prijava.posalji': 'Send report',
+  'prijava.title': 'Fault report', 'prijava.prijavio': 'Reported by',
+  'prijava.otvoriNalog': 'Open linked order →', 'prijava.kreirajNalog': '🔧 Create work order',
+  'prijava.zatvori': 'Close report (without order)',
+  'noviNalog.title': 'New work order', 'noviNalog.diktiraj': '🎙️ Dictate the whole order',
+  'noviNalog.korak1': '1. Truck (garage number)', 'noviNalog.phGb': 'e.g. GB-500', 'noviNalog.pronadji': 'Find',
+  'noviNalog.gbNema': 'No truck with that number. Add it in Settings.', 'noviNalog.promijeni': 'Change',
+  'noviNalog.korak2': '2. Manager and driver', 'noviNalog.voditelj': 'Manager', 'noviNalog.odaberi': '— select —',
+  'noviNalog.vozacOpc': 'Driver (optional)', 'noviNalog.bezVozaca': '— no driver —',
+  'noviNalog.korak3': '3. Operations and tasks', 'noviNalog.zadatak': 'Task', 'noviNalog.dodajZadatak': '+ Task',
+  'noviNalog.dodajOperaciju': 'Add operation (category)', 'noviNalog.kreiram': 'Creating…', 'noviNalog.kreiraj': 'Create order',
+  'noviNalog.prvoKamion': 'First find the truck by its garage number.', 'noviNalog.odaberiVoditelja': 'Select a manager.',
+  'glas.naslovNalog': '🎙️ Voice order entry', 'glas.naslovSteta': '🎙️ Voice damage entry',
+  'glas.primjerNalog': 'Say e.g.: “Truck 21, manager Marko, engine – oil and filter change; brakes – pad replacement.”',
+  'glas.primjerSteta': 'Say e.g.: “Truck 122, driver Ivo, broke the front headlight and bent fender.”',
+  'glas.ph': 'What you say appears here…', 'glas.phNema': 'Your browser does not support speech — you can type instead.',
+  'glas.zaustavi': '⏹ Stop listening', 'glas.nastavi': '🎤 Keep talking', 'glas.obradjujem': 'Processing…',
+  'glas.popuniNalog': '✨ Fill the order', 'glas.popuniStetu': '✨ Fill the damage',
+  'glas.kamionNijeNadjen': 'Truck “{gb}” not found — select manually.',
+  'glas.voditeljNijePrepoznat': 'Manager “{ime}” not recognized.', 'glas.vozacNijePrepoznat': 'Driver “{ime}” not recognized.',
+  'steta.ukupno': 'total estimated damage', 'steta.stavki': 'items', 'steta.poVozacu': 'By driver',
+  'steta.nova': '+ New damage', 'steta.prazno': 'No damage recorded yet.', 'steta.bezKamiona': 'No truck',
+  'steta.izgovori': '🎙️ Speak the damage', 'steta.kamion': 'Truck (garage number)', 'steta.phGb': 'e.g. 122 (optional)',
+  'steta.gbNema': 'No truck with that number.', 'steta.vozac': 'Driver who caused the damage (optional)',
+  'steta.bezVozaca': '— no driver —', 'steta.sto': 'What is damaged / broken',
+  'steta.phOpis': 'e.g. broken front headlight, bent fender and cracked mirror glass',
+  'steta.diktiraj': 'Dictate damage', 'steta.procijeni': '🤖 Estimate damage (AI)', 'steta.procjenjujem': '🤖 Estimating…',
+  'steta.rucno': ' — enter the amount manually.', 'steta.trosak': 'Estimated cost (€)',
+  'steta.spremiStetu': 'Save damage', 'steta.opisiSto': 'Describe what is damaged.',
+  'steta.gbNePostoji': 'No truck with that number (leave empty if not tied to a truck).',
+  'steta.obrisati': 'Delete this damage?',
+  'sif.title': 'Settings', 'sif.korisnici': 'Users', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',
+  'sif.noviKorisnik': '+ New user', 'sif.ime': 'Full name', 'sif.korime': 'Username',
+  'sif.lozinka': 'Password', 'sif.uloga': 'Role', 'sif.telefonOpc': 'Phone (optional)',
+  'sif.deaktiviraj': 'Deactivate', 'sif.aktiviraj': 'Activate', 'sif.resetLoz': '🔑 Reset password',
+  'sif.novaLoz': 'New password', 'sif.postavi': 'Set', 'sif.resetiran': 'Password reset ✅',
+  'sif.lozKratka': 'Password must be at least 4 characters.',
+  'sif.uvezi': '📋 Import truck list (from Excel)', 'sif.zalijepi': 'Paste the list (one truck per line)',
+  'sif.uvozHint': 'Each line starts with the garage number (GB). You can paste whole Excel columns (GB, VEHICLE, REG) — the registration is detected automatically, order does not matter. Existing trucks are skipped.',
+  'sif.uvozRezultat': 'Added {d}, skipped {p} (already exist). Total lines: {u}.',
+  'sif.uvozim': 'Importing…', 'sif.uveziBtn': 'Import', 'sif.zatvori': 'Close',
+  'sif.novoVozilo': '+ New vehicle', 'sif.gb': 'Garage number (GB)', 'sif.registracija': 'Registration',
+  'sif.marka': 'Make', 'sif.model': 'Model', 'sif.povijest': 'History ›',
+  'sif.pretraziDio': 'Search by part name (e.g. pads)', 'sif.izgovoriDio': 'Say the part name',
+  'sif.rezultata': 'results', 'sif.nemaRezultata': 'No results for “{q}”.', 'sif.josNema': 'No part replacements recorded yet.',
   'mik.diktiraj': 'Dictate',
 }
 
@@ -262,7 +381,81 @@ const PA = {
   'mik.diktiraj': 'ਬੋਲ ਕੇ ਲਿਖੋ',
 }
 
-const PRIJEVODI = { hr: HR, en: EN, hi: HI, pa: PA }
+// Nepalski / bengalski / urdu — prevedeni glavni (radnički) ekrani;
+// ostalo (ekrani za voditelja) pada na engleski preko fallbacka.
+const NE = {
+  'app.title': 'Bravel वर्क अर्डर', 'app.subtitle': 'ट्रक सर्भिस',
+  'common.spremi': 'सेभ गर्नुहोस्', 'common.odustani': 'रद्द गर्नुहोस्', 'common.spremam': 'सेभ हुँदैछ…',
+  'common.obrisi': 'मेटाउनुहोस्', 'common.ucitavam': 'लोड हुँदैछ…',
+  'login.username': 'प्रयोगकर्ता नाम', 'login.password': 'पासवर्ड', 'login.submit': 'साइन इन', 'login.submitting': 'साइन इन हुँदैछ…',
+  'tab.prijave': 'रिपोर्ट', 'tab.nalozi': 'अर्डर', 'tab.sifrarnik': 'सेटिङ', 'tab.steta': 'क्षति', 'tab.profil': 'प्रोफाइल',
+  'uloga.vozac': 'चालक', 'uloga.voditelj': 'प्रबन्धक', 'uloga.radnik': 'मेकानिक',
+  'status.otvoren': 'खुला', 'status.u_radu': 'चलिरहेको', 'status.ceka_dijelove': 'पार्ट्स कुर्दै', 'status.gotov': 'सकियो', 'status.zatvoren': 'बन्द',
+  'nalozi.title.radnik': 'मेरा अर्डरहरू', 'nalozi.title.ostalo': 'वर्क अर्डर', 'nalozi.prazno': 'देखाउन कुनै अर्डर छैन।',
+  'filter.sve': 'सबै', 'filter.otvoreni': 'खुला', 'filter.uradu': 'चलिरहेको', 'filter.gotovi': 'सकिएको',
+  'nalog.promijeniStatus': 'स्थिति बदल्नुहोस्', 'nalog.operacijeIZadaci': 'अपरेसन र काम', 'nalog.shemaKamiona': 'ट्रकको नक्सा',
+  'nalog.prikaziShemu': 'ट्रकको नक्सा देखाउनुहोस्', 'nalog.povijestStatusa': 'स्थिति इतिहास',
+  'nalog.voditelj': 'प्रबन्धक', 'nalog.vozac': 'चालक', 'nalog.rok': 'म्याद', 'nalog.kreirao': 'बनाएको',
+  'op.operacija': 'अपरेसन', 'op.radnik': 'मेकानिक', 'op.nemaOperacija': 'अहिलेसम्म कुनै अपरेसन छैन।',
+  'op.dodajOperaciju': 'अपरेसन थप्नुहोस्', 'op.noviZadatak': 'नयाँ काम', 'op.zadatak': '+ काम', 'op.diktirajZadatak': 'काम बोलेर लेख्नुहोस्',
+  'statusd.neutral': 'काम छैन', 'statusd.treba': 'गर्नुपर्ने', 'statusd.djelomicno': 'आंशिक', 'statusd.gotovo': 'भयो',
+  'shema.nacrt': 'नक्सा', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'यस अर्डरका भागहरू',
+  'shema.ostaleOperacije': 'अन्य अपरेसन (कुनै भागसँग नजोडिएका)', 'shema.uputa2d': 'विवरणका लागि नक्साको भाग छुनुहोस्',
+  'dio.zamjena': '+ पार्ट बदल्ने', 'dio.nema': 'अहिलेसम्म कुनै पार्ट रिप्लेसमेन्ट छैन।',
+  'dio.koji': 'कुन पार्ट बदलियो', 'dio.zasto': 'किन / के भयो', 'dio.datum': 'मिति', 'dio.km': 'माइलेज (वैकल्पिक)',
+  'profil.title': 'प्रोफाइल', 'profil.jezik': 'एपको भाषा', 'profil.odjava': 'साइन आउट', 'profil.korime': 'प्रयोगकर्ता नाम', 'profil.uloga': 'भूमिका',
+  'mik.diktiraj': 'बोलेर लेख्नुहोस्',
+}
+
+const BN = {
+  'app.title': 'Bravel ওয়ার্ক অর্ডার', 'app.subtitle': 'ট্রাক সার্ভিস',
+  'common.spremi': 'সেভ করুন', 'common.odustani': 'বাতিল', 'common.spremam': 'সেভ হচ্ছে…',
+  'common.obrisi': 'মুছুন', 'common.ucitavam': 'লোড হচ্ছে…',
+  'login.username': 'ইউজারনেম', 'login.password': 'পাসওয়ার্ড', 'login.submit': 'সাইন ইন', 'login.submitting': 'সাইন ইন হচ্ছে…',
+  'tab.prijave': 'রিপোর্ট', 'tab.nalozi': 'অর্ডার', 'tab.sifrarnik': 'সেটিং', 'tab.steta': 'ক্ষতি', 'tab.profil': 'প্রোফাইল',
+  'uloga.vozac': 'চালক', 'uloga.voditelj': 'ম্যানেজার', 'uloga.radnik': 'মেকানিক',
+  'status.otvoren': 'খোলা', 'status.u_radu': 'চলছে', 'status.ceka_dijelove': 'পার্টসের অপেক্ষা', 'status.gotov': 'সম্পন্ন', 'status.zatvoren': 'বন্ধ',
+  'nalozi.title.radnik': 'আমার অর্ডার', 'nalozi.title.ostalo': 'ওয়ার্ক অর্ডার', 'nalozi.prazno': 'দেখানোর মতো কোনো অর্ডার নেই।',
+  'filter.sve': 'সব', 'filter.otvoreni': 'খোলা', 'filter.uradu': 'চলছে', 'filter.gotovi': 'সম্পন্ন',
+  'nalog.promijeniStatus': 'স্ট্যাটাস পরিবর্তন', 'nalog.operacijeIZadaci': 'অপারেশন ও কাজ', 'nalog.shemaKamiona': 'ট্রাকের নকশা',
+  'nalog.prikaziShemu': 'ট্রাকের নকশা দেখান', 'nalog.povijestStatusa': 'স্ট্যাটাস ইতিহাস',
+  'nalog.voditelj': 'ম্যানেজার', 'nalog.vozac': 'চালক', 'nalog.rok': 'সময়সীমা', 'nalog.kreirao': 'তৈরি করেছেন',
+  'op.operacija': 'অপারেশন', 'op.radnik': 'মেকানিক', 'op.nemaOperacija': 'এখনও কোনো অপারেশন নেই।',
+  'op.dodajOperaciju': 'অপারেশন যোগ করুন', 'op.noviZadatak': 'নতুন কাজ', 'op.zadatak': '+ কাজ', 'op.diktirajZadatak': 'কাজ বলে লিখুন',
+  'statusd.neutral': 'কাজ নেই', 'statusd.treba': 'করতে হবে', 'statusd.djelomicno': 'আংশিক', 'statusd.gotovo': 'হয়ে গেছে',
+  'shema.nacrt': 'নকশা', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'এই অর্ডারের অংশ',
+  'shema.ostaleOperacije': 'অন্যান্য অপারেশন (কোনো অংশের সাথে যুক্ত নয়)', 'shema.uputa2d': 'বিস্তারিত জানতে নকশার অংশ স্পর্শ করুন',
+  'dio.zamjena': '+ পার্ট পরিবর্তন', 'dio.nema': 'এখনও কোনো পার্ট রিপ্লেসমেন্ট নেই।',
+  'dio.koji': 'কোন পার্ট বদলানো হয়েছে', 'dio.zasto': 'কেন / কী হয়েছে', 'dio.datum': 'তারিখ', 'dio.km': 'মাইলেজ (ঐচ্ছিক)',
+  'profil.title': 'প্রোফাইল', 'profil.jezik': 'অ্যাপের ভাষা', 'profil.odjava': 'সাইন আউট', 'profil.korime': 'ইউজারনেম', 'profil.uloga': 'ভূমিকা',
+  'mik.diktiraj': 'বলে লিখুন',
+}
+
+const UR = {
+  'app.title': 'Bravel ورک آرڈر', 'app.subtitle': 'ٹرک سروس',
+  'common.spremi': 'محفوظ کریں', 'common.odustani': 'منسوخ', 'common.spremam': 'محفوظ ہو رہا ہے…',
+  'common.obrisi': 'حذف کریں', 'common.ucitavam': 'لوڈ ہو رہا ہے…',
+  'login.username': 'یوزر نیم', 'login.password': 'پاس ورڈ', 'login.submit': 'سائن اِن', 'login.submitting': 'سائن اِن ہو رہا ہے…',
+  'tab.prijave': 'رپورٹس', 'tab.nalozi': 'آرڈرز', 'tab.sifrarnik': 'ترتیبات', 'tab.steta': 'نقصان', 'tab.profil': 'پروفائل',
+  'uloga.vozac': 'ڈرائیور', 'uloga.voditelj': 'مینیجر', 'uloga.radnik': 'مکینک',
+  'status.otvoren': 'کھلا', 'status.u_radu': 'جاری', 'status.ceka_dijelove': 'پرزوں کا انتظار', 'status.gotov': 'مکمل', 'status.zatvoren': 'بند',
+  'nalozi.title.radnik': 'میرے آرڈرز', 'nalozi.title.ostalo': 'ورک آرڈرز', 'nalozi.prazno': 'دکھانے کے لیے کوئی آرڈر نہیں۔',
+  'filter.sve': 'سب', 'filter.otvoreni': 'کھلے', 'filter.uradu': 'جاری', 'filter.gotovi': 'مکمل',
+  'nalog.promijeniStatus': 'اسٹیٹس تبدیل کریں', 'nalog.operacijeIZadaci': 'آپریشن اور کام', 'nalog.shemaKamiona': 'ٹرک کا نقشہ',
+  'nalog.prikaziShemu': 'ٹرک کا نقشہ دکھائیں', 'nalog.povijestStatusa': 'اسٹیٹس کی تاریخ',
+  'nalog.voditelj': 'مینیجر', 'nalog.vozac': 'ڈرائیور', 'nalog.rok': 'مقررہ تاریخ', 'nalog.kreirao': 'بنایا',
+  'op.operacija': 'آپریشن', 'op.radnik': 'مکینک', 'op.nemaOperacija': 'ابھی کوئی آپریشن نہیں۔',
+  'op.dodajOperaciju': 'آپریشن شامل کریں', 'op.noviZadatak': 'نیا کام', 'op.zadatak': '+ کام', 'op.diktirajZadatak': 'کام بول کر لکھیں',
+  'statusd.neutral': 'کوئی کام نہیں', 'statusd.treba': 'کرنا ہے', 'statusd.djelomicno': 'جزوی', 'statusd.gotovo': 'ہو گیا',
+  'shema.nacrt': 'نقشہ', 'shema.3d': '3D', 'shema.dijeloviUNalogu': 'اس آرڈر کے حصے',
+  'shema.ostaleOperacije': 'دیگر آپریشن (کسی حصے سے منسلک نہیں)', 'shema.uputa2d': 'تفصیل کے لیے نقشے کے حصے کو چھوئیں',
+  'dio.zamjena': '+ پرزہ تبدیلی', 'dio.nema': 'ابھی تک کوئی پرزہ تبدیلی درج نہیں۔',
+  'dio.koji': 'کون سا پرزہ بدلا گیا', 'dio.zasto': 'کیوں / کیا ہوا', 'dio.datum': 'تاریخ', 'dio.km': 'مائلیج (اختیاری)',
+  'profil.title': 'پروفائل', 'profil.jezik': 'ایپ کی زبان', 'profil.odjava': 'سائن آؤٹ', 'profil.korime': 'یوزر نیم', 'profil.uloga': 'کردار',
+  'mik.diktiraj': 'بول کر لکھیں',
+}
+
+const PRIJEVODI = { hr: HR, en: EN, hi: HI, pa: PA, ne: NE, bn: BN, ur: UR }
 
 function prevedi(jezik, kljuc, vars) {
   let s = (PRIJEVODI[jezik] && PRIJEVODI[jezik][kljuc])
@@ -278,6 +471,7 @@ export function JezikProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('jezik', jezik)
     document.documentElement.lang = jezik
+    document.documentElement.dir = RTL.has(jezik) ? 'rtl' : 'ltr'
   }, [jezik])
   const t = (kljuc, vars) => prevedi(jezik, kljuc, vars)
   return (

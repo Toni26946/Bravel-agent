@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { useT } from '../i18n'
 import { KategorijaPicker, MikrofonGumb, voziloLabel } from '../ui'
 import GlasovniUnos from '../GlasovniUnos'
 
 export default function NoviNalog() {
   const nav = useNavigate()
   const { korisnik } = useAuth()
+  const { t } = useT()
   const [params] = useSearchParams()
   const prijavaId = params.get('prijava')
 
@@ -67,7 +69,7 @@ export default function NoviNalog() {
     const trazeni = gb.trim().toLowerCase()
     if (!trazeni) return
     const v = vozila.find((x) => x.gb.toLowerCase() === trazeni)
-    if (!v) { setVozilo(null); setGbGreska('Kamion s tim GB ne postoji. Dodaj ga u Šifrarniku.'); return }
+    if (!v) { setVozilo(null); setGbGreska(t('noviNalog.gbNema')); return }
     setVozilo(v)
   }
 
@@ -86,8 +88,8 @@ export default function NoviNalog() {
 
   const spremi = async () => {
     setGreska('')
-    if (!vozilo) { setGreska('Prvo pronađi kamion po garažnom broju.'); return }
-    if (!voditeljId) { setGreska('Odaberi voditelja.'); return }
+    if (!vozilo) { setGreska(t('noviNalog.prvoKamion')); return }
+    if (!voditeljId) { setGreska(t('noviNalog.odaberiVoditelja')); return }
     setRadi(true)
     try {
       const cisteOperacije = operacije
@@ -107,11 +109,11 @@ export default function NoviNalog() {
   }
 
   return (
-    <Layout naslov="Novi radni nalog" nazad={true}>
+    <Layout naslov={t('noviNalog.title')} nazad={true}>
       {greska && <div className="greska">{greska}</div>}
 
       <button type="button" className="btn" onClick={() => setGlasOtvoren(true)}>
-        🎙️ Diktiraj cijeli nalog
+        {t('noviNalog.diktiraj')}
       </button>
       {glasNapomene.length > 0 && (
         <div className="greska" style={{ background: '#fff8e1', color: '#8d6e00' }}>
@@ -130,18 +132,18 @@ export default function NoviNalog() {
       )}
 
       {/* Korak 1 — kamion */}
-      <div className="sekcija-naslov">1. Kamion (garažni broj)</div>
+      <div className="sekcija-naslov">{t('noviNalog.korak1')}</div>
       {!vozilo ? (
         <div className="karta">
           <div className="btn-red" style={{ marginTop: 0 }}>
             <input
               value={gb}
               onChange={(e) => setGb(e.target.value)}
-              placeholder="npr. GB-500"
+              placeholder={t('noviNalog.phGb')}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), pronadji())}
               autoCapitalize="characters"
             />
-            <button type="button" className="btn mali" onClick={pronadji} style={{ minWidth: 100 }}>Pronađi</button>
+            <button type="button" className="btn mali" onClick={pronadji} style={{ minWidth: 100 }}>{t('noviNalog.pronadji')}</button>
           </div>
           {gbGreska && <p className="meta" style={{ color: 'var(--crvena)', marginTop: 8 }}>{gbGreska}</p>}
         </div>
@@ -154,7 +156,7 @@ export default function NoviNalog() {
                 {[vozilo.marka, vozilo.model, vozilo.registracija].filter(Boolean).join(' · ') || '—'}
               </p>
             </div>
-            <button type="button" className="btn sekund mali" onClick={() => { setVozilo(null); setGb('') }}>Promijeni</button>
+            <button type="button" className="btn sekund mali" onClick={() => { setVozilo(null); setGb('') }}>{t('noviNalog.promijeni')}</button>
           </div>
         </div>
       )}
@@ -162,16 +164,16 @@ export default function NoviNalog() {
       {/* Korak 2 — osobe (tek kad je kamion nađen) */}
       {vozilo && (
         <>
-          <div className="sekcija-naslov">2. Voditelj i vozač</div>
+          <div className="sekcija-naslov">{t('noviNalog.korak2')}</div>
           <div className="karta">
-            <label style={{ marginTop: 0 }}>Voditelj</label>
+            <label style={{ marginTop: 0 }}>{t('noviNalog.voditelj')}</label>
             <select value={voditeljId} onChange={(e) => setVoditeljId(e.target.value)}>
-              <option value="">— odaberi —</option>
+              <option value="">{t('noviNalog.odaberi')}</option>
               {voditelji.map((v) => <option key={v.id} value={v.id}>{v.ime}</option>)}
             </select>
-            <label>Vozač (opcionalno)</label>
+            <label>{t('noviNalog.vozacOpc')}</label>
             <select value={vozacId} onChange={(e) => setVozacId(e.target.value)}>
-              <option value="">— bez vozača —</option>
+              <option value="">{t('noviNalog.bezVozaca')}</option>
               {vozaci.map((v) => <option key={v.id} value={v.id}>{v.ime}</option>)}
             </select>
           </div>
@@ -181,7 +183,7 @@ export default function NoviNalog() {
       {/* Korak 3 — operacije (tek kad je kamion nađen) */}
       {vozilo && (
         <>
-          <div className="sekcija-naslov">3. Operacije i zadaci</div>
+          <div className="sekcija-naslov">{t('noviNalog.korak3')}</div>
 
           {operacije.map((op, oi) => (
             <div key={oi} className="karta">
@@ -191,22 +193,22 @@ export default function NoviNalog() {
               </div>
               {op.zadaci.map((z, zi) => (
                 <div key={zi} className="btn-red" style={{ marginTop: 8, alignItems: 'stretch' }}>
-                  <input value={z} onChange={(e) => promijeniZadatak(oi, zi, e.target.value)} placeholder={`Zadatak ${zi + 1}`} />
-                  <MikrofonGumb naslov="Diktiraj zadatak" onTekst={(t) => promijeniZadatak(oi, zi, (z ? z + ' ' : '') + t)} />
+                  <input value={z} onChange={(e) => promijeniZadatak(oi, zi, e.target.value)} placeholder={`${t('noviNalog.zadatak')} ${zi + 1}`} />
+                  <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => promijeniZadatak(oi, zi, (z ? z + ' ' : '') + tekst)} />
                   {op.zadaci.length > 1 && <span className="x" onClick={() => makniZadatak(oi, zi)}>×</span>}
                 </div>
               ))}
-              <button type="button" className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => dodajZadatak(oi)}>+ Zadatak</button>
+              <button type="button" className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => dodajZadatak(oi)}>{t('noviNalog.dodajZadatak')}</button>
             </div>
           ))}
 
           <div className="karta">
-            <label style={{ marginTop: 0 }}>Dodaj operaciju (kategoriju)</label>
+            <label style={{ marginTop: 0 }}>{t('noviNalog.dodajOperaciju')}</label>
             <KategorijaPicker onOdaberi={dodajOperaciju} />
           </div>
 
           <button className="btn" onClick={spremi} disabled={radi} style={{ marginTop: 8 }}>
-            {radi ? 'Kreiram…' : 'Kreiraj nalog'}
+            {radi ? t('noviNalog.kreiram') : t('noviNalog.kreiraj')}
           </button>
         </>
       )}
