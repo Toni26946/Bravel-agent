@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Layout from '../Layout'
 import { api } from '../api'
 import { MikrofonGumb, Prazno, Spinner, datum } from '../ui'
+import { useT } from '../i18n'
 import GlasovnaSteta from '../GlasovnaSteta'
 
 // Formatiranje eura (približno — cijele brojke).
@@ -15,6 +16,7 @@ function eur(n) {
 }
 
 export default function Steta() {
+  const { t } = useT()
   const [lista, setLista] = useState(null)
   const [vozila, setVozila] = useState([])
   const [vozaci, setVozaci] = useState([])
@@ -41,24 +43,24 @@ export default function Steta() {
   }, [lista])
 
   const obrisi = async (s) => {
-    if (!window.confirm('Obrisati ovu štetu?')) return
+    if (!window.confirm(t('steta.obrisati'))) return
     try { await api.obrisiStetu(s.id); ucitaj() } catch (e) { setGreska(e.message) }
   }
 
-  if (lista === null) return <Layout naslov="Šteta"><Spinner /></Layout>
+  if (lista === null) return <Layout naslov={t('tab.steta')}><Spinner /></Layout>
 
   return (
-    <Layout naslov="Šteta">
+    <Layout naslov={t('tab.steta')}>
       {greska && <div className="greska">{greska}</div>}
 
       {/* Ukupno + razrada po vozaču */}
       <div className="karta steta-total">
         <div className="iznos">{eur(ukupno)}</div>
-        <div className="opis">ukupna procijenjena šteta · {lista.length} {lista.length === 1 ? 'stavka' : 'stavki'}</div>
+        <div className="opis">{t('steta.ukupno')} · {lista.length} {t('steta.stavki')}</div>
       </div>
       {poVozacu.length > 0 && (
         <div className="karta">
-          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>Po vozaču</div>
+          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>{t('steta.poVozacu')}</div>
           {poVozacu.map(([ime, iznos]) => (
             <div key={ime} className="steta-stavka">
               <span>{ime}</span>
@@ -68,7 +70,7 @@ export default function Steta() {
         </div>
       )}
 
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>+ Nova šteta</button>}
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>{t('steta.nova')}</button>}
       {otvori && (
         <NovaSteta
           vozila={vozila}
@@ -80,12 +82,12 @@ export default function Steta() {
       )}
 
       {/* Popis šteta */}
-      {lista.length === 0 && !otvori && <Prazno emo="💥" tekst="Još nema zabilježene štete." />}
+      {lista.length === 0 && !otvori && <Prazno emo="💥" tekst={t('steta.prazno')} />}
       {lista.map((s) => (
         <div key={s.id} className="karta">
           <div className="naslov-red">
             <div>
-              <h3 style={{ margin: 0 }}>🚚 {s.vozilo?.gb || 'Bez kamiona'}</h3>
+              <h3 style={{ margin: 0 }}>🚚 {s.vozilo?.gb || t('steta.bezKamiona')}</h3>
               {s.vozac && <p className="meta" style={{ margin: '4px 0 0' }}>🚛 {s.vozac.ime}</p>}
             </div>
             <span className="steta-iznos-veliki">{eur(s.procjena)}</span>
@@ -106,7 +108,7 @@ export default function Steta() {
 
           <div className="naslov-red" style={{ marginTop: 12, alignItems: 'center' }}>
             <span className="meta">{s.kreirao?.ime} · {datum(s.kreiran)}</span>
-            <button className="btn opasno mali" onClick={() => obrisi(s)}>Obriši</button>
+            <button className="btn opasno mali" onClick={() => obrisi(s)}>{t('common.obrisi')}</button>
           </div>
         </div>
       ))}
@@ -116,6 +118,7 @@ export default function Steta() {
 
 // --- Forma: nova šteta -------------------------------------------------------
 function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
+  const { t } = useT()
   const [gb, setGb] = useState('')
   const [vozacId, setVozacId] = useState('')
   const [opis, setOpis] = useState('')
@@ -149,13 +152,13 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
       setObrazlozenje(r.obrazlozenje || '')
     } catch (e) {
       // Ako AI nije konfiguriran (503) ili padne — dopusti ručni unos.
-      setAiPoruka(e.message + ' — upišite iznos ručno.')
+      setAiPoruka(e.message + t('steta.rucno'))
     } finally { setAiRadi(false) }
   }
 
   const spremi = async () => {
-    if (!opis.trim()) { naGresku('Opišite što je oštećeno.'); return }
-    if (gbNijeNadjen) { naGresku('Kamion s tim GB ne postoji (ostavite prazno ako nije vezano za kamion).'); return }
+    if (!opis.trim()) { naGresku(t('steta.opisiSto')); return }
+    if (gbNijeNadjen) { naGresku(t('steta.gbNePostoji')); return }
     setRadi(true); naGresku('')
     try {
       await api.kreirajStetu({
@@ -173,7 +176,7 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
   return (
     <div className="karta">
       <button type="button" className="btn" style={{ marginTop: 0 }} onClick={() => setGlasOtvoren(true)}>
-        🎙️ Izgovori štetu
+        {t('steta.izgovori')}
       </button>
       {napomene.length > 0 && (
         <div className="greska" style={{ background: '#fff8e1', color: '#8d6e00' }}>
@@ -189,12 +192,12 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
         />
       )}
 
-      <label>Kamion (garažni broj)</label>
+      <label>{t('steta.kamion')}</label>
       <input
         list="steta-gb"
         value={gb}
         onChange={(e) => setGb(e.target.value)}
-        placeholder="npr. 122 (opcionalno)"
+        placeholder={t('steta.phGb')}
         autoCapitalize="characters"
       />
       <datalist id="steta-gb">
@@ -202,26 +205,26 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
           <option key={v.id} value={v.gb}>{[v.marka, v.registracija].filter(Boolean).join(' · ')}</option>
         ))}
       </datalist>
-      {gbNijeNadjen && <p className="meta" style={{ color: 'var(--crvena)' }}>Kamion s tim GB ne postoji.</p>}
+      {gbNijeNadjen && <p className="meta" style={{ color: 'var(--crvena)' }}>{t('steta.gbNema')}</p>}
 
-      <label>Vozač koji je napravio štetu (opcionalno)</label>
+      <label>{t('steta.vozac')}</label>
       <select value={vozacId} onChange={(e) => setVozacId(e.target.value)}>
-        <option value="">— bez vozača —</option>
+        <option value="">{t('steta.bezVozaca')}</option>
         {vozaci.map((v) => <option key={v.id} value={v.id}>{v.ime}</option>)}
       </select>
 
-      <label>Što je oštećeno / potrgano</label>
+      <label>{t('steta.sto')}</label>
       <div className="polje-mik">
         <textarea
           value={opis}
           onChange={(e) => setOpis(e.target.value)}
-          placeholder="npr. razbijen prednji far, savijen blatobran i puknuto retrovizor staklo"
+          placeholder={t('steta.phOpis')}
         />
-        <MikrofonGumb naslov="Diktiraj štetu" onTekst={(t) => setOpis((v) => (v ? v + ' ' : '') + t)} />
+        <MikrofonGumb naslov={t('steta.diktiraj')} onTekst={(tekst) => setOpis((v) => (v ? v + ' ' : '') + tekst)} />
       </div>
 
       <button type="button" className="btn sekund" onClick={procijeni} disabled={aiRadi || !opis.trim()}>
-        {aiRadi ? '🤖 Procjenjujem…' : '🤖 Procijeni štetu (AI)'}
+        {aiRadi ? t('steta.procjenjujem') : t('steta.procijeni')}
       </button>
       {aiPoruka && <p className="meta" style={{ color: 'var(--narancasta)', marginTop: 6 }}>{aiPoruka}</p>}
 
@@ -237,7 +240,7 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
       )}
       {obrazlozenje && <p className="meta" style={{ marginTop: 8, fontStyle: 'italic' }}>🤖 {obrazlozenje}</p>}
 
-      <label>Procijenjeni trošak (€)</label>
+      <label>{t('steta.trosak')}</label>
       <input
         type="number"
         inputMode="numeric"
@@ -250,9 +253,9 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
 
       <div className="btn-red">
         <button className="btn mali" onClick={spremi} disabled={radi || !opis.trim()}>
-          {radi ? 'Spremam…' : 'Spremi štetu'}
+          {radi ? t('common.spremam') : t('steta.spremiStetu')}
         </button>
-        <button className="btn sekund mali" onClick={naOdustani}>Odustani</button>
+        <button className="btn sekund mali" onClick={naOdustani}>{t('common.odustani')}</button>
       </div>
     </div>
   )

@@ -3,15 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner, ULOGA, datum, voziloLabel } from '../ui'
+import { useT } from '../i18n'
 
 export default function Sifrarnik() {
+  const { t } = useT()
   const [tab, setTab] = useState('korisnici')
   return (
-    <Layout naslov="Šifrarnik">
+    <Layout naslov={t('sif.title')}>
       <div className="chips">
-        <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>Korisnici</span>
-        <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>Vozila</span>
-        <span className={`chip ${tab === 'dijelovi' ? 'akt' : ''}`} onClick={() => setTab('dijelovi')}>Dijelovi</span>
+        <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
+        <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>{t('sif.vozila')}</span>
+        <span className={`chip ${tab === 'dijelovi' ? 'akt' : ''}`} onClick={() => setTab('dijelovi')}>{t('sif.dijelovi')}</span>
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
@@ -22,6 +24,7 @@ export default function Sifrarnik() {
 
 // Globalna pretraga povijesti dijelova po nazivu (kroz sve kamione).
 function PretragaDijelova() {
+  const { t } = useT()
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [lista, setLista] = useState(null)
@@ -29,12 +32,12 @@ function PretragaDijelova() {
 
   useEffect(() => {
     let poništen = false
-    const t = setTimeout(() => {
+    const tmr = setTimeout(() => {
       api.pretraziDijelove(q)
         .then((r) => { if (!poništen) setLista(r) })
         .catch((e) => { if (!poništen) setGreska(e.message) })
     }, 250)
-    return () => { poništen = true; clearTimeout(t) }
+    return () => { poništen = true; clearTimeout(tmr) }
   }, [q])
 
   return (
@@ -44,21 +47,21 @@ function PretragaDijelova() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Pretraži po nazivu dijela (npr. pločice)"
+          placeholder={t('sif.pretraziDio')}
           autoFocus
         />
-        <MikrofonGumb naslov="Izgovori naziv dijela" onTekst={(t) => setQ(t)} />
+        <MikrofonGumb naslov={t('sif.izgovoriDio')} onTekst={(tekst) => setQ(tekst)} />
       </div>
 
       {lista === null ? (
-        <p className="meta" style={{ marginTop: 12 }}>Učitavam…</p>
+        <p className="meta" style={{ marginTop: 12 }}>{t('common.ucitavam')}</p>
       ) : lista.length === 0 ? (
         <p className="meta" style={{ marginTop: 12 }}>
-          {q.trim() ? `Nema rezultata za „${q.trim()}".` : 'Još nema zabilježenih zamjena dijelova.'}
+          {q.trim() ? t('sif.nemaRezultata', { q: q.trim() }) : t('sif.josNema')}
         </p>
       ) : (
         <>
-          <p className="meta" style={{ marginTop: 12 }}>{lista.length} {lista.length === 1 ? 'rezultat' : 'rezultata'}</p>
+          <p className="meta" style={{ marginTop: 12 }}>{lista.length} {t('sif.rezultata')}</p>
           <div className="dio-lista">
             {lista.map((z) => (
               <div key={z.id} className="dio-zapis dio-klik" onClick={() => nav(`/vozila/${z.vozilo.id}`)}>
@@ -82,6 +85,7 @@ function PretragaDijelova() {
 }
 
 function Korisnici() {
+  const { t } = useT()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
@@ -108,24 +112,24 @@ function Korisnici() {
   return (
     <>
       {greska && <div className="greska">{greska}</div>}
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>+ Novi korisnik</button>}
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>{t('sif.noviKorisnik')}</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
-          <label>Ime i prezime</label>
+          <label>{t('sif.ime')}</label>
           <input value={f.ime} onChange={(e) => setF({ ...f, ime: e.target.value })} required />
-          <label>Korisničko ime</label>
+          <label>{t('sif.korime')}</label>
           <input value={f.korisnicko_ime} onChange={(e) => setF({ ...f, korisnicko_ime: e.target.value })} autoCapitalize="none" required />
-          <label>Lozinka</label>
+          <label>{t('sif.lozinka')}</label>
           <input value={f.lozinka} onChange={(e) => setF({ ...f, lozinka: e.target.value })} required />
-          <label>Uloga</label>
+          <label>{t('sif.uloga')}</label>
           <select value={f.uloga} onChange={(e) => setF({ ...f, uloga: e.target.value })}>
-            {Object.entries(ULOGA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.keys(ULOGA).map((k) => <option key={k} value={k}>{t('uloga.' + k)}</option>)}
           </select>
-          <label>Telefon (opcionalno)</label>
+          <label>{t('sif.telefonOpc')}</label>
           <input value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} />
           <div className="btn-red">
-            <button className="btn mali">Spremi</button>
-            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
+            <button className="btn mali">{t('common.spremi')}</button>
+            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
           </div>
         </form>
       )}
@@ -133,12 +137,12 @@ function Korisnici() {
         <div key={k.id} className="karta">
           <div className="naslov-red">
             <h3 style={{ opacity: k.aktivan ? 1 : 0.5 }}>{k.ime}</h3>
-            <Bedz vrsta="srednji" tekst={ULOGA[k.uloga]} />
+            <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
           </div>
           <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}</p>
           <div className="btn-red">
             <button className="btn sekund mali" onClick={() => prebaciAktivan(k)}>
-              {k.aktivan ? 'Deaktiviraj' : 'Aktiviraj'}
+              {k.aktivan ? t('sif.deaktiviraj') : t('sif.aktiviraj')}
             </button>
           </div>
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
@@ -149,21 +153,22 @@ function Korisnici() {
 }
 
 function ResetLozinke({ korisnikId, naGresku }) {
+  const { t } = useT()
   const [otvori, setOtvori] = useState(false)
   const [nova, setNova] = useState('')
   const [uspjeh, setUspjeh] = useState(false)
   const [radi, setRadi] = useState(false)
 
-  if (uspjeh) return <p className="meta" style={{ color: 'var(--zelena)', marginTop: 8 }}>Lozinka resetirana ✅</p>
+  if (uspjeh) return <p className="meta" style={{ color: 'var(--zelena)', marginTop: 8 }}>{t('sif.resetiran')}</p>
   if (!otvori) {
     return (
       <button className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => setOtvori(true)}>
-        🔑 Resetiraj lozinku
+        {t('sif.resetLoz')}
       </button>
     )
   }
   const spremi = async () => {
-    if (nova.length < 4) { naGresku('Lozinka mora imati barem 4 znaka.'); return }
+    if (nova.length < 4) { naGresku(t('sif.lozKratka')); return }
     setRadi(true)
     try {
       await api.azurirajKorisnika(korisnikId, { lozinka: nova })
@@ -172,16 +177,17 @@ function ResetLozinke({ korisnikId, naGresku }) {
   }
   return (
     <div style={{ marginTop: 8 }}>
-      <input type="text" placeholder="Nova lozinka" value={nova} onChange={(e) => setNova(e.target.value)} />
+      <input type="text" placeholder={t('sif.novaLoz')} value={nova} onChange={(e) => setNova(e.target.value)} />
       <div className="btn-red">
-        <button className="btn mali" onClick={spremi} disabled={radi || !nova}>Postavi</button>
-        <button className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
+        <button className="btn mali" onClick={spremi} disabled={radi || !nova}>{t('sif.postavi')}</button>
+        <button className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
       </div>
     </div>
   )
 }
 
 function Vozila() {
+  const { t } = useT()
   const nav = useNavigate()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
@@ -220,15 +226,11 @@ function Vozila() {
 
       {/* Uvoz postojećih kamiona */}
       {!uvozOtvori ? (
-        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>📋 Uvezi popis kamiona (iz Excela)</button>
+        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>{t('sif.uvezi')}</button>
       ) : (
         <div className="karta">
-          <label style={{ marginTop: 0 }}>Zalijepi popis (jedan kamion po retku)</label>
-          <p className="meta" style={{ marginTop: 0 }}>
-            Svaki redak počinje <strong>GB</strong>. Možeš zalijepiti i cijele stupce iz Excela
-            (GB, VOZILO, REG OZNAKA) — registracija se prepozna sama, redoslijed nije bitan.
-            Postojeći kamioni se preskaču.
-          </p>
+          <label style={{ marginTop: 0 }}>{t('sif.zalijepi')}</label>
+          <p className="meta" style={{ marginTop: 0 }}>{t('sif.uvozHint')}</p>
           <textarea
             value={uvozTekst}
             onChange={(e) => setUvozTekst(e.target.value)}
@@ -236,29 +238,29 @@ function Vozila() {
             style={{ minHeight: 140, fontFamily: 'monospace' }}
           />
           {uvozRezultat && (
-            <div className="uspjeh">Dodano {uvozRezultat.dodano}, preskočeno {uvozRezultat.preskoceno} (već postoje). Ukupno redaka: {uvozRezultat.ukupno}.</div>
+            <div className="uspjeh">{t('sif.uvozRezultat', { d: uvozRezultat.dodano, p: uvozRezultat.preskoceno, u: uvozRezultat.ukupno })}</div>
           )}
           <div className="btn-red">
-            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? 'Uvozim…' : 'Uvezi'}</button>
-            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>Zatvori</button>
+            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? t('sif.uvozim') : t('sif.uveziBtn')}</button>
+            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>{t('sif.zatvori')}</button>
           </div>
         </div>
       )}
 
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>+ Novo vozilo</button>}
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.novoVozilo')}</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
-          <label>Garažni broj (GB)</label>
+          <label>{t('sif.gb')}</label>
           <input value={f.gb} onChange={(e) => setF({ ...f, gb: e.target.value })} required />
-          <label>Registracija</label>
+          <label>{t('sif.registracija')}</label>
           <input value={f.registracija} onChange={(e) => setF({ ...f, registracija: e.target.value })} />
-          <label>Marka</label>
+          <label>{t('sif.marka')}</label>
           <input value={f.marka} onChange={(e) => setF({ ...f, marka: e.target.value })} />
-          <label>Model</label>
+          <label>{t('sif.model')}</label>
           <input value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} />
           <div className="btn-red">
-            <button className="btn mali">Spremi</button>
-            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
+            <button className="btn mali">{t('common.spremi')}</button>
+            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
           </div>
         </form>
       )}
@@ -269,7 +271,7 @@ function Vozila() {
               <h3 style={{ margin: 0 }}>{v.gb}</h3>
               <p className="meta" style={{ margin: '4px 0 0' }}>{[v.marka, v.model, v.registracija].filter(Boolean).join(' · ') || '—'}</p>
             </div>
-            <span className="meta" style={{ fontSize: 13 }}>Povijest ›</span>
+            <span className="meta" style={{ fontSize: 13 }}>{t('sif.povijest')}</span>
           </div>
         </div>
       ))}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
+import { GOVOR_JEZIK, useT } from './i18n'
 
 // Normalizacija GB-a za usporedbu (makni sve osim slova/brojki).
 const norm = (s) => (s || '').toString().toLowerCase().replace(/[^a-z0-9čćžšđ]/gi, '')
@@ -28,6 +29,7 @@ function nadjiOsobu(popis, ime) {
 
 // Glasovni (AI) unos štete — izgovori cijelu štetu, AI izvuče kamion, vozača i opis.
 export default function GlasovnaSteta({ vozila, vozaci, onPopuni, onZatvori }) {
+  const { t, jezik } = useT()
   const [tekst, setTekst] = useState('')
   const [slusa, setSlusa] = useState(false)
   const [radi, setRadi] = useState(false)
@@ -43,7 +45,7 @@ export default function GlasovnaSteta({ vozila, vozaci, onPopuni, onZatvori }) {
   const pokreniSesiju = () => {
     const R = window.SpeechRecognition || window.webkitSpeechRecognition
     const rec = new R()
-    rec.lang = 'hr-HR'
+    rec.lang = GOVOR_JEZIK[jezik] || 'hr-HR'
     rec.continuous = false
     rec.interimResults = true
     sessRef.current = ''
@@ -100,8 +102,8 @@ export default function GlasovnaSteta({ vozila, vozaci, onPopuni, onZatvori }) {
         vozacId: vozac ? String(vozac.id) : '',
         opis: r.opis || '',
         napomene: [
-          r.vozilo_gb && !vozilo ? `Kamion „${r.vozilo_gb}” nije pronađen — odaberi ručno.` : '',
-          r.vozac && !vozac ? `Vozač „${r.vozac}” nije prepoznat.` : '',
+          r.vozilo_gb && !vozilo ? t('glas.kamionNijeNadjen', { gb: r.vozilo_gb }) : '',
+          r.vozac && !vozac ? t('glas.vozacNijePrepoznat', { ime: r.vozac }) : '',
         ].filter(Boolean),
       })
     } catch (e) {
@@ -113,29 +115,27 @@ export default function GlasovnaSteta({ vozila, vozaci, onPopuni, onZatvori }) {
   return (
     <div className="sheet-bg" onClick={onZatvori}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0 }}>🎙️ Glasovni unos štete</h3>
-        <p className="meta" style={{ marginTop: 0 }}>
-          Reci npr.: <em>„Kamion 122, vozač Ivo, razbio prednji far i savijen blatobran.”</em>
-        </p>
+        <h3 style={{ marginTop: 0 }}>{t('glas.naslovSteta')}</h3>
+        <p className="meta" style={{ marginTop: 0 }}>{t('glas.primjerSteta')}</p>
         {greska && <div className="greska">{greska}</div>}
 
         <textarea
           value={tekst}
           onChange={(e) => setTekst(e.target.value)}
-          placeholder={Podrzano ? 'Ovdje se ispisuje što govoriš…' : 'Tvoj preglednik ne podržava govor — možeš upisati tekst.'}
+          placeholder={Podrzano ? t('glas.ph') : t('glas.phNema')}
           style={{ minHeight: 120 }}
         />
 
         {Podrzano && (
           <button className={`btn ${slusa ? 'opasno' : 'sekund'}`} onClick={pokreni} style={{ marginTop: 8 }}>
-            {slusa ? '⏹ Zaustavi slušanje' : '🎤 Nastavi govoriti'}
+            {slusa ? t('glas.zaustavi') : t('glas.nastavi')}
           </button>
         )}
 
         <button className="btn" onClick={popuni} disabled={radi || !tekst.trim()} style={{ marginTop: 8 }}>
-          {radi ? 'Obrađujem…' : '✨ Popuni štetu'}
+          {radi ? t('glas.obradjujem') : t('glas.popuniStetu')}
         </button>
-        <button className="btn sekund" onClick={onZatvori} style={{ marginTop: 8 }}>Odustani</button>
+        <button className="btn sekund" onClick={onZatvori} style={{ marginTop: 8 }}>{t('common.odustani')}</button>
       </div>
     </div>
   )

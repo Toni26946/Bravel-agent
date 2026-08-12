@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { HITNOST, MikrofonGumb, voziloLabel } from '../ui'
+import { useT } from '../i18n'
 
 export default function NovaPrijava() {
+  const { t } = useT()
   const nav = useNavigate()
   const [vozila, setVozila] = useState([])
   const [voziloId, setVoziloId] = useState('')
@@ -23,7 +25,7 @@ export default function NovaPrijava() {
   const posalji = async (e) => {
     e.preventDefault()
     setGreska('')
-    if (!voziloId) { setGreska('Odaberi vozilo.'); return }
+    if (!voziloId) { setGreska(t('prijava.odaberiVozilo')); return }
     setRadi(true)
     try {
       const fd = new FormData()
@@ -39,28 +41,28 @@ export default function NovaPrijava() {
   }
 
   return (
-    <Layout naslov="Nova prijava kvara" nazad="/prijave">
+    <Layout naslov={t('prijava.naslov')} nazad="/prijave">
       <form onSubmit={posalji}>
         {greska && <div className="greska">{greska}</div>}
 
-        <label>Vozilo (kamion)</label>
+        <label>{t('prijava.vozilo')}</label>
         <select value={voziloId} onChange={(e) => setVoziloId(e.target.value)} required>
-          {vozila.length === 0 && <option value="">Nema vozila</option>}
+          {vozila.length === 0 && <option value="">{t('prijava.nemaVozila')}</option>}
           {vozila.map((v) => <option key={v.id} value={v.id}>{voziloLabel(v)}</option>)}
         </select>
 
-        <label>Opis kvara</label>
+        <label>{t('prijava.opisKvara')}</label>
         <div className="polje-mik">
-          <textarea value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="Što ne valja s vozilom?" required />
-          <MikrofonGumb naslov="Diktiraj opis" onTekst={(t) => setOpis((v) => (v ? v + ' ' : '') + t)} />
+          <textarea value={opis} onChange={(e) => setOpis(e.target.value)} placeholder={t('prijava.phOpis')} required />
+          <MikrofonGumb naslov={t('prijava.diktirajOpis')} onTekst={(tekst) => setOpis((v) => (v ? v + ' ' : '') + tekst)} />
         </div>
 
-        <label>Hitnost</label>
+        <label>{t('hitnost.oznaka')}</label>
         <select value={hitnost} onChange={(e) => setHitnost(e.target.value)}>
-          {Object.entries(HITNOST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          {Object.keys(HITNOST).map((k) => <option key={k} value={k}>{t('hitnost.' + k)}</option>)}
         </select>
 
-        <button className="btn" disabled={radi}>{radi ? 'Šaljem…' : 'Pošalji prijavu'}</button>
+        <button className="btn" disabled={radi}>{radi ? t('prijava.salji') : t('prijava.posalji')}</button>
       </form>
     </Layout>
   )
