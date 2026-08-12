@@ -1,14 +1,13 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import PovijestDijelova from '../PovijestDijelova'
+import Shema from '../shema/Shema'
 import {
   Bedz, KategorijaPicker, MikrofonGumb, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
-
-const Shema3D = lazy(() => import('../Shema3D'))
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -91,14 +90,12 @@ export default function NalogDetalj() {
       <div className="sekcija-naslov">Operacije i zadaci</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
 
-      {/* 3D shema kamiona */}
+      {/* Shema kamiona (2D nacrt / 3D) */}
       <div className="sekcija-naslov">Shema kamiona</div>
       {!prikaziShemu ? (
-        <button className="btn sekund" onClick={() => setPrikaziShemu(true)}>🧊 Prikaži 3D shemu</button>
+        <button className="btn sekund" onClick={() => setPrikaziShemu(true)}>📐 Prikaži shemu kamiona</button>
       ) : (
-        <Suspense fallback={<div className="karta"><Spinner /></div>}>
-          <Shema3D nalog={n} />
-        </Suspense>
+        <Shema nalog={n} />
       )}
 
       {/* Povijest dijelova na kamionu (ispod sheme) */}
