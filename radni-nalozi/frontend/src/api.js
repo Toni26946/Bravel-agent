@@ -109,6 +109,14 @@ export const api = {
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'PATCH', body: izmjene }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
+  // Šteta
+  stete: () => zahtjev('/stete'),
+  procijeniStetu: (opis, vozilo_id) =>
+    zahtjev('/stete/procjena', { method: 'POST', body: { opis, vozilo_id: vozilo_id || null } }),
+  kreirajStetu: (b) => zahtjev('/stete', { method: 'POST', body: b }),
+  azurirajStetu: (id, b) => zahtjev(`/stete/${id}`, { method: 'PATCH', body: b }),
+  obrisiStetu: (id) => zahtjev(`/stete/${id}`, { method: 'DELETE' }),
+
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),
   pushPretplata: (subscription) => zahtjev('/push/pretplata', { method: 'POST', body: { subscription } }),

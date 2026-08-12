@@ -66,3 +66,37 @@ def parsiraj(tekst: str, kategorije: list[str], voditelji: list[str], vozaci: li
     )
     sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
     return _izvuci_json(sirovo)
+
+
+# --- Procjena štete ----------------------------------------------------------
+SUSTAV_STETA = (
+    "Ti si iskusni procjenitelj troškova popravka teretnih vozila (kamiona i prikolica) "
+    "u Hrvatskoj. Na temelju opisa oštećenja procijeni PRIBLIŽAN trošak popravka "
+    "(dijelovi + rad) u eurima (EUR). Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, "
+    "točno ovog oblika:\n"
+    '{"procjena": number, "stavke": [{"naziv": string, "cijena": number}], "obrazlozenje": string}\n'
+    "Pravila:\n"
+    "- procjena: ukupan procijenjeni trošak u EUR (približan zbroj svih stavki).\n"
+    "- stavke: razloži trošak na pojedine dijelove i radove s približnom cijenom svakoga u EUR "
+    "(npr. {\"naziv\": \"Prednji far\", \"cijena\": 180}). Uključi i stavku za rad/radne sate.\n"
+    "- Koristi realne prosječne cijene za servis teretnih vozila u Hrvatskoj.\n"
+    "- obrazlozenje: jedna kratka rečenica na hrvatskom kako si došao do procjene.\n"
+    "- Ako je opis nejasan, procijeni najbolje što možeš i navedi pretpostavku u obrazloženju.\n"
+    "- Ne izmišljaj oštećenja koja nisu spomenuta. Vrati samo JSON."
+)
+
+
+def procijeni_stetu(opis: str, vozilo_opis: str | None = None) -> dict:
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    korisnicki = f"OŠTEĆENJE:\n{opis}"
+    if vozilo_opis:
+        korisnicki += f"\n\nVOZILO:\n{vozilo_opis}"
+    poruka = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=1200,
+        temperature=0,
+        system=SUSTAV_STETA,
+        messages=[{"role": "user", "content": korisnicki}],
+    )
+    sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
+    return _izvuci_json(sirovo)
