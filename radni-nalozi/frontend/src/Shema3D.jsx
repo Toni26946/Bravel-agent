@@ -22,8 +22,7 @@ export default function Shema3D({ nalog }) {
     const mount = mountRef.current
     if (!mount) return
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
-    camera.position.set(6.6, 4.3, 8.2)
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     mount.appendChild(renderer.domElement)
@@ -34,7 +33,7 @@ export default function Shema3D({ nalog }) {
 
     // podloga
     const pod = new THREE.Mesh(
-      new THREE.CircleGeometry(9, 48),
+      new THREE.CircleGeometry(16, 56),
       new THREE.MeshStandardMaterial({ color: 0xe9edf2, roughness: 1 }),
     )
     pod.rotation.x = -Math.PI / 2; pod.position.y = 0; scene.add(pod)
@@ -42,14 +41,28 @@ export default function Shema3D({ nalog }) {
     const { grupa, dijelovi, glass } = gradiModel(THREE, tip)
     scene.add(grupa)
 
+    // Auto-kadriranje: cijeli model uvijek stane u vidno polje (i na uskom mobitelu).
+    const bbox = new THREE.Box3().setFromObject(grupa)
+    const centar = bbox.getCenter(new THREE.Vector3())
+    const sfera = bbox.getBoundingSphere(new THREE.Sphere())
+    const smjer = new THREE.Vector3(1.15, 0.6, 1.0).normalize()
+    let fitAspect = 0
+    const kadriraj = () => {
+      const vFov = (camera.fov * Math.PI) / 180
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+      const dist = (1.18 * sfera.radius) / Math.sin(Math.min(vFov, hFov) / 2)
+      camera.position.copy(centar).add(smjer.clone().multiplyScalar(dist))
+      controls.target.copy(centar)
+      controls.minDistance = dist * 0.4
+      controls.maxDistance = dist * 2.4
+      controls.update()
+      fitAspect = camera.aspect
+    }
+
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.09
-    controls.target.set(0, 1.15, 0)
-    controls.minDistance = 4.5
-    controls.maxDistance = 20
     controls.maxPolarAngle = Math.PI * 0.49
-    controls.update()
 
     const meshesAll = dijelovi.flatMap((d) => d.meshes)
     const raycaster = new THREE.Raycaster()
@@ -80,6 +93,8 @@ export default function Shema3D({ nalog }) {
       if (!w || !h) return
       renderer.setSize(w, h, false)
       camera.aspect = w / h; camera.updateProjectionMatrix()
+      // Prvo kadriranje i pri promjeni orijentacije (veća promjena omjera).
+      if (!fitAspect || Math.abs(camera.aspect - fitAspect) > 0.2) kadriraj()
     }
     resize()
     const ro = new ResizeObserver(resize); ro.observe(mount)

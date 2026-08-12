@@ -8,9 +8,10 @@ export const ZONE = {
   kotaci: 'Kotači i gume',
   kocnice: 'Kočnice',
   sasija: 'Šasija i limarija',
+  nadogradnja: 'Nadogradnja / sanduk',
   spremnik: 'Spremnici (gorivo/AdBlue)',
   sedlo: 'Sedlo / vučni sklop',
-  hidraulika: 'Hidraulika / nadogradnja',
+  hidraulika: 'Hidraulika',
   elektrika: 'Elektrika i svjetla',
 }
 
@@ -29,8 +30,10 @@ export function zonaZaKategoriju(kategorija) {
   if (ima('MOTOR', 'INJEKTOR', 'VENTIL', 'HLADNJAK', 'INTERCOOLER', 'AUSPUH', 'ISPUŠN', 'ISPUSN',
           'MJENJAČ', 'MJENJAC', 'GETRIBA', 'RETARDER', 'DPF', 'KOMPRESOR', 'TURBO')) return 'motor'
   if (ima('KABIN', 'KLIMA', 'GRIJANJE', 'WEBASTO', 'UPRAVLJANJ')) return 'kabina'
+  if (ima('NADOGRADNJA', 'CERAD', 'SANDUK', 'PREDNJA STRANICA', 'STRANICA ŠLEPE', 'JASTUC', 'ŠTIC', 'STIC',
+          'LIMOVI POD', 'PLATO', 'PODA ŠLEPE')) return 'nadogradnja'
   if (ima('LIMARIJA', 'ŠASIJ', 'SASIJ', 'BOJANJE', 'BLATOBRAN', 'BRANIK', 'BOČNA', 'BOCNA',
-          'STRANICA', 'BRAVARIJ', 'NADOGRADNJA', 'LIMOVI')) return 'sasija'
+          'BRAVARIJ', 'LIMOVI')) return 'sasija'
   return null
 }
 
