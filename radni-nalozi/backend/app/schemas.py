@@ -308,6 +308,17 @@ class StetaProcjenaOdgovor(BaseModel):
     obrazlozenje: str | None = None
 
 
+class StetaGlasovniZahtjev(BaseModel):
+    tekst: str
+    vozaci: list[str] = []
+
+
+class StetaGlasovniOdgovor(BaseModel):
+    vozilo_gb: str | None = None
+    vozac: str | None = None
+    opis: str = ""
+
+
 class StetaCreate(BaseModel):
     opis: str
     vozilo_id: int | None = None
