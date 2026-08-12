@@ -34,6 +34,7 @@ from ..schemas import (
     GlasovniOdgovor,
     GlasovniZahtjev,
     NalogCreate,
+    NalogCreateOut,
     NalogListItem,
     NalogOut,
     NalogStatusUpdate,
@@ -141,8 +142,33 @@ def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: S
     return _dohvati_ovlasten(db, nalog_id, korisnik)
 
 
+# Statusi u kojima je nalog još "aktivan" (nije završen) — za spajanje.
+AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+
+
+def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
+    """Pridodaj operacije/zadatke u postojeći nalog; iste kategorije se spoje."""
+    po_kat = {o.kategorija.lower(): o for o in nalog.operacije}
+    sljedeci_red = len(nalog.operacije)
+    for op in operacije:
+        kat = op.kategorija.strip()
+        if not kat:
+            continue
+        cilj = po_kat.get(kat.lower())
+        if cilj is None:
+            cilj = Operacija(nalog_id=nalog.id, kategorija=kat, redoslijed=sljedeci_red)
+            sljedeci_red += 1
+            db.add(cilj)
+            db.flush()
+            po_kat[kat.lower()] = cilj
+        base = len(cilj.zadaci)
+        for j, opis in enumerate(op.zadaci):
+            if opis.strip():
+                db.add(Zadatak(operacija_id=cilj.id, opis=opis.strip(), redoslijed=base + j))
+
+
 # --- kreiranje (voditelj) ----------------------------------------------------
-@router.post("", response_model=NalogOut, status_code=201)
+@router.post("", response_model=NalogCreateOut, status_code=201)
 def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
     vozilo = db.get(Vozilo, podaci.vozilo_id)
     if not vozilo:
@@ -162,6 +188,32 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         prijava = db.get(Prijava, podaci.prijava_id)
         if not prijava:
             raise HTTPException(status_code=404, detail="Prijava ne postoji")
+
+    # Ako za isti kamion već postoji aktivan (nezatvoren) nalog — spoji u njega.
+    postojeci = (
+        db.query(Nalog)
+        .filter(Nalog.vozilo_id == vozilo.id, Nalog.status.in_(AKTIVNI_STATUSI))
+        .order_by(Nalog.kreiran.desc())
+        .first()
+    )
+    if postojeci:
+        _spoji_operacije(db, postojeci, podaci.operacije)
+        if prijava:
+            prijava.status = StatusPrijave.u_obradi
+            prijava.nalog_id = postojeci.id
+        db.add(PovijestStatusa(
+            nalog_id=postojeci.id, stari_status=postojeci.status.value, novi_status=postojeci.status.value,
+            napomena=f"Spojen novi unos ({len(podaci.operacije)} operacija) za kamion {vozilo.gb}",
+            promijenio_id=voditelj.id,
+        ))
+        postojeci.azuriran = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(postojeci)
+        obavijesti_ulogu(
+            db, Uloga.radnik, "Dopuna radnog naloga",
+            f"{postojeci.broj}: {vozilo.gb} — dodane operacije", url=f"/nalozi/{postojeci.id}",
+        )
+        return {"nalog": postojeci, "spojeno": True}
 
     nalog = Nalog(
         broj=_sljedeci_broj(db),
@@ -199,7 +251,7 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         db, Uloga.radnik, "Novi radni nalog",
         f"{nalog.broj}: {vozilo.gb} — {nalog.naslov}", url=f"/nalozi/{nalog.id}",
     )
-    return nalog
+    return {"nalog": nalog, "spojeno": False}
 
 
 # --- uređivanje osnovnih polja (voditelj) ------------------------------------

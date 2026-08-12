@@ -286,6 +286,11 @@ class NalogOut(ORM):
     zatvoren: datetime | None = None
 
 
+class NalogCreateOut(BaseModel):
+    nalog: NalogOut
+    spojeno: bool = False  # True ako je unos spojen u postojeći aktivni nalog
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict
