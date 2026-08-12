@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
-from .routers import auth, korisnici, nalozi, prijave, push, stete, vozila
+from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
 from .seed import seed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -49,6 +49,7 @@ app.include_router(vozila.router, prefix="/api")
 app.include_router(prijave.router, prefix="/api")
 app.include_router(nalozi.router, prefix="/api")
 app.include_router(stete.router, prefix="/api")
+app.include_router(dijelovi.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 
 

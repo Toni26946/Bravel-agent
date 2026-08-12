@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { Bedz, Spinner, ULOGA, voziloLabel } from '../ui'
+import { Bedz, MikrofonGumb, Spinner, ULOGA, datum, voziloLabel } from '../ui'
 
 export default function Sifrarnik() {
   const [tab, setTab] = useState('korisnici')
@@ -11,9 +11,73 @@ export default function Sifrarnik() {
       <div className="chips">
         <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>Korisnici</span>
         <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>Vozila</span>
+        <span className={`chip ${tab === 'dijelovi' ? 'akt' : ''}`} onClick={() => setTab('dijelovi')}>Dijelovi</span>
       </div>
-      {tab === 'korisnici' ? <Korisnici /> : <Vozila />}
+      {tab === 'korisnici' && <Korisnici />}
+      {tab === 'vozila' && <Vozila />}
+      {tab === 'dijelovi' && <PretragaDijelova />}
     </Layout>
+  )
+}
+
+// Globalna pretraga povijesti dijelova po nazivu (kroz sve kamione).
+function PretragaDijelova() {
+  const nav = useNavigate()
+  const [q, setQ] = useState('')
+  const [lista, setLista] = useState(null)
+  const [greska, setGreska] = useState('')
+
+  useEffect(() => {
+    let poništen = false
+    const t = setTimeout(() => {
+      api.pretraziDijelove(q)
+        .then((r) => { if (!poništen) setLista(r) })
+        .catch((e) => { if (!poništen) setGreska(e.message) })
+    }, 250)
+    return () => { poništen = true; clearTimeout(t) }
+  }, [q])
+
+  return (
+    <>
+      {greska && <div className="greska">{greska}</div>}
+      <div className="polje-mik">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Pretraži po nazivu dijela (npr. pločice)"
+          autoFocus
+        />
+        <MikrofonGumb naslov="Izgovori naziv dijela" onTekst={(t) => setQ(t)} />
+      </div>
+
+      {lista === null ? (
+        <p className="meta" style={{ marginTop: 12 }}>Učitavam…</p>
+      ) : lista.length === 0 ? (
+        <p className="meta" style={{ marginTop: 12 }}>
+          {q.trim() ? `Nema rezultata za „${q.trim()}".` : 'Još nema zabilježenih zamjena dijelova.'}
+        </p>
+      ) : (
+        <>
+          <p className="meta" style={{ marginTop: 12 }}>{lista.length} {lista.length === 1 ? 'rezultat' : 'rezultata'}</p>
+          <div className="dio-lista">
+            {lista.map((z) => (
+              <div key={z.id} className="dio-zapis dio-klik" onClick={() => nav(`/vozila/${z.vozilo.id}`)}>
+                <div className="dio-glava">
+                  <strong>{z.naziv}</strong>
+                  <span className="dio-datum">{datum(z.datum)}</span>
+                </div>
+                <p className="meta" style={{ margin: '2px 0 0' }}>🚚 <strong>{z.vozilo.gb}</strong></p>
+                {z.razlog && <p className="dio-razlog">{z.razlog}</p>}
+                <p className="meta">
+                  {z.kilometraza != null && <>🧭 {z.kilometraza.toLocaleString('hr-HR')} km · </>}
+                  {z.promijenio?.ime} ›
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

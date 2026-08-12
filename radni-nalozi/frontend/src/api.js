@@ -77,6 +77,7 @@ export const api = {
   povijestDijelova: (voziloId) => zahtjev(`/vozila/${voziloId}/dijelovi`),
   dodajZamjenuDijela: (voziloId, b) => zahtjev(`/vozila/${voziloId}/dijelovi`, { method: 'POST', body: b }),
   obrisiZamjenuDijela: (voziloId, id) => zahtjev(`/vozila/${voziloId}/dijelovi/${id}`, { method: 'DELETE' }),
+  pretraziDijelove: (q) => zahtjev('/dijelovi/pretraga?q=' + encodeURIComponent(q || '')),
 
   // Korisnici
   korisnici: (uloga) => zahtjev('/korisnici' + (uloga ? `?uloga=${uloga}` : '')),
