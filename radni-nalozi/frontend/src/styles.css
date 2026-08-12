@@ -209,6 +209,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .dio-klik { cursor: pointer; }
 .dio-klik:active { background: #f4f6f9; }
 
+/* 3D shema kamiona */
+.shema-wrap { margin-bottom: 12px; }
+.shema-canvas {
+  width: 100%; height: 340px; border-radius: var(--radius);
+  background: linear-gradient(180deg, #f7f9fc 0%, #e7ecf3 100%);
+  border: 1px solid var(--rub); box-shadow: var(--sjena); overflow: hidden;
+}
+.shema-legenda { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.shema-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sivo); }
+.shema-leg i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+.shema-uputa { text-align: center; margin-top: 6px; }
+.shema-info { margin-top: 12px; }
+@media (min-width: 860px) { .shema-canvas { height: 460px; } }
+
 .login-wrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px; max-width: 420px; margin: 0 auto; }
 .login-logo { text-align: center; margin-bottom: 28px; }
 .login-logo .b { width: 76px; height: 76px; border-radius: 20px; background: var(--plava); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 800; box-shadow: 0 6px 20px rgba(13,71,161,.35); }
