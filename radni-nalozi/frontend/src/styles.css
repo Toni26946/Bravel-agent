@@ -221,6 +221,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .shema-leg i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
 .shema-uputa { text-align: center; margin-top: 6px; }
 .shema-info { margin-top: 12px; }
+.shema-red { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--rub); cursor: pointer; }
+.shema-red:last-child { border-bottom: none; }
+.shema-red.akt { background: #eef4fb; border-radius: 8px; }
+.shema-red .shema-red-ime { flex: 1; font-size: 14px; }
+.shema-red .c { color: var(--sivo); font-size: 13px; font-weight: 600; }
+.shema-tocka { width: 14px; height: 14px; border-radius: 50%; flex: none; }
 @media (min-width: 860px) { .shema-canvas { height: 460px; } }
 
 .login-wrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px; max-width: 420px; margin: 0 auto; }
