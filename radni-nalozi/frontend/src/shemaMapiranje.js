@@ -16,24 +16,25 @@ export const ZONE = {
 }
 
 // Iz naziva kategorije (velika slova) pogodi zonu. Vraća ključ zone ili null.
+// Redoslijed je bitan (prvo poklapanje pobjeđuje) — specifičnije zone idu prve.
 export function zonaZaKategoriju(kategorija) {
   const k = (kategorija || '').toUpperCase()
   const ima = (...r) => r.some((s) => k.includes(s))
 
-  if (ima('KOČNIC', 'KOCNIC', 'ABS', 'EBS', 'KLOBN')) return 'kocnice'
-  if (ima('PNEUMATIK', 'KOTAČ', 'KOTAC', 'GUME', 'GLAVČIN', 'GLAVCIN', 'VULKANIZER')) return 'kotaci'
-  if (ima('OSOVIN', 'OVJES', 'GIBNJ', 'ZRAČNI JASTUC', 'ZRACNI JASTUC', 'DIFERENCIJAL')) return 'osovine'
-  if (ima('SEDL', 'VUČN', 'VUCN', 'RUDE', 'KUKE', 'ČELJUST', 'CELJUST')) return 'sedlo'
-  if (ima('HIDRAUL', 'DIZALIC', 'RAZVODNIC', 'ŠKARE', 'SKARE')) return 'hidraulika'
-  if (ima('REZERVOAR', 'GORIVO', 'AD-BLUE', 'ADBLUE', 'AD BLUE', 'SPREMNIK')) return 'spremnik'
-  if (ima('ELEKTRIK', 'DIJAGNOSTIKA', 'RETROVIZOR', 'AKUMULATOR', 'KAMERE', 'SVJETL', 'RASVJET')) return 'elektrika'
+  if (ima('KOČNIC', 'KOCNIC', ' ABS', 'ABS/', 'EBS', 'KLOBN', 'ČELJUST', 'CELJUST')) return 'kocnice'
+  if (ima('PNEUMATIK', 'KOTAČ', 'KOTAC', 'GUME', 'GUMA', 'GLAVČIN', 'GLAVCIN', 'VULKAN', 'NAPLATC', 'FELG')) return 'kotaci'
+  if (ima('OSOVIN', 'OVJES', 'GIBNJ', 'ZRAČNI JASTU', 'ZRACNI JASTU', 'DIFERENCIJAL', 'UPRAVLJANJ', 'AMORTIZ')) return 'osovine'
+  if (ima('SEDL', 'VUČ', 'VUC', 'RUDE', 'KUK', 'ZAKRETN')) return 'sedlo'
+  if (ima('HIDRAUL', 'DIZALIC', 'RAZVODNIC', 'ŠKARE', 'SKARE', 'CILINDAR', 'CILINDER')) return 'hidraulika'
+  if (ima('REZERVOAR', 'GORIVO', 'AD-BLUE', 'ADBLUE', 'AD BLUE', 'SPREMNIK', 'REZERVAR')) return 'spremnik'
   if (ima('MOTOR', 'INJEKTOR', 'VENTIL', 'HLADNJAK', 'INTERCOOLER', 'AUSPUH', 'ISPUŠN', 'ISPUSN',
-          'MJENJAČ', 'MJENJAC', 'GETRIBA', 'RETARDER', 'DPF', 'KOMPRESOR', 'TURBO')) return 'motor'
-  if (ima('KABIN', 'KLIMA', 'GRIJANJE', 'WEBASTO', 'UPRAVLJANJ')) return 'kabina'
-  if (ima('NADOGRADNJA', 'CERAD', 'SANDUK', 'PREDNJA STRANICA', 'STRANICA ŠLEPE', 'JASTUC', 'ŠTIC', 'STIC',
-          'LIMOVI POD', 'PLATO', 'PODA ŠLEPE')) return 'nadogradnja'
+          'MJENJAČ', 'MJENJAC', 'GETRIBA', 'RETARDER', 'DPF', 'KOMPRESOR', 'TURBO', 'KVAČIL', 'KVACIL', 'REMEN')) return 'motor'
+  if (ima('ELEKTRIK', 'DIJAGNOSTIK', 'AKUMULATOR', 'KAMERE', 'SVJETL', 'RASVJET', 'ŽARULJ', 'ZARULJ', 'SENZOR')) return 'elektrika'
+  if (ima('KABIN', 'KLIMA', 'GRIJANJE', 'WEBASTO', 'RETROVIZOR', 'SJEDAL', 'BRISAČ', 'BRISAC', 'TAHOGRAF')) return 'kabina'
+  if (ima('NADOGRADNJA', 'CERAD', 'SANDUK', 'PREDNJA STRANICA', 'STRANICA ŠLEPE', 'JASTU', 'ŠTIC', 'STIC',
+          'LIMOVI POD', 'PLATO', 'PODA ŠLEPE', 'CENADA')) return 'nadogradnja'
   if (ima('LIMARIJA', 'ŠASIJ', 'SASIJ', 'BOJANJE', 'BLATOBRAN', 'BRANIK', 'BOČNA', 'BOCNA',
-          'BRAVARIJ', 'LIMOVI')) return 'sasija'
+          'BRAVARIJ', 'LIMOVI', 'BROJEVA', 'STRANICA', 'STEPENIC', 'GELENDER')) return 'sasija'
   return null
 }
 
