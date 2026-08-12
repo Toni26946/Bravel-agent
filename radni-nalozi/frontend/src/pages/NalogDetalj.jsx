@@ -34,7 +34,6 @@ export default function NalogDetalj() {
   const [n, setN] = useState(null)
   const [greska, setGreska] = useState('')
   const [radnici, setRadnici] = useState([])
-  const [urediDodjele, setUrediDodjele] = useState(false)
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -45,15 +44,12 @@ export default function NalogDetalj() {
   if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
   if (!n) return <Layout naslov="Nalog" nazad={true}><Spinner /></Layout>
 
-  const jeVoditelj = korisnik.uloga === 'voditelj'
   const ciljevi = ciljeviStatusa(korisnik.uloga, n.status)
 
   const promijeniStatus = async (status) => {
     setGreska('')
     try { await api.nalogStatus(id, status); ucitaj() } catch (e) { setGreska(e.message) }
   }
-
-  const ukupnoSati = n.radni_sati.reduce((s, r) => s + r.sati, 0)
 
   return (
     <Layout naslov={n.broj} nazad={true}>
@@ -91,66 +87,6 @@ export default function NalogDetalj() {
       <div className="sekcija-naslov">Operacije i zadaci</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
 
-      {/* Dodijeljeni radnici */}
-      <div className="sekcija-naslov">Dodijeljeni radnici</div>
-      <div className="karta">
-        {n.dodijeljeni.length === 0 ? (
-          <p className="meta" style={{ margin: 0 }}>Nitko još nije dodijeljen.</p>
-        ) : (
-          <p style={{ margin: 0 }}>{n.dodijeljeni.map((r) => r.ime).join(', ')}</p>
-        )}
-        {jeVoditelj && (
-          <>
-            <button className="btn sekund mali" style={{ marginTop: 12 }} onClick={() => setUrediDodjele((v) => !v)}>
-              {urediDodjele ? 'Zatvori' : 'Uredi dodjele'}
-            </button>
-            {urediDodjele && (
-              <DodjeleUreditelj
-                nalogId={id}
-                radnici={radnici}
-                pocetni={n.dodijeljeni.map((r) => r.id)}
-                naGotovo={() => { setUrediDodjele(false); ucitaj() }}
-                naGresku={setGreska}
-              />
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Radni sati */}
-      <div className="sekcija-naslov">Radni sati {ukupnoSati > 0 && `· ukupno ${ukupnoSati.toFixed(1)} h`}</div>
-      <div className="karta">
-        {n.radni_sati.length === 0 && <p className="meta" style={{ margin: 0 }}>Nema upisanih sati.</p>}
-        {n.radni_sati.map((r) => (
-          <div key={r.id} className="stavka">
-            <div>
-              <strong>{r.sati} h</strong> · {r.radnik?.ime}
-              <div className="meta">{r.opis || '—'} · {datum(r.datum)}</div>
-            </div>
-            {(jeVoditelj || r.radnik?.id === korisnik.id) && (
-              <span className="x" onClick={async () => { await api.obrisiSat(id, r.id); ucitaj() }}>×</span>
-            )}
-          </div>
-        ))}
-        <DodajSate nalogId={id} naGotovo={ucitaj} naGresku={setGreska} />
-      </div>
-
-      {/* Dijelovi */}
-      <div className="sekcija-naslov">Ugrađeni dijelovi</div>
-      <div className="karta">
-        {n.dijelovi.length === 0 && <p className="meta" style={{ margin: 0 }}>Nema upisanih dijelova.</p>}
-        {n.dijelovi.map((d) => (
-          <div key={d.id} className="stavka">
-            <div>
-              <strong>{d.naziv}</strong>
-              <div className="meta">{d.kolicina} {d.jedinica}{d.cijena != null ? ` · ${d.cijena} €` : ''}</div>
-            </div>
-            <span className="x" onClick={async () => { await api.obrisiDio(id, d.id); ucitaj() }}>×</span>
-          </div>
-        ))}
-        <DodajDio nalogId={id} naGotovo={ucitaj} naGresku={setGreska} />
-      </div>
-
       {/* Povijest */}
       <div className="sekcija-naslov">Povijest</div>
       <div className="karta">
@@ -165,84 +101,6 @@ export default function NalogDetalj() {
         ))}
       </div>
     </Layout>
-  )
-}
-
-// --- pod-komponente ----------------------------------------------------------
-function DodjeleUreditelj({ nalogId, radnici, pocetni, naGotovo, naGresku }) {
-  const [odabrani, setOdabrani] = useState(pocetni)
-  const [radi, setRadi] = useState(false)
-  const toggle = (id) => setOdabrani((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]))
-  const spremi = async () => {
-    setRadi(true)
-    try { await api.dodjele(nalogId, odabrani); naGotovo() }
-    catch (e) { naGresku(e.message); setRadi(false) }
-  }
-  return (
-    <div style={{ marginTop: 12 }}>
-      {radnici.length === 0 && <p className="meta">Nema radnika.</p>}
-      <div className="multi">
-        {radnici.map((r) => (
-          <span key={r.id} className={`opt ${odabrani.includes(r.id) ? 'akt' : ''}`} onClick={() => toggle(r.id)}>{r.ime}</span>
-        ))}
-      </div>
-      <button className="btn mali" style={{ marginTop: 12 }} onClick={spremi} disabled={radi}>Spremi dodjele</button>
-    </div>
-  )
-}
-
-function DodajSate({ nalogId, naGotovo, naGresku }) {
-  const [otvori, setOtvori] = useState(false)
-  const [sati, setSati] = useState('')
-  const [opis, setOpis] = useState('')
-  if (!otvori) return <button className="btn sekund mali" style={{ marginTop: 12 }} onClick={() => setOtvori(true)}>+ Dodaj sate</button>
-  const spremi = async () => {
-    try {
-      await api.dodajSate(nalogId, { sati: Number(sati), opis: opis || null })
-      setSati(''); setOpis(''); setOtvori(false); naGotovo()
-    } catch (e) { naGresku(e.message) }
-  }
-  return (
-    <div style={{ marginTop: 12 }}>
-      <input type="number" step="0.5" min="0" placeholder="Sati (npr. 2.5)" value={sati} onChange={(e) => setSati(e.target.value)} />
-      <input placeholder="Opis rada (opcionalno)" value={opis} onChange={(e) => setOpis(e.target.value)} style={{ marginTop: 8 }} />
-      <div className="btn-red">
-        <button className="btn mali" onClick={spremi} disabled={!sati}>Spremi</button>
-        <button className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
-      </div>
-    </div>
-  )
-}
-
-function DodajDio({ nalogId, naGotovo, naGresku }) {
-  const [otvori, setOtvori] = useState(false)
-  const [naziv, setNaziv] = useState('')
-  const [kolicina, setKolicina] = useState('1')
-  const [jedinica, setJedinica] = useState('kom')
-  const [cijena, setCijena] = useState('')
-  if (!otvori) return <button className="btn sekund mali" style={{ marginTop: 12 }} onClick={() => setOtvori(true)}>+ Dodaj dio</button>
-  const spremi = async () => {
-    try {
-      await api.dodajDio(nalogId, {
-        naziv, kolicina: Number(kolicina) || 1, jedinica: jedinica || 'kom',
-        cijena: cijena === '' ? null : Number(cijena),
-      })
-      setNaziv(''); setKolicina('1'); setCijena(''); setOtvori(false); naGotovo()
-    } catch (e) { naGresku(e.message) }
-  }
-  return (
-    <div style={{ marginTop: 12 }}>
-      <input placeholder="Naziv dijela" value={naziv} onChange={(e) => setNaziv(e.target.value)} />
-      <div className="btn-red" style={{ marginTop: 8 }}>
-        <input type="number" step="0.5" placeholder="Kol." value={kolicina} onChange={(e) => setKolicina(e.target.value)} />
-        <input placeholder="Jed." value={jedinica} onChange={(e) => setJedinica(e.target.value)} />
-        <input type="number" step="0.01" placeholder="Cijena €" value={cijena} onChange={(e) => setCijena(e.target.value)} />
-      </div>
-      <div className="btn-red">
-        <button className="btn mali" onClick={spremi} disabled={!naziv}>Spremi</button>
-        <button className="btn sekund mali" onClick={() => setOtvori(false)}>Odustani</button>
-      </div>
-    </div>
   )
 }
 
