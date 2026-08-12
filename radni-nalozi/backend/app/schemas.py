@@ -338,6 +338,26 @@ class StetaOut(ORM):
     kreiran: datetime
 
 
+# --- Povijest zamjene dijelova -----------------------------------------------
+class ZamjenaDijelaCreate(BaseModel):
+    naziv: str
+    razlog: str | None = None
+    datum: date | None = None
+    kilometraza: int | None = None
+    nalog_id: int | None = None
+
+
+class ZamjenaDijelaOut(ORM):
+    id: int
+    naziv: str
+    razlog: str | None = None
+    datum: date
+    kilometraza: int | None = None
+    nalog_id: int | None = None
+    promijenio: KorisnikOut
+    kreiran: datetime
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict

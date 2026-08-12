@@ -1,4 +1,6 @@
 """Vozila (kamioni). Svi prijavljeni mogu vidjeti; uređuje samo voditelj."""
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,18 +8,21 @@ import re
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, Uloga, Vozilo
+from ..models import Korisnik, Nalog, Uloga, Vozilo, ZamjenaDijela
 from ..schemas import (
     VoziloCreate,
     VoziloOut,
     VoziloUpdate,
     VoziloUvoz,
     VoziloUvozRezultat,
+    ZamjenaDijelaCreate,
+    ZamjenaDijelaOut,
 )
 
 router = APIRouter(prefix="/vozila", tags=["vozila"])
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
+voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.radnik)
 
 
 @router.get("", response_model=list[VoziloOut])
@@ -84,6 +89,14 @@ def uvoz(podaci: VoziloUvoz, _: Korisnik = Depends(samo_voditelj), db: Session =
     return VoziloUvozRezultat(dodano=dodano, preskoceno=ukupno - dodano, ukupno=ukupno)
 
 
+@router.get("/{vozilo_id}", response_model=VoziloOut)
+def detalj(vozilo_id: int, _: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    v = db.get(Vozilo, vozilo_id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    return v
+
+
 @router.patch("/{vozilo_id}", response_model=VoziloOut)
 def azuriraj(
     vozilo_id: int,
@@ -99,3 +112,58 @@ def azuriraj(
     db.commit()
     db.refresh(v)
     return v
+
+
+# --- Povijest zamjene dijelova (voditelj + radnik) ---------------------------
+@router.get("/{vozilo_id}/dijelovi", response_model=list[ZamjenaDijelaOut])
+def povijest_dijelova(
+    vozilo_id: int, _: Korisnik = Depends(voditelj_ili_radnik), db: Session = Depends(get_db)
+):
+    if not db.get(Vozilo, vozilo_id):
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    return (
+        db.query(ZamjenaDijela)
+        .filter(ZamjenaDijela.vozilo_id == vozilo_id)
+        .order_by(ZamjenaDijela.datum.desc(), ZamjenaDijela.id.desc())
+        .all()
+    )
+
+
+@router.post("/{vozilo_id}/dijelovi", response_model=ZamjenaDijelaOut, status_code=201)
+def dodaj_zamjenu(
+    vozilo_id: int, podaci: ZamjenaDijelaCreate,
+    korisnik: Korisnik = Depends(voditelj_ili_radnik), db: Session = Depends(get_db),
+):
+    if not db.get(Vozilo, vozilo_id):
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    if not podaci.naziv.strip():
+        raise HTTPException(status_code=400, detail="Upišite naziv dijela.")
+    if podaci.nalog_id is not None and not db.get(Nalog, podaci.nalog_id):
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    z = ZamjenaDijela(
+        vozilo_id=vozilo_id,
+        nalog_id=podaci.nalog_id,
+        naziv=podaci.naziv.strip(),
+        razlog=(podaci.razlog or "").strip() or None,
+        datum=podaci.datum or date.today(),
+        kilometraza=podaci.kilometraza,
+        promijenio_id=korisnik.id,
+    )
+    db.add(z)
+    db.commit()
+    db.refresh(z)
+    return z
+
+
+@router.delete("/{vozilo_id}/dijelovi/{zamjena_id}", status_code=204)
+def obrisi_zamjenu(
+    vozilo_id: int, zamjena_id: int,
+    korisnik: Korisnik = Depends(voditelj_ili_radnik), db: Session = Depends(get_db),
+):
+    z = db.get(ZamjenaDijela, zamjena_id)
+    if not z or z.vozilo_id != vozilo_id:
+        raise HTTPException(status_code=404, detail="Zapis ne postoji")
+    if korisnik.uloga == Uloga.radnik and z.promijenio_id != korisnik.id:
+        raise HTTPException(status_code=403, detail="Možete brisati samo svoje unose")
+    db.delete(z)
+    db.commit()

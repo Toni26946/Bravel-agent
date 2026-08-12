@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import PovijestDijelova from '../PovijestDijelova'
 import {
   Bedz, KategorijaPicker, MikrofonGumb, STATUS_NALOG, Spinner, datum, datumVrijeme, voziloLabel,
 } from '../ui'
@@ -87,8 +88,12 @@ export default function NalogDetalj() {
       <div className="sekcija-naslov">Operacije i zadaci</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
 
-      {/* Povijest */}
-      <div className="sekcija-naslov">Povijest</div>
+      {/* Povijest dijelova na kamionu */}
+      <div className="sekcija-naslov">Povijest dijelova (kamion {n.vozilo?.gb})</div>
+      <PovijestDijelova vozilo={n.vozilo} nalogId={n.id} />
+
+      {/* Povijest statusa */}
+      <div className="sekcija-naslov">Povijest statusa</div>
       <div className="karta">
         {n.povijest.map((p) => (
           <div key={p.id} className="stavka">

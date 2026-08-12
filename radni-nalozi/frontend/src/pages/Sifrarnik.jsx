@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { Bedz, Spinner, ULOGA, voziloLabel } from '../ui'
@@ -117,6 +118,7 @@ function ResetLozinke({ korisnikId, naGresku }) {
 }
 
 function Vozila() {
+  const nav = useNavigate()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
@@ -197,9 +199,14 @@ function Vozila() {
         </form>
       )}
       {lista.map((v) => (
-        <div key={v.id} className="karta">
-          <h3>{v.gb}</h3>
-          <p className="meta">{[v.marka, v.model, v.registracija].filter(Boolean).join(' · ') || '—'}</p>
+        <div key={v.id} className="karta klik" onClick={() => nav(`/vozila/${v.id}`)}>
+          <div className="naslov-red">
+            <div>
+              <h3 style={{ margin: 0 }}>{v.gb}</h3>
+              <p className="meta" style={{ margin: '4px 0 0' }}>{[v.marka, v.model, v.registracija].filter(Boolean).join(' · ') || '—'}</p>
+            </div>
+            <span className="meta" style={{ fontSize: 13 }}>Povijest ›</span>
+          </div>
         </div>
       ))}
     </>
