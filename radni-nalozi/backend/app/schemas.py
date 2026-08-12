@@ -358,6 +358,11 @@ class ZamjenaDijelaOut(ORM):
     kreiran: datetime
 
 
+# S podatkom o vozilu — za globalnu pretragu kroz sve kamione.
+class ZamjenaDijelaSVozilom(ZamjenaDijelaOut):
+    vozilo: VoziloOut
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict
