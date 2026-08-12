@@ -8,6 +8,7 @@ import { Bedz, Prazno, STATUS_NALOG, Spinner, datum, voziloLabel } from '../ui'
 const FILTERI = [
   { k: '', t: 'Sve' },
   { k: 'otvoren', t: 'Otvoreni' },
+  { k: 'u_radu', t: 'U radu' },
   { k: 'gotov', t: 'Gotovi' },
 ]
 
