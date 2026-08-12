@@ -10,6 +10,7 @@ import PrijavaDetalj from './pages/PrijavaDetalj'
 import Nalozi from './pages/Nalozi'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
+import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 
 function pocetna(uloga) {
@@ -42,6 +43,9 @@ export default function App() {
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'radnik']}><Nalozi /></Zasticeno>} />
       <Route path="/nalozi/novi" element={<Zasticeno uloge={['voditelj']}><NoviNalog /></Zasticeno>} />
       <Route path="/nalozi/:id" element={<Zasticeno uloge={['voditelj', 'radnik']}><NalogDetalj /></Zasticeno>} />
+
+      {/* Šteta: voditelj */}
+      <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
 
       {/* Šifrarnik: voditelj */}
       <Route path="/sifrarnik" element={<Zasticeno uloge={['voditelj']}><Sifrarnik /></Zasticeno>} />

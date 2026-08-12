@@ -13,6 +13,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   if (korisnik?.uloga === 'voditelj') {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: 'Nalozi' })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: 'Prijave' })
+    tabovi.push({ do: '/steta', ikona: '💥', txt: 'Šteta' })
     tabovi.push({ do: '/sifrarnik', ikona: '⚙️', txt: 'Šifrarnik' })
   }
   if (korisnik?.uloga === 'radnik') {

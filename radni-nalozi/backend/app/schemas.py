@@ -291,6 +291,53 @@ class NalogCreateOut(BaseModel):
     spojeno: bool = False  # True ako je unos spojen u postojeći aktivni nalog
 
 
+# --- Šteta -------------------------------------------------------------------
+class StetaStavka(BaseModel):
+    naziv: str
+    cijena: float = 0
+
+
+class StetaProcjenaZahtjev(BaseModel):
+    opis: str
+    vozilo_id: int | None = None
+
+
+class StetaProcjenaOdgovor(BaseModel):
+    procjena: float = 0
+    stavke: list[StetaStavka] = []
+    obrazlozenje: str | None = None
+
+
+class StetaCreate(BaseModel):
+    opis: str
+    vozilo_id: int | None = None
+    vozac_id: int | None = None
+    procjena: float = 0
+    obrazlozenje: str | None = None
+    stavke: list[StetaStavka] = []
+
+
+class StetaUpdate(BaseModel):
+    opis: str | None = None
+    vozilo_id: int | None = None
+    vozac_id: int | None = None
+    procjena: float | None = None
+    obrazlozenje: str | None = None
+    stavke: list[StetaStavka] | None = None
+
+
+class StetaOut(ORM):
+    id: int
+    vozilo: VoziloOut | None = None
+    vozac: KorisnikOut | None = None
+    opis: str
+    procjena: float
+    obrazlozenje: str | None = None
+    stavke: list[StetaStavka] | None = None
+    kreirao: KorisnikOut
+    kreiran: datetime
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict

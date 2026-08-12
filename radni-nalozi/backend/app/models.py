@@ -5,6 +5,7 @@ import enum
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
@@ -263,6 +264,27 @@ class PovijestStatusa(Base):
 
     nalog: Mapped["Nalog"] = relationship(back_populates="povijest")
     promijenio: Mapped["Korisnik"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Šteta (evidencija oštećenja koja su napravili vozači + AI procjena troška)
+# ---------------------------------------------------------------------------
+class Steta(Base):
+    __tablename__ = "stete"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vozilo_id: Mapped[int | None] = mapped_column(ForeignKey("vozila.id"), nullable=True, index=True)
+    vozac_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True, index=True)
+    opis: Mapped[str] = mapped_column(Text)  # što je potrgano
+    procjena: Mapped[float] = mapped_column(Float, default=0)  # procijenjeni trošak (EUR)
+    obrazlozenje: Mapped[str | None] = mapped_column(Text, nullable=True)  # AI obrazloženje
+    stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)  # [{naziv, cijena}]
+    kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    vozilo: Mapped["Vozilo | None"] = relationship()
+    vozac: Mapped["Korisnik | None"] = relationship(foreign_keys=[vozac_id])
+    kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
 
 
 # ---------------------------------------------------------------------------
