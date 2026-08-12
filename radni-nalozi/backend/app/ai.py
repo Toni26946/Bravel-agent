@@ -17,9 +17,11 @@ def ai_dostupan() -> bool:
 
 
 SUSTAV = (
-    "Ti si asistent koji iz izgovorenog teksta na hrvatskom (servis kamiona) izvlači "
-    "strukturirani radni nalog. Vrati ISKLJUČIVO valjani JSON, bez teksta oko njega, "
-    "točno ovog oblika:\n"
+    "Ti si asistent koji iz izgovorenog teksta (servis kamiona) izvlači "
+    "strukturirani radni nalog. Ulazni tekst može biti na BILO KOJEM jeziku "
+    "(hrvatski, engleski, hindski, pandžapski…) — razumij ga i svejedno vrati "
+    "tražene vrijednosti (kategorije koristi iz danog popisa na hrvatskom). "
+    "Vrati ISKLJUČIVO valjani JSON, bez teksta oko njega, točno ovog oblika:\n"
     '{"vozilo_gb": string|null, "voditelj": string|null, "vozac": string|null, '
     '"operacije": [{"kategorija": string, "zadaci": [string, ...]}]}\n'
     "Pravila:\n"
@@ -87,8 +89,10 @@ SUSTAV_STETA = (
 
 
 SUSTAV_STETA_GOVOR = (
-    "Iz izgovorenog teksta na hrvatskom (servis kamiona) izvuci prijavu štete koju je "
-    "napravio vozač. Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
+    "Iz izgovorenog teksta (servis kamiona) izvuci prijavu štete koju je napravio vozač. "
+    "Ulazni tekst može biti na BILO KOJEM jeziku (hrvatski, engleski, hindski, pandžapski…) "
+    "— razumij ga; polje 'opis' napiši na hrvatskom. "
+    "Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
     '{"vozilo_gb": string|null, "vozac": string|null, "opis": string}\n'
     "Pravila:\n"
     "- vozilo_gb: garažni broj kamiona kako je izgovoren (npr. \"122\"). Ako nije spomenut → null.\n"

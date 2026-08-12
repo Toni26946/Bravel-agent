@@ -1,25 +1,26 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
-import { ULOGA } from './ui'
+import { useT } from './i18n'
 
 export default function Layout({ naslov, nazad, children, akcija }) {
   const { korisnik } = useAuth()
+  const { t } = useT()
   const nav = useNavigate()
 
   const tabovi = []
   if (korisnik?.uloga === 'vozac') {
-    tabovi.push({ do: '/prijave', ikona: '📋', txt: 'Prijave' })
+    tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
-    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: 'Nalozi' })
-    tabovi.push({ do: '/prijave', ikona: '📋', txt: 'Prijave' })
-    tabovi.push({ do: '/steta', ikona: '💥', txt: 'Šteta' })
-    tabovi.push({ do: '/sifrarnik', ikona: '⚙️', txt: 'Šifrarnik' })
+    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
+    tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
+    tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
+    tabovi.push({ do: '/sifrarnik', ikona: '⚙️', txt: t('tab.sifrarnik') })
   }
   if (korisnik?.uloga === 'radnik') {
-    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: 'Nalozi' })
+    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
-  tabovi.push({ do: '/profil', ikona: '👤', txt: 'Profil' })
+  tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
 
   return (
     <div className="app">
@@ -27,7 +28,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         {nazad && <span className="nazad" onClick={() => nav(nazad === true ? -1 : nazad)}>‹</span>}
         <h1>{naslov}</h1>
         {akcija}
-        {!akcija && korisnik && <span className="uloga">{ULOGA[korisnik.uloga]}</span>}
+        {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
       </header>
       <main className="sadrzaj">{children}</main>
       <nav className="tabbar">

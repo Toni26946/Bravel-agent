@@ -1,11 +1,14 @@
 // Zajedničke oznake, prijevodi i male komponente.
 import { useRef, useState } from 'react'
+import { GOVOR_JEZIK, useT } from './i18n'
 
 // Gumb za diktiranje (govor → tekst) preko ugrađenog prepoznavanja u pregledniku.
 // onTekst(prepoznatiTekst) — pozivatelj odlučuje hoće li dopisati ili zamijeniti.
-export function MikrofonGumb({ onTekst, naslov = 'Diktiraj' }) {
+export function MikrofonGumb({ onTekst, naslov }) {
+  const { t, jezik } = useT()
   const [slusa, setSlusa] = useState(false)
   const recRef = useRef(null)
+  const naziv = naslov || t('mik.diktiraj')
   const Podrzano = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
   if (!Podrzano) return null
 
@@ -13,7 +16,7 @@ export function MikrofonGumb({ onTekst, naslov = 'Diktiraj' }) {
     if (slusa) { recRef.current && recRef.current.stop(); return }
     const R = window.SpeechRecognition || window.webkitSpeechRecognition
     const rec = new R()
-    rec.lang = 'hr-HR'
+    rec.lang = GOVOR_JEZIK[jezik] || 'hr-HR'
     rec.interimResults = false
     rec.continuous = false
     rec.onresult = (e) => {
@@ -28,7 +31,7 @@ export function MikrofonGumb({ onTekst, naslov = 'Diktiraj' }) {
   }
 
   return (
-    <button type="button" className={`mik ${slusa ? 'sluša' : ''}`} onClick={kreni} title={naslov} aria-label={naslov}>
+    <button type="button" className={`mik ${slusa ? 'sluša' : ''}`} onClick={kreni} title={naziv} aria-label={naziv}>
       {slusa ? '⏹' : '🎤'}
     </button>
   )
@@ -91,7 +94,8 @@ export const KATEGORIJE = [
 ]
 
 // Pretraživi odabir kategorije (utipkaj za filtriranje; može i vlastita).
-export function KategorijaPicker({ onOdaberi, placeholder = 'Dodajte operaciju…' }) {
+export function KategorijaPicker({ onOdaberi, placeholder }) {
+  const { t } = useT()
   const [q, setQ] = useState('')
   const [fokus, setFokus] = useState(false)
   const upit = q.trim().toLowerCase()
@@ -106,9 +110,9 @@ export function KategorijaPicker({ onOdaberi, placeholder = 'Dodajte operaciju�
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFokus(true)}
           onBlur={() => setTimeout(() => setFokus(false), 150)}
-          placeholder={placeholder}
+          placeholder={placeholder || t('kat.dodajte')}
         />
-        <MikrofonGumb naslov="Izgovori kategoriju" onTekst={(t) => { setQ(t); setFokus(true) }} />
+        <MikrofonGumb naslov={t('kat.izgovori')} onTekst={(tekst) => { setQ(tekst); setFokus(true) }} />
       </div>
       {fokus && (
         <div className="kat-lista">
@@ -116,10 +120,10 @@ export function KategorijaPicker({ onOdaberi, placeholder = 'Dodajte operaciju�
             <div key={k} className="kat-opcija" onMouseDown={() => odaberi(k)}>{k}</div>
           ))}
           {q.trim() && !tocna && (
-            <div className="kat-opcija kat-custom" onMouseDown={() => odaberi(q.trim())}>＋ Dodaj „{q.trim()}”</div>
+            <div className="kat-opcija kat-custom" onMouseDown={() => odaberi(q.trim())}>{t('kat.dodaj', { q: q.trim() })}</div>
           )}
           {filt.length === 0 && !q.trim() && (
-            <div className="kat-opcija" style={{ color: 'var(--sivo)' }}>Nema kategorija.</div>
+            <div className="kat-opcija" style={{ color: 'var(--sivo)' }}>{t('kat.nema')}</div>
           )}
         </div>
       )}

@@ -2,43 +2,50 @@ import { useState } from 'react'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { JEZICI, useT } from '../i18n'
 import { omoguciPush } from '../push'
-import { ULOGA } from '../ui'
 
 export default function Profil() {
   const { korisnik, odjava } = useAuth()
+  const { t, jezik, postaviJezik } = useT()
   const [poruka, setPoruka] = useState('')
 
   const ukljuciObavijesti = async () => {
     await omoguciPush()
-    if (Notification.permission === 'granted') setPoruka('Obavijesti su uključene ✅')
-    else setPoruka('Obavijesti nisu dopuštene u pregledniku.')
+    if (Notification.permission === 'granted') setPoruka(t('profil.pushOn'))
+    else setPoruka(t('profil.pushNo'))
   }
 
   return (
-    <Layout naslov="Profil">
+    <Layout naslov={t('profil.title')}>
       <div className="karta">
         <h3>{korisnik.ime}</h3>
-        <p className="meta">Korisničko ime: <strong>{korisnik.korisnicko_ime}</strong></p>
-        <p className="meta">Uloga: <strong>{ULOGA[korisnik.uloga]}</strong></p>
-        {korisnik.telefon && <p className="meta">Telefon: <strong>{korisnik.telefon}</strong></p>}
+        <p className="meta">{t('profil.korime')}: <strong>{korisnik.korisnicko_ime}</strong></p>
+        <p className="meta">{t('profil.uloga')}: <strong>{t('uloga.' + korisnik.uloga)}</strong></p>
+        {korisnik.telefon && <p className="meta">{t('profil.telefon')}: <strong>{korisnik.telefon}</strong></p>}
+      </div>
+
+      <div className="karta">
+        <label style={{ marginTop: 0 }}>🌐 {t('profil.jezik')}</label>
+        <select value={jezik} onChange={(e) => postaviJezik(e.target.value)}>
+          {JEZICI.map((j) => <option key={j.code} value={j.code}>{j.naziv}</option>)}
+        </select>
       </div>
 
       {poruka && <div className="uspjeh">{poruka}</div>}
 
       <PromjenaLozinke />
 
-      <button className="btn sekund" onClick={ukljuciObavijesti} style={{ marginTop: 12 }}>🔔 Uključi push obavijesti</button>
-      <button className="btn opasno" onClick={odjava} style={{ marginTop: 12 }}>Odjava</button>
+      <button className="btn sekund" onClick={ukljuciObavijesti} style={{ marginTop: 12 }}>{t('profil.push')}</button>
+      <button className="btn opasno" onClick={odjava} style={{ marginTop: 12 }}>{t('profil.odjava')}</button>
 
-      <p className="meta" style={{ textAlign: 'center', marginTop: 24 }}>
-        Savjet: dodaj aplikaciju na početni zaslon (izbornik preglednika → „Dodaj na početni zaslon”).
-      </p>
+      <p className="meta" style={{ textAlign: 'center', marginTop: 24 }}>{t('profil.savjetInstall')}</p>
     </Layout>
   )
 }
 
 function PromjenaLozinke() {
+  const { t } = useT()
   const [otvori, setOtvori] = useState(false)
   const [stara, setStara] = useState('')
   const [nova, setNova] = useState('')
@@ -50,7 +57,7 @@ function PromjenaLozinke() {
   if (!otvori) {
     return (
       <button className="btn sekund" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>
-        🔑 Promijeni lozinku
+        {t('profil.promijeniLozinku')}
       </button>
     )
   }
@@ -58,12 +65,12 @@ function PromjenaLozinke() {
   const spremi = async (e) => {
     e.preventDefault()
     setGreska(''); setUspjeh('')
-    if (nova.length < 4) { setGreska('Nova lozinka mora imati barem 4 znaka.'); return }
-    if (nova !== potvrda) { setGreska('Nova lozinka i potvrda se ne podudaraju.'); return }
+    if (nova.length < 4) { setGreska(t('profil.lozKratka')); return }
+    if (nova !== potvrda) { setGreska(t('profil.lozNePodudara')); return }
     setRadi(true)
     try {
       await api.promijeniLozinku(stara, nova)
-      setUspjeh('Lozinka je promijenjena ✅')
+      setUspjeh(t('profil.lozPromijenjena'))
       setStara(''); setNova(''); setPotvrda('')
       setOtvori(false)
     } catch (err) {
@@ -75,18 +82,18 @@ function PromjenaLozinke() {
 
   return (
     <form className="karta" onSubmit={spremi} style={{ marginTop: 12 }}>
-      <h3 style={{ marginTop: 0 }}>Promjena lozinke</h3>
+      <h3 style={{ marginTop: 0 }}>{t('profil.promjenaLozinke')}</h3>
       {greska && <div className="greska">{greska}</div>}
       {uspjeh && <div className="uspjeh">{uspjeh}</div>}
-      <label>Trenutna lozinka</label>
+      <label>{t('profil.trenutnaLoz')}</label>
       <input type="password" value={stara} onChange={(e) => setStara(e.target.value)} autoComplete="current-password" required />
-      <label>Nova lozinka</label>
+      <label>{t('profil.novaLoz')}</label>
       <input type="password" value={nova} onChange={(e) => setNova(e.target.value)} autoComplete="new-password" required />
-      <label>Ponovi novu lozinku</label>
+      <label>{t('profil.ponoviLoz')}</label>
       <input type="password" value={potvrda} onChange={(e) => setPotvrda(e.target.value)} autoComplete="new-password" required />
       <div className="btn-red">
-        <button className="btn mali" disabled={radi}>{radi ? 'Spremam…' : 'Spremi'}</button>
-        <button type="button" className="btn sekund mali" onClick={() => { setOtvori(false); setGreska('') }}>Odustani</button>
+        <button className="btn mali" disabled={radi}>{radi ? t('common.spremam') : t('common.spremi')}</button>
+        <button type="button" className="btn sekund mali" onClick={() => { setOtvori(false); setGreska('') }}>{t('common.odustani')}</button>
       </div>
     </form>
   )

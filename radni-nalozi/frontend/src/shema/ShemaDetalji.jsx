@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
-import {
-  BOJA_STATUSA_CSS, OZNAKA_STATUSA, ZONE, zonaZaKategoriju,
-} from '../shemaMapiranje'
+import { useT } from '../i18n'
+import { BOJA_STATUSA_CSS, zonaZaKategoriju } from '../shemaMapiranje'
 
 const REDOSLIJED_LEGENDE = ['treba', 'djelomicno', 'gotovo', 'neutral']
 
 // Legenda + popis dijelova u nalogu + detalj odabranog + ostale operacije.
 // Dijele ga i 2D nacrt i 3D prikaz.
 export default function ShemaDetalji({ nalog, statusi, selektiran, onSelect }) {
+  const { t } = useT()
   const { poZoni, ostalo } = useMemo(() => {
     const poZoni = {}
     const ostalo = []
@@ -22,8 +22,8 @@ export default function ShemaDetalji({ nalog, statusi, selektiran, onSelect }) {
     return { poZoni, ostalo }
   }, [nalog])
 
-  const labela = (k) => ZONE[k] || k
-  const zoneKljucevi = Object.keys(poZoni).sort((a, b) => labela(a).localeCompare(labela(b), 'hr'))
+  const labela = (k) => t('zona.' + k)
+  const zoneKljucevi = Object.keys(poZoni).sort((a, b) => labela(a).localeCompare(labela(b)))
   const opsZone = poZoni[selektiran]?.ops || []
 
   return (
@@ -31,14 +31,14 @@ export default function ShemaDetalji({ nalog, statusi, selektiran, onSelect }) {
       <div className="shema-legenda">
         {REDOSLIJED_LEGENDE.map((s) => (
           <span key={s} className="shema-leg">
-            <i style={{ background: BOJA_STATUSA_CSS[s] }} /> {OZNAKA_STATUSA[s]}
+            <i style={{ background: BOJA_STATUSA_CSS[s] }} /> {t('statusd.' + s)}
           </span>
         ))}
       </div>
 
       {zoneKljucevi.length > 0 && (
         <div className="karta" style={{ marginTop: 12 }}>
-          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>Dijelovi u ovom nalogu</div>
+          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>{t('shema.dijeloviUNalogu')}</div>
           {zoneKljucevi.map((k) => {
             const g = poZoni[k]
             const st = statusi[k] || 'neutral'
@@ -62,11 +62,11 @@ export default function ShemaDetalji({ nalog, statusi, selektiran, onSelect }) {
           <div className="naslov-red">
             <h3 style={{ margin: 0 }}>{labela(selektiran)}</h3>
             <span className="bedz" style={{ background: BOJA_STATUSA_CSS[statusi[selektiran] || 'neutral'], color: '#fff' }}>
-              {OZNAKA_STATUSA[statusi[selektiran] || 'neutral']}
+              {t('statusd.' + (statusi[selektiran] || 'neutral'))}
             </span>
           </div>
           {opsZone.length === 0 ? (
-            <p className="meta" style={{ marginTop: 6 }}>Nema operacija za ovaj dio u ovom nalogu.</p>
+            <p className="meta" style={{ marginTop: 6 }}>{t('shema.nemaOpZaDio')}</p>
           ) : (
             <div style={{ marginTop: 6 }}>
               {opsZone.map(({ o, uk, go }) => (
@@ -82,7 +82,7 @@ export default function ShemaDetalji({ nalog, statusi, selektiran, onSelect }) {
 
       {ostalo.length > 0 && (
         <div className="karta" style={{ marginTop: 12 }}>
-          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>Ostale operacije (nisu vezane uz dio)</div>
+          <div className="sekcija-naslov" style={{ margin: '0 0 6px' }}>{t('shema.ostaleOperacije')}</div>
           {ostalo.map(({ o, uk, go }) => (
             <div key={o.id} className="steta-stavka">
               <span>{o.kategorija}</span>
