@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
+import { useT } from '../i18n'
 import { omoguciPush } from '../push'
 
 export default function Login() {
+  const { t } = useT()
   const { prijava } = useAuth()
   const [ime, setIme] = useState('')
   const [lozinka, setLozinka] = useState('')
@@ -27,16 +29,16 @@ export default function Login() {
     <div className="login-wrap">
       <div className="login-logo">
         <span className="b">B</span>
-        <h1>Bravel Radni Nalozi</h1>
-        <p>Servis kamiona</p>
+        <h1>{t('app.title')}</h1>
+        <p>{t('app.subtitle')}</p>
       </div>
       <form onSubmit={posalji}>
         {greska && <div className="greska">{greska}</div>}
-        <label>Korisničko ime</label>
+        <label>{t('login.username')}</label>
         <input value={ime} onChange={(e) => setIme(e.target.value)} autoCapitalize="none" autoComplete="username" required />
-        <label>Lozinka</label>
+        <label>{t('login.password')}</label>
         <input type="password" value={lozinka} onChange={(e) => setLozinka(e.target.value)} autoComplete="current-password" required />
-        <button className="btn" disabled={radi}>{radi ? 'Prijava…' : 'Prijavi se'}</button>
+        <button className="btn" disabled={radi}>{radi ? t('login.submitting') : t('login.submit')}</button>
       </form>
     </div>
   )

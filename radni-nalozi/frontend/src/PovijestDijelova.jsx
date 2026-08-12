@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 import { useAuth } from './auth'
+import { useT } from './i18n'
 import { MikrofonGumb, datum } from './ui'
 
 // Povijest zamjene dijelova za jedan kamion (kada i zašto su se mijenjali).
 // Koristi se na stranici kamiona i unutar radnog naloga.
 export default function PovijestDijelova({ vozilo, nalogId = null }) {
   const { korisnik } = useAuth()
+  const { t } = useT()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
@@ -15,7 +17,7 @@ export default function PovijestDijelova({ vozilo, nalogId = null }) {
   useEffect(() => { if (vozilo?.id) ucitaj() }, [vozilo?.id])
 
   const obrisi = async (z) => {
-    if (!window.confirm('Obrisati ovaj zapis iz povijesti?')) return
+    if (!window.confirm(t('dio.potvrdaBrisanja'))) return
     try { await api.obrisiZamjenuDijela(vozilo.id, z.id); ucitaj() } catch (e) { setGreska(e.message) }
   }
 
@@ -24,7 +26,7 @@ export default function PovijestDijelova({ vozilo, nalogId = null }) {
       {greska && <div className="greska">{greska}</div>}
 
       {!otvori && (
-        <button className="btn sekund mali" onClick={() => setOtvori(true)}>+ Zamjena dijela</button>
+        <button className="btn sekund mali" onClick={() => setOtvori(true)}>{t('dio.zamjena')}</button>
       )}
       {otvori && (
         <DodajZamjenu
@@ -37,9 +39,9 @@ export default function PovijestDijelova({ vozilo, nalogId = null }) {
       )}
 
       {lista === null ? (
-        <p className="meta">Učitavam…</p>
+        <p className="meta">{t('common.ucitavam')}</p>
       ) : lista.length === 0 ? (
-        <p className="meta" style={{ marginTop: 10 }}>Još nema zabilježenih zamjena dijelova.</p>
+        <p className="meta" style={{ marginTop: 10 }}>{t('dio.nema')}</p>
       ) : (
         <div className="dio-lista">
           {lista.map((z) => (
@@ -53,7 +55,7 @@ export default function PovijestDijelova({ vozilo, nalogId = null }) {
                 {z.kilometraza != null && <>🧭 {z.kilometraza.toLocaleString('hr-HR')} km · </>}
                 {z.promijenio?.ime}
                 {(korisnik.uloga === 'voditelj' || z.promijenio?.id === korisnik.id) && (
-                  <span className="dio-obrisi" onClick={() => obrisi(z)}> · Obriši</span>
+                  <span className="dio-obrisi" onClick={() => obrisi(z)}> · {t('common.obrisi')}</span>
                 )}
               </p>
             </div>
@@ -65,6 +67,7 @@ export default function PovijestDijelova({ vozilo, nalogId = null }) {
 }
 
 function DodajZamjenu({ voziloId, nalogId, naSpremljeno, naOdustani, naGresku }) {
+  const { t } = useT()
   const danas = new Date().toISOString().slice(0, 10)
   const [naziv, setNaziv] = useState('')
   const [razlog, setRazlog] = useState('')
@@ -89,34 +92,34 @@ function DodajZamjenu({ voziloId, nalogId, naSpremljeno, naOdustani, naGresku })
 
   return (
     <div className="karta" style={{ marginTop: 10 }}>
-      <label style={{ marginTop: 0 }}>Koji dio je zamijenjen</label>
+      <label style={{ marginTop: 0 }}>{t('dio.koji')}</label>
       <div className="polje-mik">
-        <input value={naziv} onChange={(e) => setNaziv(e.target.value)} placeholder="npr. Prednje kočione pločice" />
-        <MikrofonGumb naslov="Diktiraj naziv dijela" onTekst={(t) => setNaziv((v) => (v ? v + ' ' : '') + t)} />
+        <input value={naziv} onChange={(e) => setNaziv(e.target.value)} placeholder={t('dio.phNaziv')} />
+        <MikrofonGumb naslov={t('dio.diktirajNaziv')} onTekst={(tekst) => setNaziv((v) => (v ? v + ' ' : '') + tekst)} />
       </div>
 
-      <label>Zašto / što se desilo</label>
+      <label>{t('dio.zasto')}</label>
       <div className="polje-mik">
-        <textarea value={razlog} onChange={(e) => setRazlog(e.target.value)} placeholder="npr. istrošene, škripale su pri kočenju" />
-        <MikrofonGumb naslov="Diktiraj razlog" onTekst={(t) => setRazlog((v) => (v ? v + ' ' : '') + t)} />
+        <textarea value={razlog} onChange={(e) => setRazlog(e.target.value)} placeholder={t('dio.phRazlog')} />
+        <MikrofonGumb naslov={t('dio.diktirajRazlog')} onTekst={(tekst) => setRazlog((v) => (v ? v + ' ' : '') + tekst)} />
       </div>
 
       <div className="btn-red" style={{ marginTop: 4 }}>
         <div style={{ flex: 1, minWidth: 140 }}>
-          <label style={{ marginTop: 0 }}>Datum</label>
+          <label style={{ marginTop: 0 }}>{t('dio.datum')}</label>
           <input type="date" value={datumV} onChange={(e) => setDatumV(e.target.value)} />
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
-          <label style={{ marginTop: 0 }}>Kilometraža (opcionalno)</label>
-          <input type="number" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder="npr. 250000" />
+          <label style={{ marginTop: 0 }}>{t('dio.km')}</label>
+          <input type="number" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder={t('dio.phKm')} />
         </div>
       </div>
 
       <div className="btn-red">
         <button className="btn mali" onClick={spremi} disabled={radi || !naziv.trim()}>
-          {radi ? 'Spremam…' : 'Spremi'}
+          {radi ? t('common.spremam') : t('common.spremi')}
         </button>
-        <button className="btn sekund mali" onClick={naOdustani}>Odustani</button>
+        <button className="btn sekund mali" onClick={naOdustani}>{t('common.odustani')}</button>
       </div>
     </div>
   )

@@ -3,17 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { Bedz, Prazno, STATUS_NALOG, Spinner, datum, voziloLabel } from '../ui'
+import { useT } from '../i18n'
+import { Bedz, Prazno, Spinner, datum, voziloLabel } from '../ui'
 
 const FILTERI = [
-  { k: '', t: 'Sve' },
-  { k: 'otvoren', t: 'Otvoreni' },
-  { k: 'u_radu', t: 'U radu' },
-  { k: 'gotov', t: 'Gotovi' },
+  { k: '', lk: 'filter.sve' },
+  { k: 'otvoren', lk: 'filter.otvoreni' },
+  { k: 'u_radu', lk: 'filter.uradu' },
+  { k: 'gotov', lk: 'filter.gotovi' },
 ]
 
 export default function Nalozi() {
   const { korisnik } = useAuth()
+  const { t } = useT()
   const nav = useNavigate()
   const [lista, setLista] = useState(null)
   const [filter, setFilter] = useState('')
@@ -57,24 +59,24 @@ export default function Nalozi() {
     }
   }
 
-  const naslov = korisnik.uloga === 'radnik' ? 'Moji nalozi' : 'Radni nalozi'
+  const naslov = korisnik.uloga === 'radnik' ? t('nalozi.title.radnik') : t('nalozi.title.ostalo')
 
   return (
     <Layout naslov={naslov}>
       <div className="chips">
         {FILTERI.map((f) => (
-          <span key={f.k} className={`chip ${filter === f.k ? 'akt' : ''}`} onClick={() => setFilter(f.k)}>{f.t}</span>
+          <span key={f.k} className={`chip ${filter === f.k ? 'akt' : ''}`} onClick={() => setFilter(f.k)}>{t(f.lk)}</span>
         ))}
       </div>
 
       {greska && <div className="greska">{greska}</div>}
       {jeVoditelj && lista?.length > 0 && (
-        <p className="meta" style={{ marginTop: 0 }}>Savjet: dugim pritiskom na nalog možeš ga obrisati.</p>
+        <p className="meta" style={{ marginTop: 0 }}>{t('nalozi.savjetBrisi')}</p>
       )}
       {lista === null ? (
         <Spinner />
       ) : lista.length === 0 ? (
-        <Prazno emo="🔧" tekst="Nema naloga za prikaz." />
+        <Prazno emo="🔧" tekst={t('nalozi.prazno')} />
       ) : (
         lista.map((n) => (
           <div
@@ -94,10 +96,10 @@ export default function Nalozi() {
                 <p className="meta" style={{ margin: 0 }}>{n.broj}</p>
                 <h3>{n.naslov}</h3>
               </div>
-              <Bedz vrsta={n.status} tekst={STATUS_NALOG[n.status]} />
+              <Bedz vrsta={n.status} tekst={t('status.' + n.status)} />
             </div>
             <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
-            {n.rok && <p className="meta">📅 rok: {datum(n.rok)}</p>}
+            {n.rok && <p className="meta">📅 {t('nalozi.rok')}: {datum(n.rok)}</p>}
             {(n.voditelj || n.vozac) && (
               <p className="meta">
                 {n.voditelj && <>🧑‍🔧 {n.voditelj.ime}</>}
@@ -116,11 +118,11 @@ export default function Nalozi() {
       {brisi && (
         <div className="sheet-bg" onClick={() => setBrisi(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>Obrisati nalog?</h3>
+            <h3 style={{ marginTop: 0 }}>{t('nalozi.obrisatiNalog')}</h3>
             <p className="meta">{brisi.broj} · {brisi.naslov}</p>
-            <p className="meta" style={{ marginBottom: 16 }}>🚚 {voziloLabel(brisi.vozilo)} — brisanje je trajno.</p>
-            <button className="btn opasno" onClick={obrisi}>Obriši nalog</button>
-            <button className="btn sekund" onClick={() => setBrisi(null)} style={{ marginTop: 8 }}>Odustani</button>
+            <p className="meta" style={{ marginBottom: 16 }}>🚚 {voziloLabel(brisi.vozilo)} — {t('nalozi.brisanjeTrajno')}</p>
+            <button className="btn opasno" onClick={obrisi}>{t('nalozi.obrisiNalog')}</button>
+            <button className="btn sekund" onClick={() => setBrisi(null)} style={{ marginTop: 8 }}>{t('common.odustani')}</button>
           </div>
         </div>
       )}
