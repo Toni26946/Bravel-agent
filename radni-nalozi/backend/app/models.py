@@ -288,6 +288,27 @@ class Steta(Base):
 
 
 # ---------------------------------------------------------------------------
+# Povijest zamjene dijelova po kamionu (kada i zašto se dio mijenjao)
+# ---------------------------------------------------------------------------
+class ZamjenaDijela(Base):
+    __tablename__ = "zamjene_dijelova"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vozilo_id: Mapped[int] = mapped_column(ForeignKey("vozila.id", ondelete="CASCADE"), index=True)
+    nalog_id: Mapped[int | None] = mapped_column(ForeignKey("nalozi.id", ondelete="SET NULL"), nullable=True, index=True)
+    naziv: Mapped[str] = mapped_column(String(200))  # naziv dijela
+    razlog: Mapped[str | None] = mapped_column(Text, nullable=True)  # zašto / što se desilo
+    datum: Mapped[date] = mapped_column(Date, default=date.today)
+    kilometraza: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    promijenio_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    vozilo: Mapped["Vozilo"] = relationship()
+    nalog: Mapped["Nalog | None"] = relationship()
+    promijenio: Mapped["Korisnik"] = relationship()
+
+
+# ---------------------------------------------------------------------------
 # Operacija (kategorija posla na nalogu: motor, pneumatika, bojanje…)
 # ---------------------------------------------------------------------------
 class Operacija(Base):

@@ -69,8 +69,14 @@ export const api = {
 
   // Vozila
   vozila: () => zahtjev('/vozila'),
+  vozilo: (id) => zahtjev(`/vozila/${id}`),
   kreirajVozilo: (b) => zahtjev('/vozila', { method: 'POST', body: b }),
   uvozVozila: (tekst) => zahtjev('/vozila/uvoz', { method: 'POST', body: { tekst } }),
+
+  // Povijest zamjene dijelova (po kamionu)
+  povijestDijelova: (voziloId) => zahtjev(`/vozila/${voziloId}/dijelovi`),
+  dodajZamjenuDijela: (voziloId, b) => zahtjev(`/vozila/${voziloId}/dijelovi`, { method: 'POST', body: b }),
+  obrisiZamjenuDijela: (voziloId, id) => zahtjev(`/vozila/${voziloId}/dijelovi/${id}`, { method: 'DELETE' }),
 
   // Korisnici
   korisnici: (uloga) => zahtjev('/korisnici' + (uloga ? `?uloga=${uloga}` : '')),

@@ -12,6 +12,7 @@ import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
+import VoziloDetalj from './pages/VoziloDetalj'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
@@ -46,6 +47,9 @@ export default function App() {
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
+
+      {/* Kamion (detalj + povijest dijelova): voditelj + radnik */}
+      <Route path="/vozila/:id" element={<Zasticeno uloge={['voditelj', 'radnik']}><VoziloDetalj /></Zasticeno>} />
 
       {/* Šifrarnik: voditelj */}
       <Route path="/sifrarnik" element={<Zasticeno uloge={['voditelj']}><Sifrarnik /></Zasticeno>} />
