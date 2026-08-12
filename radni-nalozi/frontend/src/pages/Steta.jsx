@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Layout from '../Layout'
 import { api } from '../api'
 import { MikrofonGumb, Prazno, Spinner, datum } from '../ui'
+import GlasovnaSteta from '../GlasovnaSteta'
 
 // Formatiranje eura (približno — cijele brojke).
 function eur(n) {
@@ -124,9 +125,19 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
   const [aiRadi, setAiRadi] = useState(false)
   const [aiPoruka, setAiPoruka] = useState('')
   const [radi, setRadi] = useState(false)
+  const [glasOtvoren, setGlasOtvoren] = useState(false)
+  const [napomene, setNapomene] = useState([])
 
   const vozilo = vozila.find((v) => v.gb.toLowerCase() === gb.trim().toLowerCase())
   const gbNijeNadjen = gb.trim() && !vozilo
+
+  const primiGlas = ({ vozilo: v, vozacId: zid, opis: o, napomene: nap }) => {
+    if (v) setGb(v.gb)
+    if (zid) setVozacId(zid)
+    if (o) setOpis(o)
+    setNapomene(nap || [])
+    setGlasOtvoren(false)
+  }
 
   const procijeni = async () => {
     if (!opis.trim()) return
@@ -161,7 +172,24 @@ function NovaSteta({ vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
 
   return (
     <div className="karta">
-      <label style={{ marginTop: 0 }}>Kamion (garažni broj)</label>
+      <button type="button" className="btn" style={{ marginTop: 0 }} onClick={() => setGlasOtvoren(true)}>
+        🎙️ Izgovori štetu
+      </button>
+      {napomene.length > 0 && (
+        <div className="greska" style={{ background: '#fff8e1', color: '#8d6e00' }}>
+          {napomene.map((n, i) => <div key={i}>⚠️ {n}</div>)}
+        </div>
+      )}
+      {glasOtvoren && (
+        <GlasovnaSteta
+          vozila={vozila}
+          vozaci={vozaci}
+          onPopuni={primiGlas}
+          onZatvori={() => setGlasOtvoren(false)}
+        />
+      )}
+
+      <label>Kamion (garažni broj)</label>
       <input
         list="steta-gb"
         value={gb}

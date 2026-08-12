@@ -118,6 +118,8 @@ export const api = {
 
   // Šteta
   stete: () => zahtjev('/stete'),
+  glasovniParseStete: (tekst, vozaci) =>
+    zahtjev('/stete/glasovni-parse', { method: 'POST', body: { tekst, vozaci } }),
   procijeniStetu: (opis, vozilo_id) =>
     zahtjev('/stete/procjena', { method: 'POST', body: { opis, vozilo_id: vozilo_id || null } }),
   kreirajStetu: (b) => zahtjev('/stete', { method: 'POST', body: b }),

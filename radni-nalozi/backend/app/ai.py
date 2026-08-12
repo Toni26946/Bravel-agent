@@ -86,6 +86,33 @@ SUSTAV_STETA = (
 )
 
 
+SUSTAV_STETA_GOVOR = (
+    "Iz izgovorenog teksta na hrvatskom (servis kamiona) izvuci prijavu štete koju je "
+    "napravio vozač. Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
+    '{"vozilo_gb": string|null, "vozac": string|null, "opis": string}\n'
+    "Pravila:\n"
+    "- vozilo_gb: garažni broj kamiona kako je izgovoren (npr. \"122\"). Ako nije spomenut → null.\n"
+    "- vozac: odaberi TOČNO ime iz danog popisa vozača koje najbolje odgovara izgovorenom; "
+    "ako nije spomenuto ili nema poklapanja → null.\n"
+    "- opis: jasan, sažet opis onoga što je oštećeno/potrgano (bez garažnog broja i imena vozača).\n"
+    "- Ne izmišljaj podatke koji nisu izgovoreni. Vrati samo JSON."
+)
+
+
+def parsiraj_stetu_govor(tekst: str, vozaci: list[str]) -> dict:
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    korisnicki = f"IZGOVORENO:\n{tekst}\n\nVOZAČI:\n{', '.join(vozaci) or '(nema)'}"
+    poruka = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=800,
+        temperature=0,
+        system=SUSTAV_STETA_GOVOR,
+        messages=[{"role": "user", "content": korisnicki}],
+    )
+    sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
+    return _izvuci_json(sirovo)
+
+
 def procijeni_stetu(opis: str, vozilo_opis: str | None = None) -> dict:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     korisnicki = f"OŠTEĆENJE:\n{opis}"

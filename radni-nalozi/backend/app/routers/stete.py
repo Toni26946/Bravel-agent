@@ -2,12 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..ai import ai_dostupan, procijeni_stetu
+from ..ai import ai_dostupan, parsiraj_stetu_govor, procijeni_stetu
 from ..auth import zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, Steta, Uloga, Vozilo
 from ..schemas import (
     StetaCreate,
+    StetaGlasovniOdgovor,
+    StetaGlasovniZahtjev,
     StetaOut,
     StetaProcjenaOdgovor,
     StetaProcjenaZahtjev,
@@ -33,6 +35,24 @@ def _provjeri_veze(db: Session, vozilo_id: int | None, vozac_id: int | None) -> 
         v = db.get(Korisnik, vozac_id)
         if not v or v.uloga != Uloga.vozac:
             raise HTTPException(status_code=400, detail="Odabrani vozač nije valjan")
+
+
+# --- AI glasovni unos --------------------------------------------------------
+@router.post("/glasovni-parse", response_model=StetaGlasovniOdgovor)
+def glasovni_parse(z: StetaGlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)):
+    if not ai_dostupan():
+        raise HTTPException(status_code=503, detail="Glasovni unos nije konfiguriran (nedostaje ANTHROPIC_API_KEY).")
+    if not z.tekst.strip():
+        raise HTTPException(status_code=400, detail="Nema izgovorenog teksta.")
+    try:
+        podaci = parsiraj_stetu_govor(z.tekst, z.vozaci)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"AI nije uspio obraditi govor: {e}")
+    return StetaGlasovniOdgovor(
+        vozilo_gb=podaci.get("vozilo_gb") or None,
+        vozac=podaci.get("vozac") or None,
+        opis=(podaci.get("opis") or "").strip(),
+    )
 
 
 # --- AI procjena -------------------------------------------------------------
