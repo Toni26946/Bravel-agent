@@ -93,14 +93,14 @@ export default function NoviNalog() {
       const cisteOperacije = operacije
         .map((op) => ({ kategorija: op.kategorija, zadaci: op.zadaci.map((z) => z.trim()).filter(Boolean) }))
         .filter((op) => op.kategorija)
-      const n = await api.kreirajNalog({
+      const r = await api.kreirajNalog({
         vozilo_id: vozilo.id,
         voditelj_id: Number(voditeljId),
         vozac_id: vozacId ? Number(vozacId) : null,
         prijava_id: prijavaId ? Number(prijavaId) : null,
         operacije: cisteOperacije,
       })
-      nav(`/nalozi/${n.id}`, { replace: true })
+      nav(`/nalozi/${r.nalog.id}${r.spojeno ? '?spojeno=1' : ''}`, { replace: true })
     } catch (err) {
       setGreska(err.message); setRadi(false)
     }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -28,6 +28,8 @@ function ciljeviStatusa(uloga, status) {
 
 export default function NalogDetalj() {
   const { id } = useParams()
+  const [params] = useSearchParams()
+  const spojeno = params.get('spojeno') === '1'
   const { korisnik } = useAuth()
   const [n, setN] = useState(null)
   const [greska, setGreska] = useState('')
@@ -55,6 +57,9 @@ export default function NalogDetalj() {
 
   return (
     <Layout naslov={n.broj} nazad={true}>
+      {spojeno && (
+        <div className="uspjeh">🔗 Novi unos je spojen u ovaj postojeći nalog (kamion je već imao aktivan nalog).</div>
+      )}
       <div className="karta">
         <div className="naslov-red">
           <h3>{n.naslov}</h3>
