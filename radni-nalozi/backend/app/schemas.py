@@ -60,6 +60,25 @@ class KorisnikOut(ORM):
     aktivan: bool
 
 
+class KorisnikUvoz(BaseModel):
+    tekst: str  # imena, jedno po retku
+    uloga: Uloga = Uloga.radnik
+    lozinka: str = Field(default="radnik123", min_length=4)
+
+
+class KorisnikUvozStavka(BaseModel):
+    ime: str
+    korisnicko_ime: str
+
+
+class KorisnikUvozRezultat(BaseModel):
+    dodano: int
+    preskoceno: int
+    ukupno: int
+    lozinka: str
+    korisnici: list[KorisnikUvozStavka] = []
+
+
 # --- Vozilo ------------------------------------------------------------------
 class VoziloBase(BaseModel):
     gb: str
