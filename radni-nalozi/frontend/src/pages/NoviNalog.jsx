@@ -17,6 +17,7 @@ export default function NoviNalog() {
   const [vozila, setVozila] = useState([])
   const [voditelji, setVoditelji] = useState([])
   const [vozaci, setVozaci] = useState([])
+  const [radnici, setRadnici] = useState([])
 
   // korak 1 — kamion po GB
   const [gb, setGb] = useState('')
@@ -27,8 +28,8 @@ export default function NoviNalog() {
   const [voditeljId, setVoditeljId] = useState('')
   const [vozacId, setVozacId] = useState('')
 
-  // korak 3 — operacije
-  const [operacije, setOperacije] = useState([]) // [{kategorija, zadaci:[str]}]
+  // korak 3 — operacije: [{kategorija, zadaci:[{opis, zaduzeni_id, zaduzeniIme}]}]
+  const [operacije, setOperacije] = useState([])
 
   const [greska, setGreska] = useState('')
   const [radi, setRadi] = useState(false)
@@ -47,9 +48,9 @@ export default function NoviNalog() {
   }
 
   useEffect(() => {
-    Promise.all([api.vozila(), api.korisnici('voditelj'), api.korisnici('vozac')])
-      .then(([v, vd, vz]) => {
-        setVozila(v); setVoditelji(vd); setVozaci(vz)
+    Promise.all([api.vozila(), api.korisnici('voditelj'), api.korisnici('vozac'), api.korisnici('radnik')])
+      .then(([v, vd, vz, rd]) => {
+        setVozila(v); setVoditelji(vd); setVozaci(vz); setRadnici(rd)
         if (korisnik.uloga === 'voditelj') setVoditeljId(String(korisnik.id))
       })
       .catch((e) => setGreska(e.message))
@@ -73,16 +74,17 @@ export default function NoviNalog() {
     setVozilo(v)
   }
 
+  const prazanZadatak = () => ({ opis: '', zaduzeni_id: null })
   const dodajOperaciju = (kategorija) => {
     const k = (kategorija || '').trim()
     if (!k) return
-    setOperacije((o) => [...o, { kategorija: k, zadaci: [''] }])
+    setOperacije((o) => [...o, { kategorija: k, zadaci: [prazanZadatak()] }])
   }
   const makniOperaciju = (i) => setOperacije((o) => o.filter((_, idx) => idx !== i))
-  const promijeniZadatak = (oi, zi, val) =>
-    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: op.zadaci.map((z, j) => j === zi ? val : z) }))
+  const azurirajZadatak = (oi, zi, izmjene) =>
+    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: op.zadaci.map((z, j) => j === zi ? { ...z, ...izmjene } : z) }))
   const dodajZadatak = (oi) =>
-    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: [...op.zadaci, ''] }))
+    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: [...op.zadaci, prazanZadatak()] }))
   const makniZadatak = (oi, zi) =>
     setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: op.zadaci.filter((_, j) => j !== zi) }))
 
@@ -93,7 +95,12 @@ export default function NoviNalog() {
     setRadi(true)
     try {
       const cisteOperacije = operacije
-        .map((op) => ({ kategorija: op.kategorija, zadaci: op.zadaci.map((z) => z.trim()).filter(Boolean) }))
+        .map((op) => ({
+          kategorija: op.kategorija,
+          zadaci: op.zadaci
+            .map((z) => ({ opis: (z.opis || '').trim(), zaduzeni_id: z.zaduzeni_id || null }))
+            .filter((z) => z.opis),
+        }))
         .filter((op) => op.kategorija)
       const r = await api.kreirajNalog({
         vozilo_id: vozilo.id,
@@ -126,6 +133,7 @@ export default function NoviNalog() {
           vozila={vozila}
           voditelji={voditelji}
           vozaci={vozaci}
+          radnici={radnici}
           onPopuni={primiGlas}
           onZatvori={() => setGlasOtvoren(false)}
         />
@@ -192,10 +200,20 @@ export default function NoviNalog() {
                 <span className="x" onClick={() => makniOperaciju(oi)}>×</span>
               </div>
               {op.zadaci.map((z, zi) => (
-                <div key={zi} className="btn-red" style={{ marginTop: 8, alignItems: 'stretch' }}>
-                  <input value={z} onChange={(e) => promijeniZadatak(oi, zi, e.target.value)} placeholder={`${t('noviNalog.zadatak')} ${zi + 1}`} />
-                  <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => promijeniZadatak(oi, zi, (z ? z + ' ' : '') + tekst)} />
-                  {op.zadaci.length > 1 && <span className="x" onClick={() => makniZadatak(oi, zi)}>×</span>}
+                <div key={zi} style={{ marginTop: 8 }}>
+                  <div className="btn-red" style={{ marginTop: 0, alignItems: 'stretch' }}>
+                    <input value={z.opis} onChange={(e) => azurirajZadatak(oi, zi, { opis: e.target.value })} placeholder={`${t('noviNalog.zadatak')} ${zi + 1}`} />
+                    <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => azurirajZadatak(oi, zi, { opis: (z.opis ? z.opis + ' ' : '') + tekst })} />
+                    {op.zadaci.length > 1 && <span className="x" onClick={() => makniZadatak(oi, zi)}>×</span>}
+                  </div>
+                  <select
+                    style={{ marginTop: 6 }}
+                    value={z.zaduzeni_id || ''}
+                    onChange={(e) => azurirajZadatak(oi, zi, { zaduzeni_id: e.target.value ? Number(e.target.value) : null })}
+                  >
+                    <option value="">{t('op.radnik')} —</option>
+                    {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+                  </select>
                 </div>
               ))}
               <button type="button" className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => dodajZadatak(oi)}>{t('noviNalog.dodajZadatak')}</button>

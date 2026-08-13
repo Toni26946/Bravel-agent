@@ -31,7 +31,9 @@ from ..schemas import (
     DioOut,
     DodjelaUpdate,
     FotografijaOut,
+    GlasovnaOperacija,
     GlasovniOdgovor,
+    GlasovniZadatak,
     GlasovniZahtjev,
     NalogCreate,
     NalogCreateOut,
@@ -60,6 +62,20 @@ def _sljedeci_broj(db: Session) -> str:
     prefiks = f"RN-{godina}-"
     n = db.query(Nalog).filter(Nalog.broj.like(f"{prefiks}%")).count()
     return f"{prefiks}{n + 1:04d}"
+
+
+def _zadatak_unos(z) -> tuple[str, int | None]:
+    """Normaliziraj stavku zadatka (string ili {opis, zaduzeni_id}) → (opis, zaduzeni_id)."""
+    if isinstance(z, str):
+        return z.strip(), None
+    return (z.opis or "").strip(), z.zaduzeni_id
+
+
+def _valjani_zaduzeni(db: Session, zad_id: int | None) -> int | None:
+    if zad_id is None:
+        return None
+    r = db.get(Korisnik, zad_id)
+    return zad_id if (r and r.uloga == Uloga.radnik) else None
 
 
 def _je_dodijeljen(db: Session, nalog_id: int, radnik_id: int) -> bool:
@@ -105,15 +121,23 @@ def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)):
     if not z.tekst.strip():
         raise HTTPException(status_code=400, detail="Nema izgovorenog teksta.")
     try:
-        podaci = parsiraj(z.tekst, z.kategorije, z.voditelji, z.vozaci)
+        podaci = parsiraj(z.tekst, z.kategorije, z.voditelji, z.vozaci, z.radnici)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"AI nije uspio obraditi govor: {e}")
-    operacije = [
-        {"kategorija": (o.get("kategorija") or "").strip(),
-         "zadaci": [t.strip() for t in (o.get("zadaci") or []) if t and t.strip()]}
-        for o in (podaci.get("operacije") or [])
-        if (o.get("kategorija") or "").strip()
-    ]
+    operacije = []
+    for o in (podaci.get("operacije") or []):
+        kat = (o.get("kategorija") or "").strip()
+        if not kat:
+            continue
+        zadaci = []
+        for zd in (o.get("zadaci") or []):
+            if isinstance(zd, str):
+                opis, radnik = zd.strip(), None
+            else:
+                opis, radnik = (zd.get("opis") or "").strip(), (zd.get("radnik") or None)
+            if opis:
+                zadaci.append(GlasovniZadatak(opis=opis, radnik=radnik))
+        operacije.append(GlasovnaOperacija(kategorija=kat, zadaci=zadaci))
     return GlasovniOdgovor(
         vozilo_gb=podaci.get("vozilo_gb") or None,
         voditelj=podaci.get("voditelj") or None,
@@ -162,9 +186,10 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
             db.flush()
             po_kat[kat.lower()] = cilj
         base = len(cilj.zadaci)
-        for j, opis in enumerate(op.zadaci):
-            if opis.strip():
-                db.add(Zadatak(operacija_id=cilj.id, opis=opis.strip(), redoslijed=base + j))
+        for j, z in enumerate(op.zadaci):
+            opis, zad_id = _zadatak_unos(z)
+            if opis:
+                db.add(Zadatak(operacija_id=cilj.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=base + j))
 
 
 # --- kreiranje (voditelj) ----------------------------------------------------
@@ -235,9 +260,10 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         operacija = Operacija(nalog_id=nalog.id, kategorija=op.kategorija.strip(), redoslijed=i)
         db.add(operacija)
         db.flush()
-        for j, opis in enumerate(op.zadaci):
-            if opis.strip():
-                db.add(Zadatak(operacija_id=operacija.id, opis=opis.strip(), redoslijed=j))
+        for j, z in enumerate(op.zadaci):
+            opis, zad_id = _zadatak_unos(z)
+            if opis:
+                db.add(Zadatak(operacija_id=operacija.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=None, novi_status=StatusNaloga.otvoren.value,
         napomena="Nalog kreiran", promijenio_id=voditelj.id,
@@ -421,9 +447,10 @@ def dodaj_operaciju(
     op = Operacija(nalog_id=nalog_id, kategorija=podaci.kategorija.strip(), redoslijed=redoslijed)
     db.add(op)
     db.flush()
-    for j, opis in enumerate(podaci.zadaci):
-        if opis.strip():
-            db.add(Zadatak(operacija_id=op.id, opis=opis.strip(), redoslijed=j))
+    for j, z in enumerate(podaci.zadaci):
+        opis, zad_id = _zadatak_unos(z)
+        if opis:
+            db.add(Zadatak(operacija_id=op.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
     db.commit()
     db.refresh(op)
     return op

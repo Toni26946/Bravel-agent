@@ -23,15 +23,18 @@ SUSTAV = (
     "tražene vrijednosti (kategorije koristi iz danog popisa na hrvatskom). "
     "Vrati ISKLJUČIVO valjani JSON, bez teksta oko njega, točno ovog oblika:\n"
     '{"vozilo_gb": string|null, "voditelj": string|null, "vozac": string|null, '
-    '"operacije": [{"kategorija": string, "zadaci": [string, ...]}]}\n'
+    '"operacije": [{"kategorija": string, "zadaci": [{"opis": string, "radnik": string|null}]}]}\n'
     "Pravila:\n"
     "- vozilo_gb: garažni broj vozila kako je izgovoren (npr. \"21\"). Ako nije spomenut → null.\n"
     "- voditelj i vozac: odaberi TOČNO ime iz danih popisa koje najbolje odgovara "
     "izgovorenom; ako nije spomenuto ili nema poklapanja → null.\n"
     "- Svaku operaciju svrstaj u NAJBLIŽU kategoriju iz popisa DOZVOLJENE KATEGORIJE i "
     "koristi točan naziv iz tog popisa. Ako baš ništa ne odgovara, koristi izgovorenu riječ.\n"
-    "- zadaci: kratki konkretni radovi unutar te operacije (npr. \"zamjena ulja\", "
-    "\"provjera pločica\"). Grupiraj zadatke pod pravu operaciju.\n"
+    "- zadaci: kratki konkretni radovi unutar te operacije. Svaki zadatak je objekt "
+    "{opis, radnik}. opis = konkretan rad (npr. \"zamjena ulja\").\n"
+    "- radnik: ako je uz taj zadatak (ili operaciju) spomenut radnik/mehaničar koji ga "
+    "obavlja, odaberi TOČNO ime iz popisa RADNICI koje najbolje odgovara izgovorenom; "
+    "inače null. Ako je radnik spomenut za cijelu operaciju, primijeni ga na sve njezine zadatke.\n"
     "- Ako je spomenut posao bez jasne kategorije, stavi ga pod \"RAZNO\".\n"
     "- Ne izmišljaj podatke koji nisu izgovoreni."
 )
@@ -51,13 +54,17 @@ def _izvuci_json(tekst: str) -> dict:
     return json.loads(t)
 
 
-def parsiraj(tekst: str, kategorije: list[str], voditelji: list[str], vozaci: list[str]) -> dict:
+def parsiraj(
+    tekst: str, kategorije: list[str], voditelji: list[str],
+    vozaci: list[str], radnici: list[str] | None = None,
+) -> dict:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     korisnicki = (
         f"IZGOVORENO:\n{tekst}\n\n"
         f"DOZVOLJENE KATEGORIJE:\n{', '.join(kategorije) or '(nema)'}\n\n"
         f"VODITELJI:\n{', '.join(voditelji) or '(nema)'}\n\n"
-        f"VOZAČI:\n{', '.join(vozaci) or '(nema)'}"
+        f"VOZAČI:\n{', '.join(vozaci) or '(nema)'}\n\n"
+        f"RADNICI:\n{', '.join(radnici or []) or '(nema)'}"
     )
     poruka = client.messages.create(
         model=settings.anthropic_model,
