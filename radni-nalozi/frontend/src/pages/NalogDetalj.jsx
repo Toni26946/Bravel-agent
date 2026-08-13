@@ -3,8 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import PovijestDijelova from '../PovijestDijelova'
-import Shema from '../shema/Shema'
 import { useT } from '../i18n'
 import {
   Bedz, KategorijaPicker, MikrofonGumb, Spinner, datum, datumVrijeme, voziloLabel,
@@ -38,7 +36,6 @@ export default function NalogDetalj() {
   const [n, setN] = useState(null)
   const [greska, setGreska] = useState('')
   const [radnici, setRadnici] = useState([])
-  const [prikaziShemu, setPrikaziShemu] = useState(false)
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -91,32 +88,6 @@ export default function NalogDetalj() {
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
-
-      {/* Shema kamiona (2D nacrt / 3D) */}
-      <div className="sekcija-naslov">{t('nalog.shemaKamiona')}</div>
-      {!prikaziShemu ? (
-        <button className="btn sekund" onClick={() => setPrikaziShemu(true)}>📐 {t('nalog.prikaziShemu')}</button>
-      ) : (
-        <Shema nalog={n} />
-      )}
-
-      {/* Povijest dijelova na kamionu (ispod sheme) */}
-      <div className="sekcija-naslov">{t('nalog.povijestDijelova', { gb: n.vozilo?.gb })}</div>
-      <PovijestDijelova vozilo={n.vozilo} nalogId={n.id} />
-
-      {/* Povijest statusa */}
-      <div className="sekcija-naslov">{t('nalog.povijestStatusa')}</div>
-      <div className="karta">
-        {n.povijest.map((p) => (
-          <div key={p.id} className="stavka">
-            <div>
-              <strong>{p.stari_status ? `${t('status.' + p.stari_status)} → ` : ''}{t('status.' + p.novi_status)}</strong>
-              <div className="meta">{p.promijenio?.ime}{p.napomena ? ` · ${p.napomena}` : ''}</div>
-            </div>
-            <span className="meta">{datumVrijeme(p.kreiran)}</span>
-          </div>
-        ))}
-      </div>
     </Layout>
   )
 }
