@@ -3,6 +3,7 @@ import json
 import logging
 
 from .config import settings
+from .pojmovnik import pojmovnik_blok
 
 log = logging.getLogger("ai")
 
@@ -36,6 +37,9 @@ SUSTAV = (
     "obavlja, odaberi TOČNO ime iz popisa RADNICI koje najbolje odgovara izgovorenom; "
     "inače null. Ako je radnik spomenut za cijelu operaciju, primijeni ga na sve njezine zadatke.\n"
     "- Ako je spomenut posao bez jasne kategorije, stavi ga pod \"RAZNO\".\n"
+    "- Ulaz može sadržavati žargon i germanizme automehaničara (npr. \"lajtung\", "
+    "\"pakne\", \"dizna\"). Koristi priloženi RJEČNIK IZRAZA da ih protumačiš u ispravan "
+    "naziv dijela/rada — nemoj ih doslovno prepisivati ako imaju poznato značenje.\n"
     "- Ne izmišljaj podatke koji nisu izgovoreni."
 )
 
@@ -59,12 +63,14 @@ def parsiraj(
     vozaci: list[str], radnici: list[str] | None = None,
 ) -> dict:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    rjecnik = pojmovnik_blok()
     korisnicki = (
         f"IZGOVORENO:\n{tekst}\n\n"
         f"DOZVOLJENE KATEGORIJE:\n{', '.join(kategorije) or '(nema)'}\n\n"
         f"VODITELJI:\n{', '.join(voditelji) or '(nema)'}\n\n"
         f"VOZAČI:\n{', '.join(vozaci) or '(nema)'}\n\n"
         f"RADNICI:\n{', '.join(radnici or []) or '(nema)'}"
+        + (f"\n\n{rjecnik}" if rjecnik else "")
     )
     poruka = client.messages.create(
         model=settings.anthropic_model,
@@ -106,13 +112,18 @@ SUSTAV_STETA_GOVOR = (
     "- vozac: odaberi TOČNO ime iz danog popisa vozača koje najbolje odgovara izgovorenom; "
     "ako nije spomenuto ili nema poklapanja → null.\n"
     "- opis: jasan, sažet opis onoga što je oštećeno/potrgano (bez garažnog broja i imena vozača).\n"
+    "- Ulaz može sadržavati žargon/germanizme (npr. \"lajtung\", \"pakne\"); koristi priloženi "
+    "RJEČNIK IZRAZA da ih protumačiš u ispravan naziv u opisu.\n"
     "- Ne izmišljaj podatke koji nisu izgovoreni. Vrati samo JSON."
 )
 
 
 def parsiraj_stetu_govor(tekst: str, vozaci: list[str]) -> dict:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    rjecnik = pojmovnik_blok()
     korisnicki = f"IZGOVORENO:\n{tekst}\n\nVOZAČI:\n{', '.join(vozaci) or '(nema)'}"
+    if rjecnik:
+        korisnicki += f"\n\n{rjecnik}"
     poruka = client.messages.create(
         model=settings.anthropic_model,
         max_tokens=800,
@@ -129,6 +140,9 @@ def procijeni_stetu(opis: str, vozilo_opis: str | None = None) -> dict:
     korisnicki = f"OŠTEĆENJE:\n{opis}"
     if vozilo_opis:
         korisnicki += f"\n\nVOZILO:\n{vozilo_opis}"
+    rjecnik = pojmovnik_blok()
+    if rjecnik:
+        korisnicki += f"\n\n{rjecnik}"
     poruka = client.messages.create(
         model=settings.anthropic_model,
         max_tokens=1200,
