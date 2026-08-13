@@ -131,22 +131,29 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .stavka { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rub); }
 .stavka:last-child { border-bottom: none; }
 .stavka .x { color: var(--crvena); font-size: 20px; padding: 4px 8px; cursor: pointer; }
-/* Tablica operacija/zadataka (Operacija | Radnik) */
+/* Tablica operacija/zadataka (Zadatak | Radnik | briši) */
 .op-tablica { border: 1px solid var(--rub); border-radius: var(--radius); overflow: hidden; background: var(--karta); box-shadow: var(--sjena); }
-.op-head { display: grid; grid-template-columns: 1fr 132px; }
-.op-head > div { padding: 10px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--sivo); background: #f4f6f9; }
+.op-head, .op-red { display: grid; grid-template-columns: 1fr 130px 38px; }
+.op-head > div { padding: 9px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--sivo); background: #eef2f7; }
 .op-head > div + div { border-left: 1px solid var(--rub); }
 .op-prazno { padding: 16px 12px; color: var(--sivo); font-size: 14px; border-top: 1px solid var(--rub); }
-.op-kat { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 12px; font-weight: 700; font-size: 14px; background: #fafbfc; border-top: 1px solid var(--rub); color: var(--tekst); text-transform: uppercase; letter-spacing: .2px; }
-.op-red { display: grid; grid-template-columns: 1fr 132px; border-top: 1px solid var(--rub); }
-.op-zad { padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
-.op-zad input[type="checkbox"] { width: 20px; height: 20px; flex: none; margin-top: 1px; }
-.op-zad > span:not(.x) { flex: 1; line-height: 1.35; }
+.op-grupa { border-top: 1px solid var(--rub); }
+/* Grupni red kategorije — istaknut kao naslov grupe u tablici */
+.op-kat { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-weight: 800; font-size: 13px; background: var(--plava); color: #fff; text-transform: uppercase; letter-spacing: .3px; }
+.op-kat .op-kat-ime { flex: 1; min-width: 0; }
+.op-kat .op-kat-broj { font-size: 12px; font-weight: 700; background: rgba(255,255,255,.22); padding: 2px 9px; border-radius: 20px; flex: none; }
+.op-kat .x { color: #fff; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; flex: none; }
+.op-red { border-top: 1px solid var(--rub); }
+.op-red.alt { background: #f8fafc; }
+.op-zad { padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; min-width: 0; cursor: pointer; margin: 0; }
+.op-zad input[type="checkbox"] { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: var(--plava); }
+.op-zad > span { flex: 1; line-height: 1.35; word-break: break-word; }
 .op-zad .zad-gotov { text-decoration: line-through; color: var(--sivo); }
-.op-rad { border-left: 1px solid var(--rub); display: flex; align-items: center; padding: 4px; }
+.op-rad { border-left: 1px solid var(--rub); display: flex; align-items: center; padding: 2px 4px; }
 .rad-select { border: none; background: transparent; padding: 6px 4px; font-size: 13px; width: 100%; color: var(--tekst); }
-.x.mini { font-size: 17px; line-height: 1; color: var(--crvena); padding: 0 2px; flex: none; }
-.op-dodaj { padding: 8px 12px 12px; border-top: 1px dashed var(--rub); }
+.op-x { border-left: 1px solid var(--rub); display: flex; align-items: center; justify-content: center; }
+.op-x .x { color: var(--crvena); font-size: 18px; line-height: 1; cursor: pointer; padding: 6px; }
+.op-dodaj { padding: 8px 12px 12px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
 .op-dodaj input { font-size: 15px; }
 
 /* Mikrofon (diktiranje) */
