@@ -12,7 +12,7 @@ from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
 from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
-from .seed import seed
+from .seed import seed, seed_radnici
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("app")
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     with SessionLocal() as db:
         seed(db)
+        seed_radnici(db)
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
 
