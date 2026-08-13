@@ -184,9 +184,15 @@ class OperacijaOut(ORM):
     zadaci: list[ZadatakOut] = []
 
 
+class ZadatakUnos(BaseModel):
+    opis: str
+    zaduzeni_id: int | None = None
+
+
 class OperacijaCreate(BaseModel):
     kategorija: str
-    zadaci: list[str] = []  # opisi zadataka
+    # može biti popis opisa (string) ili objekata {opis, zaduzeni_id}
+    zadaci: list[ZadatakUnos | str] = []
 
 
 class ZadatakDodaj(BaseModel):
@@ -205,11 +211,17 @@ class GlasovniZahtjev(BaseModel):
     kategorije: list[str] = []
     voditelji: list[str] = []
     vozaci: list[str] = []
+    radnici: list[str] = []
+
+
+class GlasovniZadatak(BaseModel):
+    opis: str
+    radnik: str | None = None
 
 
 class GlasovnaOperacija(BaseModel):
     kategorija: str
-    zadaci: list[str] = []
+    zadaci: list[GlasovniZadatak] = []
 
 
 class GlasovniOdgovor(BaseModel):

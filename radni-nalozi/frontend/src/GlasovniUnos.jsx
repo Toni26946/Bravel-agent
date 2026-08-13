@@ -28,7 +28,7 @@ function nadjiOsobu(popis, ime) {
   )
 }
 
-export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZatvori }) {
+export default function GlasovniUnos({ vozila, voditelji, vozaci, radnici = [], onPopuni, onZatvori }) {
   const { t, jezik } = useT()
   const [tekst, setTekst] = useState('')
   const [slusa, setSlusa] = useState(false)
@@ -102,13 +102,19 @@ export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZa
         KATEGORIJE,
         voditelji.map((v) => v.ime),
         vozaci.map((v) => v.ime),
+        radnici.map((v) => v.ime),
       )
       const vozilo = nadjiVozilo(vozila, r.vozilo_gb)
       const voditelj = nadjiOsobu(voditelji, r.voditelj)
       const vozac = nadjiOsobu(vozaci, r.vozac)
+      const nepoznatiRadnici = new Set()
       const operacije = (r.operacije || []).map((o) => ({
         kategorija: o.kategorija,
-        zadaci: o.zadaci && o.zadaci.length ? o.zadaci : [''],
+        zadaci: (o.zadaci && o.zadaci.length ? o.zadaci : [{ opis: '', radnik: null }]).map((z) => {
+          const rad = nadjiOsobu(radnici, z.radnik)
+          if (z.radnik && !rad) nepoznatiRadnici.add(z.radnik)
+          return { opis: z.opis || '', zaduzeni_id: rad ? rad.id : null, zaduzeniIme: rad ? rad.ime : null }
+        }),
       }))
       onPopuni({
         vozilo,
@@ -118,6 +124,7 @@ export default function GlasovniUnos({ vozila, voditelji, vozaci, onPopuni, onZa
         napomene: [
           r.vozilo_gb && !vozilo ? t('glas.kamionNijeNadjen', { gb: r.vozilo_gb }) : '',
           r.voditelj && !voditelj ? t('glas.voditeljNijePrepoznat', { ime: r.voditelj }) : '',
+          ...[...nepoznatiRadnici].map((ime) => t('glas.radnikNijePrepoznat', { ime })),
         ].filter(Boolean),
       })
     } catch (e) {

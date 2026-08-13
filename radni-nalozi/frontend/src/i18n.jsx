@@ -123,6 +123,7 @@ const HR = {
   'glas.popuniNalog': '✨ Popuni nalog', 'glas.popuniStetu': '✨ Popuni štetu',
   'glas.kamionNijeNadjen': 'Kamion „{gb}” nije pronađen — odaberi ručno.',
   'glas.voditeljNijePrepoznat': 'Voditelj „{ime}” nije prepoznat.', 'glas.vozacNijePrepoznat': 'Vozač „{ime}” nije prepoznat.',
+  'glas.radnikNijePrepoznat': 'Radnik „{ime}” nije prepoznat.',
   // šteta
   'steta.ukupno': 'ukupna procijenjena šteta', 'steta.stavki': 'stavki', 'steta.poVozacu': 'Po vozaču',
   'steta.nova': '+ Nova šteta', 'steta.prazno': 'Još nema zabilježene štete.', 'steta.bezKamiona': 'Bez kamiona',
@@ -237,6 +238,7 @@ const EN = {
   'glas.popuniNalog': '✨ Fill the order', 'glas.popuniStetu': '✨ Fill the damage',
   'glas.kamionNijeNadjen': 'Truck “{gb}” not found — select manually.',
   'glas.voditeljNijePrepoznat': 'Manager “{ime}” not recognized.', 'glas.vozacNijePrepoznat': 'Driver “{ime}” not recognized.',
+  'glas.radnikNijePrepoznat': 'Worker “{ime}” not recognized.',
   'steta.ukupno': 'total estimated damage', 'steta.stavki': 'items', 'steta.poVozacu': 'By driver',
   'steta.nova': '+ New damage', 'steta.prazno': 'No damage recorded yet.', 'steta.bezKamiona': 'No truck',
   'steta.izgovori': '🎙️ Speak the damage', 'steta.kamion': 'Truck (garage number)', 'steta.phGb': 'e.g. 122 (optional)',
