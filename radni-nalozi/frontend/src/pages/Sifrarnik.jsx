@@ -91,8 +91,23 @@ function Korisnici() {
   const [otvori, setOtvori] = useState(false)
   const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: '', uloga: 'radnik', telefon: '' })
 
+  // uvoz radnika
+  const [uvozOtvori, setUvozOtvori] = useState(false)
+  const [uvozTekst, setUvozTekst] = useState('')
+  const [uvozLozinka, setUvozLozinka] = useState('radnik123')
+  const [uvozRezultat, setUvozRezultat] = useState(null)
+  const [uvozRadi, setUvozRadi] = useState(false)
+
   const ucitaj = () => api.korisnici().then(setLista).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
+
+  const uvezi = async () => {
+    setGreska(''); setUvozRezultat(null); setUvozRadi(true)
+    try {
+      const r = await api.uvozKorisnika(uvozTekst, 'radnik', uvozLozinka)
+      setUvozRezultat(r); setUvozTekst(''); ucitaj()
+    } catch (e) { setGreska(e.message) } finally { setUvozRadi(false) }
+  }
 
   const spremi = async (e) => {
     e.preventDefault()
@@ -112,7 +127,45 @@ function Korisnici() {
   return (
     <>
       {greska && <div className="greska">{greska}</div>}
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)}>{t('sif.noviKorisnik')}</button>}
+
+      {/* Uvoz radnika iz popisa imena */}
+      {!uvozOtvori ? (
+        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>{t('sif.uvoziRadnike')}</button>
+      ) : (
+        <div className="karta">
+          <label style={{ marginTop: 0 }}>{t('sif.zalijepiImena')}</label>
+          <p className="meta" style={{ marginTop: 0 }}>{t('sif.uvozRadHint')}</p>
+          <textarea
+            value={uvozTekst}
+            onChange={(e) => setUvozTekst(e.target.value)}
+            placeholder={'Kobeščak Davor\nAzinović Mario\nKarthik Raju'}
+            style={{ minHeight: 140 }}
+          />
+          <label>{t('sif.pocetnaLozinka')}</label>
+          <input value={uvozLozinka} onChange={(e) => setUvozLozinka(e.target.value)} />
+          {uvozRezultat && (
+            <>
+              <div className="uspjeh">{t('sif.uvozRadRezultat', { d: uvozRezultat.dodano, p: uvozRezultat.preskoceno, l: uvozRezultat.lozinka })}</div>
+              {uvozRezultat.korisnici.length > 0 && (
+                <div className="dio-lista" style={{ marginTop: 8 }}>
+                  {uvozRezultat.korisnici.map((u) => (
+                    <div key={u.korisnicko_ime} className="steta-stavka">
+                      <span>{u.ime}</span>
+                      <span className="c">@{u.korisnicko_ime}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          <div className="btn-red">
+            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? t('sif.uvozim') : t('sif.uveziBtn')}</button>
+            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>{t('sif.zatvori')}</button>
+          </div>
+        </div>
+      )}
+
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.noviKorisnik')}</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
           <label>{t('sif.ime')}</label>

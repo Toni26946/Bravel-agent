@@ -82,6 +82,8 @@ export const api = {
   // Korisnici
   korisnici: (uloga) => zahtjev('/korisnici' + (uloga ? `?uloga=${uloga}` : '')),
   kreirajKorisnika: (b) => zahtjev('/korisnici', { method: 'POST', body: b }),
+  uvozKorisnika: (tekst, uloga = 'radnik', lozinka) =>
+    zahtjev('/korisnici/uvoz', { method: 'POST', body: { tekst, uloga, lozinka } }),
   azurirajKorisnika: (id, b) => zahtjev(`/korisnici/${id}`, { method: 'PATCH', body: b }),
 
   // Prijave
