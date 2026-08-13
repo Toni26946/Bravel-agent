@@ -9,7 +9,7 @@ primary_region = "ams"
   UPLOAD_DIR = "/app/data/uploads"
   # Zadano SQLite na trajnom volumenu. Za Postgres postavi tajnu DATABASE_URL.
   DATABASE_URL = "sqlite:////app/data/radni_nalozi.db"
-  CORS_ORIGINS = "*"
+  CORS_ORIGINS = "https://nalozibravel.zgdata.hr,https://bravel-radni-nalozi.fly.dev"
 
 [http_service]
   internal_port = 8080

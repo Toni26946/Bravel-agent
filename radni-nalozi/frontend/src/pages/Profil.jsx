@@ -65,7 +65,7 @@ function PromjenaLozinke() {
   const spremi = async (e) => {
     e.preventDefault()
     setGreska(''); setUspjeh('')
-    if (nova.length < 4) { setGreska(t('profil.lozKratka')); return }
+    if (nova.length < 8) { setGreska(t('profil.lozKratka')); return }
     if (nova !== potvrda) { setGreska(t('profil.lozNePodudara')); return }
     setRadi(true)
     try {

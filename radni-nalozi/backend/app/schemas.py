@@ -28,7 +28,7 @@ class Token(BaseModel):
 
 class PromjenaLozinke(BaseModel):
     stara_lozinka: str
-    nova_lozinka: str = Field(min_length=4)
+    nova_lozinka: str = Field(min_length=8)
 
 
 # --- Korisnik ----------------------------------------------------------------
@@ -40,7 +40,7 @@ class KorisnikBase(BaseModel):
 
 
 class KorisnikCreate(KorisnikBase):
-    lozinka: str = Field(min_length=4)
+    lozinka: str = Field(min_length=8)
 
 
 class KorisnikUpdate(BaseModel):
@@ -48,7 +48,7 @@ class KorisnikUpdate(BaseModel):
     uloga: Uloga | None = None
     telefon: str | None = None
     aktivan: bool | None = None
-    lozinka: str | None = Field(default=None, min_length=4)
+    lozinka: str | None = Field(default=None, min_length=8)
 
 
 class KorisnikOut(ORM):

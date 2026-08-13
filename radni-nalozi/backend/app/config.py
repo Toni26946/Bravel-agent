@@ -1,7 +1,16 @@
 """Konfiguracija aplikacije (čita se iz env varijabli / .env)."""
+import logging
+import os
+import secrets
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+log = logging.getLogger("config")
+
+# Placeholder koji se NE smije koristiti u produkciji.
+_ZADANA_TAJNA = "promijeni-me-u-produkciji"
 
 
 class Settings(BaseSettings):
@@ -11,7 +20,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./radni_nalozi.db"
 
     # JWT
-    jwt_secret: str = "promijeni-me-u-produkciji"
+    jwt_secret: str = _ZADANA_TAJNA
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 dana
 
@@ -52,3 +61,40 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+@lru_cache
+def jwt_secret() -> str:
+    """Vraća efektivni JWT ključ.
+
+    Ako je JWT_SECRET eksplicitno postavljen (env/secret), koristi se. Inače se
+    generira nasumičan ključ i trajno pohranjuje uz podatke (npr. na Fly volumenu),
+    pa preživljava restarte, ali nikad nije poznati zadani placeholder.
+    """
+    if settings.jwt_secret and settings.jwt_secret != _ZADANA_TAJNA:
+        return settings.jwt_secret
+
+    datoteka = Path(settings.upload_dir).parent / ".jwt_secret"
+    try:
+        if datoteka.exists():
+            postojeci = datoteka.read_text(encoding="utf-8").strip()
+            if postojeci:
+                return postojeci
+        datoteka.parent.mkdir(parents=True, exist_ok=True)
+        novi = secrets.token_urlsafe(48)
+        datoteka.write_text(novi, encoding="utf-8")
+        try:
+            os.chmod(datoteka, 0o600)
+        except OSError:
+            pass
+        log.warning(
+            "JWT_SECRET nije postavljen — generiran je nasumičan ključ i pohranjen u %s. "
+            "Za višestruke instance postavite JWT_SECRET kao tajnu.",
+            datoteka,
+        )
+        return novi
+    except OSError:
+        # Krajnji fallback: nasumičan ključ po procesu (tokeni ne preživljavaju restart,
+        # ali nikad nije nesigurni zadani placeholder).
+        log.error("Ne mogu pohraniti JWT ključ; koristim privremeni ključ po procesu.")
+        return secrets.token_urlsafe(48)
