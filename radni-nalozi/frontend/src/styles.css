@@ -142,6 +142,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2 { display: grid; grid-template-columns: 1fr 150px; border-top: 2px solid var(--rub); }
 .op2-kat { display: flex; align-items: center; gap: 8px; padding: 9px 12px 6px; font-weight: 800; font-size: 15px; color: var(--plava); text-transform: uppercase; letter-spacing: .2px; min-width: 0; }
 .op2-kat .op2-ime { flex: 1; min-width: 0; word-break: break-word; }
+.op2-kat .op2-plus { color: var(--plava); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; flex: none; }
 .op2-kat .x { color: var(--crvena); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 4px; flex: none; }
 .op2-kat-r { border-left: 1px solid var(--rub); }
 .op2-zad { display: flex; align-items: flex-start; gap: 9px; padding: 9px 12px; border-top: 1px solid var(--rub); cursor: pointer; margin: 0; min-width: 0; }
