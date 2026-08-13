@@ -137,39 +137,7 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
         <div className="op-head"><div>{t('op.operacija')}</div><div>{t('op.radnik')}</div></div>
         {nalog.operacije.length === 0 && <div className="op-prazno">{t('op.nemaOperacija')}</div>}
         {nalog.operacije.map((op) => (
-          <div key={op.id} className="op2">
-            <div className="op2-kat">
-              <span className="op2-ime">{op.kategorija}</span>
-              <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
-            </div>
-            <div className="op2-kat-r" />
-            {op.zadaci.map((z) => (
-              <Fragment key={z.id}>
-                <label className="op2-zad">
-                  <input
-                    type="checkbox"
-                    checked={z.gotovo}
-                    onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
-                  />
-                  <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
-                  <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
-                </label>
-                <div className="op2-rad">
-                  <select
-                    className="rad-select"
-                    value={z.zaduzeni?.id || ''}
-                    onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
-                  >
-                    <option value="">—</option>
-                    {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-                  </select>
-                </div>
-              </Fragment>
-            ))}
-            <div className="op2-dodaj">
-              <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={ucitaj} naGresku={naGresku} />
-            </div>
-          </div>
+          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} />
         ))}
       </div>
 
@@ -178,6 +146,48 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
         <KategorijaPicker onOdaberi={dodajOp} />
       </div>
     </>
+  )
+}
+
+function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku }) {
+  const [dodaje, setDodaje] = useState(false)
+  return (
+    <div className="op2">
+      <div className="op2-kat">
+        <span className="op2-ime">{op.kategorija}</span>
+        <span className="op2-plus" onClick={() => setDodaje((v) => !v)}>＋</span>
+        <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
+      </div>
+      <div className="op2-kat-r" />
+      {op.zadaci.map((z) => (
+        <Fragment key={z.id}>
+          <label className="op2-zad">
+            <input
+              type="checkbox"
+              checked={z.gotovo}
+              onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+            />
+            <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
+            <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+          </label>
+          <div className="op2-rad">
+            <select
+              className="rad-select"
+              value={z.zaduzeni?.id || ''}
+              onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
+            >
+              <option value="">—</option>
+              {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+            </select>
+          </div>
+        </Fragment>
+      ))}
+      {dodaje && (
+        <div className="op2-dodaj">
+          <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={() => { setDodaje(false); ucitaj() }} naGresku={naGresku} />
+        </div>
+      )}
+    </div>
   )
 }
 
