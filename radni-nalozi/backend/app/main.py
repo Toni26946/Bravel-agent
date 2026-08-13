@@ -5,8 +5,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
 from .database import Base, SessionLocal, engine
@@ -32,10 +33,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
 
+
+class SigurnosniZaglavlja(BaseHTTPMiddleware):
+    """Dodaje osnovna sigurnosna HTTP zaglavlja na svaki odgovor."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        odgovor = await call_next(request)
+        odgovor.headers.setdefault("X-Content-Type-Options", "nosniff")
+        odgovor.headers.setdefault("X-Frame-Options", "DENY")
+        odgovor.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        odgovor.headers.setdefault("Permissions-Policy", "geolocation=(), camera=(self), microphone=(self)")
+        # HSTS — promet ide preko HTTPS-a (Fly force_https).
+        odgovor.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+        return odgovor
+
+
+app.add_middleware(SigurnosniZaglavlja)
+
+# CORS: kad su domene eksplicitno navedene dopuštamo kolačiće/kredencijale;
+# uz zamjenski znak "*" (razvoj) kredencijali se ne smiju kombinirati.
+_cors = settings.cors_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_list,
-    allow_credentials=True,
+    allow_origins=_cors,
+    allow_credentials=_cors != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

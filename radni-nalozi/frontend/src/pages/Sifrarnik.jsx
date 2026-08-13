@@ -221,7 +221,7 @@ function ResetLozinke({ korisnikId, naGresku }) {
     )
   }
   const spremi = async () => {
-    if (nova.length < 4) { naGresku(t('sif.lozKratka')); return }
+    if (nova.length < 8) { naGresku(t('sif.lozKratka')); return }
     setRadi(true)
     try {
       await api.azurirajKorisnika(korisnikId, { lozinka: nova })

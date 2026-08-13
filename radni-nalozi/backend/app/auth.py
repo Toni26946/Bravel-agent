@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from .config import settings
+from .config import jwt_secret, settings
 from .database import get_db
 from .models import Korisnik, Uloga
 
@@ -36,12 +36,12 @@ def kreiraj_token(korisnik: Korisnik) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=settings.jwt_expire_minutes),
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, jwt_secret(), algorithm=settings.jwt_algorithm)
 
 
 def _dekodiraj(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return jwt.decode(token, jwt_secret(), algorithms=[settings.jwt_algorithm])
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
