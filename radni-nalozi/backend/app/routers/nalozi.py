@@ -61,10 +61,19 @@ samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 
 # --- pomoćne funkcije --------------------------------------------------------
 def _sljedeci_broj(db: Session) -> str:
+    """Sljedeći broj naloga = najveći postojeći + 1 (otporno na brisanja).
+
+    COUNT bi se ponovio nakon brisanja naloga i izazvao UNIQUE prekršaj.
+    """
     godina = datetime.now(timezone.utc).year
     prefiks = f"RN-{godina}-"
-    n = db.query(Nalog).filter(Nalog.broj.like(f"{prefiks}%")).count()
-    return f"{prefiks}{n + 1:04d}"
+    maks = 0
+    for (broj,) in db.query(Nalog.broj).filter(Nalog.broj.like(f"{prefiks}%")).all():
+        try:
+            maks = max(maks, int(broj.rsplit("-", 1)[1]))
+        except (ValueError, IndexError):
+            continue
+    return f"{prefiks}{maks + 1:04d}"
 
 
 def _zadatak_unos(z) -> tuple[str, int | None]:
