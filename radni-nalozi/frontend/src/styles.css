@@ -152,6 +152,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-zad .x { color: var(--crvena); font-size: 15px; line-height: 1; flex: none; }
 .op2-rad { border-left: 1px solid var(--rub); border-top: 1px solid var(--rub); display: flex; align-items: center; padding: 0 3px; }
 .op2-rad .rad-select { border: none; background: transparent; padding: 4px 2px; font-size: 12px; width: 100%; color: var(--tekst); }
+.op2-rad .rad-tekst { padding: 4px 4px; font-size: 12px; color: var(--tekst); }
 .op2-dodaj { grid-column: 1 / -1; padding: 6px 10px 8px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
 .op2-dodaj input { font-size: 14px; }
 .op2-mj { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 3px 10px 6px 34px; border-top: 1px dashed var(--rub); background: #fbfdff; }
