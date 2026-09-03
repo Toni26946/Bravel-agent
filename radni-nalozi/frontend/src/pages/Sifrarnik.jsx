@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { Bedz, MikrofonGumb, Spinner, ULOGA, datum, voziloLabel } from '../ui'
+import { Bedz, MikrofonGumb, Spinner, ULOGA } from '../ui'
 import { useT } from '../i18n'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
@@ -18,74 +18,10 @@ export default function Sifrarnik() {
       <div className="chips">
         <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
         <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>{t('sif.vozila')}</span>
-        <span className={`chip ${tab === 'dijelovi' ? 'akt' : ''}`} onClick={() => setTab('dijelovi')}>{t('sif.dijelovi')}</span>
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
-      {tab === 'dijelovi' && <PretragaDijelova />}
     </Layout>
-  )
-}
-
-// Globalna pretraga povijesti dijelova po nazivu (kroz sve kamione).
-function PretragaDijelova() {
-  const { t } = useT()
-  const nav = useNavigate()
-  const [q, setQ] = useState('')
-  const [lista, setLista] = useState(null)
-  const [greska, setGreska] = useState('')
-
-  useEffect(() => {
-    let poništen = false
-    const tmr = setTimeout(() => {
-      api.pretraziDijelove(q)
-        .then((r) => { if (!poništen) setLista(r) })
-        .catch((e) => { if (!poništen) setGreska(e.message) })
-    }, 250)
-    return () => { poništen = true; clearTimeout(tmr) }
-  }, [q])
-
-  return (
-    <>
-      {greska && <div className="greska">{greska}</div>}
-      <div className="polje-mik">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t('sif.pretraziDio')}
-          autoFocus
-        />
-        <MikrofonGumb naslov={t('sif.izgovoriDio')} onTekst={(tekst) => setQ(tekst)} />
-      </div>
-
-      {lista === null ? (
-        <p className="meta" style={{ marginTop: 12 }}>{t('common.ucitavam')}</p>
-      ) : lista.length === 0 ? (
-        <p className="meta" style={{ marginTop: 12 }}>
-          {q.trim() ? t('sif.nemaRezultata', { q: q.trim() }) : t('sif.josNema')}
-        </p>
-      ) : (
-        <>
-          <p className="meta" style={{ marginTop: 12 }}>{lista.length} {t('sif.rezultata')}</p>
-          <div className="dio-lista">
-            {lista.map((z) => (
-              <div key={z.id} className="dio-zapis dio-klik" onClick={() => nav(`/vozila/${z.vozilo.id}`)}>
-                <div className="dio-glava">
-                  <strong>{z.naziv}</strong>
-                  <span className="dio-datum">{datum(z.datum)}</span>
-                </div>
-                <p className="meta" style={{ margin: '2px 0 0' }}>🚚 <strong>{z.vozilo.gb}</strong></p>
-                {z.razlog && <p className="dio-razlog">{z.razlog}</p>}
-                <p className="meta">
-                  {z.kilometraza != null && <>🧭 {z.kilometraza.toLocaleString('hr-HR')} km · </>}
-                  {z.promijenio?.ime} ›
-                </p>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </>
   )
 }
 
@@ -297,47 +233,6 @@ function Vozila() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('sif.traziVozilo')} />
         <MikrofonGumb naslov={t('sif.traziVozilo')} onTekst={(tekst) => setQ(tekst)} />
       </div>
-
-      {/* Uvoz i dodavanje — sakriveno dok se traži, da popis bude čist */}
-      {!trazi && (!uvozOtvori ? (
-        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>{t('sif.uvezi')}</button>
-      ) : (
-        <div className="karta">
-          <label style={{ marginTop: 0 }}>{t('sif.zalijepi')}</label>
-          <p className="meta" style={{ marginTop: 0 }}>{t('sif.uvozHint')}</p>
-          <textarea
-            value={uvozTekst}
-            onChange={(e) => setUvozTekst(e.target.value)}
-            placeholder={'GB-101\nGB-102, ZG1234AB, MAN\nGB-103, ZG5678CD, Scania'}
-            style={{ minHeight: 140, fontFamily: 'monospace' }}
-          />
-          {uvozRezultat && (
-            <div className="uspjeh">{t('sif.uvozRezultat', { d: uvozRezultat.dodano, p: uvozRezultat.preskoceno, u: uvozRezultat.ukupno })}</div>
-          )}
-          <div className="btn-red">
-            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? t('sif.uvozim') : t('sif.uveziBtn')}</button>
-            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>{t('sif.zatvori')}</button>
-          </div>
-        </div>
-      ))}
-
-      {!trazi && !otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.novoVozilo')}</button>}
-      {!trazi && otvori && (
-        <form className="karta" onSubmit={spremi}>
-          <label>{t('sif.gb')}</label>
-          <input value={f.gb} onChange={(e) => setF({ ...f, gb: e.target.value })} required />
-          <label>{t('sif.registracija')}</label>
-          <input value={f.registracija} onChange={(e) => setF({ ...f, registracija: e.target.value })} />
-          <label>{t('sif.marka')}</label>
-          <input value={f.marka} onChange={(e) => setF({ ...f, marka: e.target.value })} />
-          <label>{t('sif.model')}</label>
-          <input value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} />
-          <div className="btn-red">
-            <button className="btn mali">{t('common.spremi')}</button>
-            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
-          </div>
-        </form>
-      )}
 
       {trazi && <p className="meta" style={{ marginTop: 12 }}>{prikazana.length} {t('sif.rezultata')}</p>}
       {prikazana.length === 0 ? (
