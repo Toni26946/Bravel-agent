@@ -99,7 +99,7 @@ def uvezi_povijest_rada(db: Session) -> None:
     povijesti. Idempotentno preko zastavice na trajnom volumenu — ako se popis
     kasnije nadopuni (npr. i opisima), povećaj verziju zastavice.
     """
-    zastavica = Path(settings.upload_dir).parent / ".povijest_rada_v1"
+    zastavica = Path(settings.upload_dir).parent / ".povijest_rada_v2"
     try:
         if zastavica.exists():
             return
@@ -113,6 +113,9 @@ def uvezi_povijest_rada(db: Session) -> None:
     except (OSError, ValueError) as e:  # noqa: BLE001
         log.warning("Ne mogu učitati povijest_rada.json: %s", e)
         return
+    # Zamijeni eventualni raniji (v1) uvoz punim podacima.
+    db.query(PovijestRada).delete()
+    db.flush()
     # keš vozila po GB-u (kreiraj koji nedostaju)
     vozila = {v.gb: v for v in db.query(Vozilo).all()}
     dodano = 0
