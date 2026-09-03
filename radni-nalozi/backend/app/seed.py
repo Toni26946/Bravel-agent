@@ -54,44 +54,6 @@ def _slug(ime: str) -> str:
     return ".".join(r for r in rijeci if r) or "radnik"
 
 
-# --- Jednokratni reset lozinke (zaboravljena lozinka voditelja) --------------
-# Ključne riječi imena/korisničkog imena -> privremena lozinka.
-# Reset se izvrši SAMO JEDNOM (zastavica na trajnom volumenu), pa nakon što
-# korisnik promijeni lozinku ostaje njegova nova. Ukloniti nakon uporabe.
-_RESETI: list[tuple[set[str], str]] = [
-    ({"roko", "jendris"}, settings.seed_admin_password),  # bravel123
-]
-
-
-def _rijeci(*vrijednosti: str) -> set[str]:
-    spojeno = " ".join(vrijednosti).translate(_ASCII).lower().replace(".", " ")
-    return {r for r in spojeno.split() if r}
-
-
-def jednokratni_reset_lozinke(db: Session) -> None:
-    zastavica = Path(settings.upload_dir).parent / ".reset_lozinke_v1"
-    try:
-        if zastavica.exists():
-            return
-    except OSError:
-        pass
-    promijenjeno = 0
-    for k in db.query(Korisnik).all():
-        tokeni = _rijeci(k.ime or "", k.korisnicko_ime or "")
-        for kljucne, temp in _RESETI:
-            if kljucne <= tokeni:
-                k.lozinka_hash = hash_lozinka(temp)
-                promijenjeno += 1
-                log.info("Reset lozinke za korisnika '%s' (%s).", k.ime, k.korisnicko_ime)
-    if promijenjeno:
-        db.commit()
-        try:
-            zastavica.parent.mkdir(parents=True, exist_ok=True)
-            zastavica.write_text("done", encoding="utf-8")
-        except OSError:
-            pass
-
-
 def uvezi_povijest_rada(db: Session) -> None:
     """Jednokratni uvoz servisne povijesti iz app/data/povijest_rada.json.
 
