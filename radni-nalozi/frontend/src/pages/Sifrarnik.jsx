@@ -229,7 +229,7 @@ function Vozila() {
       {greska && <div className="greska">{greska}</div>}
 
       {/* Tražilica vozila po garažnom broju */}
-      <div className="polje-mik">
+      <div className="polje-mik" style={{ marginBottom: 12 }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('sif.traziVozilo')} />
         <MikrofonGumb naslov={t('sif.traziVozilo')} onTekst={(tekst) => setQ(tekst)} />
       </div>
