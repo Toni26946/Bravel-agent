@@ -156,14 +156,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-dodaj { grid-column: 1 / -1; padding: 6px 10px 8px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
 .op2-dodaj input { font-size: 14px; }
 /* Servisna povijest (uvezena evidencija) */
-.pr-head { display: grid; grid-template-columns: 92px 1fr 1.2fr; background: #eef2f7; }
-.pr-head > div { padding: 7px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--sivo); }
+.pr-head { display: grid; grid-template-columns: 78px 118px 1fr; background: #eef2f7; }
+.pr-head > div { padding: 7px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--sivo); }
 .pr-head > div + div { border-left: 1px solid var(--rub); }
-.pr-red { display: grid; grid-template-columns: 92px 1fr 1.2fr; border-top: 1px solid var(--rub); font-size: 13px; }
-.pr-red > div { padding: 6px 10px; min-width: 0; word-break: break-word; }
+.pr-red { display: grid; grid-template-columns: 78px 118px 1fr; border-top: 1px solid var(--rub); font-size: 13px; }
+.pr-red > div { padding: 7px 8px; min-width: 0; word-break: break-word; }
 .pr-red > div + div { border-left: 1px solid var(--rub); }
-.pr-red .pr-datum { color: var(--sivo); font-variant-numeric: tabular-nums; }
-.pr-red .pr-op { display: inline-block; font-weight: 700; color: var(--plava); margin-right: 6px; }
+.pr-red .pr-datum { color: var(--sivo); font-variant-numeric: tabular-nums; font-size: 12px; }
+.pr-red .pr-radnik { font-size: 12px; line-height: 1.25; }
+.pr-red .pr-op { display: inline-block; font-weight: 700; color: var(--plava); font-size: 11px; text-transform: uppercase; letter-spacing: .2px; margin-right: 6px; }
 .pr-red .pr-opis { color: var(--tekst); }
 .pr-red .pr-min { display: inline-block; margin-left: 6px; color: var(--sivo); white-space: nowrap; font-variant-numeric: tabular-nums; }
 

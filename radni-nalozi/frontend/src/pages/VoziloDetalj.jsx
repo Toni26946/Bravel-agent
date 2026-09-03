@@ -64,7 +64,7 @@ function ServisnaPovijest({ voziloId }) {
       {stavke.map((s) => (
         <div className="pr-red" key={s.id}>
           <div className="pr-datum">{datum(s.datum)}</div>
-          <div>{s.radnik || '—'}</div>
+          <div className="pr-radnik">{s.radnik || '—'}</div>
           <div>
             {s.operacija && <span className="pr-op">{s.operacija}</span>}
             {s.opis && <span className="pr-opis">{s.opis}</span>}
