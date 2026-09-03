@@ -143,7 +143,7 @@ const HR = {
   'steta.gbNePostoji': 'Kamion s tim GB ne postoji (ostavite prazno ako nije vezano za kamion).',
   'steta.obrisati': 'Obrisati ovu štetu?',
   // šifrarnik
-  'sif.title': 'Šifrarnik', 'sif.korisnici': 'Korisnici', 'sif.vozila': 'Vozila', 'sif.dijelovi': 'Dijelovi',
+  'sif.title': 'Šifrarnik', 'sif.korisnici': 'Radnici', 'sif.vozila': 'Vozila', 'sif.dijelovi': 'Dijelovi',
   'voz.servisnaPovijest': 'Servisna povijest', 'voz.nemaPovijesti': 'Nema unesene servisne povijesti.',
   'voz.filtrirajPovijest': 'Filtriraj (operacija, dio, radnik…)',
   'voz.datum': 'Datum', 'voz.radnik': 'Radnik', 'voz.posao': 'Posao',
@@ -273,7 +273,7 @@ const EN = {
   'steta.spremiStetu': 'Save damage', 'steta.opisiSto': 'Describe what is damaged.',
   'steta.gbNePostoji': 'No truck with that number (leave empty if not tied to a truck).',
   'steta.obrisati': 'Delete this damage?',
-  'sif.title': 'Settings', 'sif.korisnici': 'Users', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',
+  'sif.title': 'Settings', 'sif.korisnici': 'Workers', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',
   'voz.servisnaPovijest': 'Service history', 'voz.nemaPovijesti': 'No service history yet.',
   'voz.filtrirajPovijest': 'Filter (operation, part, mechanic…)',
   'voz.datum': 'Date', 'voz.radnik': 'Mechanic', 'voz.posao': 'Work',

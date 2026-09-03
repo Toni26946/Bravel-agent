@@ -12,12 +12,12 @@ function _norm(s) {
 
 export default function Sifrarnik() {
   const { t } = useT()
-  const [tab, setTab] = useState('korisnici')
+  const [tab, setTab] = useState('vozila')
   return (
     <Layout naslov={t('sif.title')}>
       <div className="chips">
-        <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
         <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>{t('sif.vozila')}</span>
+        <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
