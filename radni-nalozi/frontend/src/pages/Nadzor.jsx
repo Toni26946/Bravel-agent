@@ -102,13 +102,16 @@ export function VozilaURadu() {
   if (greska) return <Layout naslov={t('nadzor.vozilaURadu')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('nadzor.vozilaURadu')}><Spinner /></Layout>
 
+  // Prikaži samo naloge koji su stvarno "u radu" (ne otvorene ni završene).
+  const uRadu = nalozi.filter((n) => n.status === 'u_radu')
+
   return (
     <Layout naslov={t('nadzor.vozilaURadu')}>
-      {nalozi.length === 0 ? (
+      {uRadu.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.nemaAktivnih')}</p></div>
       ) : (
         <div className="nad-grid">
-          {nalozi.map((n) => (
+          {uRadu.map((n) => (
             <KartaNaloga key={n.id} n={n} sada={sada} onClick={() => nav(`/nalozi/${n.id}`)} />
           ))}
         </div>
