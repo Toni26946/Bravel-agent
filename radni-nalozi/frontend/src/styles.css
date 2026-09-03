@@ -163,7 +163,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pr-red > div { padding: 6px 10px; min-width: 0; word-break: break-word; }
 .pr-red > div + div { border-left: 1px solid var(--rub); }
 .pr-red .pr-datum { color: var(--sivo); font-variant-numeric: tabular-nums; }
-.pr-red .pr-min { color: var(--sivo); }
+.pr-red .pr-op { display: inline-block; font-weight: 700; color: var(--plava); margin-right: 6px; }
+.pr-red .pr-opis { color: var(--tekst); }
+.pr-red .pr-min { display: inline-block; margin-left: 6px; color: var(--sivo); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .op2-mj { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 3px 10px 6px 34px; border-top: 1px dashed var(--rub); background: #fbfdff; }
 .mj-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rub); background: #fff; color: var(--plava); font-weight: 700; font-size: 12px; padding: 3px 12px; border-radius: 999px; cursor: pointer; }

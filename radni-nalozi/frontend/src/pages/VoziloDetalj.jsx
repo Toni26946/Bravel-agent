@@ -66,8 +66,10 @@ function ServisnaPovijest({ voziloId }) {
           <div className="pr-datum">{datum(s.datum)}</div>
           <div>{s.radnik || '—'}</div>
           <div>
-            {s.operacija || s.opis || <span className="meta">—</span>}
-            {s.minute ? <span className="pr-min"> · {trajanjeMin(s.minute)}</span> : null}
+            {s.operacija && <span className="pr-op">{s.operacija}</span>}
+            {s.opis && <span className="pr-opis">{s.opis}</span>}
+            {!s.operacija && !s.opis && <span className="meta">—</span>}
+            {s.minute ? <span className="pr-min">⏱ {trajanjeMin(s.minute)}</span> : null}
           </div>
         </div>
       ))}
