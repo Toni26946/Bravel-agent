@@ -454,6 +454,57 @@ def _upisi_nalog_u_povijest(db: Session, nalog: Nalog) -> None:
             ))
 
 
+def _auto_status_naloga(db: Session, nalog: Nalog, korisnik: Korisnik) -> None:
+    """Automatski uskladi status naloga prema stanju zadataka.
+
+    - čim mehaničar krene raditi (pokrenut mjerač / započet ili gotov zadatak)
+      nalog prelazi u 'u_radu';
+    - kad su SVI zadaci označeni gotovima → nalog prelazi u 'gotov'
+      (i upisuje se u servisnu povijest vozila).
+
+    Ne dira ručno 'zatvoren' (konačno zatvoren) niti automatski gasi
+    'ceka_dijelove' dok se ne dovrši; završetak svih zadataka ima prednost.
+    """
+    zadaci = [z for op in nalog.operacije for z in op.zadaci]
+    if not zadaci:
+        return
+    if nalog.status == StatusNaloga.zatvoren:
+        return  # ručno zatvoren — ne diramo automatski
+
+    svi_gotovi = all(z.gotovo for z in zadaci)
+    aktivnost = any(z.zapoceto or z.gotovo or (z.utroseno_sek or 0) for z in zadaci)
+
+    if svi_gotovi:
+        novi = StatusNaloga.gotov
+    elif aktivnost and nalog.status not in (StatusNaloga.u_radu, StatusNaloga.ceka_dijelove):
+        novi = StatusNaloga.u_radu
+    else:
+        novi = nalog.status
+
+    if novi == nalog.status:
+        return
+
+    stari = nalog.status
+    nalog.status = novi
+    if novi == StatusNaloga.gotov:
+        nalog.zatvoren = datetime.now(timezone.utc)
+        _upisi_nalog_u_povijest(db, nalog)
+    else:
+        if stari == StatusNaloga.gotov:
+            _obrisi_povijest_naloga(db, nalog.id)
+        nalog.zatvoren = None
+    nalog.azuriran = datetime.now(timezone.utc)
+    db.add(PovijestStatusa(
+        nalog_id=nalog.id, stari_status=stari.value, novi_status=novi.value,
+        napomena="Automatski status prema stanju zadataka", promijenio_id=korisnik.id,
+    ))
+    if korisnik.uloga == Uloga.radnik and novi == StatusNaloga.gotov:
+        obavijesti_ulogu(
+            db, Uloga.voditelj, "Nalog završen",
+            f"{nalog.broj} — svi zadaci gotovi", url=f"/nalozi/{nalog.id}",
+        )
+
+
 # --- promjena statusa (voditelj ili dodijeljeni radnik) ----------------------
 @router.patch("/{nalog_id}/status", response_model=NalogOut)
 def promijeni_status(
@@ -651,7 +702,7 @@ def azuriraj_zadatak(
     nalog_id: int, zadatak_id: int, podaci: ZadatakUpdate,
     korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
 ):
-    _dohvati_ovlasten(db, nalog_id, korisnik)
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     if podaci.opis is not None:
         z.opis = podaci.opis.strip()
@@ -688,6 +739,8 @@ def azuriraj_zadatak(
         elif novi is None:
             # Maknut radnik s zadatka → zaustavi mjerenje.
             _zaustavi_mjerac(z)
+    db.flush()
+    _auto_status_naloga(db, nalog, korisnik)
     db.commit()
     db.refresh(z)
     return z
@@ -699,7 +752,7 @@ def mjerac_zadatka(
     korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
 ):
     """Pokreni ('start') ili zaustavi/pauziraj ('stop') mjerač vremena za zadatak."""
-    _dohvati_ovlasten(db, nalog_id, korisnik)
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     if podaci.akcija == "start":
         if not z.gotovo and not z.zapoceto:
@@ -708,6 +761,8 @@ def mjerac_zadatka(
         _zaustavi_mjerac(z)
     else:
         raise HTTPException(status_code=400, detail="Nepoznata akcija (start/stop).")
+    db.flush()
+    _auto_status_naloga(db, nalog, korisnik)
     db.commit()
     db.refresh(z)
     return z
