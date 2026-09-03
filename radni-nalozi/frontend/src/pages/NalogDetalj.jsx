@@ -92,9 +92,25 @@ export default function NalogDetalj() {
   )
 }
 
+// Formatiraj sekunde u čitljivo trajanje (h:mm:ss ili m:ss).
+function trajanje(sek) {
+  const s = Math.max(0, Math.floor(sek))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = s % 60
+  const pad = (x) => String(x).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`
+}
+
 // --- Operacije i zadaci ------------------------------------------------------
 function Operacije({ nalog, radnici, ucitaj, naGresku }) {
   const { t } = useT()
+  const [sada, setSada] = useState(Date.now())
+  // Otkucaj svake sekunde da se živo mjerenje osvježava.
+  useEffect(() => {
+    const id = setInterval(() => setSada(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
   const wrap = (p) => p.then(ucitaj).catch((e) => naGresku(e.message))
   const dodajOp = (kat) => {
     const k = (kat || '').trim()
@@ -108,7 +124,7 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
         <div className="op-head"><div>{t('op.operacija')}</div><div>{t('op.radnik')}</div></div>
         {nalog.operacije.length === 0 && <div className="op-prazno">{t('op.nemaOperacija')}</div>}
         {nalog.operacije.map((op) => (
-          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} />
+          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} sada={sada} />
         ))}
       </div>
 
@@ -120,7 +136,8 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
   )
 }
 
-function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku }) {
+function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada }) {
+  const { t } = useT()
   const [dodaje, setDodaje] = useState(false)
   return (
     <div className="op2">
@@ -130,29 +147,51 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku }) {
         <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
       </div>
       <div className="op2-kat-r" />
-      {op.zadaci.map((z) => (
-        <Fragment key={z.id}>
-          <label className="op2-zad">
-            <input
-              type="checkbox"
-              checked={z.gotovo}
-              onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
-            />
-            <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
-            <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
-          </label>
-          <div className="op2-rad">
-            <select
-              className="rad-select"
-              value={z.zaduzeni?.id || ''}
-              onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
-            >
-              <option value="">—</option>
-              {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-            </select>
-          </div>
-        </Fragment>
-      ))}
+      {op.zadaci.map((z) => {
+        const radi = !!z.zapoceto
+        const osnova = z.utroseno_sek || 0
+        const proteklo = radi ? osnova + (sada - new Date(z.zapoceto).getTime()) / 1000 : osnova
+        return (
+          <Fragment key={z.id}>
+            <label className="op2-zad">
+              <input
+                type="checkbox"
+                checked={z.gotovo}
+                onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+              />
+              <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
+              <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+            </label>
+            <div className="op2-rad">
+              <select
+                className="rad-select"
+                value={z.zaduzeni?.id || ''}
+                onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
+              >
+                <option value="">—</option>
+                {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+              </select>
+            </div>
+            <div className="op2-mj">
+              {!z.gotovo && (
+                <button
+                  className={'mj-btn' + (radi ? ' radi' : '')}
+                  onClick={() => wrap(api.zadatakMjerac(nalog.id, z.id, radi ? 'stop' : 'start'))}
+                  title={radi ? t('op.mjeracPauza') : t('op.mjeracStart')}
+                >
+                  {radi ? '⏸' : '▶'} <span className="mj-vrijeme">{trajanje(proteklo)}</span>
+                </button>
+              )}
+              {z.gotovo && (
+                <span className="mj-gotovo">
+                  ✓ {t('op.zavrsenoU')} {datumVrijeme(z.zavrseno)}
+                  {osnova > 0 && <> · ⏱ {trajanje(osnova)}</>}
+                </span>
+              )}
+            </div>
+          </Fragment>
+        )
+      })}
       {dodaje && (
         <div className="op2-dodaj">
           <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={() => { setDodaje(false); ucitaj() }} naGresku={naGresku} />

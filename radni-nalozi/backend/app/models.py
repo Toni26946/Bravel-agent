@@ -339,6 +339,10 @@ class Zadatak(Base):
     gotovo: Mapped[bool] = mapped_column(Boolean, default=False)
     zaduzeni_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     redoslijed: Mapped[int] = mapped_column(Integer, default=0)
+    # Mjerenje vremena rada na zadatku
+    zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je mjerač pokrenut (None = ne mjeri)
+    zavrseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je označeno gotovo
+    utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)  # ukupno izmjereno vrijeme (sekunde)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")

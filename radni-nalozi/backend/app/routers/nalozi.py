@@ -46,6 +46,7 @@ from ..schemas import (
     RadniSatCreate,
     RadniSatOut,
     ZadatakDodaj,
+    ZadatakMjerac,
     ZadatakOut,
     ZadatakUpdate,
 )
@@ -483,6 +484,19 @@ def _provjeri_radnik(db: Session, rid: int) -> None:
         raise HTTPException(status_code=400, detail="Zaduženi nije valjan mehaničar")
 
 
+def _aware(dt: datetime) -> datetime:
+    """Osiguraj vremensku zonu (SQLite vraća naivne datume — tretiraj kao UTC)."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _zaustavi_mjerac(z: Zadatak) -> None:
+    """Ako mjerač radi, pribroji proteklo vrijeme i zaustavi ga."""
+    if z.zapoceto:
+        proteklo = (datetime.now(timezone.utc) - _aware(z.zapoceto)).total_seconds()
+        z.utroseno_sek = int(z.utroseno_sek or 0) + max(0, int(proteklo))
+        z.zapoceto = None
+
+
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
 def dodaj_zadatak(
     nalog_id: int, op_id: int, podaci: ZadatakDodaj,
@@ -513,12 +527,37 @@ def azuriraj_zadatak(
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     if podaci.opis is not None:
         z.opis = podaci.opis.strip()
-    if podaci.gotovo is not None:
+    if podaci.gotovo is not None and podaci.gotovo != z.gotovo:
         z.gotovo = podaci.gotovo
+        if podaci.gotovo:
+            _zaustavi_mjerac(z)  # zaustavi mjerenje i zabilježi vrijeme završetka
+            z.zavrseno = datetime.now(timezone.utc)
+        else:
+            z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
     if "zaduzeni_id" in podaci.model_fields_set:
         if podaci.zaduzeni_id is not None:
             _provjeri_radnik(db, podaci.zaduzeni_id)
         z.zaduzeni_id = podaci.zaduzeni_id
+    db.commit()
+    db.refresh(z)
+    return z
+
+
+@router.post("/{nalog_id}/zadaci/{zadatak_id}/mjerac", response_model=ZadatakOut)
+def mjerac_zadatka(
+    nalog_id: int, zadatak_id: int, podaci: ZadatakMjerac,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    """Pokreni ('start') ili zaustavi/pauziraj ('stop') mjerač vremena za zadatak."""
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    z = _dohvati_zadatak(db, nalog_id, zadatak_id)
+    if podaci.akcija == "start":
+        if not z.gotovo and not z.zapoceto:
+            z.zapoceto = datetime.now(timezone.utc)
+    elif podaci.akcija == "stop":
+        _zaustavi_mjerac(z)
+    else:
+        raise HTTPException(status_code=400, detail="Nepoznata akcija (start/stop).")
     db.commit()
     db.refresh(z)
     return z
