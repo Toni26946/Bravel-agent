@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .auth import hash_lozinka
 from .config import settings
-from .models import Korisnik, PovijestRada, Uloga, Vozilo
+from .models import Korisnik, PovijestRada, Uloga, Vozilo, Zadatak
 
 log = logging.getLogger("seed")
 
@@ -112,6 +112,32 @@ def uvezi_povijest_rada(db: Session) -> None:
     except OSError:
         pass
     log.info("Uvezeno %d zapisa servisne povijesti (%d vozila).", dodano, len(vozila))
+
+
+def migriraj_zaduzene_u_radnike(db: Session) -> None:
+    """Prebaci postojeće pojedinačne zaduženike (zaduzeni_id) u novi popis radnika.
+
+    Jednokratno preko zastavice na trajnom volumenu.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".zadatak_radnici_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    preneseno = 0
+    for z in db.query(Zadatak).filter(Zadatak.zaduzeni_id.isnot(None)).all():
+        if z.zaduzeni and z.zaduzeni not in z.radnici:
+            z.radnici.append(z.zaduzeni)
+            preneseno += 1
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    if preneseno:
+        log.info("Preneseno %d zaduženja u popis radnika zadataka.", preneseno)
 
 
 def seed_radnici(db: Session, lozinka: str = "radnik123") -> None:

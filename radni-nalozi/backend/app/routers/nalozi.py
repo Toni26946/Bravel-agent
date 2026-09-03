@@ -107,20 +107,42 @@ def _spoji_u_zadatak(
     if z is None:
         if not novi:
             return None
-        z = Zadatak(
-            operacija_id=op.id, opis=_SPOJ.join(novi),
-            zaduzeni_id=_valjani_zaduzeni(db, zaduzeni_id), redoslijed=0,
-        )
+        z = Zadatak(operacija_id=op.id, opis=_SPOJ.join(novi), redoslijed=0)
         db.add(z)
-        return z
-    postojeci = [d.strip() for d in (z.opis or "").split(_SPOJ) if d.strip()]
-    for o in novi:
-        if o not in postojeci:
-            postojeci.append(o)
-    z.opis = _SPOJ.join(postojeci)
-    if z.zaduzeni_id is None and zaduzeni_id is not None:
-        z.zaduzeni_id = _valjani_zaduzeni(db, zaduzeni_id)
+    else:
+        postojeci = [d.strip() for d in (z.opis or "").split(_SPOJ) if d.strip()]
+        for o in novi:
+            if o not in postojeci:
+                postojeci.append(o)
+        z.opis = _SPOJ.join(postojeci)
+    # Dodijeljeni radnik (iz AI/glasovnog unosa) — dodaj u popis radnika zadatka.
+    vid = _valjani_zaduzeni(db, zaduzeni_id)
+    if vid is not None:
+        r = db.get(Korisnik, vid)
+        if r and r not in z.radnici:
+            z.radnici.append(r)
     return z
+
+
+def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: bool = True) -> None:
+    """Postavi popis radnika na zadatku i po potrebi pokreni/zaustavi mjerač.
+
+    Dodjela bar jednog radnika (ako zadatak nije gotov) automatski pokreće
+    mjerač; uklanjanje svih radnika zaustavlja mjerenje. Kad je nalog u statusu
+    "čeka dijelove" (dozvoli_start=False) mjerač se ne pokreće.
+    """
+    valjani: list[Korisnik] = []
+    for rid in dict.fromkeys(ids):  # ukloni duplikate, zadrži redoslijed
+        r = db.get(Korisnik, rid)
+        if not r or r.uloga != Uloga.radnik:
+            raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije mehaničar")
+        valjani.append(r)
+    z.radnici = valjani
+    if not z.gotovo:
+        if valjani and not z.zapoceto and dozvoli_start:
+            z.zapoceto = datetime.now(timezone.utc)
+        elif not valjani:
+            _zaustavi_mjerac(z)
 
 
 # --- razdvajanje operacija po osovini ----------------------------------------
@@ -476,11 +498,12 @@ def _upisi_nalog_u_povijest(db: Session, nalog: Nalog) -> None:
             dat = z.zavrseno or sada
             if dat.tzinfo is None:
                 dat = dat.replace(tzinfo=timezone.utc)
+            imena = ", ".join(r.ime for r in z.radnici) or (z.zaduzeni.ime if z.zaduzeni else None)
             db.add(PovijestRada(
                 vozilo_id=nalog.vozilo_id,
                 nalog_id=nalog.id,
                 datum=dat.date(),
-                radnik=(z.zaduzeni.ime if z.zaduzeni else None),
+                radnik=(imena or None),
                 operacija=op.kategorija or None,
                 opis=opis,
                 minute=(int((z.utroseno_sek or 0) / 60) or None),
@@ -559,6 +582,18 @@ def promijeni_status(
         _upisi_nalog_u_povijest(db, nalog)
     elif stari == StatusNaloga.gotov:
         _obrisi_povijest_naloga(db, nalog.id)
+    # "Čeka dijelove": pauziraj sve mjerače (vrijeme radnika staje).
+    if podaci.status == StatusNaloga.ceka_dijelove:
+        for op in nalog.operacije:
+            for z in op.zadaci:
+                _zaustavi_mjerac(z)
+    # Povratak iz "čeka dijelove" u "u radu": nastavi mjerenje za zadatke s
+    # dodijeljenim radnicima koji još nisu gotovi.
+    elif stari == StatusNaloga.ceka_dijelove and podaci.status == StatusNaloga.u_radu:
+        for op in nalog.operacije:
+            for z in op.zadaci:
+                if z.radnici and not z.gotovo and not z.zapoceto:
+                    z.zapoceto = datetime.now(timezone.utc)
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=stari.value, novi_status=podaci.status.value,
         napomena=podaci.napomena, promijenio_id=korisnik.id,
@@ -748,32 +783,17 @@ def azuriraj_zadatak(
             z.zavrseno = datetime.now(timezone.utc)
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
-    if "zaduzeni_id" in podaci.model_fields_set:
+    # Dodjela radnika — više radnika po zadatku (samo voditelj).
+    dozvoli_start = nalog.status != StatusNaloga.ceka_dijelove
+    if "radnici_ids" in podaci.model_fields_set:
         if korisnik.uloga != Uloga.voditelj:
             raise HTTPException(status_code=403, detail="Samo voditelj može dodjeljivati radnike na zadatke")
-        novi = podaci.zaduzeni_id
-        if novi is not None:
-            _provjeri_radnik(db, novi)
-        z.zaduzeni_id = novi
-        if novi is not None and not z.gotovo:
-            # Radnik radi samo na jednom zadatku: zaustavi sve njegove druge
-            # pokrenute mjerače, pa pokreni ovaj.
-            drugi = (
-                db.query(Zadatak)
-                .filter(
-                    Zadatak.zaduzeni_id == novi,
-                    Zadatak.id != z.id,
-                    Zadatak.zapoceto.isnot(None),
-                )
-                .all()
-            )
-            for d in drugi:
-                _zaustavi_mjerac(d)
-            if not z.zapoceto:
-                z.zapoceto = datetime.now(timezone.utc)
-        elif novi is None:
-            # Maknut radnik s zadatka → zaustavi mjerenje.
-            _zaustavi_mjerac(z)
+        _postavi_radnike(db, z, podaci.radnici_ids or [], dozvoli_start)
+    elif "zaduzeni_id" in podaci.model_fields_set:  # kompatibilnost sa starim klijentom
+        if korisnik.uloga != Uloga.voditelj:
+            raise HTTPException(status_code=403, detail="Samo voditelj može dodjeljivati radnike na zadatke")
+        ids = [podaci.zaduzeni_id] if podaci.zaduzeni_id is not None else []
+        _postavi_radnike(db, z, ids, dozvoli_start)
     db.flush()
     _auto_status_naloga(db, nalog, korisnik)
     db.commit()
@@ -790,6 +810,8 @@ def mjerac_zadatka(
     nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     if podaci.akcija == "start":
+        if nalog.status == StatusNaloga.ceka_dijelove:
+            raise HTTPException(status_code=409, detail="Nalog čeka dijelove — mjerenje je pauzirano.")
         if not z.gotovo and not z.zapoceto:
             z.zapoceto = datetime.now(timezone.utc)
     elif podaci.akcija == "stop":

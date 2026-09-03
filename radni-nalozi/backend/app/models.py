@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import (
     JSON,
     Boolean,
+    Column,
     Date,
     DateTime,
     Enum,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     UniqueConstraint,
 )
@@ -348,6 +350,15 @@ class Operacija(Base):
     )
 
 
+# Više radnika može raditi na istom zadatku (M:N).
+zadatak_radnici = Table(
+    "zadatak_radnici",
+    Base.metadata,
+    Column("zadatak_id", ForeignKey("zadaci.id", ondelete="CASCADE"), primary_key=True),
+    Column("radnik_id", ForeignKey("korisnici.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 # ---------------------------------------------------------------------------
 # Zadatak (stavka unutar operacije, s oznakom gotovo)
 # ---------------------------------------------------------------------------
@@ -358,7 +369,7 @@ class Zadatak(Base):
     operacija_id: Mapped[int] = mapped_column(ForeignKey("operacije.id", ondelete="CASCADE"), index=True)
     opis: Mapped[str] = mapped_column(Text)
     gotovo: Mapped[bool] = mapped_column(Boolean, default=False)
-    zaduzeni_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    zaduzeni_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)  # zastarjelo (jedan radnik); ostaje radi migracije
     redoslijed: Mapped[int] = mapped_column(Integer, default=0)
     # Mjerenje vremena rada na zadatku
     zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je mjerač pokrenut (None = ne mjeri)
@@ -368,3 +379,5 @@ class Zadatak(Base):
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")
     zaduzeni: Mapped["Korisnik | None"] = relationship()
+    # Svi radnici dodijeljeni ovom zadatku.
+    radnici: Mapped[list["Korisnik"]] = relationship(secondary=zadatak_radnici, order_by="Korisnik.ime")
