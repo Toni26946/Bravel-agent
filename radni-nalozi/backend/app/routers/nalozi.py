@@ -535,9 +535,29 @@ def azuriraj_zadatak(
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
     if "zaduzeni_id" in podaci.model_fields_set:
-        if podaci.zaduzeni_id is not None:
-            _provjeri_radnik(db, podaci.zaduzeni_id)
-        z.zaduzeni_id = podaci.zaduzeni_id
+        novi = podaci.zaduzeni_id
+        if novi is not None:
+            _provjeri_radnik(db, novi)
+        z.zaduzeni_id = novi
+        if novi is not None and not z.gotovo:
+            # Radnik radi samo na jednom zadatku: zaustavi sve njegove druge
+            # pokrenute mjerače, pa pokreni ovaj.
+            drugi = (
+                db.query(Zadatak)
+                .filter(
+                    Zadatak.zaduzeni_id == novi,
+                    Zadatak.id != z.id,
+                    Zadatak.zapoceto.isnot(None),
+                )
+                .all()
+            )
+            for d in drugi:
+                _zaustavi_mjerac(d)
+            if not z.zapoceto:
+                z.zapoceto = datetime.now(timezone.utc)
+        elif novi is None:
+            # Maknut radnik s zadatka → zaustavi mjerenje.
+            _zaustavi_mjerac(z)
     db.commit()
     db.refresh(z)
     return z
