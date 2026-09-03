@@ -7,7 +7,11 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const { t } = useT()
   const nav = useNavigate()
   const lok = useLocation()
-  const prikaziPlus = korisnik?.uloga === 'voditelj' && lok.pathname !== '/nalozi/novi'
+  // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
+  // (ondje je vlastiti "+" za novu prijavu) i na samoj stranici kreiranja.
+  const prikaziPlus = korisnik?.uloga === 'voditelj'
+    && !lok.pathname.startsWith('/prijave')
+    && lok.pathname !== '/nalozi/novi'
 
   const tabovi = []
   if (korisnik?.uloga === 'vozac') {
