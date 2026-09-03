@@ -1,4 +1,5 @@
 """Radni nalozi — kreiranje (voditelj), dodjele, statusi, sati, dijelovi, fotografije."""
+import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -78,6 +79,78 @@ def _valjani_zaduzeni(db: Session, zad_id: int | None) -> int | None:
         return None
     r = db.get(Korisnik, zad_id)
     return zad_id if (r and r.uloga == Uloga.radnik) else None
+
+
+# --- razdvajanje operacija po osovini ----------------------------------------
+_ASCII = str.maketrans({"č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d"})
+
+# Kategorije koje se dijele po osovinama (ključne riječi, bez kvačica, mala slova).
+_OSOVINSKE_KLJUCNE = (
+    "kocnic", "blatobran", "kotac", "glavcin", "ovjes", "gibnj",
+    "diferencijal", "jastuc", "stic", "amortiz", "celjust",
+)
+
+
+def _osovina_iz_teksta(t: str) -> int | None:
+    """Prepoznaj broj osovine iz teksta ('prva osovina', '1. osovina', 'druga'…)."""
+    s = t.lower().translate(_ASCII)
+    if "osovin" not in s:
+        return None
+    m = re.search(r"(\d)\s*\.?\s*osovin", s)
+    if m:
+        return int(m.group(1))
+    for korijen, n in (("prv", 1), ("predn", 1), ("drug", 2), ("trec", 3), ("cetvrt", 4), ("straznj", 3)):
+        if re.search(korijen + r"\w*\s+\w*\s*osovin", s) or re.search(korijen + r"\w*\s+osovin", s):
+            return n
+    return None
+
+
+def _baza_osovina(kat: str) -> tuple[str, int | None, bool]:
+    """(osnovni naziv bez oznake osovine, broj osovine iz kategorije, dijeli li se po osovini)."""
+    s = kat.strip()
+    su = s.upper().translate(str.maketrans({"Č": "C", "Ć": "C", "Š": "S", "Ž": "Z", "Đ": "D"})).lower()
+    dijeli = any(k in su for k in _OSOVINSKE_KLJUCNE)
+    m = re.search(r"(\d)\s*\.?\s*osovina\s*$", su) or re.search(r"\s(\d)\s*$", su)
+    cat_ax = int(m.group(1)) if m else None
+    baza = re.sub(r"\s*\d\s*\.?\s*OSOVINA\s*$", "", s, flags=re.IGNORECASE).strip()
+    baza = re.sub(r"\s+\d\s*$", "", baza).strip()  # "KOČNICE 2" -> "KOČNICE"
+    return baza or s, cat_ax, dijeli
+
+
+def _rasporedi_po_osovini(operacije) -> list[tuple[str, list[tuple[str, int | None]]]]:
+    """Preraspodijeli zadatke po osovinama u zasebne operacije 'BAZA N. OSOVINA'.
+
+    Ako zadatak spominje osovinu (ili je kategorija vezana uz osovinu), ide pod
+    odgovarajuću osovinsku operaciju; inače ostaje pod izvornom kategorijom.
+    """
+    grupe: dict[str, list[tuple[str, int | None]]] = {}
+    redoslijed: list[str] = []
+
+    def _dodaj(kat: str, opis: str, zid: int | None) -> None:
+        if kat not in grupe:
+            grupe[kat] = []
+            redoslijed.append(kat)
+        if opis:
+            grupe[kat].append((opis, zid))
+
+    for op in operacije:
+        baza, cat_ax, dijeli = _baza_osovina(op.kategorija)
+        prazna = True
+        for z in op.zadaci:
+            opis, zid = _zadatak_unos(z)
+            if not opis:
+                continue
+            prazna = False
+            n = _osovina_iz_teksta(opis) if dijeli else None
+            n = n or (cat_ax if dijeli else None)
+            kat = f"{baza} {n}. OSOVINA" if (dijeli and n) else op.kategorija.strip()
+            _dodaj(kat, opis, zid)
+        if prazna:  # operacija bez zadataka — zadrži kategoriju
+            kat = f"{baza} {cat_ax}. OSOVINA" if (dijeli and cat_ax) else op.kategorija.strip()
+            if kat not in grupe:
+                grupe[kat] = []
+                redoslijed.append(kat)
+    return [(k, grupe[k]) for k in redoslijed]
 
 
 def _je_dodijeljen(db: Session, nalog_id: int, radnik_id: int) -> bool:
@@ -176,8 +249,7 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
     """Pridodaj operacije/zadatke u postojeći nalog; iste kategorije se spoje."""
     po_kat = {o.kategorija.lower(): o for o in nalog.operacije}
     sljedeci_red = len(nalog.operacije)
-    for op in operacije:
-        kat = op.kategorija.strip()
+    for kat, zadaci in _rasporedi_po_osovini(operacije):
         if not kat:
             continue
         cilj = po_kat.get(kat.lower())
@@ -188,10 +260,8 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
             db.flush()
             po_kat[kat.lower()] = cilj
         base = len(cilj.zadaci)
-        for j, z in enumerate(op.zadaci):
-            opis, zad_id = _zadatak_unos(z)
-            if opis:
-                db.add(Zadatak(operacija_id=cilj.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=base + j))
+        for j, (opis, zad_id) in enumerate(zadaci):
+            db.add(Zadatak(operacija_id=cilj.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=base + j))
 
 
 # --- kreiranje (voditelj) ----------------------------------------------------
@@ -257,15 +327,13 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
     db.add(nalog)
     db.flush()
     _postavi_dodjele(db, nalog, podaci.radnici_ids)
-    # Operacije (kategorije) i zadaci
-    for i, op in enumerate(podaci.operacije):
-        operacija = Operacija(nalog_id=nalog.id, kategorija=op.kategorija.strip(), redoslijed=i)
+    # Operacije (kategorije) i zadaci — razdvojeni po osovini gdje se to spominje
+    for i, (kat, zadaci) in enumerate(_rasporedi_po_osovini(podaci.operacije)):
+        operacija = Operacija(nalog_id=nalog.id, kategorija=kat, redoslijed=i)
         db.add(operacija)
         db.flush()
-        for j, z in enumerate(op.zadaci):
-            opis, zad_id = _zadatak_unos(z)
-            if opis:
-                db.add(Zadatak(operacija_id=operacija.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
+        for j, (opis, zad_id) in enumerate(zadaci):
+            db.add(Zadatak(operacija_id=operacija.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=None, novi_status=StatusNaloga.otvoren.value,
         napomena="Nalog kreiran", promijenio_id=voditelj.id,
