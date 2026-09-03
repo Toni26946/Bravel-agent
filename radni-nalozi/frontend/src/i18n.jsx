@@ -164,6 +164,7 @@ const HR = {
   'sif.novoVozilo': '+ Novo vozilo', 'sif.gb': 'Garažni broj (GB)', 'sif.registracija': 'Registracija',
   'sif.marka': 'Marka', 'sif.model': 'Model', 'sif.povijest': 'Povijest ›',
   'sif.pretraziDio': 'Pretraži po nazivu dijela (npr. pločice)', 'sif.izgovoriDio': 'Izgovori naziv dijela',
+  'sif.filtrirajPovijest': 'Filtriraj povijest dijelova (naziv, npr. pločice)',
   'sif.rezultata': 'rezultata', 'sif.nemaRezultata': 'Nema rezultata za „{q}”.', 'sif.josNema': 'Još nema zabilježenih zamjena dijelova.',
 }
 
@@ -291,6 +292,7 @@ const EN = {
   'sif.novoVozilo': '+ New vehicle', 'sif.gb': 'Garage number (GB)', 'sif.registracija': 'Registration',
   'sif.marka': 'Make', 'sif.model': 'Model', 'sif.povijest': 'History ›',
   'sif.pretraziDio': 'Search by part name (e.g. pads)', 'sif.izgovoriDio': 'Say the part name',
+  'sif.filtrirajPovijest': 'Filter parts history (name, e.g. pads)',
   'sif.rezultata': 'results', 'sif.nemaRezultata': 'No results for “{q}”.', 'sif.josNema': 'No part replacements recorded yet.',
   'mik.diktiraj': 'Dictate',
 }
