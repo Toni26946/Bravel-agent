@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 import { useT } from './i18n'
 
@@ -6,6 +6,8 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const { korisnik } = useAuth()
   const { t } = useT()
   const nav = useNavigate()
+  const lok = useLocation()
+  const prikaziPlus = korisnik?.uloga === 'voditelj' && lok.pathname !== '/nalozi/novi'
 
   const tabovi = []
   if (korisnik?.uloga === 'vozac') {
@@ -33,6 +35,11 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
       </header>
       <main className="sadrzaj">{children}</main>
+      {prikaziPlus && (
+        <button className="fab-novi" onClick={() => nav('/nalozi/novi')} title={t('noviNalog.title')} aria-label={t('noviNalog.title')}>
+          +
+        </button>
+      )}
       <nav className="tabbar">
         {tabovi.map((t) => (
           <NavLink key={t.do} to={t.do} className={({ isActive }) => (isActive ? 'akt' : '')}>
