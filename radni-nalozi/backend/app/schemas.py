@@ -115,6 +115,7 @@ class VoziloOut(ORM):
     registracija: str | None = None
     marka: str | None = None
     model: str | None = None
+    slika: str | None = None
     aktivan: bool
 
 

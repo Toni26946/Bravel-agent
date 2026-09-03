@@ -120,13 +120,13 @@ export function VozilaURadu() {
 
 function KartaNaloga({ n, sada, onClick }) {
   const { t } = useT()
-  const foto = n.fotografije && n.fotografije[0]
+  const foto = n.vozilo?.slika || (n.fotografije && n.fotografije[0]?.putanja)
   const aktivan = radiSe(n)
   return (
     <div className={'nad-karta' + (aktivan ? ' radi' : '')} onClick={onClick}>
       <div className="nad-glava">
         <div className="nad-slika">
-          {foto ? <img src={medijUrl(foto.putanja)} alt={n.vozilo?.gb} /> : <span className="nad-slika-ph">🚚</span>}
+          {foto ? <img src={medijUrl(foto)} alt={n.vozilo?.gb} /> : <span className="nad-slika-ph">🚚</span>}
         </div>
         <div className="nad-info">
           <div className="nad-gb">{n.vozilo?.gb}</div>

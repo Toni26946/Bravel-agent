@@ -72,6 +72,8 @@ export const api = {
   vozilo: (id) => zahtjev(`/vozila/${id}`),
   kreirajVozilo: (b) => zahtjev('/vozila', { method: 'POST', body: b }),
   uvozVozila: (tekst) => zahtjev('/vozila/uvoz', { method: 'POST', body: { tekst } }),
+  postaviSlikuVozila: (id, fd) => zahtjev(`/vozila/${id}/slika`, { method: 'POST', form: fd }),
+  obrisiSlikuVozila: (id) => zahtjev(`/vozila/${id}/slika`, { method: 'DELETE' }),
 
   // Povijest zamjene dijelova (po kamionu)
   povijestDijelova: (voziloId) => zahtjev(`/vozila/${voziloId}/dijelovi`),

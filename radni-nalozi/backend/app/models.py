@@ -112,6 +112,7 @@ class Vozilo(Base):
     registracija: Mapped[str | None] = mapped_column(String(40), nullable=True)
     marka: Mapped[str | None] = mapped_column(String(60), nullable=True)
     model: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    slika: Mapped[str | None] = mapped_column(String(300), nullable=True)  # web putanja fotografije kamiona
     aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

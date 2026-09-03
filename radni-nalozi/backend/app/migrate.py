@@ -18,6 +18,7 @@ _STUPCI = [
     ("zadaci", "zavrseno", "TIMESTAMP"),
     ("zadaci", "utroseno_sek", "INTEGER DEFAULT 0"),
     ("povijest_rada", "nalog_id", "INTEGER"),
+    ("vozila", "slika", "VARCHAR(300)"),
 ]
 
 
