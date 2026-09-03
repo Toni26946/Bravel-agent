@@ -298,47 +298,6 @@ function Vozila() {
         <MikrofonGumb naslov={t('sif.traziVozilo')} onTekst={(tekst) => setQ(tekst)} />
       </div>
 
-      {/* Uvoz i dodavanje — sakriveno dok se traži, da popis bude čist */}
-      {!trazi && (!uvozOtvori ? (
-        <button className="btn sekund" onClick={() => setUvozOtvori(true)}>{t('sif.uvezi')}</button>
-      ) : (
-        <div className="karta">
-          <label style={{ marginTop: 0 }}>{t('sif.zalijepi')}</label>
-          <p className="meta" style={{ marginTop: 0 }}>{t('sif.uvozHint')}</p>
-          <textarea
-            value={uvozTekst}
-            onChange={(e) => setUvozTekst(e.target.value)}
-            placeholder={'GB-101\nGB-102, ZG1234AB, MAN\nGB-103, ZG5678CD, Scania'}
-            style={{ minHeight: 140, fontFamily: 'monospace' }}
-          />
-          {uvozRezultat && (
-            <div className="uspjeh">{t('sif.uvozRezultat', { d: uvozRezultat.dodano, p: uvozRezultat.preskoceno, u: uvozRezultat.ukupno })}</div>
-          )}
-          <div className="btn-red">
-            <button className="btn mali" onClick={uvezi} disabled={uvozRadi || !uvozTekst.trim()}>{uvozRadi ? t('sif.uvozim') : t('sif.uveziBtn')}</button>
-            <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>{t('sif.zatvori')}</button>
-          </div>
-        </div>
-      ))}
-
-      {!trazi && !otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.novoVozilo')}</button>}
-      {!trazi && otvori && (
-        <form className="karta" onSubmit={spremi}>
-          <label>{t('sif.gb')}</label>
-          <input value={f.gb} onChange={(e) => setF({ ...f, gb: e.target.value })} required />
-          <label>{t('sif.registracija')}</label>
-          <input value={f.registracija} onChange={(e) => setF({ ...f, registracija: e.target.value })} />
-          <label>{t('sif.marka')}</label>
-          <input value={f.marka} onChange={(e) => setF({ ...f, marka: e.target.value })} />
-          <label>{t('sif.model')}</label>
-          <input value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} />
-          <div className="btn-red">
-            <button className="btn mali">{t('common.spremi')}</button>
-            <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
-          </div>
-        </form>
-      )}
-
       {trazi && <p className="meta" style={{ marginTop: 12 }}>{prikazana.length} {t('sif.rezultata')}</p>}
       {prikazana.length === 0 ? (
         <p className="meta" style={{ marginTop: 12 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p>
