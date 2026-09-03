@@ -21,7 +21,6 @@ function trajanjeDugo(sek) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
   return h > 0 ? `${h} h ${m} min` : `${m} min`
 }
-// proteklo vrijeme zadatka (u sekundama) — uključuje živo brojanje ako mjerač radi
 function proteklo(z, sada) {
   const osnova = z.utroseno_sek || 0
   return z.zapoceto ? osnova + Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : osnova
@@ -29,22 +28,40 @@ function proteklo(z, sada) {
 function radiSe(n) {
   return n.operacije.some((op) => op.zadaci.some((z) => z.zapoceto))
 }
+// "Midhun Hari Ankudy" -> "Midhun Hari A."
+function kratkoIme(ime) {
+  const d = ime.trim().split(/\s+/)
+  if (d.length <= 1) return ime
+  return d.slice(0, -1).join(' ') + ' ' + d[d.length - 1][0] + '.'
+}
 
-export default function Nadzor() {
-  const { t } = useT()
-  const nav = useNavigate()
+// Zajednički dohvat aktivnih naloga + živi sat.
+function useNadzor() {
   const [nalozi, setNalozi] = useState(null)
   const [greska, setGreska] = useState('')
   const [sada, setSada] = useState(Date.now())
+  useEffect(() => {
+    const u = () => api.nadzor().then(setNalozi).catch((e) => setGreska(e.message))
+    u()
+    const t = setInterval(u, 15000)
+    return () => clearInterval(t)
+  }, [])
+  useEffect(() => {
+    const t = setInterval(() => setSada(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return { nalozi, greska, sada }
+}
 
-  const ucitaj = () => api.nadzor().then(setNalozi).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj(); const t = setInterval(ucitaj, 15000); return () => clearInterval(t) }, [])
-  useEffect(() => { const t = setInterval(() => setSada(Date.now()), 1000); return () => clearInterval(t) }, [])
+// --- Glavni izbornik: tablica tekućih radova (aktivni mjerači) ---------------
+export function GlavniIzbornik() {
+  const { t } = useT()
+  const nav = useNavigate()
+  const { nalozi, greska, sada } = useNadzor()
 
-  if (greska) return <Layout naslov={t('nadzor.naslov')}><div className="greska">{greska}</div></Layout>
-  if (!nalozi) return <Layout naslov={t('nadzor.naslov')}><Spinner /></Layout>
+  if (greska) return <Layout naslov={t('nadzor.izbornik')}><div className="greska">{greska}</div></Layout>
+  if (!nalozi) return <Layout naslov={t('nadzor.izbornik')}><Spinner /></Layout>
 
-  // Tekući radovi: zadaci koji se trenutno mjere (mjerač aktivan)
   const tekuci = []
   nalozi.forEach((n) => n.operacije.forEach((op) => op.zadaci.forEach((z) => {
     if (z.zapoceto) tekuci.push({ n, op, z })
@@ -52,8 +69,7 @@ export default function Nadzor() {
   tekuci.sort((a, b) => msVremena(a.z.zapoceto) - msVremena(b.z.zapoceto))
 
   return (
-    <Layout naslov={t('nadzor.naslov')}>
-      {/* Tekući radovi */}
+    <Layout naslov={t('nadzor.izbornik')}>
       <div className="sekcija-naslov">{t('nadzor.tekuci')} <span className="nad-broj">{tekuci.length}</span></div>
       {tekuci.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.nemaTekucih')}</p></div>
@@ -74,9 +90,21 @@ export default function Nadzor() {
           ))}
         </div>
       )}
+    </Layout>
+  )
+}
 
-      {/* Vozila u radu */}
-      <div className="sekcija-naslov" style={{ marginTop: 18 }}>{t('nadzor.vozilaURadu')} <span className="nad-broj">{nalozi.length}</span></div>
+// --- Vozila u radu: kartice po aktivnom nalogu -------------------------------
+export function VozilaURadu() {
+  const { t } = useT()
+  const nav = useNavigate()
+  const { nalozi, greska, sada } = useNadzor()
+
+  if (greska) return <Layout naslov={t('nadzor.vozilaURadu')}><div className="greska">{greska}</div></Layout>
+  if (!nalozi) return <Layout naslov={t('nadzor.vozilaURadu')}><Spinner /></Layout>
+
+  return (
+    <Layout naslov={t('nadzor.vozilaURadu')}>
       {nalozi.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.nemaAktivnih')}</p></div>
       ) : (
@@ -128,11 +156,4 @@ function KartaNaloga({ n, sada, onClick }) {
       </div>
     </div>
   )
-}
-
-// "Midhun Hari Ankudy" -> "Midhun Hari A."
-function kratkoIme(ime) {
-  const d = ime.trim().split(/\s+/)
-  if (d.length <= 1) return ime
-  return d.slice(0, -1).join(' ') + ' ' + d[d.length - 1][0] + '.'
 }

@@ -12,7 +12,8 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
-    tabovi.push({ do: '/ploca', ikona: '📊', txt: t('tab.ploca') })
+    tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
+    tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
