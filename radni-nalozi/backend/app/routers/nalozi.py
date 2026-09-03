@@ -236,13 +236,26 @@ def popis(
     return q.order_by(Nalog.kreiran.desc()).all()
 
 
+# Statusi u kojima je nalog još "aktivan" (nije završen) — za spajanje.
+AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+
+
+@router.get("/nadzor", response_model=list[NalogOut])
+def nadzor(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    """Nadzorna ploča — svi aktivni nalozi s operacijama, zadacima i mjeračima."""
+    if korisnik.uloga == Uloga.vozac:
+        raise HTTPException(status_code=403, detail="Vozači nemaju pristup")
+    return (
+        db.query(Nalog)
+        .filter(Nalog.status.in_(AKTIVNI_STATUSI))
+        .order_by(Nalog.azuriran.desc())
+        .all()
+    )
+
+
 @router.get("/{nalog_id}", response_model=NalogOut)
 def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
     return _dohvati_ovlasten(db, nalog_id, korisnik)
-
-
-# Statusi u kojima je nalog još "aktivan" (nije završen) — za spajanje.
-AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
 
 
 def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:

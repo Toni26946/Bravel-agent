@@ -8,6 +8,7 @@ import Prijave from './pages/Prijave'
 import NovaPrijava from './pages/NovaPrijava'
 import PrijavaDetalj from './pages/PrijavaDetalj'
 import Nalozi from './pages/Nalozi'
+import Nadzor from './pages/Nadzor'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
 import Steta from './pages/Steta'
@@ -39,6 +40,9 @@ export default function App() {
       <Route path="/prijave" element={<Zasticeno uloge={['vozac', 'voditelj']}><Prijave /></Zasticeno>} />
       <Route path="/prijave/nova" element={<Zasticeno uloge={['vozac', 'voditelj']}><NovaPrijava /></Zasticeno>} />
       <Route path="/prijave/:id" element={<Zasticeno uloge={['vozac', 'voditelj']}><PrijavaDetalj /></Zasticeno>} />
+
+      {/* Nadzorna ploča: voditelj + radnik */}
+      <Route path="/ploca" element={<Zasticeno uloge={['voditelj', 'radnik']}><Nadzor /></Zasticeno>} />
 
       {/* Nalozi: voditelj (svi) + radnik (dodijeljeni) */}
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'radnik']}><Nalozi /></Zasticeno>} />

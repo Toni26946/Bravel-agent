@@ -95,6 +95,7 @@ export const api = {
 
   // Nalozi
   nalozi: (status) => zahtjev('/nalozi' + (status ? `?status=${status}` : '')),
+  nadzor: () => zahtjev('/nalozi/nadzor'),
   nalog: (id) => zahtjev(`/nalozi/${id}`),
   kreirajNalog: (b) => zahtjev('/nalozi', { method: 'POST', body: b }),
   azurirajNalog: (id, b) => zahtjev(`/nalozi/${id}`, { method: 'PATCH', body: b }),

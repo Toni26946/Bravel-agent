@@ -155,6 +155,49 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-rad .rad-tekst { padding: 4px 4px; font-size: 12px; color: var(--tekst); }
 .op2-dodaj { grid-column: 1 / -1; padding: 6px 10px 8px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
 .op2-dodaj input { font-size: 14px; }
+/* --- Nadzorna ploča -------------------------------------------------------- */
+.nad-broj { display: inline-block; min-width: 20px; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--plava); color: #fff; font-size: 12px; font-weight: 700; vertical-align: middle; }
+
+/* Tekući radovi (tablica) */
+.tr-head, .tr-red { display: grid; grid-template-columns: 92px 130px minmax(220px, 1fr) 130px 96px; min-width: 640px; }
+.tr-head > div { padding: 8px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #fff; background: var(--plava); }
+.tr-head > div + div { border-left: 1px solid rgba(255,255,255,.25); }
+.tr-red { border-top: 1px solid var(--rub); font-size: 13px; cursor: pointer; }
+.tr-red:hover { background: #f4f8ff; }
+.tr-red > div { padding: 8px 10px; min-width: 0; word-break: break-word; }
+.tr-red > div + div { border-left: 1px solid var(--rub); }
+.tr-red .tr-nalog { font-weight: 700; color: var(--plava); font-variant-numeric: tabular-nums; }
+.tr-red .tr-op { font-weight: 700; color: var(--plava); }
+.tr-red .tr-voz { color: var(--sivo); font-size: 12px; }
+.tr-red .tr-traj { color: #2e7d32; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Vozila u radu (kartice) */
+.nad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.nad-karta { border: 1px solid var(--rub); border-radius: var(--radius); background: var(--karta); box-shadow: var(--sjena); overflow: hidden; cursor: pointer; display: flex; flex-direction: column; }
+.nad-karta:hover { border-color: var(--plava); }
+.nad-karta.radi { background: #eafaf0; border-color: #66bb6a; }
+.nad-glava { display: flex; gap: 10px; padding: 10px; }
+.nad-slika { width: 84px; height: 64px; flex: none; border-radius: 8px; overflow: hidden; background: #e9eef5; display: flex; align-items: center; justify-content: center; }
+.nad-slika img { width: 100%; height: 100%; object-fit: cover; }
+.nad-slika-ph { font-size: 30px; }
+.nad-info { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.nad-gb { font-size: 24px; font-weight: 800; line-height: 1; }
+.nad-meta { font-size: 12px; color: var(--sivo); }
+.nad-vod { font-size: 13px; font-weight: 700; color: var(--plava); margin-top: 2px; text-transform: uppercase; letter-spacing: .2px; }
+.nad-tijelo { border-top: 1px solid var(--rub); }
+.nad-red { display: grid; grid-template-columns: 1fr 120px; border-top: 1px solid var(--rub); }
+.nad-red:first-child { border-top: none; }
+.nad-zaglavlje > div { padding: 5px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--sivo); background: #eef2f7; }
+.nad-zaglavlje > div + div { border-left: 1px solid var(--rub); }
+.nad-posao { padding: 6px 10px; min-width: 0; font-size: 13px; word-break: break-word; }
+.nad-op { font-weight: 800; color: var(--plava); text-transform: uppercase; font-size: 11px; letter-spacing: .2px; margin-right: 5px; }
+.nad-opis.ok { color: var(--plava); }
+.nad-opis.nije { color: var(--sivo); }
+.nad-radnik { padding: 6px 8px; border-left: 1px solid var(--rub); display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.nad-ime { font-size: 12px; font-weight: 600; word-break: break-word; }
+.nad-timer { font-size: 12px; font-weight: 700; color: #2e7d32; background: #e2f5e6; padding: 0 6px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.nad-prazno { padding: 8px 10px; color: var(--sivo); font-size: 13px; }
+
 /* Servisna povijest (uvezena evidencija) */
 .pr-head { display: grid; grid-template-columns: 78px 118px 1fr; background: #eef2f7; }
 .pr-head > div { padding: 7px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--sivo); }
