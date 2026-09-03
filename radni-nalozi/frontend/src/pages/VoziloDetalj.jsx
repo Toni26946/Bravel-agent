@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { useAuth } from '../auth'
-import { Spinner, datum } from '../ui'
+import { MikrofonGumb, Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import PovijestDijelova from '../PovijestDijelova'
 
@@ -96,10 +96,16 @@ function trajanjeMin(m) {
   return h > 0 ? `${h} h ${mi} min` : `${mi} min`
 }
 
+// bez kvačica + mala slova — za pretragu neosjetljivu na dijakritike
+function _norm(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 function ServisnaPovijest({ voziloId }) {
   const { t } = useT()
   const [stavke, setStavke] = useState(null)
   const [greska, setGreska] = useState('')
+  const [q, setQ] = useState('')
 
   useEffect(() => {
     api.povijestRada(voziloId).then(setStavke).catch((e) => setGreska(e.message))
@@ -109,23 +115,38 @@ function ServisnaPovijest({ voziloId }) {
   if (!stavke) return <Spinner />
   if (stavke.length === 0) return <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('voz.nemaPovijesti')}</p></div>
 
+  const nq = _norm(q.trim())
+  const filtrirano = nq
+    ? stavke.filter((s) => _norm(`${s.operacija || ''} ${s.opis || ''} ${s.radnik || ''}`).includes(nq))
+    : stavke
+
   return (
-    <div className="op-tablica">
-      <div className="pr-head">
-        <div>{t('voz.datum')}</div><div>{t('voz.radnik')}</div><div>{t('voz.posao')}</div>
+    <>
+      <div className="polje-mik" style={{ marginBottom: 8 }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('voz.filtrirajPovijest')} />
+        <MikrofonGumb naslov={t('voz.filtrirajPovijest')} onTekst={(tekst) => setQ(tekst)} />
       </div>
-      {stavke.map((s) => (
-        <div className="pr-red" key={s.id}>
-          <div className="pr-datum">{datum(s.datum)}</div>
-          <div className="pr-radnik">{s.radnik || '—'}</div>
-          <div>
-            {s.operacija && <span className="pr-op">{s.operacija}</span>}
-            {s.opis && <span className="pr-opis">{s.opis}</span>}
-            {!s.operacija && !s.opis && <span className="meta">—</span>}
-            {s.minute ? <span className="pr-min">⏱ {trajanjeMin(s.minute)}</span> : null}
+      {filtrirano.length === 0 ? (
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p></div>
+      ) : (
+        <div className="op-tablica">
+          <div className="pr-head">
+            <div>{t('voz.datum')}</div><div>{t('voz.radnik')}</div><div>{t('voz.posao')}</div>
           </div>
+          {filtrirano.map((s) => (
+            <div className="pr-red" key={s.id}>
+              <div className="pr-datum">{datum(s.datum)}</div>
+              <div className="pr-radnik">{s.radnik || '—'}</div>
+              <div>
+                {s.operacija && <span className="pr-op">{s.operacija}</span>}
+                {s.opis && <span className="pr-opis">{s.opis}</span>}
+                {!s.operacija && !s.opis && <span className="meta">—</span>}
+                {s.minute ? <span className="pr-min">⏱ {trajanjeMin(s.minute)}</span> : null}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </>
   )
 }

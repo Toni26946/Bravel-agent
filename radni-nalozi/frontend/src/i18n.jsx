@@ -145,6 +145,7 @@ const HR = {
   // šifrarnik
   'sif.title': 'Šifrarnik', 'sif.korisnici': 'Korisnici', 'sif.vozila': 'Vozila', 'sif.dijelovi': 'Dijelovi',
   'voz.servisnaPovijest': 'Servisna povijest', 'voz.nemaPovijesti': 'Nema unesene servisne povijesti.',
+  'voz.filtrirajPovijest': 'Filtriraj (operacija, dio, radnik…)',
   'voz.datum': 'Datum', 'voz.radnik': 'Radnik', 'voz.posao': 'Posao',
   'voz.dodajSliku': 'Dodaj sliku', 'voz.promijeniSliku': 'Promijeni sliku', 'voz.ukloniSliku': 'Ukloni sliku',
   'sif.uvoziRadnike': '📋 Uvezi radnike (popis imena)',
@@ -273,6 +274,7 @@ const EN = {
   'steta.obrisati': 'Delete this damage?',
   'sif.title': 'Settings', 'sif.korisnici': 'Users', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',
   'voz.servisnaPovijest': 'Service history', 'voz.nemaPovijesti': 'No service history yet.',
+  'voz.filtrirajPovijest': 'Filter (operation, part, mechanic…)',
   'voz.datum': 'Date', 'voz.radnik': 'Mechanic', 'voz.posao': 'Work',
   'voz.dodajSliku': 'Add photo', 'voz.promijeniSliku': 'Change photo', 'voz.ukloniSliku': 'Remove photo',
   'sif.uvoziRadnike': '📋 Import workers (name list)',
