@@ -195,6 +195,9 @@ class ZadatakOut(ORM):
     opis: str
     gotovo: bool
     zaduzeni: KorisnikOut | None = None
+    zapoceto: datetime | None = None
+    zavrseno: datetime | None = None
+    utroseno_sek: int = 0
 
 
 class OperacijaOut(ORM):
@@ -223,6 +226,10 @@ class ZadatakUpdate(BaseModel):
     opis: str | None = None
     gotovo: bool | None = None
     zaduzeni_id: int | None = None
+
+
+class ZadatakMjerac(BaseModel):
+    akcija: str  # "start" (pokreni mjerač) ili "stop" (zaustavi/pauziraj)
 
 
 class GlasovniZahtjev(BaseModel):

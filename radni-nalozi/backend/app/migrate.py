@@ -14,6 +14,9 @@ _STUPCI = [
     ("nalozi", "vozac_id", "INTEGER"),
     ("nalozi", "voditelj_id", "INTEGER"),
     ("zadaci", "zaduzeni_id", "INTEGER"),
+    ("zadaci", "zapoceto", "TIMESTAMP"),
+    ("zadaci", "zavrseno", "TIMESTAMP"),
+    ("zadaci", "utroseno_sek", "INTEGER DEFAULT 0"),
 ]
 
 

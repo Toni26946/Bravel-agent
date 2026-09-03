@@ -154,6 +154,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-rad .rad-select { border: none; background: transparent; padding: 4px 2px; font-size: 12px; width: 100%; color: var(--tekst); }
 .op2-dodaj { grid-column: 1 / -1; padding: 6px 10px 8px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
 .op2-dodaj input { font-size: 14px; }
+.op2-mj { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 3px 10px 6px 34px; border-top: 1px dashed var(--rub); background: #fbfdff; }
+.mj-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rub); background: #fff; color: var(--plava); font-weight: 700; font-size: 12px; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
+.mj-btn:hover { border-color: var(--plava); }
+.mj-btn.radi { background: #e8f5e9; border-color: #66bb6a; color: #2e7d32; }
+.mj-btn .mj-vrijeme { font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.mj-gotovo { font-size: 12px; color: #2e7d32; font-weight: 600; }
 
 /* Mikrofon (diktiranje) */
 .polje-mik { display: flex; gap: 8px; align-items: stretch; }
