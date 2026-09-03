@@ -198,6 +198,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .tr-red .tr-voz { color: var(--sivo); font-size: 12px; }
 .tr-red .tr-traj { color: #2e7d32; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* Tekući radovi — stackirano u kartice na mobitelu */
+@media (max-width: 600px) {
+  .tr-head { display: none; }
+  .tr-red { display: block; min-width: 0; position: relative; padding: 10px 12px 10px; }
+  .tr-red > div { border-left: none; padding: 1px 0; }
+  .tr-red .tr-nalog { font-size: 12px; }
+  .tr-red .tr-radnik { font-weight: 700; font-size: 14px; color: var(--tekst); }
+  .tr-red .tr-oper { font-size: 13px; }
+  .tr-red .tr-voz { font-size: 12px; }
+  .tr-red .tr-voz::before { content: "🚚 "; }
+  .tr-red .tr-traj { position: absolute; top: 10px; right: 12px; background: #e2f5e6; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
+}
+
 /* Vozila u radu (kartice) */
 .nad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
 .nad-karta { border: 1px solid var(--rub); border-radius: var(--radius); background: var(--karta); box-shadow: var(--sjena); overflow: hidden; cursor: pointer; display: flex; flex-direction: column; }
