@@ -17,3 +17,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 )
+
+// Češće provjeravaj novu verziju aplikacije (SW je autoUpdate + skipWaiting,
+// pa se nova verzija sama primijeni čim je pronađena).
+if ('serviceWorker' in navigator) {
+  const provjeri = () =>
+    navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {})
+  setInterval(provjeri, 60000)
+  window.addEventListener('focus', provjeri)
+}
