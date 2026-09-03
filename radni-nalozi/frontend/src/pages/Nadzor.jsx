@@ -34,6 +34,11 @@ function kratkoIme(ime) {
   if (d.length <= 1) return ime
   return d.slice(0, -1).join(' ') + ' ' + d[d.length - 1][0] + '.'
 }
+// Popis radnika zadatka (podržava novi popis 'radnici' i stari 'zaduzeni').
+function radniciZadatka(z) {
+  if (z.radnici && z.radnici.length) return z.radnici
+  return z.zaduzeni ? [z.zaduzeni] : []
+}
 
 // Zajednički dohvat aktivnih naloga + živi sat.
 function useNadzor() {
@@ -82,7 +87,7 @@ export function GlavniIzbornik() {
           {tekuci.map(({ n, op, z }) => (
             <div className="tr-red" key={z.id} onClick={() => nav(`/nalozi/${n.id}`)}>
               <div className="tr-voz">{n.vozilo?.gb}</div>
-              <div className="tr-radnik">{z.zaduzeni?.ime || '—'}</div>
+              <div className="tr-radnik">{radniciZadatka(z).map((r) => r.ime).join(', ') || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
               <div className="tr-traj">{trajanjeDugo(proteklo(z, sada))}</div>
             </div>
@@ -149,7 +154,7 @@ function KartaNaloga({ n, sada, onClick }) {
                 {z.opis && <span className={'nad-opis ' + (z.gotovo ? 'ok' : 'nije')}>{z.opis}</span>}
               </div>
               <div className="nad-radnik">
-                {z.zaduzeni?.ime && <span className="nad-ime">{kratkoIme(z.zaduzeni.ime)}</span>}
+                {radniciZadatka(z).map((r) => <span key={r.id} className="nad-ime">{kratkoIme(r.ime)}</span>)}
                 {radi && <span className="nad-timer">{trajanje(proteklo(z, sada))}</span>}
               </div>
             </div>

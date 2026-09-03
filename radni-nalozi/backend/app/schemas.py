@@ -195,7 +195,8 @@ class ZadatakOut(ORM):
     id: int
     opis: str
     gotovo: bool
-    zaduzeni: KorisnikOut | None = None
+    zaduzeni: KorisnikOut | None = None  # zastarjelo — zadržano radi kompatibilnosti
+    radnici: list[KorisnikOut] = []
     zapoceto: datetime | None = None
     zavrseno: datetime | None = None
     utroseno_sek: int = 0
@@ -237,7 +238,8 @@ class ZadatakDodaj(BaseModel):
 class ZadatakUpdate(BaseModel):
     opis: str | None = None
     gotovo: bool | None = None
-    zaduzeni_id: int | None = None
+    zaduzeni_id: int | None = None  # zastarjelo — koristi radnici_ids
+    radnici_ids: list[int] | None = None
 
 
 class ZadatakMjerac(BaseModel):

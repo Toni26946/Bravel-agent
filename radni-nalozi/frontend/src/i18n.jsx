@@ -58,6 +58,7 @@ const HR = {
   'nalog.spojeno': '🔗 Novi unos je spojen u ovaj postojeći nalog (kamion je već imao aktivan nalog).',
   // operacije/zadaci
   'op.operacija': 'Operacija', 'op.radnik': 'Radnik', 'op.nemaOperacija': 'Još nema operacija.',
+  'op.dodajRadnika': '+ dodaj radnika',
   'op.dodajOperaciju': 'Dodaj operaciju', 'op.noviZadatak': 'Novi zadatak', 'op.zadatak': '+ Zadatak',
   'op.diktirajZadatak': 'Diktiraj zadatak',
   'op.mjeracStart': 'Pokreni mjerač', 'op.mjeracPauza': 'Pauziraj', 'op.zavrsenoU': 'Završeno:',
@@ -198,6 +199,7 @@ const EN = {
   'nalog.voditelj': 'Manager', 'nalog.vozac': 'Driver', 'nalog.rok': 'Due', 'nalog.kreirao': 'Created by',
   'nalog.spojeno': '🔗 The new entry was merged into this existing order (the truck already had an active order).',
   'op.operacija': 'Operation', 'op.radnik': 'Mechanic', 'op.nemaOperacija': 'No operations yet.',
+  'op.dodajRadnika': '+ add worker',
   'op.dodajOperaciju': 'Add operation', 'op.noviZadatak': 'New task', 'op.zadatak': '+ Task',
   'op.diktirajZadatak': 'Dictate task',
   'op.mjeracStart': 'Start timer', 'op.mjeracPauza': 'Pause', 'op.zavrsenoU': 'Finished:',
