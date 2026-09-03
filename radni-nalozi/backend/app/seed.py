@@ -1,14 +1,18 @@
 """Početni podaci — kreira prvog voditelja ako u bazi nema nijednog korisnika."""
+import json
 import logging
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from .auth import hash_lozinka
 from .config import settings
-from .models import Korisnik, Uloga
+from .models import Korisnik, PovijestRada, Uloga, Vozilo
 
 log = logging.getLogger("seed")
+
+_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def seed(db: Session) -> None:
@@ -86,6 +90,63 @@ def jednokratni_reset_lozinke(db: Session) -> None:
             zastavica.write_text("done", encoding="utf-8")
         except OSError:
             pass
+
+
+def uvezi_povijest_rada(db: Session) -> None:
+    """Jednokratni uvoz servisne povijesti iz app/data/povijest_rada.json.
+
+    Za svaki zapis nađe (ili kreira) vozilo po garažnom broju i doda stavku
+    povijesti. Idempotentno preko zastavice na trajnom volumenu — ako se popis
+    kasnije nadopuni (npr. i opisima), povećaj verziju zastavice.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".povijest_rada_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "povijest_rada.json"
+    if not put.exists():
+        return
+    try:
+        zapisi = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:  # noqa: BLE001
+        log.warning("Ne mogu učitati povijest_rada.json: %s", e)
+        return
+    # keš vozila po GB-u (kreiraj koji nedostaju)
+    vozila = {v.gb: v for v in db.query(Vozilo).all()}
+    dodano = 0
+    for z in zapisi:
+        gb = str(z.get("gb", "")).strip()
+        if not gb:
+            continue
+        voz = vozila.get(gb)
+        if voz is None:
+            voz = Vozilo(gb=gb)
+            db.add(voz)
+            db.flush()
+            vozila[gb] = voz
+        try:
+            g, m, d = z["datum"].split("-")
+            dat = date(int(g), int(m), int(d))
+        except (KeyError, ValueError):
+            continue
+        db.add(PovijestRada(
+            vozilo_id=voz.id, datum=dat,
+            radnik=(z.get("radnik") or None),
+            operacija=(z.get("operacija") or None),
+            opis=(z.get("opis") or None),
+            minute=z.get("minute"),
+            izvor="evidencija",
+        ))
+        dodano += 1
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Uvezeno %d zapisa servisne povijesti (%d vozila).", dodano, len(vozila))
 
 
 def seed_radnici(db: Session, lozinka: str = "radnik123") -> None:

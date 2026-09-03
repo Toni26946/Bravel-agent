@@ -8,8 +8,9 @@ import re
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, Nalog, Uloga, Vozilo, ZamjenaDijela
+from ..models import Korisnik, Nalog, PovijestRada, Uloga, Vozilo, ZamjenaDijela
 from ..schemas import (
+    PovijestRadaOut,
     VoziloCreate,
     VoziloOut,
     VoziloUpdate,
@@ -112,6 +113,21 @@ def azuriraj(
     db.commit()
     db.refresh(v)
     return v
+
+
+# --- Servisna povijest (uvezena evidencija; voditelj + radnik) ---------------
+@router.get("/{vozilo_id}/povijest-rada", response_model=list[PovijestRadaOut])
+def povijest_rada(
+    vozilo_id: int, _: Korisnik = Depends(voditelj_ili_radnik), db: Session = Depends(get_db)
+):
+    if not db.get(Vozilo, vozilo_id):
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    return (
+        db.query(PovijestRada)
+        .filter(PovijestRada.vozilo_id == vozilo_id)
+        .order_by(PovijestRada.datum.desc(), PovijestRada.id.desc())
+        .all()
+    )
 
 
 # --- Povijest zamjene dijelova (voditelj + radnik) ---------------------------
