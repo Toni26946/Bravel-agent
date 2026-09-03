@@ -13,6 +13,7 @@ from ..models import (
     Korisnik,
     Nalog,
     Operacija,
+    PovijestRada,
     PovijestStatusa,
     Prijava,
     Prioritet,
@@ -331,6 +332,38 @@ def azuriraj_dodjele(
     return nalog
 
 
+def _obrisi_povijest_naloga(db: Session, nalog_id: int) -> None:
+    db.query(PovijestRada).filter(PovijestRada.nalog_id == nalog_id).delete()
+
+
+def _upisi_nalog_u_povijest(db: Session, nalog: Nalog) -> None:
+    """Prepiši zadatke završenog naloga u servisnu povijest vozila.
+
+    Idempotentno: prvo makne ranije zapise ovog naloga, pa upiše aktualne.
+    Svaki zadatak → jedan zapis (datum, radnik, operacija=kategorija, opis, minute).
+    """
+    _obrisi_povijest_naloga(db, nalog.id)
+    sada = datetime.now(timezone.utc)
+    for op in nalog.operacije:
+        for z in op.zadaci:
+            opis = (z.opis or "").strip()
+            if not opis:
+                continue
+            dat = z.zavrseno or sada
+            if dat.tzinfo is None:
+                dat = dat.replace(tzinfo=timezone.utc)
+            db.add(PovijestRada(
+                vozilo_id=nalog.vozilo_id,
+                nalog_id=nalog.id,
+                datum=dat.date(),
+                radnik=(z.zaduzeni.ime if z.zaduzeni else None),
+                operacija=op.kategorija or None,
+                opis=opis,
+                minute=(int((z.utroseno_sek or 0) / 60) or None),
+                izvor="nalog",
+            ))
+
+
 # --- promjena statusa (voditelj ili dodijeljeni radnik) ----------------------
 @router.patch("/{nalog_id}/status", response_model=NalogOut)
 def promijeni_status(
@@ -346,6 +379,11 @@ def promijeni_status(
         nalog.zatvoren = datetime.now(timezone.utc)
     else:
         nalog.zatvoren = None
+    # Servisna povijest vozila: upiši pri završetku, ukloni ako se ponovno otvori.
+    if podaci.status == StatusNaloga.gotov:
+        _upisi_nalog_u_povijest(db, nalog)
+    elif stari == StatusNaloga.gotov:
+        _obrisi_povijest_naloga(db, nalog.id)
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=stari.value, novi_status=podaci.status.value,
         napomena=podaci.napomena, promijenio_id=korisnik.id,

@@ -316,6 +316,7 @@ class PovijestRada(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vozilo_id: Mapped[int] = mapped_column(ForeignKey("vozila.id", ondelete="CASCADE"), index=True)
+    nalog_id: Mapped[int | None] = mapped_column(ForeignKey("nalozi.id", ondelete="SET NULL"), nullable=True, index=True)
     datum: Mapped[date] = mapped_column(Date, index=True)
     radnik: Mapped[str | None] = mapped_column(String(160), nullable=True)   # ime radnika (tekst iz evidencije)
     operacija: Mapped[str | None] = mapped_column(String(160), nullable=True)  # kategorija posla (opcionalno)
