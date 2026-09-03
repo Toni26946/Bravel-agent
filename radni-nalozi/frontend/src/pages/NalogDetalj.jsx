@@ -87,9 +87,16 @@ export default function NalogDetalj() {
 
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
-      <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} />
+      <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj'} />
     </Layout>
   )
+}
+
+// Pretvori vremensku oznaku u ms; ako nema zone, tretiraj kao UTC.
+function msVremena(s) {
+  if (!s) return 0
+  const imaZonu = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)
+  return new Date(imaZonu ? s : s + 'Z').getTime()
 }
 
 // Formatiraj sekunde u čitljivo trajanje (h:mm:ss ili m:ss).
@@ -103,7 +110,7 @@ function trajanje(sek) {
 }
 
 // --- Operacije i zadaci ------------------------------------------------------
-function Operacije({ nalog, radnici, ucitaj, naGresku }) {
+function Operacije({ nalog, radnici, ucitaj, naGresku, jeVoditelj }) {
   const { t } = useT()
   const [sada, setSada] = useState(Date.now())
   // Otkucaj svake sekunde da se živo mjerenje osvježava.
@@ -124,33 +131,35 @@ function Operacije({ nalog, radnici, ucitaj, naGresku }) {
         <div className="op-head"><div>{t('op.operacija')}</div><div>{t('op.radnik')}</div></div>
         {nalog.operacije.length === 0 && <div className="op-prazno">{t('op.nemaOperacija')}</div>}
         {nalog.operacije.map((op) => (
-          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} sada={sada} />
+          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} sada={sada} jeVoditelj={jeVoditelj} />
         ))}
       </div>
 
-      <div className="karta" style={{ marginTop: 12 }}>
-        <label style={{ marginTop: 0 }}>{t('op.dodajOperaciju')}</label>
-        <KategorijaPicker onOdaberi={dodajOp} />
-      </div>
+      {jeVoditelj && (
+        <div className="karta" style={{ marginTop: 12 }}>
+          <label style={{ marginTop: 0 }}>{t('op.dodajOperaciju')}</label>
+          <KategorijaPicker onOdaberi={dodajOp} />
+        </div>
+      )}
     </>
   )
 }
 
-function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada }) {
+function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVoditelj }) {
   const { t } = useT()
   const [dodaje, setDodaje] = useState(false)
   return (
     <div className="op2">
       <div className="op2-kat">
         <span className="op2-ime">{op.kategorija}</span>
-        <span className="op2-plus" onClick={() => setDodaje((v) => !v)}>＋</span>
-        <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>
+        {jeVoditelj && <span className="op2-plus" onClick={() => setDodaje((v) => !v)}>＋</span>}
+        {jeVoditelj && <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>}
       </div>
       <div className="op2-kat-r" />
       {op.zadaci.map((z) => {
         const radi = !!z.zapoceto
         const osnova = z.utroseno_sek || 0
-        const proteklo = radi ? osnova + (sada - new Date(z.zapoceto).getTime()) / 1000 : osnova
+        const proteklo = radi ? osnova + Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : osnova
         return (
           <Fragment key={z.id}>
             <label className="op2-zad">
@@ -160,17 +169,21 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada }) {
                 onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
               />
               <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
-              <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>
+              {jeVoditelj && <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>}
             </label>
             <div className="op2-rad">
-              <select
-                className="rad-select"
-                value={z.zaduzeni?.id || ''}
-                onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
-              >
-                <option value="">—</option>
-                {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-              </select>
+              {jeVoditelj ? (
+                <select
+                  className="rad-select"
+                  value={z.zaduzeni?.id || ''}
+                  onChange={(e) => wrap(api.azurirajZadatak(nalog.id, z.id, { zaduzeni_id: e.target.value ? Number(e.target.value) : null }))}
+                >
+                  <option value="">—</option>
+                  {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+                </select>
+              ) : (
+                <span className="rad-tekst">{z.zaduzeni?.ime || '—'}</span>
+              )}
             </div>
             <div className="op2-mj">
               {!z.gotovo && (

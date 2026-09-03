@@ -1,9 +1,9 @@
 """Pydantic sheme za zahtjeve i odgovore API-ja."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from .models import (
     Hitnost,
@@ -198,6 +198,17 @@ class ZadatakOut(ORM):
     zapoceto: datetime | None = None
     zavrseno: datetime | None = None
     utroseno_sek: int = 0
+
+    # SQLite vraća naivne datume (spremljene u UTC-u); označi ih kao UTC da ih
+    # preglednik ispravno protumači (inače se živo brojanje vremena pomakne za
+    # vremensku zonu).
+    @field_serializer("zapoceto", "zavrseno")
+    def _utc_iso(self, v: datetime | None):
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class OperacijaOut(ORM):

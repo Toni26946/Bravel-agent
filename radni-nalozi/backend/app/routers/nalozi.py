@@ -441,7 +441,7 @@ def dodaj_foto(
 @router.post("/{nalog_id}/operacije", response_model=OperacijaOut, status_code=201)
 def dodaj_operaciju(
     nalog_id: int, podaci: OperacijaCreate,
-    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
 ):
     nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     redoslijed = len(nalog.operacije)
@@ -460,7 +460,7 @@ def dodaj_operaciju(
 @router.delete("/{nalog_id}/operacije/{op_id}", status_code=204)
 def obrisi_operaciju(
     nalog_id: int, op_id: int,
-    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     op = db.get(Operacija, op_id)
@@ -500,7 +500,7 @@ def _zaustavi_mjerac(z: Zadatak) -> None:
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
 def dodaj_zadatak(
     nalog_id: int, op_id: int, podaci: ZadatakDodaj,
-    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     op = db.get(Operacija, op_id)
@@ -535,6 +535,8 @@ def azuriraj_zadatak(
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
     if "zaduzeni_id" in podaci.model_fields_set:
+        if korisnik.uloga != Uloga.voditelj:
+            raise HTTPException(status_code=403, detail="Samo voditelj može dodjeljivati radnike na zadatke")
         novi = podaci.zaduzeni_id
         if novi is not None:
             _provjeri_radnik(db, novi)
@@ -586,7 +588,7 @@ def mjerac_zadatka(
 @router.delete("/{nalog_id}/zadaci/{zadatak_id}", status_code=204)
 def obrisi_zadatak(
     nalog_id: int, zadatak_id: int,
-    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
