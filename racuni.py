@@ -318,6 +318,21 @@ def _extract_json(text):
     return json.loads(t)
 
 
+def _safe_create(client, **kw):
+    """messages.create otporno na promjene Anthropic SDK-a: ako novija verzija
+    odbije neki keyword (npr. TypeError 'unexpected keyword argument temperature'),
+    makni taj argument i pokušaj ponovno. Tako nadogradnja SDK-a ne sruši čitanje."""
+    while True:
+        try:
+            return client.messages.create(**kw)
+        except TypeError as e:
+            m = re.search(r"unexpected keyword argument '([^']+)'", str(e))
+            if m and m.group(1) in kw:
+                kw.pop(m.group(1), None)
+                continue
+            raise
+
+
 def _read_document(images, force_vrsta=None):
     """images: lista (bytes, media_type). Posalji SVE stranice u jednom pozivu
     Claude visionu i vrati parsirani dict (ukljucivo 'vrsta'). Ako model vrati
@@ -336,7 +351,8 @@ def _read_document(images, force_vrsta=None):
         if extra_uputa:
             msgs = content[:-1] + [{"type": "text",
                                     "text": base_prompt + "\n\n" + extra_uputa}]
-        resp = _client.messages.create(
+        resp = _safe_create(
+            _client,
             model=VISION_MODEL,
             max_tokens=4000,
             system=_VISION_SYSTEM,

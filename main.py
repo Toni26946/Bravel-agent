@@ -42,6 +42,23 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+
+def _safe_create(_c, **kw):
+    """messages.create otporno na promjene Anthropic SDK-a: ako novija verzija
+    odbije neki keyword (npr. TypeError 'unexpected keyword argument temperature'),
+    makni taj argument i pokušaj ponovno. Tako tiha nadogradnja SDK-a (anthropic je
+    nepinnan) ne sruši podršku/sažetke/čitanje računa."""
+    while True:
+        try:
+            return _c.messages.create(**kw)
+        except TypeError as e:
+            m = re.search(r"unexpected keyword argument '([^']+)'", str(e))
+            if m and m.group(1) in kw:
+                kw.pop(m.group(1), None)
+                continue
+            raise
+
+
 # Whitelist: prvo pokusaj iz env varijable ALLOWED_USERS="123,456",
 # ako je nema koristi hardkodiranu listu. Novog radnika dodajes sa:
 #   fly secrets set ALLOWED_USERS=5191857104,7599693099,NOVI_ID
@@ -753,7 +770,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
         odg = ""
         zadnja_poz = None   # zadnja uspješna GPS pozicija (za „prikaži na karti”)
         for _ in range(5):  # agentic petlja: dopusti nekoliko poziva alata
-            resp = client.messages.create(
+            resp = _safe_create(client,
                 model="claude-haiku-4-5",
                 max_tokens=1024,
                 system=PODRSKA_SYSTEM_PROMPT,
@@ -784,7 +801,7 @@ def _podrska_ai_odgovori(session_id, ime, tekst):
             # Petlja iscrpljena a model još traži alate -> još jedan poziv BEZ alata,
             # da bude prisiljen dati tekstualni odgovor iz već prikupljenih podataka
             # (umjesto da korisnik dobije prazan/generički fallback).
-            resp = client.messages.create(
+            resp = _safe_create(client,
                 model="claude-haiku-4-5", max_tokens=1024,
                 system=PODRSKA_SYSTEM_PROMPT, messages=messages, temperature=0.3,
             )
@@ -1334,7 +1351,7 @@ def get_ai_response(chat_id, text):
             + [{"role": "user", "content": text}]
         )
 
-        response = client.messages.create(
+        response = _safe_create(client,
             model="claude-haiku-4-5",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
@@ -1393,7 +1410,7 @@ def summarize_day(messages):
         f"{'Radnik' if role == 'user' else 'Bot'}: {t}" for role, t in messages
     )
     try:
-        resp = client.messages.create(
+        resp = _safe_create(client,
             model="claude-haiku-4-5",
             max_tokens=1024,
             system=(
