@@ -5,7 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
 import {
-  Bedz, KategorijaPicker, MikrofonGumb, Spinner, datum, datumVrijeme, voziloLabel,
+  Bedz, KategorijaPicker, MikrofonGumb, Spinner, datum, datumVrijeme, useAutoOsvjezi, voziloLabel,
 } from '../ui'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
@@ -39,6 +39,8 @@ export default function NalogDetalj() {
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
+  // Tiho osvježavanje (bez spinnera/greške) svakih 20 s i na povratak u aplikaciju.
+  useAutoOsvjezi(() => api.nalog(id).then(setN).catch(() => {}))
   useEffect(() => {
     api.korisnici('radnik').then(setRadnici).catch(() => {})
   }, [])

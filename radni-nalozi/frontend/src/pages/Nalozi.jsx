@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
-import { Bedz, Prazno, Spinner, datum, voziloLabel } from '../ui'
+import { Bedz, Prazno, Spinner, datum, useAutoOsvjezi, voziloLabel } from '../ui'
 
 const FILTERI = [
   { k: '', lk: 'filter.sve' },
@@ -31,6 +31,8 @@ export default function Nalozi() {
     api.nalozi(filter).then(setLista).catch((e) => setGreska(e.message))
   }
   useEffect(() => { ucitaj() }, [filter])
+  // Tiho osvježavanje (bez spinnera) svakih 20 s i na povratak u aplikaciju.
+  useAutoOsvjezi(() => api.nalozi(filter).then(setLista).catch(() => {}))
 
   // Dugi pritisak (samo voditelj) → ponudi brisanje
   const start = (n) => {

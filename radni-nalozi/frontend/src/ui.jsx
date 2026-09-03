@@ -1,6 +1,24 @@
 // Zajedničke oznake, prijevodi i male komponente.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GOVOR_JEZIK, useT } from './i18n'
+
+// Tiho automatsko osvježavanje: pozove `ucitaj` svakih `ms` te kad se korisnik
+// vrati u aplikaciju (fokus / vidljiva kartica). `ucitaj` ne mora biti stabilan.
+export function useAutoOsvjezi(ucitaj, ms = 20000) {
+  const ref = useRef(ucitaj)
+  ref.current = ucitaj
+  useEffect(() => {
+    const zovi = () => { if (!document.hidden) { try { ref.current && ref.current() } catch (e) {} } }
+    const t = setInterval(zovi, ms)
+    document.addEventListener('visibilitychange', zovi)
+    window.addEventListener('focus', zovi)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', zovi)
+      window.removeEventListener('focus', zovi)
+    }
+  }, [ms])
+}
 
 // Gumb za diktiranje (govor → tekst) preko ugrađenog prepoznavanja u pregledniku.
 // onTekst(prepoznatiTekst) — pozivatelj odlučuje hoće li dopisati ili zamijeniti.

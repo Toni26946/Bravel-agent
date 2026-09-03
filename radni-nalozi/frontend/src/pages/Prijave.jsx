@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { Bedz, Prazno, Spinner, datumVrijeme, voziloLabel } from '../ui'
+import { Bedz, Prazno, Spinner, datumVrijeme, useAutoOsvjezi, voziloLabel } from '../ui'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
 
@@ -16,6 +16,8 @@ export default function Prijave() {
   useEffect(() => {
     api.prijave().then(setLista).catch((e) => setGreska(e.message))
   }, [])
+  // Tiho osvježavanje svakih 20 s i na povratak u aplikaciju.
+  useAutoOsvjezi(() => api.prijave().then(setLista).catch(() => {}))
 
   const naslov = korisnik.uloga === 'vozac' ? t('prijave.title.vozac') : t('prijave.title.ostalo')
 
