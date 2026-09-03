@@ -110,10 +110,6 @@ export default function Nalozi() {
         ))
       )}
 
-      {korisnik.uloga === 'voditelj' && (
-        <button className="fab" onClick={() => nav('/nalozi/novi')} aria-label="Novi nalog">+</button>
-      )}
-
       {/* Potvrda brisanja */}
       {brisi && (
         <div className="sheet-bg" onClick={() => setBrisi(null)}>
