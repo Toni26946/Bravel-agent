@@ -1,10 +1,12 @@
 """Vozila (kamioni). Svi prijavljeni mogu vidjeti; uređuje samo voditelj."""
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 import re
+
+from ..storage import obrisi_sliku, spremi_sliku
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
@@ -95,6 +97,40 @@ def detalj(vozilo_id: int, _: Korisnik = Depends(trenutni_korisnik), db: Session
     v = db.get(Vozilo, vozilo_id)
     if not v:
         raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    return v
+
+
+@router.post("/{vozilo_id}/slika", response_model=VoziloOut)
+def postavi_sliku(
+    vozilo_id: int,
+    slika: UploadFile = File(...),
+    _: Korisnik = Depends(samo_voditelj),
+    db: Session = Depends(get_db),
+):
+    v = db.get(Vozilo, vozilo_id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    nova = spremi_sliku(slika)
+    if v.slika:
+        obrisi_sliku(v.slika)  # ukloni staru datoteku
+    v.slika = nova
+    db.commit()
+    db.refresh(v)
+    return v
+
+
+@router.delete("/{vozilo_id}/slika", response_model=VoziloOut)
+def obrisi_sliku_vozila(
+    vozilo_id: int, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)
+):
+    v = db.get(Vozilo, vozilo_id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    if v.slika:
+        obrisi_sliku(v.slika)
+        v.slika = None
+        db.commit()
+        db.refresh(v)
     return v
 
 
