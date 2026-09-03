@@ -309,6 +309,25 @@ class ZamjenaDijela(Base):
 
 
 # ---------------------------------------------------------------------------
+# Servisna povijest po vozilu (uvezeno iz evidencije radione)
+# ---------------------------------------------------------------------------
+class PovijestRada(Base):
+    __tablename__ = "povijest_rada"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vozilo_id: Mapped[int] = mapped_column(ForeignKey("vozila.id", ondelete="CASCADE"), index=True)
+    datum: Mapped[date] = mapped_column(Date, index=True)
+    radnik: Mapped[str | None] = mapped_column(String(160), nullable=True)   # ime radnika (tekst iz evidencije)
+    operacija: Mapped[str | None] = mapped_column(String(160), nullable=True)  # kategorija posla (opcionalno)
+    opis: Mapped[str | None] = mapped_column(Text, nullable=True)             # opis posla (opcionalno)
+    minute: Mapped[int | None] = mapped_column(Integer, nullable=True)        # trajanje u minutama (opcionalno)
+    izvor: Mapped[str | None] = mapped_column(String(40), nullable=True)      # oznaka izvora uvoza
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    vozilo: Mapped["Vozilo"] = relationship()
+
+
+# ---------------------------------------------------------------------------
 # Operacija (kategorija posla na nalogu: motor, pneumatika, bojanje…)
 # ---------------------------------------------------------------------------
 class Operacija(Base):

@@ -423,6 +423,16 @@ class ZamjenaDijelaSVozilom(ZamjenaDijelaOut):
     vozilo: VoziloOut
 
 
+# --- Servisna povijest (uvezena evidencija) ----------------------------------
+class PovijestRadaOut(ORM):
+    id: int
+    datum: date
+    radnik: str | None = None
+    operacija: str | None = None
+    opis: str | None = None
+    minute: int | None = None
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict

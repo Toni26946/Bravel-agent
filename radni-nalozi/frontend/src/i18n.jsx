@@ -139,6 +139,8 @@ const HR = {
   'steta.obrisati': 'Obrisati ovu štetu?',
   // šifrarnik
   'sif.title': 'Šifrarnik', 'sif.korisnici': 'Korisnici', 'sif.vozila': 'Vozila', 'sif.dijelovi': 'Dijelovi',
+  'voz.servisnaPovijest': 'Servisna povijest', 'voz.nemaPovijesti': 'Nema unesene servisne povijesti.',
+  'voz.datum': 'Datum', 'voz.radnik': 'Radnik', 'voz.posao': 'Posao',
   'sif.uvoziRadnike': '📋 Uvezi radnike (popis imena)',
   'sif.zalijepiImena': 'Zalijepi imena radnika (jedno po retku)',
   'sif.uvozRadHint': 'Svaki radnik u svoj redak. Korisničko ime se generira samo; svima ista početna lozinka (poslije se mijenja). Postojeći se preskaču.',
@@ -258,6 +260,8 @@ const EN = {
   'steta.gbNePostoji': 'No truck with that number (leave empty if not tied to a truck).',
   'steta.obrisati': 'Delete this damage?',
   'sif.title': 'Settings', 'sif.korisnici': 'Users', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',
+  'voz.servisnaPovijest': 'Service history', 'voz.nemaPovijesti': 'No service history yet.',
+  'voz.datum': 'Date', 'voz.radnik': 'Mechanic', 'voz.posao': 'Work',
   'sif.uvoziRadnike': '📋 Import workers (name list)',
   'sif.zalijepiImena': 'Paste worker names (one per line)',
   'sif.uvozRadHint': 'One worker per line. Username is generated automatically; everyone gets the same initial password (change later). Existing ones are skipped.',
