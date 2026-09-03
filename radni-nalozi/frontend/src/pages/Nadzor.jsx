@@ -76,15 +76,14 @@ export function GlavniIzbornik() {
       ) : (
         <div className="op-tablica" style={{ overflowX: 'auto' }}>
           <div className="tr-head">
-            <div>{t('nadzor.nalog')}</div><div>{t('nadzor.radnik')}</div>
-            <div>{t('nadzor.operacija')}</div><div>{t('nadzor.vozilo')}</div><div>{t('nadzor.trajanje')}</div>
+            <div>{t('nadzor.vozilo')}</div><div>{t('nadzor.radnik')}</div>
+            <div>{t('nadzor.operacija')}</div><div>{t('nadzor.trajanje')}</div>
           </div>
           {tekuci.map(({ n, op, z }) => (
             <div className="tr-red" key={z.id} onClick={() => nav(`/nalozi/${n.id}`)}>
-              <div className="tr-nalog">{n.broj}</div>
+              <div className="tr-voz">{n.vozilo?.gb}</div>
               <div className="tr-radnik">{z.zaduzeni?.ime || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
-              <div className="tr-voz">{n.vozilo?.gb}</div>
               <div className="tr-traj">{trajanjeDugo(proteklo(z, sada))}</div>
             </div>
           ))}
