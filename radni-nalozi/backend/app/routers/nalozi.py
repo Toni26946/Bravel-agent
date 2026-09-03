@@ -90,6 +90,39 @@ def _valjani_zaduzeni(db: Session, zad_id: int | None) -> int | None:
     return zad_id if (r and r.uloga == Uloga.radnik) else None
 
 
+# Odvajač za spajanje više opisa u jedan (unutar operacije je samo jedan opis).
+_SPOJ = " • "
+
+
+def _spoji_u_zadatak(
+    db: Session, op: Operacija, opisi: list[str], zaduzeni_id: int | None = None
+) -> Zadatak | None:
+    """Osiguraj da operacija ima točno JEDAN zadatak; nove opise spoji u njegov tekst.
+
+    Ako zadatak već postoji, novi (nepostojeći) opisi se pripoje u isti redak;
+    inače se kreira jedan zadatak sa spojenim opisom.
+    """
+    novi = [o.strip() for o in opisi if o and o.strip()]
+    z = op.zadaci[0] if op.zadaci else None
+    if z is None:
+        if not novi:
+            return None
+        z = Zadatak(
+            operacija_id=op.id, opis=_SPOJ.join(novi),
+            zaduzeni_id=_valjani_zaduzeni(db, zaduzeni_id), redoslijed=0,
+        )
+        db.add(z)
+        return z
+    postojeci = [d.strip() for d in (z.opis or "").split(_SPOJ) if d.strip()]
+    for o in novi:
+        if o not in postojeci:
+            postojeci.append(o)
+    z.opis = _SPOJ.join(postojeci)
+    if z.zaduzeni_id is None and zaduzeni_id is not None:
+        z.zaduzeni_id = _valjani_zaduzeni(db, zaduzeni_id)
+    return z
+
+
 # --- razdvajanje operacija po osovini ----------------------------------------
 _ASCII = str.maketrans({"č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d"})
 
@@ -281,9 +314,9 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
             db.add(cilj)
             db.flush()
             po_kat[kat.lower()] = cilj
-        base = len(cilj.zadaci)
-        for j, (opis, zad_id) in enumerate(zadaci):
-            db.add(Zadatak(operacija_id=cilj.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=base + j))
+        opisi = [opis for (opis, _zid) in zadaci]
+        zid = next((zid for (_o, zid) in zadaci if zid is not None), None)
+        _spoji_u_zadatak(db, cilj, opisi, zid)
 
 
 # --- kreiranje (voditelj) ----------------------------------------------------
@@ -354,8 +387,9 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         operacija = Operacija(nalog_id=nalog.id, kategorija=kat, redoslijed=i)
         db.add(operacija)
         db.flush()
-        for j, (opis, zad_id) in enumerate(zadaci):
-            db.add(Zadatak(operacija_id=operacija.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
+        opisi = [opis for (opis, _zid) in zadaci]
+        zid = next((zid for (_o, zid) in zadaci if zid is not None), None)
+        _spoji_u_zadatak(db, operacija, opisi, zid)
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=None, novi_status=StatusNaloga.otvoren.value,
         napomena="Nalog kreiran", promijenio_id=voditelj.id,
@@ -627,10 +661,14 @@ def dodaj_operaciju(
     op = Operacija(nalog_id=nalog_id, kategorija=podaci.kategorija.strip(), redoslijed=redoslijed)
     db.add(op)
     db.flush()
-    for j, z in enumerate(podaci.zadaci):
+    opisi, zid = [], None
+    for z in podaci.zadaci:
         opis, zad_id = _zadatak_unos(z)
         if opis:
-            db.add(Zadatak(operacija_id=op.id, opis=opis, zaduzeni_id=_valjani_zaduzeni(db, zad_id), redoslijed=j))
+            opisi.append(opis)
+        if zad_id is not None and zid is None:
+            zid = zad_id
+    _spoji_u_zadatak(db, op, opisi, zid)  # unutar operacije samo jedan (spojeni) opis
     db.commit()
     db.refresh(op)
     return op
@@ -687,11 +725,8 @@ def dodaj_zadatak(
         raise HTTPException(status_code=404, detail="Operacija ne postoji")
     if podaci.zaduzeni_id is not None:
         _provjeri_radnik(db, podaci.zaduzeni_id)
-    z = Zadatak(
-        operacija_id=op_id, opis=podaci.opis.strip(),
-        zaduzeni_id=podaci.zaduzeni_id, redoslijed=len(op.zadaci),
-    )
-    db.add(z)
+    # Unutar operacije je samo jedan opis — novi se pripoji postojećem.
+    z = _spoji_u_zadatak(db, op, [podaci.opis], podaci.zaduzeni_id)
     db.commit()
     db.refresh(z)
     return z
