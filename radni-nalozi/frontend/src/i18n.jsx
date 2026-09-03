@@ -166,6 +166,7 @@ const HR = {
   'sif.marka': 'Marka', 'sif.model': 'Model', 'sif.povijest': 'Povijest ›',
   'sif.pretraziDio': 'Pretraži po nazivu dijela (npr. pločice)', 'sif.izgovoriDio': 'Izgovori naziv dijela',
   'sif.filtrirajPovijest': 'Filtriraj povijest dijelova (naziv, npr. pločice)',
+  'sif.traziVozilo': 'Traži po garažnom broju…',
   'sif.rezultata': 'rezultata', 'sif.nemaRezultata': 'Nema rezultata za „{q}”.', 'sif.josNema': 'Još nema zabilježenih zamjena dijelova.',
 }
 
@@ -295,6 +296,7 @@ const EN = {
   'sif.marka': 'Make', 'sif.model': 'Model', 'sif.povijest': 'History ›',
   'sif.pretraziDio': 'Search by part name (e.g. pads)', 'sif.izgovoriDio': 'Say the part name',
   'sif.filtrirajPovijest': 'Filter parts history (name, e.g. pads)',
+  'sif.traziVozilo': 'Search by garage number…',
   'sif.rezultata': 'results', 'sif.nemaRezultata': 'No results for “{q}”.', 'sif.josNema': 'No part replacements recorded yet.',
   'mik.diktiraj': 'Dictate',
 }

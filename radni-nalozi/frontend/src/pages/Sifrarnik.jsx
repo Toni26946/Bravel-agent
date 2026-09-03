@@ -5,6 +5,11 @@ import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner, ULOGA, datum, voziloLabel } from '../ui'
 import { useT } from '../i18n'
 
+// mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
+function _norm(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 export default function Sifrarnik() {
   const { t } = useT()
   const [tab, setTab] = useState('korisnici')
@@ -251,21 +256,11 @@ function Vozila() {
   const [uvozRadi, setUvozRadi] = useState(false)
   const [f, setF] = useState({ gb: '', registracija: '', marka: '', model: '' })
 
-  // Filter povijesti zamjene dijelova (po nazivu dijela / kamionu)
-  const [dioQ, setDioQ] = useState('')
-  const [dioLista, setDioLista] = useState(null)
+  // Tražilica vozila po garažnom broju (i registraciji/marki)
+  const [q, setQ] = useState('')
 
   const ucitaj = () => api.vozila().then(setLista).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
-
-  useEffect(() => {
-    if (!dioQ.trim()) { setDioLista(null); return }
-    let ponisten = false
-    const tmr = setTimeout(() => {
-      api.pretraziDijelove(dioQ).then((r) => { if (!ponisten) setDioLista(r) }).catch(() => {})
-    }, 250)
-    return () => { ponisten = true; clearTimeout(tmr) }
-  }, [dioQ])
 
   const spremi = async (e) => {
     e.preventDefault()
@@ -287,58 +282,24 @@ function Vozila() {
 
   if (lista === null) return <Spinner />
 
-  const filtrira = dioQ.trim().length > 0
+  const nq = _norm(q.trim())
+  const trazi = nq.length > 0
+  const prikazana = trazi
+    ? lista.filter((v) => _norm(`${v.gb} ${v.registracija || ''} ${v.marka || ''} ${v.model || ''}`).includes(nq))
+    : lista
+
   return (
     <>
       {greska && <div className="greska">{greska}</div>}
 
-      {/* Filter povijesti zamjene dijelova */}
+      {/* Tražilica vozila po garažnom broju */}
       <div className="polje-mik">
-        <input
-          value={dioQ}
-          onChange={(e) => setDioQ(e.target.value)}
-          placeholder={t('sif.filtrirajPovijest')}
-        />
-        <MikrofonGumb naslov={t('sif.izgovoriDio')} onTekst={(tekst) => setDioQ(tekst)} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('sif.traziVozilo')} />
+        <MikrofonGumb naslov={t('sif.traziVozilo')} onTekst={(tekst) => setQ(tekst)} />
       </div>
 
-      {filtrira ? (
-        dioLista === null ? (
-          <p className="meta" style={{ marginTop: 12 }}>{t('common.ucitavam')}</p>
-        ) : dioLista.length === 0 ? (
-          <p className="meta" style={{ marginTop: 12 }}>{t('sif.nemaRezultata', { q: dioQ.trim() })}</p>
-        ) : (
-          <>
-            <p className="meta" style={{ marginTop: 12 }}>{dioLista.length} {t('sif.rezultata')}</p>
-            <div className="dio-lista">
-              {dioLista.map((z) => (
-                <div key={z.id} className="dio-zapis dio-klik" onClick={() => nav(`/vozila/${z.vozilo.id}`)}>
-                  <div className="dio-glava">
-                    <strong>{z.naziv}</strong>
-                    <span className="dio-datum">{datum(z.datum)}</span>
-                  </div>
-                  <p className="meta" style={{ margin: '2px 0 0' }}>🚚 <strong>{z.vozilo.gb}</strong></p>
-                  {z.razlog && <p className="dio-razlog">{z.razlog}</p>}
-                  <p className="meta">
-                    {z.kilometraza != null && <>🧭 {z.kilometraza.toLocaleString('hr-HR')} km · </>}
-                    {z.promijenio?.ime} ›
-                  </p>
-                </div>
-              ))}
-            </div>
-          </>
-        )
-      ) : (
-        <VozilaSadrzaj />
-      )}
-    </>
-  )
-
-  function VozilaSadrzaj() {
-    return (
-    <>
-      {/* Uvoz postojećih kamiona */}
-      {!uvozOtvori ? (
+      {/* Uvoz i dodavanje — sakriveno dok se traži, da popis bude čist */}
+      {!trazi && (!uvozOtvori ? (
         <button className="btn sekund" onClick={() => setUvozOtvori(true)}>{t('sif.uvezi')}</button>
       ) : (
         <div className="karta">
@@ -358,10 +319,10 @@ function Vozila() {
             <button className="btn sekund mali" onClick={() => { setUvozOtvori(false); setUvozRezultat(null) }}>{t('sif.zatvori')}</button>
           </div>
         </div>
-      )}
+      ))}
 
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.novoVozilo')}</button>}
-      {otvori && (
+      {!trazi && !otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.novoVozilo')}</button>}
+      {!trazi && otvori && (
         <form className="karta" onSubmit={spremi}>
           <label>{t('sif.gb')}</label>
           <input value={f.gb} onChange={(e) => setF({ ...f, gb: e.target.value })} required />
@@ -377,7 +338,11 @@ function Vozila() {
           </div>
         </form>
       )}
-      {lista.map((v) => (
+
+      {trazi && <p className="meta" style={{ marginTop: 12 }}>{prikazana.length} {t('sif.rezultata')}</p>}
+      {prikazana.length === 0 ? (
+        <p className="meta" style={{ marginTop: 12 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p>
+      ) : prikazana.map((v) => (
         <div key={v.id} className="karta klik" onClick={() => nav(`/vozila/${v.id}`)}>
           <div className="naslov-red">
             <div>
@@ -389,6 +354,5 @@ function Vozila() {
         </div>
       ))}
     </>
-    )
-  }
+  )
 }
