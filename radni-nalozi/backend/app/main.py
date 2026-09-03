@@ -13,7 +13,7 @@ from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
 from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
-from .seed import seed, seed_radnici
+from .seed import jednokratni_reset_lozinke, seed, seed_radnici
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("app")
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         seed(db)
         seed_radnici(db)
+        jednokratni_reset_lozinke(db)
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
 
