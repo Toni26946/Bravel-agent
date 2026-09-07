@@ -52,6 +52,7 @@ const HR = {
   'nalozi.obrisiNalog': 'Obriši nalog',
   // nalog (detalj)
   'nalog.promijeniStatus': 'Promijeni status', 'nalog.operacijeIZadaci': 'Operacije i zadaci',
+  'nalog.ispisi': 'Ispiši nalog',
   'nalog.shemaKamiona': 'Shema kamiona', 'nalog.prikaziShemu': 'Prikaži shemu kamiona',
   'nalog.povijestDijelova': 'Povijest dijelova (kamion {gb})', 'nalog.povijestStatusa': 'Povijest statusa',
   'nalog.voditelj': 'Voditelj', 'nalog.vozac': 'Vozač', 'nalog.rok': 'Rok', 'nalog.kreirao': 'Kreirao',
@@ -194,6 +195,7 @@ const EN = {
   'nalozi.obrisatiNalog': 'Delete order?', 'nalozi.brisanjeTrajno': 'deletion is permanent.',
   'nalozi.obrisiNalog': 'Delete order',
   'nalog.promijeniStatus': 'Change status', 'nalog.operacijeIZadaci': 'Operations and tasks',
+  'nalog.ispisi': 'Print work order',
   'nalog.shemaKamiona': 'Truck scheme', 'nalog.prikaziShemu': 'Show truck scheme',
   'nalog.povijestDijelova': 'Parts history (truck {gb})', 'nalog.povijestStatusa': 'Status history',
   'nalog.voditelj': 'Manager', 'nalog.vozac': 'Driver', 'nalog.rok': 'Due', 'nalog.kreirao': 'Created by',

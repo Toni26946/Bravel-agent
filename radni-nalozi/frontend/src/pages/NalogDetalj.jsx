@@ -71,6 +71,9 @@ export default function NalogDetalj() {
         {n.rok && <p className="meta">📅 {t('nalog.rok')}: <strong>{datum(n.rok)}</strong></p>}
         {n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>}
         <p className="meta">{t('nalog.kreirao')}: <strong>{n.kreirao?.ime}</strong> · {datumVrijeme(n.kreiran)}</p>
+        <div className="btn-red no-print" style={{ marginTop: 10 }}>
+          <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('nalog.ispisi')}</button>
+        </div>
       </div>
 
       {/* Promjena statusa */}
@@ -90,7 +93,81 @@ export default function NalogDetalj() {
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj'} />
+
+      {/* Ispis naloga (vidljivo samo pri printanju) */}
+      <NalogPrint n={n} />
     </Layout>
+  )
+}
+
+// --- Ispis radnog naloga -----------------------------------------------------
+function imenaRadnika(z) {
+  const r = z.radnici && z.radnici.length ? z.radnici : (z.zaduzeni ? [z.zaduzeni] : [])
+  return r.map((x) => x.ime).join(', ')
+}
+
+function NalogPrint({ n }) {
+  const v = n.vozilo || {}
+  return (
+    <div className="nalog-print">
+      <div className="np-head">
+        <div className="np-tvrtka">
+          <div className="np-logo">BRAVEL d.o.o.</div>
+          <div className="np-adresa">Zagrebačka 146, 10340 Vrbovec</div>
+        </div>
+        <div className="np-kontakt">
+          <div>Fakturiranje: +385 1 6539 991</div>
+          <div>Računovodstvo: +385 1 6539 914</div>
+          <div>fax: +385 1 2790 563</div>
+          <div>e-mail: bravel@bravel.hr</div>
+        </div>
+      </div>
+
+      <h2 className="np-naslov">Radni nalog: {n.broj}</h2>
+
+      <div className="np-info">
+        <div><span>Datum:</span> {datum(n.kreiran)}</div>
+        <div><span>Garažni broj:</span> {v.gb || '—'}</div>
+        <div><span>Registarska oznaka:</span> {v.registracija || '—'}</div>
+        <div><span>Vozilo:</span> {[v.marka, v.model].filter(Boolean).join(' ') || '—'}</div>
+        {n.voditelj && <div><span>Voditelj:</span> {n.voditelj.ime}</div>}
+        {n.vozac && <div><span>Vozač:</span> {n.vozac.ime}</div>}
+        {n.rok && <div><span>Predviđeni datum isporuke:</span> {datum(n.rok)}</div>}
+      </div>
+
+      {n.opis && (
+        <div className="np-napomena"><span>Napomena:</span> {n.opis}</div>
+      )}
+
+      <div className="np-sekcija">Operacije</div>
+      <table className="np-tablica">
+        <thead>
+          <tr><th className="np-rbr">#</th><th>Naziv</th><th>Opis</th><th>Radnik</th></tr>
+        </thead>
+        <tbody>
+          {n.operacije.length === 0 && (
+            <tr><td colSpan={4} className="np-prazno">Nema operacija.</td></tr>
+          )}
+          {n.operacije.map((op, i) => {
+            const opis = op.zadaci.map((z) => z.opis).filter(Boolean).join(' • ')
+            const radnici = [...new Set(op.zadaci.map(imenaRadnika).filter(Boolean))].join(', ')
+            return (
+              <tr key={op.id}>
+                <td className="np-rbr">{i + 1}</td>
+                <td className="np-naziv">{op.kategorija}</td>
+                <td>{opis || '—'}</td>
+                <td>{radnici || '—'}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      <div className="np-potpisi">
+        <div><div className="np-linija" />Vozilo predao</div>
+        <div><div className="np-linija" />Vozilo preuzeo</div>
+      </div>
+    </div>
   )
 }
 
