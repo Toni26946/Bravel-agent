@@ -114,6 +114,32 @@ def uvezi_povijest_rada(db: Session) -> None:
     log.info("Uvezeno %d zapisa servisne povijesti (%d vozila).", dodano, len(vozila))
 
 
+def osiguraj_aktivnog_voditelja(db: Session) -> None:
+    """Sigurnosna mreža protiv zaključavanja portala.
+
+    Ako nijedan voditelj nije aktivan (npr. slučajno deaktiviran zadnji), ponovno
+    aktivira sve voditelje kako bi se barem netko mogao prijaviti. Ne dira ništa
+    dok postoji barem jedan aktivan voditelj, pa ne smeta namjernim deaktivacijama.
+    """
+    ima_aktivnog = (
+        db.query(Korisnik)
+        .filter(Korisnik.uloga == Uloga.voditelj, Korisnik.aktivan.is_(True))
+        .count()
+        > 0
+    )
+    if ima_aktivnog:
+        return
+    voditelji = db.query(Korisnik).filter(Korisnik.uloga == Uloga.voditelj).all()
+    for v in voditelji:
+        v.aktivan = True
+    if voditelji:
+        db.commit()
+        log.warning(
+            "Nije bilo nijednog aktivnog voditelja — reaktivirano %d (%s).",
+            len(voditelji), ", ".join(v.korisnicko_ime for v in voditelji),
+        )
+
+
 def migriraj_zaduzene_u_radnike(db: Session) -> None:
     """Prebaci postojeće pojedinačne zaduženike (zaduzeni_id) u novi popis radnika.
 
