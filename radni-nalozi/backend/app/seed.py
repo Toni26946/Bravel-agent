@@ -114,6 +114,34 @@ def uvezi_povijest_rada(db: Session) -> None:
     log.info("Uvezeno %d zapisa servisne povijesti (%d vozila).", dodano, len(vozila))
 
 
+def jednokratna_reaktivacija_roka(db: Session) -> None:
+    """Jednokratno ponovno aktivira račun 'Roko Jendriš' (slučajno deaktiviran).
+
+    Traži po imenu/korisničkom imenu koje sadrži 'roko' i 'jendris' (bez kvačica).
+    Guardano zastavicom na trajnom volumenu da se izvrši samo jednom.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".reaktivacija_roko_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    reaktivirano = 0
+    for k in db.query(Korisnik).all():
+        tekst = f"{k.ime} {k.korisnicko_ime}".translate(_ASCII).lower()
+        if "roko" in tekst and "jendris" in tekst and not k.aktivan:
+            k.aktivan = True
+            reaktivirano += 1
+    if reaktivirano:
+        db.commit()
+        log.warning("Jednokratno reaktiviran račun Roko Jendriš (%d).", reaktivirano)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def osiguraj_aktivnog_voditelja(db: Session) -> None:
     """Sigurnosna mreža protiv zaključavanja portala.
 
