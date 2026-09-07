@@ -14,6 +14,7 @@ from .database import Base, SessionLocal, engine
 from .migrate import migrate
 from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
 from .seed import (
+    jednokratna_reaktivacija_roka,
     migriraj_zaduzene_u_radnike,
     osiguraj_aktivnog_voditelja,
     seed,
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
         uvezi_povijest_rada(db)
         migriraj_zaduzene_u_radnike(db)
         osiguraj_aktivnog_voditelja(db)
+        jednokratna_reaktivacija_roka(db)
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
 
