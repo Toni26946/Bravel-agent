@@ -101,11 +101,6 @@ export default function NalogDetalj() {
 }
 
 // --- Ispis radnog naloga -----------------------------------------------------
-function imenaRadnika(z) {
-  const r = z.radnici && z.radnici.length ? z.radnici : (z.zaduzeni ? [z.zaduzeni] : [])
-  return r.map((x) => x.ime).join(', ')
-}
-
 function NalogPrint({ n }) {
   const v = n.vozilo || {}
   return (
@@ -142,21 +137,19 @@ function NalogPrint({ n }) {
       <div className="np-sekcija">Operacije</div>
       <table className="np-tablica">
         <thead>
-          <tr><th className="np-rbr">#</th><th>Naziv</th><th>Opis</th><th>Radnik</th></tr>
+          <tr><th className="np-rbr">#</th><th>Naziv</th><th>Opis</th></tr>
         </thead>
         <tbody>
           {n.operacije.length === 0 && (
-            <tr><td colSpan={4} className="np-prazno">Nema operacija.</td></tr>
+            <tr><td colSpan={3} className="np-prazno">Nema operacija.</td></tr>
           )}
           {n.operacije.map((op, i) => {
             const opis = op.zadaci.map((z) => z.opis).filter(Boolean).join(' • ')
-            const radnici = [...new Set(op.zadaci.map(imenaRadnika).filter(Boolean))].join(', ')
             return (
               <tr key={op.id}>
                 <td className="np-rbr">{i + 1}</td>
                 <td className="np-naziv">{op.kategorija}</td>
                 <td>{opis || '—'}</td>
-                <td>{radnici || '—'}</td>
               </tr>
             )
           })}
