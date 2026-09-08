@@ -17,6 +17,7 @@ from .seed import (
     jednokratna_reaktivacija_roka,
     migriraj_zaduzene_u_radnike,
     osiguraj_aktivnog_voditelja,
+    osiguraj_dodatne_korisnike,
     seed,
     seed_radnici,
     uvezi_povijest_rada,
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
         migriraj_zaduzene_u_radnike(db)
         osiguraj_aktivnog_voditelja(db)
         jednokratna_reaktivacija_roka(db)
+        osiguraj_dodatne_korisnike(db)
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
 

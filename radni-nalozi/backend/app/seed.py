@@ -114,6 +114,65 @@ def uvezi_povijest_rada(db: Session) -> None:
     log.info("Uvezeno %d zapisa servisne povijesti (%d vozila).", dodano, len(vozila))
 
 
+def _tokeni(ime: str) -> set[str]:
+    return {t for t in ime.translate(_ASCII).lower().replace(".", " ").split() if t}
+
+
+# (ime za prikaz/kreiranje, tokeni za pronalazak postojećeg, korisničko ime, lozinka, uloga)
+_BATCH_KORISNICI = [
+    ("Mario Azinović", {"mario", "azinovic"}, "mario.azinovic", "Mario7391", Uloga.radnik),
+    ("Davor Kobeščak", {"davor", "kobescak"}, "davor.kobescak", "Davor2648", Uloga.radnik),
+    ("Velimir Jendriš", {"velimir", "jendris"}, "velimir.jendris", "Velimir5093", Uloga.voditelj),
+    ("Dominik Bahal", {"dominik", "bahal"}, "dominik.bahal", "Dominik4157", Uloga.radnik),
+    ("Akshay", {"akshay"}, "akshay", "Akshay8264", Uloga.radnik),
+]
+
+
+def osiguraj_dodatne_korisnike(db: Session) -> None:
+    """Jednokratno kreira/ažurira ručno zadane račune (korisničko ime + lozinka).
+
+    Ako osoba već postoji (podudaranje po tokenima imena) — postavi joj čisto
+    korisničko ime i novu lozinku te je aktivira; inače kreira novi račun.
+    Guardano zastavicom na trajnom volumenu.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".korisnici_batch_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    svi = db.query(Korisnik).all()
+    zauzeta = {k.korisnicko_ime for k in svi}
+    for ime, tset, kor, lozinka, uloga in _BATCH_KORISNICI:
+        postoji = next((k for k in svi if tset and tset <= _tokeni(k.ime)), None)
+        h = hash_lozinka(lozinka)
+        if postoji:
+            # postavi čisto korisničko ime ako je slobodno (ili već njegovo)
+            if kor == postoji.korisnicko_ime or kor not in zauzeta:
+                zauzeta.discard(postoji.korisnicko_ime)
+                postoji.korisnicko_ime = kor
+                zauzeta.add(kor)
+            postoji.lozinka_hash = h
+            postoji.aktivan = True
+        else:
+            ime_kor = kor
+            i = 1
+            while ime_kor in zauzeta:
+                i += 1
+                ime_kor = f"{kor}{i}"
+            zauzeta.add(ime_kor)
+            novi = Korisnik(ime=ime, korisnicko_ime=ime_kor, lozinka_hash=h, uloga=uloga, aktivan=True)
+            db.add(novi)
+            svi.append(novi)
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Batch korisnika obrađen (%d).", len(_BATCH_KORISNICI))
+
+
 def jednokratna_reaktivacija_roka(db: Session) -> None:
     """Jednokratno ponovno aktivira račun 'Roko Jendriš' (slučajno deaktiviran).
 
