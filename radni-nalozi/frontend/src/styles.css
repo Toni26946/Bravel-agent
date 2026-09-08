@@ -401,7 +401,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   @page { margin: 12mm; }
 }
 .nalog-print .np-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 8px; }
-.nalog-print .np-logo { font-size: 20px; font-weight: 800; font-style: italic; letter-spacing: 1px; }
+.nalog-print .np-logo-img { height: 46px; width: auto; display: block; }
 .nalog-print .np-adresa { font-size: 11px; margin-top: 2px; }
 .nalog-print .np-kontakt { text-align: right; font-size: 10px; line-height: 1.5; }
 .nalog-print .np-naslov { text-align: center; margin: 14px 0; font-size: 16px; }

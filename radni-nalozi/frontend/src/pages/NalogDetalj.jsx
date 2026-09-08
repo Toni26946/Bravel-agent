@@ -107,8 +107,8 @@ function NalogPrint({ n }) {
     <div className="nalog-print">
       <div className="np-head">
         <div className="np-tvrtka">
-          <div className="np-logo">BRAVEL d.o.o.</div>
-          <div className="np-adresa">Zagrebačka 146, 10340 Vrbovec</div>
+          <img className="np-logo-img" src="/bravel-logo.png" alt="Bravel d.o.o." />
+          <div className="np-adresa">Bravel d.o.o. · Zagrebačka 146, 10340 Vrbovec</div>
         </div>
         <div className="np-kontakt">
           <div>Fakturiranje: +385 1 6539 991</div>
