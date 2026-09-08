@@ -120,10 +120,10 @@ def _tokeni(ime: str) -> set[str]:
 
 # (ime za prikaz/kreiranje, tokeni za pronalazak postojećeg, korisničko ime, lozinka, uloga)
 _BATCH_KORISNICI = [
-    ("Mario Azinović", {"mario", "azinovic"}, "mario.azinovic", "Mario7391", Uloga.radnik),
-    ("Davor Kobeščak", {"davor", "kobescak"}, "davor.kobescak", "Davor2648", Uloga.radnik),
+    ("Mario Azinović", {"mario", "azinovic"}, "mario.azinovic", "Mario7391", Uloga.voditelj),
+    ("Davor Kobeščak", {"davor", "kobescak"}, "davor.kobescak", "Davor2648", Uloga.voditelj),
     ("Velimir Jendriš", {"velimir", "jendris"}, "velimir.jendris", "Velimir5093", Uloga.voditelj),
-    ("Dominik Bahal", {"dominik", "bahal"}, "dominik.bahal", "Dominik4157", Uloga.radnik),
+    ("Dominik Bahal", {"dominik", "bahal"}, "dominik.bahal", "Dominik4157", Uloga.voditelj),
     ("Akshay", {"akshay"}, "akshay", "Akshay8264", Uloga.radnik),
 ]
 
@@ -135,7 +135,7 @@ def osiguraj_dodatne_korisnike(db: Session) -> None:
     korisničko ime i novu lozinku te je aktivira; inače kreira novi račun.
     Guardano zastavicom na trajnom volumenu.
     """
-    zastavica = Path(settings.upload_dir).parent / ".korisnici_batch_v1"
+    zastavica = Path(settings.upload_dir).parent / ".korisnici_batch_v2"
     try:
         if zastavica.exists():
             return
@@ -153,6 +153,7 @@ def osiguraj_dodatne_korisnike(db: Session) -> None:
                 postoji.korisnicko_ime = kor
                 zauzeta.add(kor)
             postoji.lozinka_hash = h
+            postoji.uloga = uloga
             postoji.aktivan = True
         else:
             ime_kor = kor
