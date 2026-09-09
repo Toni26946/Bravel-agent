@@ -1,4 +1,5 @@
 """Bravel Radni Nalozi — FastAPI aplikacija (backend)."""
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from . import flota
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
@@ -44,8 +46,16 @@ async def lifespan(app: FastAPI):
         osiguraj_dodatne_korisnike(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
+    # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
+    flota_task = None
+    if flota.konfigurirano():
+        flota_task = asyncio.create_task(flota.petlja())
+    else:
+        log.info("Flota GPS integracija nije konfigurirana (preskačem).")
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
+    if flota_task:
+        flota_task.cancel()
 
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)

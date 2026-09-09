@@ -163,6 +163,8 @@ class Nalog(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     zatvoren: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Flota OS: je li već javljeno da je vozilo izašlo iz radione dok je nalog u radu
+    izvan_radione_javljeno: Mapped[bool] = mapped_column(Boolean, default=False)
 
     vozilo: Mapped["Vozilo"] = relationship()
     kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])

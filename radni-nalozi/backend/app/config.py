@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:info@bravel.hr"
 
+    # Flota OS (GPS) — obavijest kad vozilo napusti radionu, a nalog je još u radu.
+    # Radi samo ako su postavljeni pristup (ključ ili račun) i koordinate radione.
+    flota_api_base: str = "https://bravel-flota-os-api.fly.dev"
+    flota_service_key: str = ""          # X-Service-Key (M2M) — fly secret
+    flota_email: str = ""                # alternativa: lokalni račun (12 h JWT)
+    flota_lozinka: str = ""
+    radiona_lat: float = 0.0
+    radiona_lon: float = 0.0
+    radiona_radius_m: int = 300          # geokrug oko radione (metri)
+    flota_interval_s: int = 60           # koliko često provjeravati (Flota keš je 30 s)
+
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
     seed_admin_password: str = "bravel123"
