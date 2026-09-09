@@ -16,8 +16,10 @@ from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vo
 from .seed import (
     jednokratna_reaktivacija_roka,
     migriraj_zaduzene_u_radnike,
+    ocisti_mjerace_bez_radnika,
     osiguraj_aktivnog_voditelja,
     osiguraj_dodatne_korisnike,
+    preimenuj_naslove_naloga,
     seed,
     seed_radnici,
     uvezi_povijest_rada,
@@ -40,6 +42,8 @@ async def lifespan(app: FastAPI):
         osiguraj_aktivnog_voditelja(db)
         jednokratna_reaktivacija_roka(db)
         osiguraj_dodatne_korisnike(db)
+        preimenuj_naslove_naloga(db)
+        ocisti_mjerace_bez_radnika(db)
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
 
