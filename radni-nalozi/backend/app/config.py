@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     radiona_lon: float = 0.0
     radiona_radius_m: int = 300          # geokrug oko radione (metri)
     flota_interval_s: int = 60           # koliko često provjeravati (Flota keš je 30 s)
+    flota_max_starost_s: int = 1800      # ignoriraj GPS stariji od ovoga (izbjegni lažne alarme)
 
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
