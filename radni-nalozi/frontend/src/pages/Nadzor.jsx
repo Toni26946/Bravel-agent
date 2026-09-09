@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api, medijUrl } from '../api'
@@ -45,24 +45,25 @@ function useNadzor() {
   const [nalozi, setNalozi] = useState(null)
   const [greska, setGreska] = useState('')
   const [sada, setSada] = useState(Date.now())
+  const osvjezi = useCallback(() => api.nadzor().then(setNalozi).catch((e) => setGreska(e.message)), [])
   useEffect(() => {
-    const u = () => api.nadzor().then(setNalozi).catch((e) => setGreska(e.message))
-    u()
-    const t = setInterval(u, 15000)
+    osvjezi()
+    const t = setInterval(osvjezi, 15000)
     return () => clearInterval(t)
-  }, [])
+  }, [osvjezi])
   useEffect(() => {
     const t = setInterval(() => setSada(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
-  return { nalozi, greska, sada }
+  return { nalozi, greska, sada, osvjezi }
 }
 
 // --- Glavni izbornik: tablica tekućih radova (aktivni mjerači) ---------------
 export function GlavniIzbornik() {
   const { t } = useT()
   const nav = useNavigate()
-  const { nalozi, greska, sada } = useNadzor()
+  const { nalozi, greska, sada, osvjezi } = useNadzor()
+  const [radiId, setRadiId] = useState(0)
 
   if (greska) return <Layout naslov={t('nadzor.izbornik')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('nadzor.izbornik')}><Spinner /></Layout>
@@ -73,16 +74,23 @@ export function GlavniIzbornik() {
   })))
   tekuci.sort((a, b) => msVremena(a.z.zapoceto) - msVremena(b.z.zapoceto))
 
+  const zavrsi = async (n, z, e) => {
+    e.stopPropagation()
+    setRadiId(z.id)
+    try { await api.azurirajZadatak(n.id, z.id, { gotovo: true }); osvjezi() }
+    catch (_) { /* tiho */ } finally { setRadiId(0) }
+  }
+
   return (
     <Layout naslov={t('nadzor.izbornik')}>
-      <div className="sekcija-naslov">{t('nadzor.tekuci')} <span className="nad-broj">{tekuci.length}</span></div>
+      <div className="sekcija-naslov" style={{ marginTop: 0 }}>{tekuci.length} {t('nadzor.uTijeku')}</div>
       {tekuci.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.nemaTekucih')}</p></div>
       ) : (
         <div className="op-tablica" style={{ overflowX: 'auto' }}>
           <div className="tr-head">
             <div>{t('nadzor.vozilo')}</div><div>{t('nadzor.radnik')}</div>
-            <div>{t('nadzor.operacija')}</div><div>{t('nadzor.trajanje')}</div>
+            <div>{t('nadzor.operacija')}</div><div>{t('nadzor.trajanje')}</div><div></div>
           </div>
           {tekuci.map(({ n, op, z }) => (
             <div className="tr-red" key={z.id} onClick={() => nav(`/nalozi/${n.id}`)}>
@@ -90,6 +98,11 @@ export function GlavniIzbornik() {
               <div className="tr-radnik">{radniciZadatka(z).map((r) => r.ime).join(', ') || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
               <div className="tr-traj">{trajanjeDugo(proteklo(z, sada))}</div>
+              <div className="tr-akcija">
+                <button className="btn mali" disabled={radiId === z.id} onClick={(e) => zavrsi(n, z, e)}>
+                  {radiId === z.id ? '…' : `✓ ${t('nadzor.zavrsi')}`}
+                </button>
+              </div>
             </div>
           ))}
         </div>
