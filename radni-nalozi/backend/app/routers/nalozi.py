@@ -307,9 +307,9 @@ def popis(
 
 # Statusi u kojima je nalog još "aktivan" (nije završen) — za spajanje.
 AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
-# Novi unos se spaja u postojeći nalog SAMO ako je otvoren ili u radu.
-# Gotov/zatvoren/čeka dijelove → stvara se novi nalog.
-SPOJIVI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu)
+# Novi unos se spaja u postojeći nalog ako je aktivan (otvoren, u radu ili čeka
+# dijelove). Gotov/zatvoren → stvara se novi nalog.
+SPOJIVI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
 
 
 @router.get("/nadzor", response_model=list[NalogOut])
