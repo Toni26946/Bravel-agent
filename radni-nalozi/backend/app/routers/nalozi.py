@@ -138,11 +138,16 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije mehaničar")
         valjani.append(r)
     z.radnici = valjani
-    if not z.gotovo:
-        if valjani and not z.zapoceto and dozvoli_start:
-            z.zapoceto = datetime.now(timezone.utc)
-        elif not valjani:
-            _zaustavi_mjerac(z)
+    if z.gotovo:
+        return
+    if not valjani:
+        _zaustavi_mjerac(z)
+        return
+    if z.zapoceto:
+        # zadatak već ide — pobrini se da ti radnici ne rade drugdje istovremeno
+        _pauziraj_druge_mjerace(db, z)
+    elif dozvoli_start:
+        _pokreni_mjerac(db, z)
 
 
 # --- razdvajanje operacija po osovini ----------------------------------------
@@ -412,8 +417,19 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         opisi = [opis for (opis, _zid) in zadaci]
         zid = next((zid for (_o, zid) in zadaci if zid is not None), None)
         _spoji_u_zadatak(db, operacija, opisi, zid)
+    db.flush()
+    # Čim je nalog kreiran, radnicima dodijeljenim na operaciju kreni mjeriti
+    # vrijeme (jedan aktivan zadatak po radniku).
+    zapoceto_ima = False
+    for op in nalog.operacije:
+        for z in op.zadaci:
+            if z.radnici and not z.gotovo:
+                _pokreni_mjerac(db, z)
+                zapoceto_ima = True
+    if zapoceto_ima:
+        nalog.status = StatusNaloga.u_radu
     db.add(PovijestStatusa(
-        nalog_id=nalog.id, stari_status=None, novi_status=StatusNaloga.otvoren.value,
+        nalog_id=nalog.id, stari_status=None, novi_status=nalog.status.value,
         napomena="Nalog kreiran", promijenio_id=voditelj.id,
     ))
     if prijava:
@@ -749,6 +765,30 @@ def _zaustavi_mjerac(z: Zadatak) -> None:
         z.zapoceto = None
 
 
+def _pauziraj_druge_mjerace(db: Session, z: Zadatak) -> None:
+    """Pauziraj sve druge pokrenute zadatke na kojima rade radnici ovog zadatka
+    (radnik istovremeno radi na samo JEDNOJ operaciji)."""
+    rids = {r.id for r in z.radnici}
+    if not rids:
+        return
+    drugi = (
+        db.query(Zadatak)
+        .filter(Zadatak.zapoceto.isnot(None), Zadatak.id != z.id)
+        .all()
+    )
+    for d in drugi:
+        if any(r.id in rids for r in d.radnici):
+            _zaustavi_mjerac(d)
+
+
+def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
+    """Pokreni mjerač zadatka i pauziraj druge pokrenute zadatke istih radnika."""
+    if z.gotovo or z.zapoceto:
+        return
+    _pauziraj_druge_mjerace(db, z)
+    z.zapoceto = datetime.now(timezone.utc)
+
+
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
 def dodaj_zadatak(
     nalog_id: int, op_id: int, podaci: ZadatakDodaj,
@@ -812,8 +852,7 @@ def mjerac_zadatka(
     if podaci.akcija == "start":
         if nalog.status == StatusNaloga.ceka_dijelove:
             raise HTTPException(status_code=409, detail="Nalog čeka dijelove — mjerenje je pauzirano.")
-        if not z.gotovo and not z.zapoceto:
-            z.zapoceto = datetime.now(timezone.utc)
+        _pokreni_mjerac(db, z)
     elif podaci.akcija == "stop":
         _zaustavi_mjerac(z)
     else:
