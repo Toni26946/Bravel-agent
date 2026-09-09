@@ -307,6 +307,9 @@ def popis(
 
 # Statusi u kojima je nalog još "aktivan" (nije završen) — za spajanje.
 AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+# Novi unos se spaja u postojeći nalog SAMO ako je otvoren ili u radu.
+# Gotov/zatvoren/čeka dijelove → stvara se novi nalog.
+SPOJIVI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu)
 
 
 @router.get("/nadzor", response_model=list[NalogOut])
@@ -378,7 +381,7 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
     # Ako za isti kamion već postoji aktivan (nezatvoren) nalog — spoji u njega.
     postojeci = (
         db.query(Nalog)
-        .filter(Nalog.vozilo_id == vozilo.id, Nalog.status.in_(AKTIVNI_STATUSI))
+        .filter(Nalog.vozilo_id == vozilo.id, Nalog.status.in_(SPOJIVI_STATUSI))
         .order_by(Nalog.kreiran.desc())
         .first()
     )
