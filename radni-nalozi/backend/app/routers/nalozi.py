@@ -325,6 +325,19 @@ def nadzor(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depend
     )
 
 
+@router.get("/izasli", response_model=list[NalogListItem])
+def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    """Kamioni koji su napustili radionu (GPS), a nalog je još u radu."""
+    if korisnik.uloga == Uloga.vozac:
+        raise HTTPException(status_code=403, detail="Vozači nemaju pristup")
+    return (
+        db.query(Nalog)
+        .filter(Nalog.status == StatusNaloga.u_radu, Nalog.izvan_radione_javljeno.is_(True))
+        .order_by(Nalog.azuriran.desc())
+        .all()
+    )
+
+
 @router.get("/{nalog_id}", response_model=NalogOut)
 def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
     return _dohvati_ovlasten(db, nalog_id, korisnik)
