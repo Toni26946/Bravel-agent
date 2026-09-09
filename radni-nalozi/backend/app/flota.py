@@ -7,6 +7,7 @@ li vozilo završeno. Radi samo ako je konfigurirano (ključ/račun + koordinate)
 import asyncio
 import logging
 import math
+from datetime import datetime, timezone
 
 import httpx
 
@@ -97,6 +98,20 @@ async def dohvati_pozicije() -> dict | None:
     return izlaz
 
 
+def _prestaro(vrijeme_iso: str | None) -> bool:
+    """True ako je GPS zapis stariji od dopuštenog (ne javljaj lažne alarme)."""
+    if not vrijeme_iso:
+        return False  # nema oznake vremena — ne odbacuj samo zbog toga
+    try:
+        t = datetime.fromisoformat(vrijeme_iso)
+    except (ValueError, TypeError):
+        return False
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    starost = (datetime.now(timezone.utc) - t).total_seconds()
+    return starost > settings.flota_max_starost_s
+
+
 def obradi_pozicije(pozicije: dict) -> int:
     """Za aktivne (u radu) naloge provjeri je li vozilo izvan geokruga radione.
 
@@ -110,7 +125,7 @@ def obradi_pozicije(pozicije: dict) -> int:
         for n in aktivni:
             gb = n.vozilo.gb if n.vozilo else None
             p = pozicije.get(str(gb)) if gb else None
-            if not p or p.get("zastarjelo"):
+            if not p or p.get("zastarjelo") or _prestaro(p.get("vrijeme")):
                 continue  # nema svježe pozicije za ovaj kamion
             d = udaljenost_m(p["lat"], p["lon"], settings.radiona_lat, settings.radiona_lon)
             vani = d > settings.radiona_radius_m
