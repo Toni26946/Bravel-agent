@@ -120,6 +120,7 @@ const HR = {
   'noviNalog.korak2': '2. Voditelj i vozač', 'noviNalog.voditelj': 'Voditelj', 'noviNalog.odaberi': '— odaberi —',
   'noviNalog.vozacOpc': 'Vozač (opcionalno)', 'noviNalog.bezVozaca': '— bez vozača —',
   'noviNalog.korak3': '3. Operacije i zadaci', 'noviNalog.zadatak': 'Zadatak', 'noviNalog.dodajZadatak': '+ Zadatak',
+  'noviNalog.opisPh': 'Opis posla (sve u jednom)',
   'noviNalog.dodajOperaciju': 'Dodaj operaciju (kategoriju)', 'noviNalog.kreiram': 'Kreiram…', 'noviNalog.kreiraj': 'Kreiraj nalog',
   'noviNalog.prvoKamion': 'Prvo pronađi kamion po garažnom broju.', 'noviNalog.odaberiVoditelja': 'Odaberi voditelja.',
   // glasovni unos
@@ -255,6 +256,7 @@ const EN = {
   'noviNalog.korak2': '2. Manager and driver', 'noviNalog.voditelj': 'Manager', 'noviNalog.odaberi': '— select —',
   'noviNalog.vozacOpc': 'Driver (optional)', 'noviNalog.bezVozaca': '— no driver —',
   'noviNalog.korak3': '3. Operations and tasks', 'noviNalog.zadatak': 'Task', 'noviNalog.dodajZadatak': '+ Task',
+  'noviNalog.opisPh': 'Work description (all in one)',
   'noviNalog.dodajOperaciju': 'Add operation (category)', 'noviNalog.kreiram': 'Creating…', 'noviNalog.kreiraj': 'Create order',
   'noviNalog.prvoKamion': 'First find the truck by its garage number.', 'noviNalog.odaberiVoditelja': 'Select a manager.',
   'glas.naslovNalog': '🎙️ Voice order entry', 'glas.naslovSteta': '🎙️ Voice damage entry',

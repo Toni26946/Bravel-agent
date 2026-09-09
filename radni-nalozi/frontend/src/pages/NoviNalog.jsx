@@ -28,7 +28,7 @@ export default function NoviNalog() {
   const [voditeljId, setVoditeljId] = useState('')
   const [vozacId, setVozacId] = useState('')
 
-  // korak 3 — operacije: [{kategorija, zadaci:[{opis, zaduzeni_id, zaduzeniIme}]}]
+  // korak 3 — operacije: [{kategorija, opis, zaduzeni_id}] — jedan (spojeni) opis po operaciji
   const [operacije, setOperacije] = useState([])
 
   const [greska, setGreska] = useState('')
@@ -42,7 +42,14 @@ export default function NoviNalog() {
     if (v) { setVozilo(v); setGb(v.gb); setGbGreska('') }
     if (vid) setVoditeljId(vid)
     if (zid) setVozacId(zid)
-    if (ops && ops.length) setOperacije(ops)
+    if (ops && ops.length) {
+      // Spoji sve opise jedne operacije u JEDAN opis (odvojene " • ").
+      setOperacije(ops.map((op) => {
+        const opisi = (op.zadaci || []).map((z) => (z.opis || '').trim()).filter(Boolean)
+        const zid2 = (op.zadaci || []).map((z) => z.zaduzeni_id).find((x) => x) || null
+        return { kategorija: op.kategorija, opis: opisi.join(' • '), zaduzeni_id: zid2 }
+      }))
+    }
     setGlasNapomene(napomene || [])
     setGlasOtvoren(false)
   }
@@ -74,19 +81,14 @@ export default function NoviNalog() {
     setVozilo(v)
   }
 
-  const prazanZadatak = () => ({ opis: '', zaduzeni_id: null })
   const dodajOperaciju = (kategorija) => {
     const k = (kategorija || '').trim()
     if (!k) return
-    setOperacije((o) => [...o, { kategorija: k, zadaci: [prazanZadatak()] }])
+    setOperacije((o) => [...o, { kategorija: k, opis: '', zaduzeni_id: null }])
   }
   const makniOperaciju = (i) => setOperacije((o) => o.filter((_, idx) => idx !== i))
-  const azurirajZadatak = (oi, zi, izmjene) =>
-    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: op.zadaci.map((z, j) => j === zi ? { ...z, ...izmjene } : z) }))
-  const dodajZadatak = (oi) =>
-    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: [...op.zadaci, prazanZadatak()] }))
-  const makniZadatak = (oi, zi) =>
-    setOperacije((o) => o.map((op, idx) => idx !== oi ? op : { ...op, zadaci: op.zadaci.filter((_, j) => j !== zi) }))
+  const azurirajOperaciju = (oi, izmjene) =>
+    setOperacije((o) => o.map((op, idx) => idx === oi ? { ...op, ...izmjene } : op))
 
   const spremi = async () => {
     setGreska('')
@@ -96,10 +98,10 @@ export default function NoviNalog() {
     try {
       const cisteOperacije = operacije
         .map((op) => ({
-          kategorija: op.kategorija,
-          zadaci: op.zadaci
-            .map((z) => ({ opis: (z.opis || '').trim(), zaduzeni_id: z.zaduzeni_id || null }))
-            .filter((z) => z.opis),
+          kategorija: (op.kategorija || '').trim(),
+          zadaci: (op.opis || '').trim()
+            ? [{ opis: op.opis.trim(), zaduzeni_id: op.zaduzeni_id || null }]
+            : [],
         }))
         .filter((op) => op.kategorija)
       const r = await api.kreirajNalog({
@@ -199,24 +201,23 @@ export default function NoviNalog() {
                 <h3 style={{ margin: 0 }}>{op.kategorija}</h3>
                 <span className="x" onClick={() => makniOperaciju(oi)}>×</span>
               </div>
-              {op.zadaci.map((z, zi) => (
-                <div key={zi} style={{ marginTop: 8 }}>
-                  <div className="btn-red" style={{ marginTop: 0, alignItems: 'stretch' }}>
-                    <input value={z.opis} onChange={(e) => azurirajZadatak(oi, zi, { opis: e.target.value })} placeholder={`${t('noviNalog.zadatak')} ${zi + 1}`} />
-                    <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => azurirajZadatak(oi, zi, { opis: (z.opis ? z.opis + ' ' : '') + tekst })} />
-                    {op.zadaci.length > 1 && <span className="x" onClick={() => makniZadatak(oi, zi)}>×</span>}
-                  </div>
-                  <select
-                    style={{ marginTop: 6 }}
-                    value={z.zaduzeni_id || ''}
-                    onChange={(e) => azurirajZadatak(oi, zi, { zaduzeni_id: e.target.value ? Number(e.target.value) : null })}
-                  >
-                    <option value="">{t('op.radnik')} —</option>
-                    {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-                  </select>
-                </div>
-              ))}
-              <button type="button" className="btn sekund mali" style={{ marginTop: 8 }} onClick={() => dodajZadatak(oi)}>{t('noviNalog.dodajZadatak')}</button>
+              <div className="btn-red" style={{ marginTop: 8, alignItems: 'stretch' }}>
+                <textarea
+                  value={op.opis}
+                  onChange={(e) => azurirajOperaciju(oi, { opis: e.target.value })}
+                  placeholder={t('noviNalog.opisPh')}
+                  style={{ minHeight: 60 }}
+                />
+                <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => azurirajOperaciju(oi, { opis: (op.opis ? op.opis + ' ' : '') + tekst })} />
+              </div>
+              <select
+                style={{ marginTop: 6 }}
+                value={op.zaduzeni_id || ''}
+                onChange={(e) => azurirajOperaciju(oi, { zaduzeni_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">{t('op.radnik')} —</option>
+                {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+              </select>
             </div>
           ))}
 
