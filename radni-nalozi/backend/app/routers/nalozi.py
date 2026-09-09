@@ -327,10 +327,14 @@ def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: S
     return _dohvati_ovlasten(db, nalog_id, korisnik)
 
 
-def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
-    """Pridodaj operacije/zadatke u postojeći nalog; iste kategorije se spoje."""
+def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> list[Zadatak]:
+    """Pridodaj operacije/zadatke u postojeći nalog; iste kategorije se spoje.
+
+    Vraća popis dirnutih (dodanih/dopunjenih) zadataka.
+    """
     po_kat = {o.kategorija.lower(): o for o in nalog.operacije}
     sljedeci_red = len(nalog.operacije)
+    dirnuti: list[Zadatak] = []
     for kat, zadaci in _rasporedi_po_osovini(operacije):
         if not kat:
             continue
@@ -343,7 +347,10 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> None:
             po_kat[kat.lower()] = cilj
         opisi = [opis for (opis, _zid) in zadaci]
         zid = next((zid for (_o, zid) in zadaci if zid is not None), None)
-        _spoji_u_zadatak(db, cilj, opisi, zid)
+        z = _spoji_u_zadatak(db, cilj, opisi, zid)
+        if z is not None:
+            dirnuti.append(z)
+    return dirnuti
 
 
 # --- kreiranje (voditelj) ----------------------------------------------------
@@ -376,12 +383,22 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
         .first()
     )
     if postojeci:
-        _spoji_operacije(db, postojeci, podaci.operacije)
+        stari_status = postojeci.status
+        dirnuti = _spoji_operacije(db, postojeci, podaci.operacije)
+        db.flush()
+        # Čim se spoji, radnicima dodijeljenim na (novu) operaciju kreni mjeriti
+        # vrijeme — osim ako nalog čeka dijelove.
+        if postojeci.status != StatusNaloga.ceka_dijelove:
+            for z in dirnuti:
+                if z.radnici and not z.gotovo:
+                    _pokreni_mjerac(db, z)
+            if postojeci.status == StatusNaloga.otvoren and any(z.zapoceto for z in dirnuti):
+                postojeci.status = StatusNaloga.u_radu
         if prijava:
             prijava.status = StatusPrijave.u_obradi
             prijava.nalog_id = postojeci.id
         db.add(PovijestStatusa(
-            nalog_id=postojeci.id, stari_status=postojeci.status.value, novi_status=postojeci.status.value,
+            nalog_id=postojeci.id, stari_status=stari_status.value, novi_status=postojeci.status.value,
             napomena=f"Spojen novi unos ({len(podaci.operacije)} operacija) za kamion {vozilo.gb}",
             promijenio_id=voditelj.id,
         ))
