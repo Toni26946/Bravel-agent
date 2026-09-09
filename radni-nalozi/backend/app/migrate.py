@@ -19,6 +19,7 @@ _STUPCI = [
     ("zadaci", "utroseno_sek", "INTEGER DEFAULT 0"),
     ("povijest_rada", "nalog_id", "INTEGER"),
     ("vozila", "slika", "VARCHAR(300)"),
+    ("nalozi", "izvan_radione_javljeno", "BOOLEAN DEFAULT FALSE"),
 ]
 
 
