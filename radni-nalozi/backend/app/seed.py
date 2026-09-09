@@ -6,9 +6,11 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timezone
+
 from .auth import hash_lozinka
 from .config import settings
-from .models import Korisnik, PovijestRada, Uloga, Vozilo, Zadatak
+from .models import Korisnik, Nalog, PovijestRada, Uloga, Vozilo, Zadatak
 
 log = logging.getLogger("seed")
 
@@ -226,6 +228,50 @@ def osiguraj_aktivnog_voditelja(db: Session) -> None:
             "Nije bilo nijednog aktivnog voditelja — reaktivirano %d (%s).",
             len(voditelji), ", ".join(v.korisnicko_ime for v in voditelji),
         )
+
+
+def ocisti_mjerace_bez_radnika(db: Session) -> None:
+    """Zaustavi mjerenje na zadacima koji nemaju dodijeljenog radnika.
+
+    Vrijeme smije teći samo dok je radnik prijavljen; ovo čisti eventualne
+    mjerače pokrenute ručno (stari gumbi) bez radnika. Sigurno se pokreće pri
+    svakom startu — ne dira zadatke koji imaju radnika."""
+    n = 0
+    for z in db.query(Zadatak).filter(Zadatak.zapoceto.isnot(None)).all():
+        if not z.radnici:
+            zp = z.zapoceto if z.zapoceto.tzinfo else z.zapoceto.replace(tzinfo=timezone.utc)
+            proteklo = (datetime.now(timezone.utc) - zp).total_seconds()
+            z.utroseno_sek = int(z.utroseno_sek or 0) + max(0, int(proteklo))
+            z.zapoceto = None
+            n += 1
+    if n:
+        db.commit()
+        log.info("Zaustavljeno %d mjerača bez dodijeljenog radnika.", n)
+
+
+def preimenuj_naslove_naloga(db: Session) -> None:
+    """Jednokratno: naslov 'Servis <GB>' → samo '<GB>'."""
+    zastavica = Path(settings.upload_dir).parent / ".naslov_gb_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    promijenjeno = 0
+    for nalog in db.query(Nalog).join(Vozilo, Nalog.vozilo_id == Vozilo.id).all():
+        gb = nalog.vozilo.gb if nalog.vozilo else None
+        if gb and nalog.naslov in (f"Servis {gb}", f"Servis  {gb}"):
+            nalog.naslov = gb
+            promijenjeno += 1
+    if promijenjeno:
+        db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    if promijenjeno:
+        log.info("Preimenovano %d naslova naloga u garažni broj.", promijenjeno)
 
 
 def migriraj_zaduzene_u_radnike(db: Session) -> None:

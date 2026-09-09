@@ -247,17 +247,12 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
               <RadniciZadatka nalog={nalog} z={z} radnici={radnici} jeVoditelj={jeVoditelj} wrap={wrap} />
             </div>
             <div className="op2-mj">
-              {!z.gotovo && nalog.status === 'ceka_dijelove' && (
-                <span className="mj-gotovo" title={t('status.ceka_dijelove')}>⏸ {trajanje(proteklo)}</span>
+              {/* Vrijeme teče automatski dok je radnik prijavljen — bez ručnih gumba. */}
+              {!z.gotovo && radi && (
+                <span className="mj-vrijeme-ro radi">⏱ {trajanje(proteklo)}</span>
               )}
-              {!z.gotovo && nalog.status !== 'ceka_dijelove' && (
-                <button
-                  className={'mj-btn' + (radi ? ' radi' : '')}
-                  onClick={() => wrap(api.zadatakMjerac(nalog.id, z.id, radi ? 'stop' : 'start'))}
-                  title={radi ? t('op.mjeracPauza') : t('op.mjeracStart')}
-                >
-                  {radi ? '⏸' : '▶'} <span className="mj-vrijeme">{trajanje(proteklo)}</span>
-                </button>
+              {!z.gotovo && !radi && osnova > 0 && (
+                <span className="mj-vrijeme-ro">⏸ {trajanje(osnova)}</span>
               )}
               {z.gotovo && (
                 <span className="mj-gotovo">
