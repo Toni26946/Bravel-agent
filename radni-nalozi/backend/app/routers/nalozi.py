@@ -427,23 +427,23 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
     db.flush()
     _postavi_dodjele(db, nalog, podaci.radnici_ids)
     # Operacije (kategorije) i zadaci — razdvojeni po osovini gdje se to spominje
+    stvoreni: list[Zadatak] = []
     for i, (kat, zadaci) in enumerate(_rasporedi_po_osovini(podaci.operacije)):
         operacija = Operacija(nalog_id=nalog.id, kategorija=kat, redoslijed=i)
         db.add(operacija)
         db.flush()
         opisi = [opis for (opis, _zid) in zadaci]
         zid = next((zid for (_o, zid) in zadaci if zid is not None), None)
-        _spoji_u_zadatak(db, operacija, opisi, zid)
+        z = _spoji_u_zadatak(db, operacija, opisi, zid)
+        if z is not None:
+            stvoreni.append(z)
     db.flush()
     # Čim je nalog kreiran, radnicima dodijeljenim na operaciju kreni mjeriti
     # vrijeme (jedan aktivan zadatak po radniku).
-    zapoceto_ima = False
-    for op in nalog.operacije:
-        for z in op.zadaci:
-            if z.radnici and not z.gotovo:
-                _pokreni_mjerac(db, z)
-                zapoceto_ima = True
-    if zapoceto_ima:
+    for z in stvoreni:
+        if z.radnici and not z.gotovo:
+            _pokreni_mjerac(db, z)
+    if any(z.zapoceto for z in stvoreni):
         nalog.status = StatusNaloga.u_radu
     db.add(PovijestStatusa(
         nalog_id=nalog.id, stari_status=None, novi_status=nalog.status.value,
