@@ -262,6 +262,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .mj-gotovo { font-size: 12px; color: #2e7d32; font-weight: 600; }
 .mj-vrijeme-ro { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--sivo); font-variant-numeric: tabular-nums; letter-spacing: .3px; }
 .mj-vrijeme-ro.radi { color: #2e7d32; }
+/* --- Izašli iz radione ----------------------------------------------------- */
+.izasli-red { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.izasli-info { cursor: pointer; min-width: 0; }
+.izasli-gb { font-weight: 800; font-size: 16px; }
+.izasli-btn { flex: none; white-space: nowrap; }
 
 /* Mikrofon (diktiranje) */
 .polje-mik { display: flex; gap: 8px; align-items: stretch; }

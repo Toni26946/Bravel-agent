@@ -9,6 +9,7 @@ import NovaPrijava from './pages/NovaPrijava'
 import PrijavaDetalj from './pages/PrijavaDetalj'
 import Nalozi from './pages/Nalozi'
 import { GlavniIzbornik, VozilaURadu } from './pages/Nadzor'
+import IzasliIzRadione from './pages/IzasliIzRadione'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
 import Steta from './pages/Steta'
@@ -44,6 +45,7 @@ export default function App() {
       {/* Nadzor: Glavni izbornik (tekući radovi) + Vozila u radu */}
       <Route path="/izbornik" element={<Zasticeno uloge={['voditelj', 'radnik']}><GlavniIzbornik /></Zasticeno>} />
       <Route path="/vozila-u-radu" element={<Zasticeno uloge={['voditelj', 'radnik']}><VozilaURadu /></Zasticeno>} />
+      <Route path="/izasli" element={<Zasticeno uloge={['voditelj', 'radnik']}><IzasliIzRadione /></Zasticeno>} />
 
       {/* Nalozi: voditelj (svi) + radnik (dodijeljeni) */}
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'radnik']}><Nalozi /></Zasticeno>} />
