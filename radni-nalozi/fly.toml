@@ -10,13 +10,19 @@ primary_region = "ams"
   # Zadano SQLite na trajnom volumenu. Za Postgres postavi tajnu DATABASE_URL.
   DATABASE_URL = "sqlite:////app/data/radni_nalozi.db"
   CORS_ORIGINS = "https://nalozibravel.zgdata.hr,https://bravel-radni-nalozi.fly.dev"
+  # Radiona (Vrbovec) — geokrug za Flota OS GPS nadzor. Koordinate nisu tajna.
+  RADIONA_LAT = "45.874889"
+  RADIONA_LON = "16.414278"
+  RADIONA_RADIUS_M = "300"
 
 [http_service]
   internal_port = 8080
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  # Barem jedan stroj stalno radi — pozadinski Flota OS GPS nadzor mora teći
+  # neprekidno (inače bi se stroj ugasio kad nema prometa i provjere bi stale).
+  min_machines_running = 1
 
 [[mounts]]
   source = "nalozi_data"
