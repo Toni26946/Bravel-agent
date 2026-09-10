@@ -76,6 +76,55 @@ settings = get_settings()
 
 
 @lru_cache
+def vapid_keypair() -> tuple[str, str]:
+    """(public, private) VAPID ključevi u base64url obliku.
+
+    Ako su postavljeni preko env-a (VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY) koriste se
+    oni; inače se jednom generiraju i trajno pohrane uz podatke (na Fly volumenu),
+    pa push radi bez ručnog postavljanja tajni. Isti princip kao jwt_secret().
+    """
+    import base64
+    import json
+
+    if settings.vapid_public_key and settings.vapid_private_key:
+        return settings.vapid_public_key, settings.vapid_private_key
+
+    datoteka = Path(settings.upload_dir).parent / ".vapid"
+    try:
+        if datoteka.exists():
+            d = json.loads(datoteka.read_text(encoding="utf-8"))
+            if d.get("public") and d.get("private"):
+                return d["public"], d["private"]
+    except (OSError, ValueError):
+        pass
+
+    try:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+    except Exception:  # pragma: no cover
+        return "", ""
+
+    def _b64u(b: bytes) -> str:
+        return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+    priv = ec.generate_private_key(ec.SECP256R1())
+    pub_s = _b64u(priv.public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint))
+    priv_s = _b64u(priv.private_numbers().private_value.to_bytes(32, "big"))
+    try:
+        datoteka.parent.mkdir(parents=True, exist_ok=True)
+        datoteka.write_text(json.dumps({"public": pub_s, "private": priv_s}), encoding="utf-8")
+        try:
+            os.chmod(datoteka, 0o600)
+        except OSError:
+            pass
+        log.warning("VAPID ključevi nisu postavljeni — generirani i pohranjeni u %s.", datoteka)
+    except OSError:
+        log.error("Ne mogu pohraniti VAPID ključeve; koristim privremene (nestaju uz restart).")
+    return pub_s, priv_s
+
+
+@lru_cache
 def jwt_secret() -> str:
     """Vraća efektivni JWT ključ.
 

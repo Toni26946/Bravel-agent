@@ -4,7 +4,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from .config import settings
+from .config import settings, vapid_keypair
 from .models import Korisnik, Uloga
 
 log = logging.getLogger("push")
@@ -17,17 +17,19 @@ except Exception:  # pragma: no cover
 
 
 def push_omogucen() -> bool:
-    return bool(webpush and settings.vapid_private_key and settings.vapid_public_key)
+    pub, priv = vapid_keypair()
+    return bool(webpush and pub and priv)
 
 
 def _posalji(sub_json: str, naslov: str, tijelo: str, url: str = "/") -> bool:
     if not push_omogucen():
         return False
+    _, priv = vapid_keypair()
     try:
         webpush(
             subscription_info=json.loads(sub_json),
             data=json.dumps({"naslov": naslov, "tijelo": tijelo, "url": url}),
-            vapid_private_key=settings.vapid_private_key,
+            vapid_private_key=priv,
             vapid_claims={"sub": settings.vapid_subject},
         )
         return True
