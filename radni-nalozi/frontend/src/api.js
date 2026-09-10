@@ -138,4 +138,5 @@ export const api = {
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),
   pushPretplata: (subscription) => zahtjev('/push/pretplata', { method: 'POST', body: { subscription } }),
+  pushTest: () => zahtjev('/push/test', { method: 'POST' }),
 }

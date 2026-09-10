@@ -16,6 +16,17 @@ export default function Profil() {
     else setPoruka(t('profil.pushNo'))
   }
 
+  const testnaObavijest = async () => {
+    setPoruka('')
+    try {
+      await omoguciPush()            // osiguraj da je push uključen/pretplaćen
+      await api.pushTest()
+      setPoruka(t('profil.testPoslano'))
+    } catch (e) {
+      setPoruka(e.message || t('profil.pushNo'))
+    }
+  }
+
   return (
     <Layout naslov={t('profil.title')}>
       <div className="karta">
@@ -37,6 +48,7 @@ export default function Profil() {
       <PromjenaLozinke />
 
       <button className="btn sekund" onClick={ukljuciObavijesti} style={{ marginTop: 12 }}>{t('profil.push')}</button>
+      <button className="btn sekund" onClick={testnaObavijest} style={{ marginTop: 8 }}>{t('profil.testPush')}</button>
       <button className="btn opasno" onClick={odjava} style={{ marginTop: 12 }}>{t('profil.odjava')}</button>
 
       <p className="meta" style={{ textAlign: 'center', marginTop: 24 }}>{t('profil.savjetInstall')}</p>
