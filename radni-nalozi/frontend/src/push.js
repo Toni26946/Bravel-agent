@@ -8,14 +8,15 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
 }
 
+// Vraća status: 'ok' | 'nepodrzano' | 'server' | 'odbijeno' | 'greska'
 export async function omoguciPush() {
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'nepodrzano'
     const info = await api.pushKljuc()
-    if (!info.omoguceno || !info.vapid_public_key) return
+    if (!info.omoguceno || !info.vapid_public_key) return 'server'
 
     const dozvola = await Notification.requestPermission()
-    if (dozvola !== 'granted') return
+    if (dozvola !== 'granted') return 'odbijeno'
 
     const reg = await navigator.serviceWorker.ready
     let sub = await reg.pushManager.getSubscription()
@@ -26,7 +27,9 @@ export async function omoguciPush() {
       })
     }
     await api.pushPretplata(sub)
+    return 'ok'
   } catch (e) {
     console.warn('Push nije omogućen:', e)
+    return 'greska'
   }
 }
