@@ -10,16 +10,22 @@ export default function Profil() {
   const { t, jezik, postaviJezik } = useT()
   const [poruka, setPoruka] = useState('')
 
+  const PORUKE = {
+    ok: 'profil.pushOn', server: 'profil.pushServer', odbijeno: 'profil.pushNo',
+    nepodrzano: 'profil.pushNepodrzano', greska: 'profil.pushGreska',
+  }
+
   const ukljuciObavijesti = async () => {
-    await omoguciPush()
-    if (Notification.permission === 'granted') setPoruka(t('profil.pushOn'))
-    else setPoruka(t('profil.pushNo'))
+    setPoruka('')
+    const st = await omoguciPush()
+    setPoruka(t(PORUKE[st] || 'profil.pushNo'))
   }
 
   const testnaObavijest = async () => {
     setPoruka('')
+    const st = await omoguciPush()            // osiguraj da je push uključen/pretplaćen
+    if (st !== 'ok') { setPoruka(t(PORUKE[st] || 'profil.pushNo')); return }
     try {
-      await omoguciPush()            // osiguraj da je push uključen/pretplaćen
       await api.pushTest()
       setPoruka(t('profil.testPoslano'))
     } catch (e) {
