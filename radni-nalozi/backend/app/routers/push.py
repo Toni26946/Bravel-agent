@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik
-from ..config import settings
+from ..config import vapid_keypair
 from ..database import get_db
 from ..models import Korisnik
 from ..push import obavijesti_korisnika, push_omogucen
@@ -16,7 +16,8 @@ router = APIRouter(prefix="/push", tags=["push"])
 
 @router.get("/kljuc")
 def javni_kljuc():
-    return {"omoguceno": push_omogucen(), "vapid_public_key": settings.vapid_public_key}
+    pub, _ = vapid_keypair()
+    return {"omoguceno": push_omogucen(), "vapid_public_key": pub}
 
 
 @router.post("/pretplata", status_code=204)
