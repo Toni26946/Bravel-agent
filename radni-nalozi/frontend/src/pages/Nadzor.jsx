@@ -25,6 +25,10 @@ function proteklo(z, sada) {
   const osnova = z.utroseno_sek || 0
   return z.zapoceto ? osnova + Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : osnova
 }
+// Vrijeme od zadnje prijave (trenutna sesija) — ne ukupno nakupljeno.
+function sesija(z, sada) {
+  return z.zapoceto ? Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : 0
+}
 function radiSe(n) {
   return n.operacije.some((op) => op.zadaci.some((z) => z.zapoceto))
 }
@@ -97,7 +101,7 @@ export function GlavniIzbornik() {
               <div className="tr-voz">{n.vozilo?.gb}</div>
               <div className="tr-radnik">{radniciZadatka(z).map((r) => r.ime).join(', ') || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
-              <div className="tr-traj">{trajanjeDugo(proteklo(z, sada))}</div>
+              <div className="tr-traj">{trajanjeDugo(sesija(z, sada))}</div>
               <div className="tr-akcija">
                 <button className="btn mali sekund" disabled={radiId === z.id} onClick={(e) => odjavi(n, z, e)}>
                   {radiId === z.id ? '…' : `⏻ ${t('nadzor.odjavi')}`}
@@ -168,7 +172,7 @@ function KartaNaloga({ n, sada, onClick }) {
               </div>
               <div className="nad-radnik">
                 {radniciZadatka(z).map((r) => <span key={r.id} className="nad-ime">{kratkoIme(r.ime)}</span>)}
-                {radi && <span className="nad-timer">{trajanje(proteklo(z, sada))}</span>}
+                {radi && <span className="nad-timer">{trajanje(sesija(z, sada))}</span>}
               </div>
             </div>
           )

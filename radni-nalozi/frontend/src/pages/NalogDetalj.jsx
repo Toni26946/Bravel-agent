@@ -231,7 +231,8 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
       {op.zadaci.map((z) => {
         const radi = !!z.zapoceto
         const osnova = z.utroseno_sek || 0
-        const proteklo = radi ? osnova + Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : osnova
+        // Živi prikaz = vrijeme od zadnje prijave (trenutna sesija), ne ukupno.
+        const proteklo = radi ? Math.max(0, (sada - msVremena(z.zapoceto)) / 1000) : osnova
         return (
           <Fragment key={z.id}>
             <label className="op2-zad">
