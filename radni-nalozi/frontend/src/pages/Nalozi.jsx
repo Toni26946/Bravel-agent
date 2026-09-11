@@ -4,7 +4,10 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
-import { Bedz, Prazno, Spinner, datum, useAutoOsvjezi, voziloLabel } from '../ui'
+import { Bedz, MikrofonGumb, Prazno, Spinner, datum, useAutoOsvjezi, voziloLabel } from '../ui'
+
+// bez kvačica + mala slova — pretraga neosjetljiva na dijakritike
+const _norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 const FILTERI = [
   { k: '', lk: 'filter.sve' },
@@ -19,6 +22,7 @@ export default function Nalozi() {
   const nav = useNavigate()
   const [lista, setLista] = useState(null)
   const [filter, setFilter] = useState('')
+  const [q, setQ] = useState('')
   const [greska, setGreska] = useState('')
   const [brisi, setBrisi] = useState(null) // nalog koji se potvrđuje za brisanje
 
@@ -63,8 +67,20 @@ export default function Nalozi() {
 
   const naslov = korisnik.uloga === 'radnik' ? t('nalozi.title.radnik') : t('nalozi.title.ostalo')
 
+  const nq = _norm(q.trim())
+  const prikazana = !lista ? null : (nq
+    ? lista.filter((n) => _norm(
+        `${n.broj} ${n.naslov} ${n.vozilo?.gb || ''} ${n.vozilo?.registracija || ''} `
+        + `${n.vozilo?.marka || ''} ${n.vozilo?.model || ''} ${n.voditelj?.ime || ''} ${n.vozac?.ime || ''}`
+      ).includes(nq))
+    : lista)
+
   return (
     <Layout naslov={naslov}>
+      <div className="polje-mik" style={{ marginBottom: 8 }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('nalozi.trazi')} />
+        <MikrofonGumb naslov={t('nalozi.trazi')} onTekst={(tekst) => setQ(tekst)} />
+      </div>
       <div className="chips">
         {FILTERI.map((f) => (
           <span key={f.k} className={`chip ${filter === f.k ? 'akt' : ''}`} onClick={() => setFilter(f.k)}>{t(f.lk)}</span>
@@ -79,8 +95,10 @@ export default function Nalozi() {
         <Spinner />
       ) : lista.length === 0 ? (
         <Prazno emo="🔧" tekst={t('nalozi.prazno')} />
+      ) : prikazana.length === 0 ? (
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p></div>
       ) : (
-        lista.map((n) => (
+        prikazana.map((n) => (
           <div
             key={n.id}
             className="karta klik"
