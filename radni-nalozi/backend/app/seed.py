@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from .auth import hash_lozinka
 from .config import settings
-from .models import Korisnik, Nalog, PovijestRada, Uloga, Vozilo, Zadatak
+from .models import Korisnik, Nalog, PovijestRada, StatusNaloga, Uloga, Vozilo, Zadatak
 
 log = logging.getLogger("seed")
 
@@ -298,6 +298,57 @@ def migriraj_zaduzene_u_radnike(db: Session) -> None:
         pass
     if preneseno:
         log.info("Preneseno %d zaduženja u popis radnika zadataka.", preneseno)
+
+
+def backfill_povijest_gotovih(db: Session) -> None:
+    """Jednokratno: upiši SVE dosad gotove operacije u servisnu povijest vozila.
+
+    Ranije se rad evidentirao samo kad cijeli nalog postane 'gotov'; gotove
+    operacije na nalozima koji nikad ne dođu do 'gotov' (npr. radnik samo
+    odjavljen) ostale su nezabilježene. Ovo rekonstruira povijest iz trenutnog
+    stanja zadataka. Idempotentno po nalogu (obriši pa upiši), pa je sigurno.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".povijest_backfill_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    sada = datetime.now(timezone.utc)
+    upisano = 0
+    for nalog in db.query(Nalog).all():
+        sve = nalog.status in (StatusNaloga.gotov, StatusNaloga.zatvoren)
+        # očisti postojeće zapise ovog naloga (ne dira uvezenu povijest bez nalog_id)
+        db.query(PovijestRada).filter(PovijestRada.nalog_id == nalog.id).delete()
+        for op in nalog.operacije:
+            for z in op.zadaci:
+                if not sve and not z.gotovo:
+                    continue
+                opis = (z.opis or "").strip()
+                if not opis:
+                    continue
+                dat = z.zavrseno or nalog.zatvoren or sada
+                if dat.tzinfo is None:
+                    dat = dat.replace(tzinfo=timezone.utc)
+                imena = ", ".join(r.ime for r in z.radnici) or (z.zaduzeni.ime if z.zaduzeni else None)
+                db.add(PovijestRada(
+                    vozilo_id=nalog.vozilo_id,
+                    nalog_id=nalog.id,
+                    datum=dat.date(),
+                    radnik=(imena or None),
+                    operacija=op.kategorija or None,
+                    opis=opis,
+                    minute=(int((z.utroseno_sek or 0) / 60) or None),
+                    izvor="nalog",
+                ))
+                upisano += 1
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Backfill servisne povijesti: upisano %d gotovih operacija.", upisano)
 
 
 def seed_radnici(db: Session, lozinka: str = "radnik123") -> None:

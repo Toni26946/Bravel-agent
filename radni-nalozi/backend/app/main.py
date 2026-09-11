@@ -16,6 +16,7 @@ from .database import Base, SessionLocal, engine
 from .migrate import migrate
 from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
 from .seed import (
+    backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
     migriraj_zaduzene_u_radnike,
     ocisti_mjerace_bez_radnika,
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI):
         osiguraj_dodatne_korisnike(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
+        backfill_povijest_gotovih(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
     if flota.konfigurirano():
