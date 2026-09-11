@@ -106,6 +106,8 @@ function ServisnaPovijest({ voziloId }) {
   const [stavke, setStavke] = useState(null)
   const [greska, setGreska] = useState('')
   const [q, setQ] = useState('')
+  // sortiranje: polje 'datum' | 'radnik', smjer 'asc' | 'desc'
+  const [sort, setSort] = useState({ polje: 'datum', smjer: 'desc' })
 
   useEffect(() => {
     api.povijestRada(voziloId).then(setStavke).catch((e) => setGreska(e.message))
@@ -120,20 +122,32 @@ function ServisnaPovijest({ voziloId }) {
     ? stavke.filter((s) => _norm(`${s.operacija || ''} ${s.opis || ''} ${s.radnik || ''}`).includes(nq))
     : stavke
 
+  const klik = (polje) =>
+    setSort((p) => (p.polje === polje ? { polje, smjer: p.smjer === 'asc' ? 'desc' : 'asc' } : { polje, smjer: polje === 'datum' ? 'desc' : 'asc' }))
+  const kljuc = (s) => (sort.polje === 'radnik' ? _norm(s.radnik) : (s.datum || ''))
+  const sortirano = [...filtrirano].sort((a, b) => {
+    const ka = kljuc(a), kb = kljuc(b)
+    const c = ka < kb ? -1 : ka > kb ? 1 : (a.id || 0) - (b.id || 0)
+    return sort.smjer === 'asc' ? c : -c
+  })
+  const strelica = (polje) => (sort.polje === polje ? (sort.smjer === 'asc' ? ' ▲' : ' ▼') : '')
+
   return (
     <>
       <div className="polje-mik" style={{ marginBottom: 8 }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('voz.filtrirajPovijest')} />
         <MikrofonGumb naslov={t('voz.filtrirajPovijest')} onTekst={(tekst) => setQ(tekst)} />
       </div>
-      {filtrirano.length === 0 ? (
+      {sortirano.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p></div>
       ) : (
         <div className="op-tablica">
           <div className="pr-head">
-            <div>{t('voz.datum')}</div><div>{t('voz.radnik')}</div><div>{t('voz.posao')}</div>
+            <div className="pr-sort" onClick={() => klik('datum')}>{t('voz.datum')}{strelica('datum')}</div>
+            <div className="pr-sort" onClick={() => klik('radnik')}>{t('voz.radnik')}{strelica('radnik')}</div>
+            <div>{t('voz.posao')}</div>
           </div>
-          {filtrirano.map((s) => (
+          {sortirano.map((s) => (
             <div className="pr-red" key={s.id}>
               <div className="pr-datum">{datum(s.datum)}</div>
               <div className="pr-radnik">{s.radnik || '—'}</div>

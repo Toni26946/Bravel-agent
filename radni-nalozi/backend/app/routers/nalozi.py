@@ -530,16 +530,22 @@ def _obrisi_povijest_naloga(db: Session, nalog_id: int) -> None:
     db.query(PovijestRada).filter(PovijestRada.nalog_id == nalog_id).delete()
 
 
-def _upisi_nalog_u_povijest(db: Session, nalog: Nalog) -> None:
-    """Prepiši zadatke završenog naloga u servisnu povijest vozila.
+def _upisi_nalog_u_povijest(db: Session, nalog: Nalog, sve: bool = False) -> None:
+    """Prepiši zadatke naloga u servisnu povijest vozila.
 
     Idempotentno: prvo makne ranije zapise ovog naloga, pa upiše aktualne.
     Svaki zadatak → jedan zapis (datum, radnik, operacija=kategorija, opis, minute).
+
+    Bilježe se SAMO gotove operacije (z.gotovo) — tako se svaki dovršeni posao
+    evidentira čim je označen gotovim, neovisno o statusu cijelog naloga.
+    Uz `sve=True` (npr. ručno označen 'gotov'/'zatvoren') bilježe se svi zadaci.
     """
     _obrisi_povijest_naloga(db, nalog.id)
     sada = datetime.now(timezone.utc)
     for op in nalog.operacije:
         for z in op.zadaci:
+            if not sve and not z.gotovo:
+                continue
             opis = (z.opis or "").strip()
             if not opis:
                 continue
@@ -557,6 +563,16 @@ def _upisi_nalog_u_povijest(db: Session, nalog: Nalog) -> None:
                 minute=(int((z.utroseno_sek or 0) / 60) or None),
                 izvor="nalog",
             ))
+
+
+def _sync_povijest(db: Session, nalog: Nalog) -> None:
+    """Uskladi servisnu povijest s trenutnim stanjem zadataka.
+
+    Povijest uvijek odražava gotove operacije; kad je nalog gotov/zatvoren
+    upisuju se svi zadaci (npr. ručno zaključivanje bez pojedinačnog gotovo).
+    """
+    sve = nalog.status in (StatusNaloga.gotov, StatusNaloga.zatvoren)
+    _upisi_nalog_u_povijest(db, nalog, sve=sve)
 
 
 def _auto_status_naloga(db: Session, nalog: Nalog, korisnik: Korisnik) -> None:
@@ -586,28 +602,24 @@ def _auto_status_naloga(db: Session, nalog: Nalog, korisnik: Korisnik) -> None:
     else:
         novi = nalog.status
 
-    if novi == nalog.status:
-        return
+    if novi != nalog.status:
+        stari = nalog.status
+        nalog.status = novi
+        nalog.zatvoren = datetime.now(timezone.utc) if novi == StatusNaloga.gotov else None
+        nalog.azuriran = datetime.now(timezone.utc)
+        db.add(PovijestStatusa(
+            nalog_id=nalog.id, stari_status=stari.value, novi_status=novi.value,
+            napomena="Automatski status prema stanju zadataka", promijenio_id=korisnik.id,
+        ))
+        if korisnik.uloga == Uloga.radnik and novi == StatusNaloga.gotov:
+            obavijesti_ulogu(
+                db, Uloga.voditelj, "Nalog završen",
+                f"{nalog.broj} — svi zadaci gotovi", url=f"/nalozi/{nalog.id}",
+            )
 
-    stari = nalog.status
-    nalog.status = novi
-    if novi == StatusNaloga.gotov:
-        nalog.zatvoren = datetime.now(timezone.utc)
-        _upisi_nalog_u_povijest(db, nalog)
-    else:
-        if stari == StatusNaloga.gotov:
-            _obrisi_povijest_naloga(db, nalog.id)
-        nalog.zatvoren = None
-    nalog.azuriran = datetime.now(timezone.utc)
-    db.add(PovijestStatusa(
-        nalog_id=nalog.id, stari_status=stari.value, novi_status=novi.value,
-        napomena="Automatski status prema stanju zadataka", promijenio_id=korisnik.id,
-    ))
-    if korisnik.uloga == Uloga.radnik and novi == StatusNaloga.gotov:
-        obavijesti_ulogu(
-            db, Uloga.voditelj, "Nalog završen",
-            f"{nalog.broj} — svi zadaci gotovi", url=f"/nalozi/{nalog.id}",
-        )
+    # Uvijek uskladi servisnu povijest s trenutno gotovim operacijama —
+    # dovršena operacija se evidentira i kad cijeli nalog još nije 'gotov'.
+    _sync_povijest(db, nalog)
 
 
 # --- promjena statusa (voditelj ili dodijeljeni radnik) ----------------------
@@ -625,11 +637,9 @@ def promijeni_status(
         nalog.zatvoren = datetime.now(timezone.utc)
     else:
         nalog.zatvoren = None
-    # Servisna povijest vozila: upiši pri završetku, ukloni ako se ponovno otvori.
-    if podaci.status == StatusNaloga.gotov:
-        _upisi_nalog_u_povijest(db, nalog)
-    elif stari == StatusNaloga.gotov:
-        _obrisi_povijest_naloga(db, nalog.id)
+    # Servisna povijest vozila: uskladi s trenutnim stanjem (gotove operacije
+    # ostaju evidentirane i nakon ponovnog otvaranja; 'gotov'/'zatvoren' upiše sve).
+    _sync_povijest(db, nalog)
     # "Čeka dijelove": pauziraj sve mjerače (vrijeme radnika staje).
     if podaci.status == StatusNaloga.ceka_dijelove:
         for op in nalog.operacije:
