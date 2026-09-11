@@ -24,7 +24,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
-    tabovi.push({ do: '/sifrarnik', ikona: '⚙️', txt: t('tab.sifrarnik') })
+    tabovi.push({ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') })
   }
   if (korisnik?.uloga === 'radnik') {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
