@@ -74,10 +74,10 @@ export function GlavniIzbornik() {
   })))
   tekuci.sort((a, b) => msVremena(a.z.zapoceto) - msVremena(b.z.zapoceto))
 
-  const zavrsi = async (n, z, e) => {
+  const odjavi = async (n, z, e) => {
     e.stopPropagation()
     setRadiId(z.id)
-    try { await api.azurirajZadatak(n.id, z.id, { gotovo: true }); osvjezi() }
+    try { await api.odjavaZadatak(n.id, z.id); osvjezi() }
     catch (_) { /* tiho */ } finally { setRadiId(0) }
   }
 
@@ -99,8 +99,8 @@ export function GlavniIzbornik() {
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
               <div className="tr-traj">{trajanjeDugo(proteklo(z, sada))}</div>
               <div className="tr-akcija">
-                <button className="btn mali" disabled={radiId === z.id} onClick={(e) => zavrsi(n, z, e)}>
-                  {radiId === z.id ? '…' : `✓ ${t('nadzor.zavrsi')}`}
+                <button className="btn mali sekund" disabled={radiId === z.id} onClick={(e) => odjavi(n, z, e)}>
+                  {radiId === z.id ? '…' : `⏻ ${t('nadzor.odjavi')}`}
                 </button>
               </div>
             </div>

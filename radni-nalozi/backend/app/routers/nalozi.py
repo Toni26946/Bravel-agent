@@ -906,6 +906,21 @@ def mjerac_zadatka(
     return z
 
 
+@router.post("/{nalog_id}/zadaci/{zadatak_id}/odjava", response_model=ZadatakOut)
+def odjava_radnika(
+    nalog_id: int, zadatak_id: int,
+    korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
+):
+    """Odjavi radnike s operacije: makni ih i zaustavi mjerač (operacija NIJE gotova)."""
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    z = _dohvati_zadatak(db, nalog_id, zadatak_id)
+    z.radnici = []
+    _zaustavi_mjerac(z)
+    db.commit()
+    db.refresh(z)
+    return z
+
+
 @router.delete("/{nalog_id}/zadaci/{zadatak_id}", status_code=204)
 def obrisi_zadatak(
     nalog_id: int, zadatak_id: int,

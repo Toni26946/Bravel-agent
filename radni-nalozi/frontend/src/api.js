@@ -123,6 +123,8 @@ export const api = {
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'PATCH', body: izmjene }),
   zadatakMjerac: (id, zadatakId, akcija) =>
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/mjerac`, { method: 'POST', body: { akcija } }),
+  odjavaZadatak: (id, zadatakId) =>
+    zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/odjava`, { method: 'POST' }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
   // Šteta
