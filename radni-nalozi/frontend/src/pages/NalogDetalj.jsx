@@ -298,7 +298,7 @@ function RadniciZadatka({ nalog, z, radnici, jeVoditelj, wrap }) {
           value=""
           onChange={(e) => { if (e.target.value) postavi([...ids, Number(e.target.value)]) }}
         >
-          <option value="">{dodijeljeni.length ? t('op.dodajRadnika') : '—'}</option>
+          <option value="">{t('op.dodajRadnika')}</option>
           {slobodni.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
         </select>
       )}
