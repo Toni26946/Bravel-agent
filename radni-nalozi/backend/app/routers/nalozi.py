@@ -143,11 +143,10 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
     if not valjani:
         _zaustavi_mjerac(z)
         return
-    if z.zapoceto:
-        # zadatak već ide — pobrini se da ti radnici ne rade drugdje istovremeno
-        _pauziraj_druge_mjerace(db, z)
-    elif dozvoli_start:
-        _pokreni_mjerac(db, z)
+    # Radnici ovog zadatka odjavljuju se s drugih operacija (jedna operacija po radniku).
+    _odjavi_iz_drugih(db, z)
+    if not z.zapoceto and dozvoli_start:
+        z.zapoceto = datetime.now(timezone.utc)
 
 
 # --- razdvajanje operacija po osovini ----------------------------------------
@@ -798,27 +797,33 @@ def _zaustavi_mjerac(z: Zadatak) -> None:
         z.zapoceto = None
 
 
-def _pauziraj_druge_mjerace(db: Session, z: Zadatak) -> None:
-    """Pauziraj sve druge pokrenute zadatke na kojima rade radnici ovog zadatka
-    (radnik istovremeno radi na samo JEDNOJ operaciji)."""
+def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
+    """Radnici ovog zadatka se odjavljuju sa svih DRUGIH zadataka (jedan radnik
+    radi istovremeno na samo jednoj operaciji). Ako zadatak ostane bez ijednog
+    radnika, mjerač mu se zaustavlja."""
     rids = {r.id for r in z.radnici}
     if not rids:
         return
     drugi = (
         db.query(Zadatak)
-        .filter(Zadatak.zapoceto.isnot(None), Zadatak.id != z.id)
+        .join(Zadatak.radnici)
+        .filter(Korisnik.id.in_(rids), Zadatak.id != z.id)
+        .distinct()
         .all()
     )
     for d in drugi:
-        if any(r.id in rids for r in d.radnici):
+        if d.gotovo:
+            continue
+        d.radnici = [r for r in d.radnici if r.id not in rids]
+        if not d.radnici:
             _zaustavi_mjerac(d)
 
 
 def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
-    """Pokreni mjerač zadatka i pauziraj druge pokrenute zadatke istih radnika."""
+    """Pokreni mjerač zadatka i odjavi radnike s drugih zadataka."""
     if z.gotovo or z.zapoceto:
         return
-    _pauziraj_druge_mjerace(db, z)
+    _odjavi_iz_drugih(db, z)
     z.zapoceto = datetime.now(timezone.utc)
 
 
