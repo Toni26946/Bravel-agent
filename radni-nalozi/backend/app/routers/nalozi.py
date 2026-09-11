@@ -861,6 +861,10 @@ def azuriraj_zadatak(
             z.zavrseno = datetime.now(timezone.utc)
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
+            # Ako operacija ima dodijeljene radnike, nastavi mjerenje s njima
+            # (osim ako nalog čeka dijelove) — da se ista operacija lako nastavi.
+            if z.radnici and nalog.status != StatusNaloga.ceka_dijelove:
+                _pokreni_mjerac(db, z)
     # Dodjela radnika — više radnika po zadatku (samo voditelj).
     dozvoli_start = nalog.status != StatusNaloga.ceka_dijelove
     if "radnici_ids" in podaci.model_fields_set:

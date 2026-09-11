@@ -50,7 +50,7 @@ const HR = {
   'nalozi.title.radnik': 'Moji nalozi', 'nalozi.title.ostalo': 'Radni nalozi',
   'filter.sve': 'Sve', 'filter.otvoreni': 'Otvoreni', 'filter.uradu': 'U radu', 'filter.gotovi': 'Gotovi',
   'nalozi.savjetBrisi': 'Savjet: dugim pritiskom na nalog možeš ga obrisati.',
-  'nalozi.prazno': 'Nema naloga za prikaz.', 'nalozi.rok': 'rok',
+  'nalozi.prazno': 'Nema naloga za prikaz.', 'nalozi.rok': 'rok', 'nalozi.trazi': 'Traži nalog (broj, kamion, naslov)…',
   'nalozi.obrisatiNalog': 'Obrisati nalog?', 'nalozi.brisanjeTrajno': 'brisanje je trajno.',
   'nalozi.obrisiNalog': 'Obriši nalog',
   // nalog (detalj)
@@ -202,7 +202,7 @@ const EN = {
   'nalozi.title.radnik': 'My orders', 'nalozi.title.ostalo': 'Work orders',
   'filter.sve': 'All', 'filter.otvoreni': 'Open', 'filter.uradu': 'In progress', 'filter.gotovi': 'Done',
   'nalozi.savjetBrisi': 'Tip: long-press an order to delete it.',
-  'nalozi.prazno': 'No orders to show.', 'nalozi.rok': 'due',
+  'nalozi.prazno': 'No orders to show.', 'nalozi.rok': 'due', 'nalozi.trazi': 'Search orders (number, truck, title)…',
   'nalozi.obrisatiNalog': 'Delete order?', 'nalozi.brisanjeTrajno': 'deletion is permanent.',
   'nalozi.obrisiNalog': 'Delete order',
   'nalog.promijeniStatus': 'Change status', 'nalog.operacijeIZadaci': 'Operations and tasks',
