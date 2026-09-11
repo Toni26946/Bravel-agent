@@ -249,6 +249,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pr-head { display: grid; grid-template-columns: 78px 118px 1fr; background: #eef2f7; }
 .pr-head > div { padding: 7px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--sivo); }
 .pr-head > div + div { border-left: 1px solid var(--rub); }
+.pr-head .pr-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.pr-head .pr-sort:hover { color: var(--plava); }
 .pr-red { display: grid; grid-template-columns: 78px 118px 1fr; border-top: 1px solid var(--rub); font-size: 13px; }
 .pr-red > div { padding: 7px 8px; min-width: 0; word-break: break-word; }
 .pr-red > div + div { border-left: 1px solid var(--rub); }
