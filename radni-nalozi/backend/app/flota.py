@@ -14,11 +14,18 @@ import httpx
 from .config import settings
 from .database import SessionLocal
 from .models import Nalog, StatusNaloga, Uloga
-from .push import obavijesti_ulogu
+from .push import obavijesti_ulogu, push_omogucen
 
 log = logging.getLogger("flota")
 
 _token: str | None = None  # JWT za lokalni račun (opcija bez servisnog ključa)
+
+# Dijagnostika (za /api/flota/status) — stanje zadnjeg ciklusa nadzora.
+_zadnje_osvjezeno: datetime | None = None   # zadnji uspješan dohvat pozicija
+_zadnji_pokusaj: datetime | None = None     # zadnji pokušaj (uspješan ili ne)
+_broj_pozicija: int = 0
+_zadnja_greska: str | None = None
+_zadnje_pozicije: dict = {}                 # keš zadnjih pozicija po GB-u
 
 
 def konfigurirano() -> bool:
@@ -53,6 +60,17 @@ async def _prijava(client: httpx.AsyncClient) -> str | None:
     except Exception as e:  # noqa: BLE001
         log.warning("Flota prijava neuspjela: %s", e)
     return None
+
+
+def _zabiljezi(pozicije: dict | None, greska: str | None) -> None:
+    """Spremi stanje zadnjeg ciklusa za dijagnostiku (/api/flota/status)."""
+    global _zadnji_pokusaj, _zadnje_osvjezeno, _broj_pozicija, _zadnja_greska, _zadnje_pozicije
+    _zadnji_pokusaj = datetime.now(timezone.utc)
+    _zadnja_greska = greska
+    if pozicije is not None:
+        _zadnje_osvjezeno = _zadnji_pokusaj
+        _broj_pozicija = len(pozicije)
+        _zadnje_pozicije = pozicije
 
 
 async def dohvati_pozicije() -> dict | None:
@@ -153,10 +171,60 @@ async def petlja() -> None:
     while True:
         try:
             pozicije = await dohvati_pozicije()
+            _zabiljezi(pozicije, None if pozicije is not None else "dohvat pozicija nije uspio")
             if pozicije:
                 await asyncio.to_thread(obradi_pozicije, pozicije)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
             log.warning("Flota tick greška: %s", e)
+            _zabiljezi(None, str(e))
         await asyncio.sleep(interval)
+
+
+def status() -> dict:
+    """Dijagnostika Flota OS nadzora (za voditelje) — je li živ i što vidi."""
+    from .database import SessionLocal
+    from .models import Korisnik, Nalog, StatusNaloga, Uloga
+
+    sada = datetime.now(timezone.utc)
+    aktivni_info = []
+    voditelja_s_pushom = 0
+    with SessionLocal() as db:
+        voditelja_s_pushom = (
+            db.query(Korisnik)
+            .filter(Korisnik.uloga == Uloga.voditelj, Korisnik.push_subscription.isnot(None))
+            .count()
+        )
+        for n in db.query(Nalog).filter(Nalog.status == StatusNaloga.u_radu).all():
+            gb = n.vozilo.gb if n.vozilo else None
+            p = _zadnje_pozicije.get(str(gb)) if gb else None
+            info = {
+                "nalog_id": n.id, "gb": gb,
+                "ima_poziciju": bool(p),
+                "zastarjelo": bool(p and (p.get("zastarjelo") or _prestaro(p.get("vrijeme")))),
+                "vec_javljeno": bool(n.izvan_radione_javljeno),
+                "udaljenost_m": None, "vani": None,
+            }
+            if p and not info["zastarjelo"]:
+                d = udaljenost_m(p["lat"], p["lon"], settings.radiona_lat, settings.radiona_lon)
+                info["udaljenost_m"] = int(d)
+                info["vani"] = d > settings.radiona_radius_m
+            aktivni_info.append(info)
+
+    def _iso(dt: datetime | None) -> str | None:
+        return dt.isoformat() if dt else None
+
+    return {
+        "konfigurirano": konfigurirano(),
+        "push_omogucen": push_omogucen(),
+        "voditelja_s_pushom": voditelja_s_pushom,
+        "zadnje_osvjezeno": _iso(_zadnje_osvjezeno),
+        "zadnji_pokusaj": _iso(_zadnji_pokusaj),
+        "sekundi_od_osvjezenja": int((sada - _zadnje_osvjezeno).total_seconds()) if _zadnje_osvjezeno else None,
+        "broj_pozicija": _broj_pozicija,
+        "zadnja_greska": _zadnja_greska,
+        "radius_m": settings.radiona_radius_m,
+        "interval_s": max(30, int(settings.flota_interval_s)),
+        "aktivni_nalozi": aktivni_info,
+    }

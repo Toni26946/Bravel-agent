@@ -137,6 +137,10 @@ export const api = {
   azurirajStetu: (id, b) => zahtjev(`/stete/${id}`, { method: 'PATCH', body: b }),
   obrisiStetu: (id) => zahtjev(`/stete/${id}`, { method: 'DELETE' }),
 
+  // Flota OS (GPS) dijagnostika
+  flotaStatus: () => zahtjev('/flota/status'),
+  flotaProvjeri: () => zahtjev('/flota/provjeri', { method: 'POST' }),
+
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),
   pushPretplata: (subscription) => zahtjev('/push/pretplata', { method: 'POST', body: { subscription } }),
