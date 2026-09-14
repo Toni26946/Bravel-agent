@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -29,6 +29,7 @@ function ciljeviStatusa(uloga, status) {
 
 export default function NalogDetalj() {
   const { id } = useParams()
+  const nav = useNavigate()
   const [params] = useSearchParams()
   const spojeno = params.get('spojeno') === '1'
   const { korisnik } = useAuth()
@@ -65,13 +66,23 @@ export default function NalogDetalj() {
           <h3>{n.naslov}</h3>
           <Bedz vrsta={n.status} tekst={t('status.' + n.status)} />
         </div>
-        <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
+        <p className="meta">
+          {n.vozilo?.id ? (
+            <button type="button" className="veza-vozilo" onClick={() => nav(`/vozila/${n.vozilo.id}`)}
+              title={t('nalog.povijestVozila')}>
+              🚚 {voziloLabel(n.vozilo)} <span className="veza-vozilo-ik">📖</span>
+            </button>
+          ) : <>🚚 {voziloLabel(n.vozilo)}</>}
+        </p>
         {n.voditelj && <p className="meta">🧑‍🔧 {t('nalog.voditelj')}: <strong>{n.voditelj.ime}</strong></p>}
         {n.vozac && <p className="meta">🚛 {t('nalog.vozac')}: <strong>{n.vozac.ime}</strong></p>}
         {n.rok && <p className="meta">📅 {t('nalog.rok')}: <strong>{datum(n.rok)}</strong></p>}
         {n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>}
         <p className="meta">{t('nalog.kreirao')}: <strong>{n.kreirao?.ime}</strong> · {datumVrijeme(n.kreiran)}</p>
         <div className="btn-red no-print" style={{ marginTop: 10 }}>
+          {n.vozilo?.id && (
+            <button className="btn sekund mali" onClick={() => nav(`/vozila/${n.vozilo.id}`)}>📖 {t('nalog.povijestVozila')}</button>
+          )}
           <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('nalog.ispisi')}</button>
         </div>
       </div>
