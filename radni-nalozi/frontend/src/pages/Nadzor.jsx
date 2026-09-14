@@ -125,7 +125,10 @@ export function VozilaURadu() {
   if (!nalozi) return <Layout naslov={t('nadzor.vozilaURadu')}><Spinner /></Layout>
 
   // Prikaži samo naloge koji su stvarno "u radu" (ne otvorene ni završene).
-  const uRadu = nalozi.filter((n) => n.status === 'u_radu')
+  // Sortiraj: prvo oni na kojima netko trenutno radi (zeleni), pa ostali.
+  const uRadu = nalozi
+    .filter((n) => n.status === 'u_radu')
+    .sort((a, b) => (radiSe(b) ? 1 : 0) - (radiSe(a) ? 1 : 0))
 
   return (
     <Layout naslov={t('nadzor.vozilaURadu')}>
