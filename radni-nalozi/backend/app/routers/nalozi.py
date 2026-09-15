@@ -60,6 +60,8 @@ samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 # Poslovođa: ograničeni voditelj — smije kreirati i uređivati naloge (ne i brisati cijeli nalog).
 voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
 _UREDNICI = (Uloga.voditelj, Uloga.poslovodja)
+# Uloge koje se mogu prijaviti na operacije (rade rukama): mehaničar + poslovođa (radni poslovođa).
+_SERVISERI = (Uloga.radnik, Uloga.poslovodja)
 
 
 # --- pomoćne funkcije --------------------------------------------------------
@@ -137,7 +139,7 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
     valjani: list[Korisnik] = []
     for rid in dict.fromkeys(ids):  # ukloni duplikate, zadrži redoslijed
         r = db.get(Korisnik, rid)
-        if not r or r.uloga != Uloga.radnik:
+        if not r or r.uloga not in _SERVISERI:
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije mehaničar")
         valjani.append(r)
     z.radnici = valjani
@@ -247,7 +249,7 @@ def _postavi_dodjele(db: Session, nalog: Nalog, radnici_ids: list[int]) -> None:
     trazeni = set(radnici_ids)
     for rid in trazeni:
         r = db.get(Korisnik, rid)
-        if not r or r.uloga != Uloga.radnik:
+        if not r or r.uloga not in _SERVISERI:
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije radnik")
     postojeci = {d.radnik_id: d for d in nalog.dodjele}
     # dodaj nove
@@ -793,7 +795,7 @@ def _dohvati_zadatak(db: Session, nalog_id: int, zadatak_id: int) -> Zadatak:
 
 def _provjeri_radnik(db: Session, rid: int) -> None:
     r = db.get(Korisnik, rid)
-    if not r or r.uloga != Uloga.radnik:
+    if not r or r.uloga not in _SERVISERI:
         raise HTTPException(status_code=400, detail="Zaduženi nije valjan mehaničar")
 
 
