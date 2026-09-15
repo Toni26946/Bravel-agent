@@ -63,6 +63,9 @@ function Korisnici() {
   const prebaciAktivan = async (k) => {
     await api.azurirajKorisnika(k.id, { aktivan: !k.aktivan }); ucitaj()
   }
+  const prebaciPrijavu = async (k) => {
+    await api.azurirajKorisnika(k.id, { prijavljuje_se: k.prijavljuje_se === false }); ucitaj()
+  }
 
   if (lista === null) return <Spinner />
   return (
@@ -134,10 +137,20 @@ function Korisnici() {
             <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
           </div>
           <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}</p>
+          {k.uloga === 'radnik' && (
+            <p className="meta">
+              {t('sif.vrsta')}: <strong>{k.prijavljuje_se === false ? t('sif.nePrijavljuje') : t('sif.serviser')}</strong>
+            </p>
+          )}
           <div className="btn-red">
             <button className="btn sekund mali" onClick={() => prebaciAktivan(k)}>
               {k.aktivan ? t('sif.deaktiviraj') : t('sif.aktiviraj')}
             </button>
+            {k.uloga === 'radnik' && (
+              <button className="btn sekund mali" onClick={() => prebaciPrijavu(k)}>
+                {k.prijavljuje_se === false ? t('sif.postaviServiser') : t('sif.postaviNePrijavljuje')}
+              </button>
+            )}
           </div>
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
         </div>

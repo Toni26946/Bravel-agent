@@ -87,7 +87,7 @@ export function GlavniIzbornik() {
     if (!z.gotovo) radniciZadatka(z).forEach((r) => zauzetiIds.add(r.id))
   })))
   const slobodni = radnici
-    .filter((r) => r.aktivan !== false && !zauzetiIds.has(r.id))
+    .filter((r) => r.aktivan !== false && r.prijavljuje_se !== false && !zauzetiIds.has(r.id))
     .sort((a, b) => a.ime.localeCompare(b.ime, 'hr'))
 
   const odjavi = async (n, z, e) => {

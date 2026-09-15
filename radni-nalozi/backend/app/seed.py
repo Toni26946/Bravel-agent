@@ -123,6 +123,37 @@ def _tokeni(ime: str) -> set[str]:
     return {t for t in ime.translate(_ASCII).lower().replace(".", " ").split() if t}
 
 
+# Radnici koji se ne prijavljuju na operacije (skladište/uprava) — po tokenima imena.
+_NEPRIJAVLJENI_TOKENI = [
+    {"marina", "pejkovic"},   # Habijanec Pejković Marina — skladištarka
+]
+
+
+def oznaci_neprijavljene_radnike(db: Session) -> None:
+    """Jednokratno označi poznate ne-servisere (npr. skladištar) da se ne prijavljuju."""
+    zastavica = Path(settings.upload_dir).parent / ".neprijavljeni_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    promijenjeno = 0
+    for k in db.query(Korisnik).filter(Korisnik.uloga == Uloga.radnik).all():
+        tok = _tokeni(k.ime)
+        if any(trazeni <= tok for trazeni in _NEPRIJAVLJENI_TOKENI) and k.prijavljuje_se:
+            k.prijavljuje_se = False
+            promijenjeno += 1
+    if promijenjeno:
+        db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    if promijenjeno:
+        log.info("Označeno %d radnika kao 'ne prijavljuje se'.", promijenjeno)
+
+
 # (ime za prikaz/kreiranje, tokeni za pronalazak postojećeg, korisničko ime, lozinka, uloga)
 _BATCH_KORISNICI = [
     ("Mario Azinović", {"mario", "azinovic"}, "mario.azinovic", "Mario7391", Uloga.voditelj),

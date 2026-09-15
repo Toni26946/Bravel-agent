@@ -99,6 +99,9 @@ class Korisnik(Base):
     uloga: Mapped[Uloga] = mapped_column(Enum(Uloga), index=True)
     telefon: Mapped[str | None] = mapped_column(String(40), nullable=True)
     aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Prijavljuje li se radnik na operacije (serviser=True). Skladištar/uprava i sl.
+    # koji ne rade na nalozima → False (ne pojavljuje se u prijavama/dodjelama).
+    prijavljuje_se: Mapped[bool] = mapped_column(Boolean, default=True)
     push_subscription: Mapped[str | None] = mapped_column(Text, nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

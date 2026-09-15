@@ -216,7 +216,7 @@ export default function NoviNalog() {
                 onChange={(e) => azurirajOperaciju(oi, { zaduzeni_id: e.target.value ? Number(e.target.value) : null })}
               >
                 <option value="">{t('op.radnik')} —</option>
-                {radnici.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
+                {radnici.filter((r) => r.prijavljuje_se !== false).map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
               </select>
             </div>
           ))}

@@ -141,6 +141,8 @@ def azuriraj(
         k.telefon = podaci.telefon
     if podaci.aktivan is not None:
         k.aktivan = podaci.aktivan
+    if podaci.prijavljuje_se is not None:
+        k.prijavljuje_se = podaci.prijavljuje_se
     if podaci.lozinka:
         k.lozinka_hash = hash_lozinka(podaci.lozinka)
     db.commit()

@@ -21,6 +21,7 @@ from .seed import (
     jednokratna_reaktivacija_roka,
     migriraj_zaduzene_u_radnike,
     ocisti_mjerace_bez_radnika,
+    oznaci_neprijavljene_radnike,
     osiguraj_aktivnog_voditelja,
     osiguraj_dodatne_korisnike,
     preimenuj_naslove_naloga,
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI):
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
         backfill_povijest_gotovih(db)
+        oznaci_neprijavljene_radnike(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
     if flota.konfigurirano():
