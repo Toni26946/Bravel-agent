@@ -48,6 +48,7 @@ class KorisnikUpdate(BaseModel):
     uloga: Uloga | None = None
     telefon: str | None = None
     aktivan: bool | None = None
+    prijavljuje_se: bool | None = None
     lozinka: str | None = Field(default=None, min_length=8)
 
 
@@ -58,6 +59,7 @@ class KorisnikOut(ORM):
     uloga: Uloga
     telefon: str | None = None
     aktivan: bool
+    prijavljuje_se: bool = True
 
 
 class KorisnikUvoz(BaseModel):

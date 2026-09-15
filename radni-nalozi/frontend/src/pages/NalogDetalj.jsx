@@ -291,7 +291,8 @@ function RadniciZadatka({ nalog, z, radnici, jeVoditelj, wrap }) {
   const dodijeljeni = z.radnici && z.radnici.length ? z.radnici : (z.zaduzeni ? [z.zaduzeni] : [])
   const ids = dodijeljeni.map((r) => r.id)
   const postavi = (novi) => wrap(api.azurirajZadatak(nalog.id, z.id, { radnici_ids: novi }))
-  const slobodni = radnici.filter((r) => !ids.includes(r.id))
+  // Ne nudi radnike koji se ne prijavljuju (npr. skladištar); već dodijeljeni ostaju vidljivi.
+  const slobodni = radnici.filter((r) => !ids.includes(r.id) && r.prijavljuje_se !== false)
 
   if (!jeVoditelj) {
     return <span className="rad-tekst">{dodijeljeni.map((r) => r.ime).join(', ') || '—'}</span>
