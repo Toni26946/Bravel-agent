@@ -35,6 +35,7 @@ class Uloga(str, enum.Enum):
     vozac = "vozac"
     voditelj = "voditelj"
     radnik = "radnik"
+    poslovodja = "poslovodja"  # ograničeni voditelj: kreira/uređuje naloge, vidi tekuće radove
 
 
 class Hitnost(str, enum.Enum):

@@ -24,7 +24,8 @@ function ciljeviStatusa(uloga, status) {
     gotov: ['zatvoren', 'u_radu'],
     zatvoren: ['u_radu'],
   }
-  return (uloga === 'voditelj' ? voditelj : radnik)[status] || []
+  const jeUrednik = uloga === 'voditelj' || uloga === 'poslovodja'
+  return (jeUrednik ? voditelj : radnik)[status] || []
 }
 
 export default function NalogDetalj() {
@@ -103,7 +104,7 @@ export default function NalogDetalj() {
 
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
-      <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj'} />
+      <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'} />
 
       {/* Ispis naloga (vidljivo samo pri printanju) */}
       <NalogPrint n={n} />

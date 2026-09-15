@@ -43,7 +43,7 @@ const HR = {
   'nadzor.nalog': 'Nalog', 'nadzor.radnik': 'Radnik', 'nadzor.operacija': 'Operacija', 'nadzor.vozilo': 'Vozilo',
   'nadzor.trajanje': 'Trajanje', 'nadzor.nemaOperacija': 'Nema operacija.',
   'tab.steta': 'Šteta', 'tab.profil': 'Profil',
-  'uloga.vozac': 'Vozač', 'uloga.voditelj': 'Voditelj', 'uloga.radnik': 'Radnik',
+  'uloga.vozac': 'Vozač', 'uloga.voditelj': 'Voditelj', 'uloga.poslovodja': 'Poslovođa', 'uloga.radnik': 'Radnik',
   // statusi naloga
   'status.otvoren': 'Otvoren', 'status.u_radu': 'U radu', 'status.ceka_dijelove': 'Čeka dijelove',
   'status.gotov': 'Gotov', 'status.zatvoren': 'Zatvoren',
@@ -200,7 +200,7 @@ const EN = {
   'nadzor.nalog': 'Order', 'nadzor.radnik': 'Mechanic', 'nadzor.operacija': 'Operation', 'nadzor.vozilo': 'Truck',
   'nadzor.trajanje': 'Duration', 'nadzor.nemaOperacija': 'No operations.',
   'tab.steta': 'Damage', 'tab.profil': 'Profile',
-  'uloga.vozac': 'Driver', 'uloga.voditelj': 'Manager', 'uloga.radnik': 'Mechanic',
+  'uloga.vozac': 'Driver', 'uloga.voditelj': 'Manager', 'uloga.poslovodja': 'Foreman', 'uloga.radnik': 'Mechanic',
   'status.otvoren': 'Open', 'status.u_radu': 'In progress', 'status.ceka_dijelove': 'Waiting for parts',
   'status.gotov': 'Done', 'status.zatvoren': 'Closed',
   'nalozi.title.radnik': 'My orders', 'nalozi.title.ostalo': 'Work orders',

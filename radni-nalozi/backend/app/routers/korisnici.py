@@ -48,8 +48,8 @@ def popis(
     korisnik: Korisnik = Depends(trenutni_korisnik),
     db: Session = Depends(get_db),
 ):
-    # Voditelj vidi sve; ostali smiju dohvatiti samo popis radnika (za dodjele nije potrebno, ali radnici/vozači ne trebaju)
-    if korisnik.uloga != Uloga.voditelj and uloga != Uloga.radnik:
+    # Voditelj/poslovođa vide sve; ostali smiju dohvatiti samo popis radnika.
+    if korisnik.uloga not in (Uloga.voditelj, Uloga.poslovodja) and uloga != Uloga.radnik:
         raise HTTPException(status_code=403, detail="Nemate ovlasti")
     q = db.query(Korisnik)
     if uloga:
