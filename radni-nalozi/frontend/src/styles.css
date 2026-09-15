@@ -333,6 +333,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .steta-total .opis { color: var(--sivo); font-size: 13px; margin-top: 4px; }
 .steta-stavka { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--rub); font-size: 14px; }
 .steta-stavka:last-child { border-bottom: none; }
+.steta-red-uredi { display: grid; grid-template-columns: 1fr 96px 24px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.steta-red-uredi input { margin: 0; }
+.steta-x { cursor: pointer; color: var(--crvena, #c0392b); font-size: 20px; text-align: center; user-select: none; }
+.steta-zbroj { display: inline-block; margin-top: 6px; color: var(--plava); font-size: 13px; font-weight: 600; cursor: pointer; }
+.steta-zbroj:hover { text-decoration: underline; }
 .steta-stavka .c { color: var(--sivo); white-space: nowrap; font-weight: 600; }
 .steta-iznos-veliki { font-size: 22px; font-weight: 800; color: var(--crvena); white-space: nowrap; }
 
