@@ -81,10 +81,12 @@ export function GlavniIzbornik() {
   })))
   tekuci.sort((a, b) => msVremena(a.z.zapoceto) - msVremena(b.z.zapoceto))
 
-  // Radnici prijavljeni na neku (nezavršenu) operaciju u tijeku — bez njih su "slobodni".
+  // "Slobodni" = aktivni serviseri koji trenutno NEMAJU pokrenut mjerač.
+  // Prijavljen je onaj tko ima pokrenut mjerač (isti oni koji su u tablici ispod),
+  // pa radnici dodijeljeni na pauziranu/nezapočetu operaciju i dalje broje kao slobodni.
   const zauzetiIds = new Set()
   nalozi.forEach((n) => n.operacije.forEach((op) => op.zadaci.forEach((z) => {
-    if (!z.gotovo) radniciZadatka(z).forEach((r) => zauzetiIds.add(r.id))
+    if (z.zapoceto) radniciZadatka(z).forEach((r) => zauzetiIds.add(r.id))
   })))
   const slobodni = radnici
     .filter((r) => r.aktivan !== false && r.prijavljuje_se !== false && !zauzetiIds.has(r.id))
