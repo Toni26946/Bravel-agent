@@ -246,6 +246,42 @@ def osiguraj_poslovodju(db: Session) -> None:
     log.info("Poslovođa (Gmitrović Miloš) osiguran.")
 
 
+def osiguraj_kovacevica(db: Session) -> None:
+    """Jednokratno: osiguraj da 'Dario Kovačević' postoji kao aktivan serviser.
+
+    Ako postoji (po tokenima imena) — aktivira ga, postavi ulogu radnik i da se
+    prijavljuje; ako ne postoji — kreira ga (login: dario.kovacevic / radnik123).
+    """
+    zastavica = Path(settings.upload_dir).parent / ".kovacevic_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    tset, kor, lozinka = {"dario", "kovacevic"}, "dario.kovacevic", "radnik123"
+    svi = db.query(Korisnik).all()
+    zauzeta = {k.korisnicko_ime for k in svi}
+    postoji = next((k for k in svi if tset <= _tokeni(k.ime)), None)
+    if postoji:
+        postoji.aktivan = True
+        postoji.uloga = Uloga.radnik
+        postoji.prijavljuje_se = True
+    else:
+        ime_kor, i = kor, 1
+        while ime_kor in zauzeta:
+            i += 1
+            ime_kor = f"{kor}{i}"
+        db.add(Korisnik(ime="Dario Kovačević", korisnicko_ime=ime_kor,
+                        lozinka_hash=hash_lozinka(lozinka), uloga=Uloga.radnik, aktivan=True))
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Dario Kovačević osiguran kao aktivan serviser.")
+
+
 def jednokratna_reaktivacija_roka(db: Session) -> None:
     """Jednokratno ponovno aktivira račun 'Roko Jendriš' (slučajno deaktiviran).
 
