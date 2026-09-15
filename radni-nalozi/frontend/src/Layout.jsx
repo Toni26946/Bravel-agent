@@ -9,7 +9,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const lok = useLocation()
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
   // (ondje je vlastiti "+" za novu prijavu) i na samoj stranici kreiranja.
-  const prikaziPlus = korisnik?.uloga === 'voditelj'
+  const prikaziPlus = (korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja')
     && !lok.pathname.startsWith('/prijave')
     && lok.pathname !== '/nalozi/novi'
 
@@ -25,6 +25,11 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
     tabovi.push({ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') })
+  }
+  if (korisnik?.uloga === 'poslovodja') {
+    tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
+    tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
+    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
   if (korisnik?.uloga === 'radnik') {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })

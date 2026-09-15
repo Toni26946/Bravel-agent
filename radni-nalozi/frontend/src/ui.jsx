@@ -81,6 +81,7 @@ export const HITNOST = {
 export const ULOGA = {
   vozac: 'Vozač',
   voditelj: 'Voditelj',
+  poslovodja: 'Poslovođa',
   radnik: 'Radnik',
 }
 

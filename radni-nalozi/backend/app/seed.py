@@ -210,6 +210,42 @@ def osiguraj_dodatne_korisnike(db: Session) -> None:
     log.info("Batch korisnika obrađen (%d).", len(_BATCH_KORISNICI))
 
 
+def osiguraj_poslovodju(db: Session) -> None:
+    """Jednokratno: Gmitrović Miloš → uloga 'poslovodja' (ograničeni voditelj)
+    s čistim korisničkim imenom i lozinkom. Guardano zastavicom."""
+    zastavica = Path(settings.upload_dir).parent / ".poslovodja_milos_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    ime, tset, kor, lozinka = "Gmitrović Miloš", {"milos", "gmitrovic"}, "milos.gmitrovic", "Milos4826"
+    svi = db.query(Korisnik).all()
+    zauzeta = {k.korisnicko_ime for k in svi}
+    postoji = next((k for k in svi if tset <= _tokeni(k.ime)), None)
+    h = hash_lozinka(lozinka)
+    if postoji:
+        if kor == postoji.korisnicko_ime or kor not in zauzeta:
+            postoji.korisnicko_ime = kor
+        postoji.lozinka_hash = h
+        postoji.uloga = Uloga.poslovodja
+        postoji.aktivan = True
+    else:
+        ime_kor, i = kor, 1
+        while ime_kor in zauzeta:
+            i += 1
+            ime_kor = f"{kor}{i}"
+        db.add(Korisnik(ime=ime, korisnicko_ime=ime_kor, lozinka_hash=h,
+                        uloga=Uloga.poslovodja, aktivan=True))
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Poslovođa (Gmitrović Miloš) osiguran.")
+
+
 def jednokratna_reaktivacija_roka(db: Session) -> None:
     """Jednokratno ponovno aktivira račun 'Roko Jendriš' (slučajno deaktiviran).
 

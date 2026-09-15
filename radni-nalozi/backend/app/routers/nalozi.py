@@ -57,6 +57,9 @@ from ..storage import spremi_sliku
 router = APIRouter(prefix="/nalozi", tags=["nalozi"])
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
+# Poslovođa: ograničeni voditelj — smije kreirati i uređivati naloge (ne i brisati cijeli nalog).
+voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+_UREDNICI = (Uloga.voditelj, Uloga.poslovodja)
 
 
 # --- pomoćne funkcije --------------------------------------------------------
@@ -234,8 +237,8 @@ def _dohvati_ovlasten(db: Session, nalog_id: int, korisnik: Korisnik) -> Nalog:
     nalog = db.get(Nalog, nalog_id)
     if not nalog:
         raise HTTPException(status_code=404, detail="Nalog ne postoji")
-    # Voditelj i radnik (mehaničar) rade na svim nalozima; vozač nema pristup.
-    if korisnik.uloga in (Uloga.voditelj, Uloga.radnik):
+    # Voditelj, poslovođa i radnik (mehaničar) rade na svim nalozima; vozač nema pristup.
+    if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja, Uloga.radnik):
         return nalog
     raise HTTPException(status_code=403, detail="Nemate ovlasti za ovaj nalog")
 
@@ -258,7 +261,7 @@ def _postavi_dodjele(db: Session, nalog: Nalog, radnici_ids: list[int]) -> None:
 
 # --- AI glasovni unos --------------------------------------------------------
 @router.post("/glasovni-parse", response_model=GlasovniOdgovor)
-def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)):
+def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslovodja)):
     if not ai_dostupan():
         raise HTTPException(status_code=503, detail="Glasovni unos nije konfiguriran (nedostaje ANTHROPIC_API_KEY).")
     if not z.tekst.strip():
@@ -370,7 +373,7 @@ def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> list[Zadatak]:
 
 # --- kreiranje (voditelj) ----------------------------------------------------
 @router.post("", response_model=NalogCreateOut, status_code=201)
-def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
+def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
     vozilo = db.get(Vozilo, podaci.vozilo_id)
     if not vozilo:
         raise HTTPException(status_code=404, detail="Vozilo (kamion) ne postoji")
@@ -479,7 +482,7 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(samo_voditelj), db
 # --- uređivanje osnovnih polja (voditelj) ------------------------------------
 @router.patch("/{nalog_id}", response_model=NalogOut)
 def azuriraj(
-    nalog_id: int, podaci: NalogUpdate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)
+    nalog_id: int, podaci: NalogUpdate, _: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
     nalog = db.get(Nalog, nalog_id)
     if not nalog:
@@ -509,7 +512,7 @@ def obrisi_nalog(nalog_id: int, _: Korisnik = Depends(samo_voditelj), db: Sessio
 # --- dodjele (voditelj) ------------------------------------------------------
 @router.put("/{nalog_id}/dodjele", response_model=NalogOut)
 def azuriraj_dodjele(
-    nalog_id: int, podaci: DodjelaUpdate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)
+    nalog_id: int, podaci: DodjelaUpdate, _: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
     nalog = db.get(Nalog, nalog_id)
     if not nalog:
@@ -747,7 +750,7 @@ def dodaj_foto(
 @router.post("/{nalog_id}/operacije", response_model=OperacijaOut, status_code=201)
 def dodaj_operaciju(
     nalog_id: int, podaci: OperacijaCreate,
-    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
     nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     redoslijed = len(nalog.operacije)
@@ -770,7 +773,7 @@ def dodaj_operaciju(
 @router.delete("/{nalog_id}/operacije/{op_id}", status_code=204)
 def obrisi_operaciju(
     nalog_id: int, op_id: int,
-    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     op = db.get(Operacija, op_id)
@@ -840,7 +843,7 @@ def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
 def dodaj_zadatak(
     nalog_id: int, op_id: int, podaci: ZadatakDodaj,
-    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     op = db.get(Operacija, op_id)
@@ -875,15 +878,15 @@ def azuriraj_zadatak(
             # (osim ako nalog čeka dijelove) — da se ista operacija lako nastavi.
             if z.radnici and nalog.status != StatusNaloga.ceka_dijelove:
                 _pokreni_mjerac(db, z)
-    # Dodjela radnika — više radnika po zadatku (samo voditelj).
+    # Dodjela radnika — više radnika po zadatku (voditelj ili poslovođa).
     dozvoli_start = nalog.status != StatusNaloga.ceka_dijelove
     if "radnici_ids" in podaci.model_fields_set:
-        if korisnik.uloga != Uloga.voditelj:
-            raise HTTPException(status_code=403, detail="Samo voditelj može dodjeljivati radnike na zadatke")
+        if korisnik.uloga not in _UREDNICI:
+            raise HTTPException(status_code=403, detail="Samo voditelj/poslovođa može dodjeljivati radnike na zadatke")
         _postavi_radnike(db, z, podaci.radnici_ids or [], dozvoli_start)
     elif "zaduzeni_id" in podaci.model_fields_set:  # kompatibilnost sa starim klijentom
-        if korisnik.uloga != Uloga.voditelj:
-            raise HTTPException(status_code=403, detail="Samo voditelj može dodjeljivati radnike na zadatke")
+        if korisnik.uloga not in _UREDNICI:
+            raise HTTPException(status_code=403, detail="Samo voditelj/poslovođa može dodjeljivati radnike na zadatke")
         ids = [podaci.zaduzeni_id] if podaci.zaduzeni_id is not None else []
         _postavi_radnike(db, z, ids, dozvoli_start)
     db.flush()
@@ -934,7 +937,7 @@ def odjava_radnika(
 @router.delete("/{nalog_id}/zadaci/{zadatak_id}", status_code=204)
 def obrisi_zadatak(
     nalog_id: int, zadatak_id: int,
-    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
     _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
