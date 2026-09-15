@@ -68,6 +68,9 @@ export function GlavniIzbornik() {
   const nav = useNavigate()
   const { nalozi, greska, sada, osvjezi } = useNadzor()
   const [radiId, setRadiId] = useState(0)
+  const [radnici, setRadnici] = useState([])
+
+  useEffect(() => { api.korisnici('radnik').then(setRadnici).catch(() => {}) }, [])
 
   if (greska) return <Layout naslov={t('nadzor.izbornik')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('nadzor.izbornik')}><Spinner /></Layout>
@@ -78,6 +81,15 @@ export function GlavniIzbornik() {
   })))
   tekuci.sort((a, b) => msVremena(a.z.zapoceto) - msVremena(b.z.zapoceto))
 
+  // Radnici prijavljeni na neku (nezavršenu) operaciju u tijeku — bez njih su "slobodni".
+  const zauzetiIds = new Set()
+  nalozi.forEach((n) => n.operacije.forEach((op) => op.zadaci.forEach((z) => {
+    if (!z.gotovo) radniciZadatka(z).forEach((r) => zauzetiIds.add(r.id))
+  })))
+  const slobodni = radnici
+    .filter((r) => r.aktivan !== false && !zauzetiIds.has(r.id))
+    .sort((a, b) => a.ime.localeCompare(b.ime, 'hr'))
+
   const odjavi = async (n, z, e) => {
     e.stopPropagation()
     setRadiId(z.id)
@@ -87,7 +99,15 @@ export function GlavniIzbornik() {
 
   return (
     <Layout naslov={t('nadzor.izbornik')}>
-      <div className="sekcija-naslov" style={{ marginTop: 0 }}>{tekuci.length} {t('nadzor.uTijeku')}</div>
+      <div className="sekcija-naslov" style={{ marginTop: 0 }}>{t('nadzor.slobodni')} ({slobodni.length})</div>
+      {slobodni.length === 0 ? (
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.sviZauzeti')}</p></div>
+      ) : (
+        <div className="slobodni-grid">
+          {slobodni.map((r) => <span key={r.id} className="slobodni-chip">{r.ime}</span>)}
+        </div>
+      )}
+      <div className="sekcija-naslov">{tekuci.length} {t('nadzor.uTijeku')}</div>
       {tekuci.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.nemaTekucih')}</p></div>
       ) : (

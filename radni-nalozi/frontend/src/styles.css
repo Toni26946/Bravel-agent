@@ -77,6 +77,8 @@ a { color: inherit; text-decoration: none; }
 .karta .naslov-red { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .karta h3 { margin: 0 0 4px; font-size: 16px; }
 .meta { color: var(--sivo); font-size: 13px; margin: 2px 0; }
+.slobodni-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.slobodni-chip { display: inline-flex; align-items: center; background: #eaf6ec; color: #1e7d34; border: 1px solid #bfe6c7; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 .fs-glava { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .fs-red { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--rub); font-size: 13px; }
 .fs-red span { color: var(--sivo); }
