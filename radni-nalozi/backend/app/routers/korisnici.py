@@ -52,7 +52,10 @@ def popis(
     if korisnik.uloga not in (Uloga.voditelj, Uloga.poslovodja) and uloga != Uloga.radnik:
         raise HTTPException(status_code=403, detail="Nemate ovlasti")
     q = db.query(Korisnik)
-    if uloga:
+    if uloga == Uloga.radnik:
+        # "radnik" = raspoloživi serviseri: mehaničari + poslovođe (rade na operacijama)
+        q = q.filter(Korisnik.uloga.in_([Uloga.radnik, Uloga.poslovodja]))
+    elif uloga:
         q = q.filter(Korisnik.uloga == uloga)
     return q.order_by(Korisnik.ime).all()
 
