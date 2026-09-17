@@ -224,7 +224,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .tr-red > div + div { border-left: 1px solid var(--rub); }
 .tr-red .tr-nalog { font-weight: 700; color: var(--plava); font-variant-numeric: tabular-nums; }
 .tr-red .tr-op { font-weight: 700; color: var(--plava); }
-.tr-red .tr-voz { color: var(--sivo); font-size: 12px; }
+.tr-red .tr-voz { color: var(--tekst); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tr-red .tr-traj { color: #2e7d32; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tr-red .tr-akcija { display: flex; align-items: center; }
 .tr-red .tr-akcija .btn { white-space: nowrap; }
@@ -236,8 +236,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .tr-red > div { border-left: none; padding: 1px 0; }
   .tr-red .tr-radnik { font-weight: 700; font-size: 14px; color: var(--tekst); }
   .tr-red .tr-oper { font-size: 13px; }
-  .tr-red .tr-voz { font-size: 12px; color: var(--sivo); }
-  .tr-red .tr-voz::before { content: "🚚 "; }
+  .tr-red .tr-voz { font-size: 18px; font-weight: 800; color: var(--tekst); font-variant-numeric: tabular-nums; margin-bottom: 2px; }
+  .tr-red .tr-voz::before { content: "🚚 "; font-weight: 400; }
   .tr-red .tr-traj { position: absolute; top: 10px; right: 12px; background: #e2f5e6; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
   .tr-red .tr-akcija { margin-top: 8px; }
   .tr-red .tr-akcija .btn { width: 100%; }
