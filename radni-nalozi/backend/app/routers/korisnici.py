@@ -12,11 +12,14 @@ from ..schemas import (
     KorisnikUvoz,
     KorisnikUvozRezultat,
     KorisnikUvozStavka,
+    OdsutnostUpdate,
 )
 
 router = APIRouter(prefix="/korisnici", tags=["korisnici"])
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
+voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+_VRSTE_ODSUTNOSTI = {"godisnji", "bolovanje"}
 
 # Preslikavanje hrvatskih/stranih slova u ASCII za korisničko ime.
 _ASCII = str.maketrans({
@@ -148,6 +151,33 @@ def azuriraj(
         k.prijavljuje_se = podaci.prijavljuje_se
     if podaci.lozinka:
         k.lozinka_hash = hash_lozinka(podaci.lozinka)
+    db.commit()
+    db.refresh(k)
+    return k
+
+
+@router.patch("/{korisnik_id}/odsutnost", response_model=KorisnikOut)
+def postavi_odsutnost(
+    korisnik_id: int,
+    podaci: OdsutnostUpdate,
+    _: Korisnik = Depends(voditelj_ili_poslovodja),
+    db: Session = Depends(get_db),
+):
+    """Postavi/obriši odsutnost radnika (godišnji/bolovanje za razdoblje)."""
+    k = db.get(Korisnik, korisnik_id)
+    if not k:
+        raise HTTPException(status_code=404, detail="Korisnik ne postoji")
+    vrsta = (podaci.vrsta or "").strip().lower() or None
+    if vrsta in (None, "dostupan"):
+        k.odsutnost_vrsta = k.odsutnost_od = k.odsutnost_do = None
+    else:
+        if vrsta not in _VRSTE_ODSUTNOSTI:
+            raise HTTPException(status_code=400, detail="Nepoznata vrsta odsutnosti")
+        if podaci.od and podaci.do and podaci.do < podaci.od:
+            raise HTTPException(status_code=400, detail="Datum 'do' je prije 'od'")
+        k.odsutnost_vrsta = vrsta
+        k.odsutnost_od = podaci.od
+        k.odsutnost_do = podaci.do
     db.commit()
     db.refresh(k)
     return k

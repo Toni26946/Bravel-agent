@@ -62,6 +62,70 @@ function useNadzor() {
   return { nalozi, greska, sada, osvjezi }
 }
 
+// Trenutna (danas aktivna) odsutnost radnika ili null (istekla se ne broji).
+function odsutnostSada(r) {
+  if (!r.odsutnost_vrsta) return null
+  const danas = new Date().toISOString().slice(0, 10)
+  if (r.odsutnost_do && danas > r.odsutnost_do) return null
+  return r.odsutnost_vrsta
+}
+
+// Oblačić radnika s padajućim izbornikom: dostupan / godišnji / bolovanje (+ razdoblje).
+function RadnikChip({ r, onPromjena }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [nacin, setNacin] = useState(null)   // null | 'godisnji' | 'bolovanje'
+  const [od, setOd] = useState(r.odsutnost_od || '')
+  const [doDat, setDoDat] = useState(r.odsutnost_do || '')
+  const [radi, setRadi] = useState(false)
+  const status = odsutnostSada(r)
+
+  const spremi = async (vrsta, odV, doV) => {
+    setRadi(true)
+    try {
+      await api.postaviOdsutnost(r.id, { vrsta, od: odV || null, do: doV || null })
+      setOtvoren(false); setNacin(null)
+      onPromjena()
+    } catch (_) { /* tiho */ } finally { setRadi(false) }
+  }
+
+  const boja = status === 'godisnji' ? 'go' : status === 'bolovanje' ? 'bo' : ''
+  const emo = status === 'godisnji' ? '🌴 ' : status === 'bolovanje' ? '🤒 ' : ''
+  const naslov = status && r.odsutnost_do
+    ? `${t('ods.' + status)} do ${r.odsutnost_do}` : (status ? t('ods.' + status) : '')
+
+  return (
+    <span className="chip-wrap">
+      <button type="button" className={'slobodni-chip ' + boja} title={naslov} onClick={() => setOtvoren((o) => !o)}>
+        {emo}{r.ime}
+      </button>
+      {otvoren && (
+        <div className="chip-menu">
+          {!nacin ? (
+            <>
+              <button className="cm-opt" disabled={radi} onClick={() => spremi(null)}>✅ {t('ods.dostupan')}</button>
+              <button className="cm-opt" onClick={() => setNacin('godisnji')}>🌴 {t('ods.godisnji')}</button>
+              <button className="cm-opt" onClick={() => setNacin('bolovanje')}>🤒 {t('ods.bolovanje')}</button>
+            </>
+          ) : (
+            <div className="cm-form">
+              <div className="cm-naslov">{t('ods.' + nacin)}</div>
+              <label>{t('ods.od')}</label>
+              <input type="date" value={od} onChange={(e) => setOd(e.target.value)} />
+              <label>{t('ods.do')}</label>
+              <input type="date" value={doDat} onChange={(e) => setDoDat(e.target.value)} />
+              <div className="btn-red" style={{ marginTop: 8 }}>
+                <button className="btn mali" disabled={radi} onClick={() => spremi(nacin, od, doDat)}>{radi ? '…' : t('common.spremi')}</button>
+                <button className="btn sekund mali" onClick={() => setNacin(null)}>{t('common.odustani')}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  )
+}
+
 // --- Glavni izbornik: tablica tekućih radova (aktivni mjerači) ---------------
 export function GlavniIzbornik() {
   const { t } = useT()
@@ -70,7 +134,8 @@ export function GlavniIzbornik() {
   const [radiId, setRadiId] = useState(0)
   const [radnici, setRadnici] = useState([])
 
-  useEffect(() => { api.korisnici('radnik').then(setRadnici).catch(() => {}) }, [])
+  const ucitajRadnike = useCallback(() => api.korisnici('radnik').then(setRadnici).catch(() => {}), [])
+  useEffect(() => { ucitajRadnike() }, [ucitajRadnike])
 
   if (greska) return <Layout naslov={t('nadzor.izbornik')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('nadzor.izbornik')}><Spinner /></Layout>
@@ -106,7 +171,7 @@ export function GlavniIzbornik() {
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.sviZauzeti')}</p></div>
       ) : (
         <div className="slobodni-grid">
-          {slobodni.map((r) => <span key={r.id} className="slobodni-chip">{r.ime}</span>)}
+          {slobodni.map((r) => <RadnikChip key={r.id} r={r} onPromjena={ucitajRadnike} />)}
         </div>
       )}
       <div className="sekcija-naslov">{tekuci.length} {t('nadzor.uTijeku')}</div>

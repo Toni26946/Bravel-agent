@@ -60,6 +60,15 @@ class KorisnikOut(ORM):
     telefon: str | None = None
     aktivan: bool
     prijavljuje_se: bool = True
+    odsutnost_vrsta: str | None = None   # 'godisnji' | 'bolovanje'
+    odsutnost_od: date | None = None
+    odsutnost_do: date | None = None
+
+
+class OdsutnostUpdate(BaseModel):
+    vrsta: str | None = None  # 'godisnji' | 'bolovanje'; None/'dostupan' briše odsutnost
+    od: date | None = None
+    do: date | None = None
 
 
 class KorisnikUvoz(BaseModel):

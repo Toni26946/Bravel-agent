@@ -21,6 +21,9 @@ _STUPCI = [
     ("vozila", "slika", "VARCHAR(300)"),
     ("nalozi", "izvan_radione_javljeno", "BOOLEAN DEFAULT FALSE"),
     ("korisnici", "prijavljuje_se", "BOOLEAN DEFAULT TRUE"),
+    ("korisnici", "odsutnost_vrsta", "VARCHAR(20)"),
+    ("korisnici", "odsutnost_od", "DATE"),
+    ("korisnici", "odsutnost_do", "DATE"),
 ]
 
 
