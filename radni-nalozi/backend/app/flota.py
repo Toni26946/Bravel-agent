@@ -170,10 +170,10 @@ _prikolice_kes: dict = {"ts": 0.0, "podaci": None}
 _PRIK_TTL = 600  # 10 min
 
 
-async def nezaduzene_prikolice() -> list | None:
-    """Sve slobodne šlepe iz Flota OS: /api/flota/nezaduzene-prikolice. Keš 10 min.
+async def nezaduzene_prikolice_raw() -> dict | None:
+    """Puni odgovor Flota OS-a: /api/flota/nezaduzene-prikolice. Keš 10 min.
 
-    Vraća listu [{gb, tip, reg}] ili None (nedostupno).
+    Vraća {ym, broj, prikolice, dijag} ili None (nedostupno / greška / status).
     """
     global _token
     sad = time.monotonic()
@@ -200,10 +200,15 @@ async def nezaduzene_prikolice() -> list | None:
             return None
     if not isinstance(d, dict) or d.get("greska"):
         return None
-    lst = d.get("prikolice") or []
-    _prikolice_kes["podaci"] = lst
+    _prikolice_kes["podaci"] = d
     _prikolice_kes["ts"] = sad
-    return lst
+    return d
+
+
+async def nezaduzene_prikolice() -> list | None:
+    """Popis slobodnih šlepa [{gb, tip, reg}] ili None (nedostupno)."""
+    d = await nezaduzene_prikolice_raw()
+    return None if d is None else (d.get("prikolice") or [])
 
 
 def _prestaro(vrijeme_iso: str | None) -> bool:
