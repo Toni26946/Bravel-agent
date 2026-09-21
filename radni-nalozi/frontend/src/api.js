@@ -101,6 +101,7 @@ export const api = {
   nadzor: () => zahtjev('/nalozi/nadzor'),
   izasli: () => zahtjev('/nalozi/izasli'),
   nezaduzena: () => zahtjev('/nalozi/nezaduzena'),
+  nezaduzenaDijagnostika: () => zahtjev('/nalozi/nezaduzena/dijagnostika'),
   parkiranje: () => zahtjev('/nalozi/parkiranje'),
   parkingLokacija: (id, lokacija) => zahtjev(`/nalozi/${id}/parking`, { method: 'POST', body: { lokacija } }),
   parkingOtvoreno: (id) => zahtjev(`/nalozi/${id}/parking/otvoreno`, { method: 'POST' }),
