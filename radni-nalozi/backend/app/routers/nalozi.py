@@ -361,6 +361,31 @@ async def nezaduzena_vozila(
     return rezultat
 
 
+@router.get("/nezaduzena/dijagnostika")
+async def nezaduzena_dijagnostika(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Zašto je kartica 'Nezadužena' prazna: što Flota OS vraća za svako vozilo u radu."""
+    nalozi = (
+        db.query(Nalog).filter(Nalog.status.in_(AKTIVNI_STATUSI))
+        .order_by(Nalog.azuriran.desc()).all()
+    )
+    stavke = []
+    for n in nalozi:
+        gb = n.vozilo.gb if n.vozilo else None
+        z = await flota.zaduzenje(gb) if gb else None
+        stavke.append({
+            "nalog_id": n.id, "broj": n.broj, "gb": gb, "status": n.status.value,
+            "zaduzenje": z,
+            "nezaduzena_slepa": flota.je_nezaduzena_slepa(z),
+        })
+    return {
+        "flota_konfigurirano": flota.konfigurirano(),
+        "broj_aktivnih": len(nalozi),
+        "stavke": stavke,
+    }
+
+
 @router.get("/parkiranje", response_model=list[NalogListItem])
 def parkiranje_popis(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
