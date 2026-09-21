@@ -435,14 +435,24 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 }
 
 /* --- Ispis radnog naloga --------------------------------------------------- */
-.nalog-print { display: none; }
+.nalog-print, .parking-ispis { display: none; }
 @media print {
   body * { visibility: hidden; }
-  .nalog-print, .nalog-print * { visibility: visible; }
-  .nalog-print { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 16px 20px; color: #000; font-size: 12px; }
+  .nalog-print, .nalog-print *, .parking-ispis, .parking-ispis * { visibility: visible; }
+  .nalog-print, .parking-ispis { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 16px 20px; color: #000; font-size: 12px; }
   .no-print { display: none !important; }
   @page { margin: 12mm; }
 }
+.parking-ispis .np-head { display: flex; border-bottom: 2px solid #000; padding-bottom: 8px; }
+.parking-ispis .np-logo-img { height: 46px; width: auto; display: block; }
+.parking-ispis .np-adresa { font-size: 11px; margin-top: 2px; }
+.parking-ispis .np-naslov { text-align: center; margin: 14px 0; font-size: 16px; }
+.parking-ispis .np-tablica { width: 100%; border-collapse: collapse; }
+.parking-ispis .np-tablica th, .parking-ispis .np-tablica td { border: 1px solid #999; padding: 5px 6px; text-align: left; vertical-align: top; font-size: 11px; }
+.parking-ispis .np-tablica th { background: #eee; }
+.parking-ispis .np-prazno { text-align: center; color: #666; }
+.pk-vremena { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; color: var(--sivo); }
+.pk-lok { font-size: 14px; font-weight: 600; color: #1e7d34; }
 .nalog-print .np-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 8px; }
 .nalog-print .np-logo-img { height: 46px; width: auto; display: block; }
 .nalog-print .np-adresa { font-size: 11px; margin-top: 2px; }

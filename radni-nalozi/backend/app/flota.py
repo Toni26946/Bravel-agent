@@ -7,6 +7,7 @@ li vozilo završeno. Radi samo ako je konfigurirano (ključ/račun + koordinate)
 import asyncio
 import logging
 import math
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -114,6 +115,55 @@ async def dohvati_pozicije() -> dict | None:
             "zastarjelo": zastarjelo,
         }
     return izlaz
+
+
+# --- Zaduženje vozila (za "nezadužene šlepe") ------------------------------
+_zaduzenje_kes: dict = {}   # gb -> (monotonic_ts, rezultat)
+_ZAD_TTL = 600              # 10 min
+
+
+async def zaduzenje(gb: str) -> dict | None:
+    """Dohvati zaduženje vozila iz Flota OS: /api/flota/zaduzenje?gb=.
+
+    Vraća {gb, tip, prikolica, zaduzeno, kamion, ym} ili None (nedostupno/greška).
+    Keširano 10 min po GB-u.
+    """
+    global _token
+    gb = str(gb or "").strip()
+    if not gb:
+        return None
+    sad = time.monotonic()
+    kes = _zaduzenje_kes.get(gb)
+    if kes and sad - kes[0] < _ZAD_TTL:
+        return kes[1]
+    base = settings.flota_api_base.rstrip("/")
+    async with httpx.AsyncClient(base_url=base, timeout=20) as client:
+        if settings.flota_service_key:
+            headers = {"X-Service-Key": settings.flota_service_key}
+        else:
+            if not _token:
+                await _prijava(client)
+            headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+        try:
+            r = await client.get("/api/flota/zaduzenje", params={"gb": gb}, headers=headers)
+            if r.status_code == 401 and not settings.flota_service_key:
+                await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                r = await client.get("/api/flota/zaduzenje", params={"gb": gb}, headers=headers)
+            if r.status_code != 200:
+                return None
+            d = r.json()
+        except Exception:  # noqa: BLE001
+            return None
+    if not isinstance(d, dict) or d.get("greska"):
+        return None
+    _zaduzenje_kes[gb] = (sad, d)
+    return d
+
+
+def je_nezaduzena_slepa(z: dict | None) -> bool:
+    """Prikolica/šlepa koja trenutno nije ni u jednoj kompoziciji (slobodna)."""
+    return bool(z and z.get("prikolica") and not z.get("zaduzeno"))
 
 
 def _prestaro(vrijeme_iso: str | None) -> bool:

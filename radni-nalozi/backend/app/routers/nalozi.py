@@ -27,12 +27,14 @@ from ..models import (
     Zadatak,
 )
 from ..ai import ai_dostupan, parsiraj
+from .. import flota
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from ..schemas import (
     DioCreate,
     DioOut,
     DodjelaUpdate,
     FotografijaOut,
+    ParkingLokacijaUpdate,
     GlasovnaOperacija,
     GlasovniOdgovor,
     GlasovniZadatak,
@@ -340,6 +342,67 @@ def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
         .order_by(Nalog.azuriran.desc())
         .all()
     )
+
+
+@router.get("/nezaduzena", response_model=list[NalogListItem])
+async def nezaduzena_vozila(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Aktivni nalozi čije je vozilo 'nezadužena šlepa' (prikolica bez kompozicije, iz Flota OS-a)."""
+    nalozi = (
+        db.query(Nalog).filter(Nalog.status.in_(AKTIVNI_STATUSI))
+        .order_by(Nalog.azuriran.desc()).all()
+    )
+    rezultat = []
+    for n in nalozi:
+        gb = n.vozilo.gb if n.vozilo else None
+        if gb and flota.je_nezaduzena_slepa(await flota.zaduzenje(gb)):
+            rezultat.append(n)
+    return rezultat
+
+
+@router.get("/parkiranje", response_model=list[NalogListItem])
+def parkiranje_popis(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Evidencija parkiranja nezaduženih šlepa: poslana obavijest / otvoreno / riješeno + lokacija."""
+    return (
+        db.query(Nalog).filter(Nalog.parking_obavijest_poslano.isnot(None))
+        .order_by(Nalog.parking_obavijest_poslano.desc()).all()
+    )
+
+
+@router.post("/{nalog_id}/parking/otvoreno", response_model=NalogOut)
+def parking_otvoreno(
+    nalog_id: int, korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Zabilježi da je voditelj otvorio/primio obavijest o parkiranju (jednom)."""
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
+    if nalog.parking_obavijest_poslano and not nalog.parking_otvoreno:
+        nalog.parking_otvoreno = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(nalog)
+    return nalog
+
+
+@router.post("/{nalog_id}/parking", response_model=NalogOut)
+def parking_lokacija(
+    nalog_id: int, podaci: ParkingLokacijaUpdate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Voditelj upiše gdje je nezadužena šlepa parkirana → riješeno (prestaju podsjetnici)."""
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
+    lok = (podaci.lokacija or "").strip()
+    if not lok:
+        raise HTTPException(status_code=400, detail="Upišite lokaciju parkiranja")
+    sada = datetime.now(timezone.utc)
+    nalog.parking_lokacija = lok
+    nalog.parking_rijeseno = sada
+    if not nalog.parking_otvoreno:
+        nalog.parking_otvoreno = sada
+    db.commit()
+    db.refresh(nalog)
+    return nalog
 
 
 @router.get("/{nalog_id}", response_model=NalogOut)
