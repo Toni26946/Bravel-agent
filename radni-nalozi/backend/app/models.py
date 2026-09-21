@@ -173,6 +173,12 @@ class Nalog(Base):
     zatvoren: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Flota OS: je li već javljeno da je vozilo izašlo iz radione dok je nalog u radu
     izvan_radione_javljeno: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Parkiranje nezadužene šlepe: kad se završi, voditelj upiše gdje je parkirana.
+    parking_obavijest_poslano: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parking_zadnji_podsjetnik: Mapped[date | None] = mapped_column(Date, nullable=True)
+    parking_otvoreno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parking_rijeseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parking_lokacija: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
     vozilo: Mapped["Vozilo"] = relationship()
     kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])

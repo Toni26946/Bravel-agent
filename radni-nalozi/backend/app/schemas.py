@@ -311,6 +311,10 @@ class DodjelaUpdate(BaseModel):
     radnici_ids: list[int]
 
 
+class ParkingLokacijaUpdate(BaseModel):
+    lokacija: str
+
+
 class NalogListItem(ORM):
     id: int
     broj: str
@@ -323,6 +327,12 @@ class NalogListItem(ORM):
     voditelj: KorisnikOut | None = None
     dodijeljeni: list[KorisnikOut] = []
     kreiran: datetime
+    zatvoren: datetime | None = None
+    parking_obavijest_poslano: datetime | None = None
+    parking_zadnji_podsjetnik: date | None = None
+    parking_otvoreno: datetime | None = None
+    parking_rijeseno: datetime | None = None
+    parking_lokacija: str | None = None
 
 
 class NalogOut(ORM):
@@ -347,6 +357,10 @@ class NalogOut(ORM):
     kreiran: datetime
     azuriran: datetime
     zatvoren: datetime | None = None
+    parking_obavijest_poslano: datetime | None = None
+    parking_otvoreno: datetime | None = None
+    parking_rijeseno: datetime | None = None
+    parking_lokacija: str | None = None
 
 
 class NalogCreateOut(BaseModel):

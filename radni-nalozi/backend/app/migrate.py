@@ -24,6 +24,11 @@ _STUPCI = [
     ("korisnici", "odsutnost_vrsta", "VARCHAR(20)"),
     ("korisnici", "odsutnost_od", "DATE"),
     ("korisnici", "odsutnost_do", "DATE"),
+    ("nalozi", "parking_obavijest_poslano", "TIMESTAMP"),
+    ("nalozi", "parking_zadnji_podsjetnik", "DATE"),
+    ("nalozi", "parking_otvoreno", "TIMESTAMP"),
+    ("nalozi", "parking_rijeseno", "TIMESTAMP"),
+    ("nalozi", "parking_lokacija", "VARCHAR(300)"),
 ]
 
 
