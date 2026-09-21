@@ -82,7 +82,9 @@ function Dijagnostika() {
                   <div className="fs-red"><span>Slobodnih šlepa (Flota)</span><b>{d.bulk.broj}</b></div>
                   <div className="fs-red"><span>Vozila u mapi (total_gb)</span><b>{d.bulk.dijag?.total_gb ?? '—'}</b></div>
                   <div className="fs-red"><span>Klasificirano kao prikolica</span><b>{d.bulk.dijag?.prikolica_ukupno ?? '—'}</b></div>
-                  <div className="fs-red"><span>Zauzetih (u kompoziciji)</span><b>{d.bulk.dijag?.zauzete ?? '—'}</b></div>
+                  <div className="fs-red"><span>Prikolica s poznatom reg.</span><b>{d.bulk.dijag?.prikolica_s_reg ?? '—'}</b></div>
+                  <div className="fs-red"><span>Prikopčano (Mobilisis parova)</span><b>{d.bulk.dijag?.mobilisis_parova ?? '—'}</b></div>
+                  <div className="fs-red"><span>Prikopčanih prikolica (zauzete)</span><b>{d.bulk.dijag?.zauzete ?? '—'}</b></div>
                   {d.bulk.dijag?.tipovi && (
                     <div className="fs-red" style={{ display: 'block' }}>
                       <span>TIP-ovi vozila:</span>
