@@ -28,8 +28,8 @@ export default function Vozila() {
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
 
-  const promijeniLokalno = (gb, novi) =>
-    setD((prev) => (prev ? prev.map((v) => (v.gb === gb ? { ...v, status: novi } : v)) : prev))
+  const promijeniLokalno = (gb, izmjena) =>
+    setD((prev) => (prev ? prev.map((v) => (v.gb === gb ? { ...v, ...izmjena } : v)) : prev))
 
   const kategorije = useMemo(
     () => [...new Set((d || []).map((v) => v.kategorija).filter(Boolean))].sort(),
@@ -96,8 +96,12 @@ export default function Vozila() {
               {[v.registracija, v.tip].filter(Boolean).join(' · ') || '—'}
               {v.nalog_id ? ` · ${v.broj}` : ''}
             </div>
+            <div className="meta vz-mob">
+              {t('vozila.mobilisis')}: {v.mobilisis_status || '—'}
+              {v.rucno && <span className="vz-rucno"> · {t('vozila.rucno')}</span>}
+            </div>
           </div>
-          <StatusChip v={v} onPromjena={(novi) => promijeniLokalno(v.gb, novi)} />
+          <StatusChip v={v} onPromjena={(izmjena) => promijeniLokalno(v.gb, izmjena)} />
         </div>
       ))}
     </Layout>
@@ -112,8 +116,17 @@ function StatusChip({ v, onPromjena }) {
   const postavi = async (novi) => {
     setRadi(true)
     try {
-      await api.postaviStatusVozila(v.gb, { status: novi })
-      onPromjena(novi)
+      const r = await api.postaviStatusVozila(v.gb, { status: novi })
+      onPromjena({ status: r.status, rucno: r.rucno })
+      setOtvoren(false)
+    } catch (_) { /* tiho */ } finally { setRadi(false) }
+  }
+
+  const vratiMobilisis = async () => {
+    setRadi(true)
+    try {
+      const r = await api.vratiNaMobilisis(v.gb)
+      onPromjena({ status: r.status, rucno: r.rucno })
       setOtvoren(false)
     } catch (_) { /* tiho */ } finally { setRadi(false) }
   }
@@ -130,6 +143,11 @@ function StatusChip({ v, onPromjena }) {
               {EMO[s]} {t('sv.' + s)}
             </button>
           ))}
+          {v.rucno && (
+            <button className="cm-opt" disabled={radi} onClick={vratiMobilisis} title={t('vozila.vratiMobilisisOpis')}>
+              ↺ {t('vozila.vratiMobilisis')}
+            </button>
+          )}
         </div>
       )}
     </span>

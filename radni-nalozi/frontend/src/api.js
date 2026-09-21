@@ -107,6 +107,7 @@ export const api = {
     return zahtjev('/vozila/registar' + (q ? `?${q}` : ''))
   },
   postaviStatusVozila: (gb, b) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
+  vratiNaMobilisis: (gb) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}`, { method: 'PATCH', body: { rucno: false } }),
   parkiranje: () => zahtjev('/nalozi/parkiranje'),
   parkingLokacija: (id, lokacija) => zahtjev(`/nalozi/${id}/parking`, { method: 'POST', body: { lokacija } }),
   parkingOtvoreno: (id) => zahtjev(`/nalozi/${id}/parking/otvoreno`, { method: 'POST' }),

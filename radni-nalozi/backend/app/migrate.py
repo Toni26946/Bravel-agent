@@ -29,6 +29,8 @@ _STUPCI = [
     ("nalozi", "parking_otvoreno", "TIMESTAMP"),
     ("nalozi", "parking_rijeseno", "TIMESTAMP"),
     ("nalozi", "parking_lokacija", "VARCHAR(300)"),
+    ("registar_vozila", "rucno", "BOOLEAN DEFAULT FALSE"),
+    ("registar_vozila", "mobilisis_status", "VARCHAR(60)"),
 ]
 
 
