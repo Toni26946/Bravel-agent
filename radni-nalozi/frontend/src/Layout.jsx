@@ -21,6 +21,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
+    tabovi.push({ do: '/vozila', ikona: '🚙', txt: t('tab.vozila') })
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
@@ -31,6 +32,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   if (korisnik?.uloga === 'poslovodja') {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
+    tabovi.push({ do: '/vozila', ikona: '🚙', txt: t('tab.vozila') })
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })

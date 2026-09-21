@@ -8,9 +8,8 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import flota
 from .database import SessionLocal
-from .models import Nalog, StatusNaloga, Uloga
+from .models import Nalog, RegistarVozila, StatusNaloga, StatusVozila, Uloga
 from .push import obavijesti_korisnika, obavijesti_ulogu
 
 log = logging.getLogger("parking")
@@ -48,11 +47,18 @@ async def obradi_parking() -> None:
             .all()
         )
         parovi = [(n.id, (n.vozilo.gb if n.vozilo else None)) for n in kandidati]
+        # Mjerodavno: vozilo je „nezaduzeno" prema RUČNOM matičnom statusu.
+        nezaduzeni_gb = {
+            r.gb for r in db.query(RegistarVozila)
+            .filter(RegistarVozila.status == StatusVozila.nezaduzeno).all()
+        }
 
-    za_javiti = []
-    for nid, gb in parovi:
-        if gb and flota.je_nezaduzena_slepa(await flota.zaduzenje(gb)):
-            za_javiti.append(nid)
+    def _je_nezaduzeno(gb: str | None) -> bool:
+        if not gb:
+            return False
+        return str(gb) in nezaduzeni_gb or (str(gb).lstrip("0") or str(gb)) in nezaduzeni_gb
+
+    za_javiti = [nid for nid, gb in parovi if _je_nezaduzeno(gb)]
 
     if za_javiti:
         with SessionLocal() as db:
