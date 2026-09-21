@@ -394,11 +394,19 @@ async def nezaduzena_dijagnostika(
             "zaduzenje": z,
             "nezaduzena_slepa": flota.je_nezaduzena_slepa(z),
         })
+    # Sirova proba ruta — točan HTTP status i poruka Flote (401/403/500/timeout).
+    probe = {
+        "nezaduzene": await flota.probaj_rutu("/api/flota/nezaduzene-prikolice"),
+        "zaduzenje": await flota.probaj_rutu(
+            "/api/flota/zaduzenje", {"gb": (nalozi[0].vozilo.gb if nalozi and nalozi[0].vozilo else "1")}
+        ),
+    }
     return {
         "flota_konfigurirano": flota.konfigurirano(),
         "broj_aktivnih": len(nalozi),
         "stavke": stavke,
         "bulk": await flota.nezaduzene_prikolice_raw(),
+        "probe": probe,
     }
 
 

@@ -211,6 +211,34 @@ async def nezaduzene_prikolice() -> list | None:
     return None if d is None else (d.get("prikolice") or [])
 
 
+async def probaj_rutu(putanja: str, params: dict | None = None) -> dict:
+    """Dijagnostika: sirovi GET na Flota OS rutu — vrati točan HTTP status i kratak
+    odlomak tijela (npr. poruku 403 „ključ nema pristup ruti"). Ne keširano."""
+    global _token
+    base = settings.flota_api_base.rstrip("/")
+    rez: dict = {"ruta": putanja, "base": base}
+    try:
+        async with httpx.AsyncClient(base_url=base, timeout=25) as client:
+            if settings.flota_service_key:
+                headers = {"X-Service-Key": settings.flota_service_key}
+                rez["auth"] = "service-key"
+            else:
+                if not _token:
+                    await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                rez["auth"] = "bearer" if _token else "nema"
+            r = await client.get(putanja, params=params or {}, headers=headers)
+            rez["status"] = r.status_code
+            rez["tijelo"] = (r.text or "")[:300]
+    except httpx.TimeoutException:
+        rez["status"] = None
+        rez["greska"] = "timeout"
+    except Exception as e:  # noqa: BLE001
+        rez["status"] = None
+        rez["greska"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return rez
+
+
 def _prestaro(vrijeme_iso: str | None) -> bool:
     """True ako je GPS zapis stariji od dopuštenog (ne javljaj lažne alarme)."""
     if not vrijeme_iso:

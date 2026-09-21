@@ -74,6 +74,22 @@ function Dijagnostika() {
           {!d ? <Spinner /> : (
             <>
               <div className="fs-red"><span>Flota konfigurirana</span><b>{d.flota_konfigurirano ? 'DA' : 'NE'}</b></div>
+              {d.probe && (['nezaduzene', 'zaduzenje']).map((k) => {
+                const p = d.probe[k]
+                if (!p) return null
+                const ok = p.status === 200
+                return (
+                  <div className="fs-red" key={k} style={{ display: 'block' }}>
+                    <span>Proba /{k}</span>{' '}
+                    <b className={ok ? '' : 'fs-lose'}>
+                      {p.status != null ? `HTTP ${p.status}` : (p.greska || 'greška')}
+                    </b>
+                    {!ok && p.tijelo && (
+                      <div className="meta" style={{ marginTop: 2, wordBreak: 'break-word' }}>{p.tijelo}</div>
+                    )}
+                  </div>
+                )
+              })}
               {/* Bulk popis svih slobodnih šlepa iz Flote */}
               {!d.bulk ? (
                 <div className="fs-red"><span>Flota /nezaduzene-prikolice</span><b className="fs-lose">NEDOSTUPNO (greška/timeout)</b></div>
