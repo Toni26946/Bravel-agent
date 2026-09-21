@@ -344,21 +344,36 @@ def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
     )
 
 
-@router.get("/nezaduzena", response_model=list[NalogListItem])
+@router.get("/nezaduzena")
 async def nezaduzena_vozila(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
-    """Aktivni nalozi čije je vozilo 'nezadužena šlepa' (prikolica bez kompozicije, iz Flota OS-a)."""
-    nalozi = (
-        db.query(Nalog).filter(Nalog.status.in_(AKTIVNI_STATUSI))
-        .order_by(Nalog.azuriran.desc()).all()
-    )
-    rezultat = []
-    for n in nalozi:
+    """Sve nezadužene šlepe (prikolice koje nisu prikačene ni na jedan kamion, iz Flota OS-a).
+
+    Svaka je označena i ima li trenutno aktivan nalog u radionici (za poveznicu).
+    """
+    prikolice = await flota.nezaduzene_prikolice()
+    if prikolice is None:
+        return {"dostupno": False, "prikolice": []}
+    # aktivni nalozi po garažnom broju (za poveznicu na nalog)
+    aktivni = db.query(Nalog).filter(Nalog.status.in_(AKTIVNI_STATUSI)).all()
+    nalog_po_gb: dict = {}
+    for n in aktivni:
         gb = n.vozilo.gb if n.vozilo else None
-        if gb and flota.je_nezaduzena_slepa(await flota.zaduzenje(gb)):
-            rezultat.append(n)
-    return rezultat
+        if gb:
+            nalog_po_gb.setdefault(str(gb), n)
+            nalog_po_gb.setdefault(str(gb).lstrip("0") or str(gb), n)
+    stavke = []
+    for p in prikolice:
+        gb = str(p.get("gb") or "")
+        n = nalog_po_gb.get(gb) or nalog_po_gb.get(gb.lstrip("0") or gb)
+        stavke.append({
+            "gb": gb, "tip": p.get("tip"), "reg": p.get("reg"),
+            "nalog_id": n.id if n else None,
+            "broj": n.broj if n else None,
+            "status": n.status.value if n else None,
+        })
+    return {"dostupno": True, "prikolice": stavke}
 
 
 @router.get("/nezaduzena/dijagnostika")
