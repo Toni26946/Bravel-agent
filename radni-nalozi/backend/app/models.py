@@ -71,6 +71,15 @@ class TipFotografije(str, enum.Enum):
     ostalo = "ostalo"
 
 
+class StatusVozila(str, enum.Enum):
+    """Ručno postavljen operativni status vozila u matičnom popisu (mjerodavno)."""
+    aktivno = "aktivno"          # u pogonu / prikopčano
+    u_radionici = "u_radionici"  # trenutno u radionici
+    pokvareno = "pokvareno"      # neispravno / čeka popravak
+    prodano = "prodano"          # izašlo iz flote
+    nezaduzeno = "nezaduzeno"    # slobodno / nije prikopčano ni na jedan kamion
+
+
 # ---------------------------------------------------------------------------
 # Poveznica nalog <-> radnik (dodjele)
 # ---------------------------------------------------------------------------
@@ -125,6 +134,27 @@ class Vozilo(Base):
     slika: Mapped[str | None] = mapped_column(String(300), nullable=True)  # web putanja fotografije kamiona
     aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class RegistarVozila(Base):
+    """Matični popis SVIH vozila iz flote s ručno postavljenim statusom.
+
+    Popis vozila (gb/reg/tip/kategorija) se sinkronizira iz Flota OS-a, ali
+    `status` postavlja radionica ručno i on je JEDINI mjerodavan izvor
+    („sveto pismo") — npr. kartica „Nezadužena" prikazuje vozila sa statusom
+    `nezaduzeno`. Ključ je garažni broj (stalan)."""
+    __tablename__ = "registar_vozila"
+
+    gb: Mapped[str] = mapped_column(String(40), primary_key=True)
+    registracija: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    tip: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    kategorija: Mapped[str | None] = mapped_column(String(30), nullable=True)  # kamion/prikolica/…
+    status: Mapped[StatusVozila] = mapped_column(Enum(StatusVozila), default=StatusVozila.aktivno, index=True)
+    napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    azurirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    # Zadnja sinkronizacija popisnih polja iz Flote (ne dira ručni status).
+    sinkroniziran: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---------------------------------------------------------------------------

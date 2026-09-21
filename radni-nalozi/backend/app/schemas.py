@@ -130,6 +130,25 @@ class VoziloOut(ORM):
     aktivan: bool
 
 
+# --- Matični popis vozila (registar sa statusom) ----------------------------
+class RegistarVozilaOut(ORM):
+    gb: str
+    registracija: str | None = None
+    tip: str | None = None
+    kategorija: str | None = None
+    status: str
+    napomena: str | None = None
+    azuriran: datetime | None = None
+    # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
+    nalog_id: int | None = None
+    broj: str | None = None
+
+
+class RegistarStatusUpdate(BaseModel):
+    status: str
+    napomena: str | None = None
+
+
 # --- Fotografija -------------------------------------------------------------
 class FotografijaOut(ORM):
     id: int

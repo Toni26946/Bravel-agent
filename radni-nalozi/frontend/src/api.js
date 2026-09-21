@@ -102,6 +102,11 @@ export const api = {
   izasli: () => zahtjev('/nalozi/izasli'),
   nezaduzena: () => zahtjev('/nalozi/nezaduzena'),
   nezaduzenaDijagnostika: () => zahtjev('/nalozi/nezaduzena/dijagnostika'),
+  vozilaRegistar: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
+    return zahtjev('/vozila/registar' + (q ? `?${q}` : ''))
+  },
+  postaviStatusVozila: (gb, b) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
   parkiranje: () => zahtjev('/nalozi/parkiranje'),
   parkingLokacija: (id, lokacija) => zahtjev(`/nalozi/${id}/parking`, { method: 'POST', body: { lokacija } }),
   parkingOtvoreno: (id) => zahtjev(`/nalozi/${id}/parking/otvoreno`, { method: 'POST' }),

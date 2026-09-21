@@ -211,6 +211,45 @@ async def nezaduzene_prikolice() -> list | None:
     return None if d is None else (d.get("prikolice") or [])
 
 
+_vozila_kes: dict = {"ts": 0.0, "podaci": None}
+_VOZ_TTL = 600  # 10 min
+
+
+async def vozila_flota() -> list | None:
+    """Matični popis svih vozila iz Flota OS-a: [{gb, reg, tip, kategorija}] ili None.
+
+    Keš 10 min. Izvor za sinkronizaciju matičnog popisa vozila u radionici."""
+    global _token
+    sad = time.monotonic()
+    if _vozila_kes["podaci"] is not None and sad - _vozila_kes["ts"] < _VOZ_TTL:
+        return _vozila_kes["podaci"]
+    base = settings.flota_api_base.rstrip("/")
+    async with httpx.AsyncClient(base_url=base, timeout=25) as client:
+        if settings.flota_service_key:
+            headers = {"X-Service-Key": settings.flota_service_key}
+        else:
+            if not _token:
+                await _prijava(client)
+            headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+        try:
+            r = await client.get("/api/flota/vozila", headers=headers)
+            if r.status_code == 401 and not settings.flota_service_key:
+                await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                r = await client.get("/api/flota/vozila", headers=headers)
+            if r.status_code != 200:
+                return None
+            d = r.json()
+        except Exception:  # noqa: BLE001
+            return None
+    if not isinstance(d, dict) or d.get("greska"):
+        return None
+    vozila = d.get("vozila") or []
+    _vozila_kes["podaci"] = vozila
+    _vozila_kes["ts"] = sad
+    return vozila
+
+
 async def probaj_rutu(putanja: str, params: dict | None = None) -> dict:
     """Dijagnostika: sirovi GET na Flota OS rutu — vrati točan HTTP status i kratak
     odlomak tijela (npr. poruku 403 „ključ nema pristup ruti"). Ne keširano."""

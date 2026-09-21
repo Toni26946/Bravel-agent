@@ -19,8 +19,10 @@ from ..models import (
     Prijava,
     Prioritet,
     RadniSat,
+    RegistarVozila,
     StatusNaloga,
     StatusPrijave,
+    StatusVozila,
     TipFotografije,
     Uloga,
     Vozilo,
@@ -348,13 +350,16 @@ def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
 async def nezaduzena_vozila(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
-    """Sve nezadužene šlepe (prikolice koje nisu prikačene ni na jedan kamion, iz Flota OS-a).
-
-    Svaka je označena i ima li trenutno aktivan nalog u radionici (za poveznicu).
+    """Nezadužena vozila — ona kojima je u matičnom popisu RUČNO postavljen status
+    „nezaduzeno" (mjerodavno). Svako je označeno ima li trenutno aktivan nalog u
+    radionici (za poveznicu).
     """
-    prikolice = await flota.nezaduzene_prikolice()
-    if prikolice is None:
-        return {"dostupno": False, "prikolice": []}
+    redovi = (
+        db.query(RegistarVozila)
+        .filter(RegistarVozila.status == StatusVozila.nezaduzeno)
+        .all()
+    )
+    redovi.sort(key=lambda r: (len(r.gb), r.gb))
     # aktivni nalozi po garažnom broju (za poveznicu na nalog)
     aktivni = db.query(Nalog).filter(Nalog.status.in_(AKTIVNI_STATUSI)).all()
     nalog_po_gb: dict = {}
@@ -364,11 +369,11 @@ async def nezaduzena_vozila(
             nalog_po_gb.setdefault(str(gb), n)
             nalog_po_gb.setdefault(str(gb).lstrip("0") or str(gb), n)
     stavke = []
-    for p in prikolice:
-        gb = str(p.get("gb") or "")
-        n = nalog_po_gb.get(gb) or nalog_po_gb.get(gb.lstrip("0") or gb)
+    for r in redovi:
+        n = nalog_po_gb.get(r.gb) or nalog_po_gb.get(r.gb.lstrip("0") or r.gb)
         stavke.append({
-            "gb": gb, "tip": p.get("tip"), "reg": p.get("reg"),
+            "gb": r.gb, "tip": r.tip, "reg": r.registracija,
+            "napomena": r.napomena,
             "nalog_id": n.id if n else None,
             "broj": n.broj if n else None,
             "status": n.status.value if n else None,

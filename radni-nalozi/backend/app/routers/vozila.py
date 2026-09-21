@@ -1,5 +1,5 @@
 """Vozila (kamioni). Svi prijavljeni mogu vidjeti; uređuje samo voditelj."""
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -8,11 +8,24 @@ import re
 
 from ..storage import obrisi_sliku, spremi_sliku
 
+from .. import flota
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, Nalog, PovijestRada, Uloga, Vozilo, ZamjenaDijela
+from ..models import (
+    Korisnik,
+    Nalog,
+    PovijestRada,
+    RegistarVozila,
+    StatusNaloga,
+    StatusVozila,
+    Uloga,
+    Vozilo,
+    ZamjenaDijela,
+)
 from ..schemas import (
     PovijestRadaOut,
+    RegistarStatusUpdate,
+    RegistarVozilaOut,
     VoziloCreate,
     VoziloOut,
     VoziloUpdate,
@@ -26,6 +39,108 @@ router = APIRouter(prefix="/vozila", tags=["vozila"])
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.radnik)
+voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+
+# Nalozi koji drže vozilo "u radionici" (za poveznicu na aktivan nalog).
+_AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+
+
+async def _sync_registar(db: Session) -> bool:
+    """Osvježi popisna polja (gb/reg/tip/kategorija) iz Flota OS-a; NE dira ručni
+    status ni napomenu. Vraća True ako je Flota odgovorila. Best-effort."""
+    vozila = await flota.vozila_flota()
+    if vozila is None:
+        return False
+    postojeci = {r.gb: r for r in db.query(RegistarVozila).all()}
+    sad = datetime.now(timezone.utc)
+    for v in vozila:
+        gb = str(v.get("gb") or "").strip()
+        if not gb:
+            continue
+        r = postojeci.get(gb)
+        if r is None:
+            r = RegistarVozila(gb=gb, status=StatusVozila.aktivno)
+            db.add(r)
+            postojeci[gb] = r
+        r.registracija = v.get("reg")
+        r.tip = v.get("tip")
+        r.kategorija = v.get("kategorija")
+        r.sinkroniziran = sad
+    db.commit()
+    return True
+
+
+def _nalog_po_gb(db: Session) -> dict:
+    """{gb: Nalog} za vozila trenutno u radu (za poveznicu s registra)."""
+    aktivni = (
+        db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI_STATUSI))
+        .order_by(Nalog.azuriran.desc()).all()
+    )
+    mapa: dict = {}
+    for n in aktivni:
+        gb = n.vozilo.gb if n.vozilo else None
+        if gb:
+            mapa.setdefault(str(gb), n)
+            mapa.setdefault(str(gb).lstrip("0") or str(gb), n)
+    return mapa
+
+
+@router.get("/registar", response_model=list[RegistarVozilaOut])
+async def registar(
+    kategorija: str | None = None,
+    status: str | None = None,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja),
+    db: Session = Depends(get_db),
+):
+    """Matični popis svih vozila sa statusom (mjerodavno). Popis se osvježava iz
+    Flota OS-a (best-effort), a status je ručni. Opcijski filtri kategorija/status."""
+    await _sync_registar(db)
+    q = db.query(RegistarVozila)
+    if kategorija:
+        q = q.filter(RegistarVozila.kategorija == kategorija)
+    if status:
+        try:
+            q = q.filter(RegistarVozila.status == StatusVozila(status))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Nepoznat status")
+    redovi = q.all()
+    # stabilan poredak: po duljini GB pa GB (kao u Floti)
+    redovi.sort(key=lambda r: (len(r.gb), r.gb))
+    nalozi = _nalog_po_gb(db)
+    out = []
+    for r in redovi:
+        n = nalozi.get(r.gb) or nalozi.get(r.gb.lstrip("0") or r.gb)
+        stavka = RegistarVozilaOut.model_validate(r)
+        stavka.nalog_id = n.id if n else None
+        stavka.broj = n.broj if n else None
+        out.append(stavka)
+    return out
+
+
+@router.patch("/registar/{gb}", response_model=RegistarVozilaOut)
+def registar_status(
+    gb: str,
+    podaci: RegistarStatusUpdate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja),
+    db: Session = Depends(get_db),
+):
+    """Postavi ručni status (i napomenu) vozila — mjerodavno („sveto pismo")."""
+    try:
+        novi = StatusVozila(podaci.status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Nepoznat status")
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        # vozilo možda još nije sinkronizirano — kreiraj minimalni zapis
+        r = RegistarVozila(gb=gb)
+        db.add(r)
+    r.status = novi
+    if podaci.napomena is not None:
+        r.napomena = podaci.napomena.strip() or None
+    r.azurirao_id = korisnik.id
+    db.commit()
+    db.refresh(r)
+    return RegistarVozilaOut.model_validate(r)
 
 
 @router.get("", response_model=list[VoziloOut])
