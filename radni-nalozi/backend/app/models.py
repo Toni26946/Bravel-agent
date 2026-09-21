@@ -155,6 +155,10 @@ class RegistarVozila(Base):
     azurirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     # Zadnja sinkronizacija popisnih polja iz Flote (ne dira ručni status).
     sinkroniziran: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ručno postavljen status → sinkronizacija ga više ne mijenja (ručno pobjeđuje).
+    rucno: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Sirovi operativni status iz Mobilisisa (za usporedbu/prijedlog).
+    mobilisis_status: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
 # ---------------------------------------------------------------------------

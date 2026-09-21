@@ -138,6 +138,8 @@ class RegistarVozilaOut(ORM):
     kategorija: str | None = None
     status: str
     napomena: str | None = None
+    rucno: bool = False
+    mobilisis_status: str | None = None
     azuriran: datetime | None = None
     # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
     nalog_id: int | None = None
@@ -145,8 +147,10 @@ class RegistarVozilaOut(ORM):
 
 
 class RegistarStatusUpdate(BaseModel):
-    status: str
+    # status = None + rucno=False → vrati na Mobilisis prijedlog (poništi ručno).
+    status: str | None = None
     napomena: str | None = None
+    rucno: bool = True
 
 
 # --- Fotografija -------------------------------------------------------------

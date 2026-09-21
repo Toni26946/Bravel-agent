@@ -98,6 +98,8 @@ a { color: inherit; text-decoration: none; }
 .vz-red { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .vz-info { flex: 1; min-width: 0; cursor: default; }
 .vz-gb { font-weight: 800; font-size: 17px; }
+.vz-mob { font-size: 11.5px; opacity: .8; margin-top: 1px; }
+.vz-rucno { color: var(--plava); font-weight: 700; }
 /* boje statusa (chip + filter) */
 .sv-aktivno { background: #eaf6ec; color: #1e7d34; border-color: #bfe6c7; }
 .sv-u_radionici { background: #e7f0fd; color: #1e5fb8; border-color: #b9d3f5; }

@@ -45,9 +45,27 @@ voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
 _AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
 
 
+def _status_iz_mobilisisa(sirovi: str | None) -> StatusVozila | None:
+    """Mapiraj sirovi Mobilisis status (Status_vozila.xlsx) u naš operativni status.
+    Vrati None ako nema podatka (tada ne diramo status)."""
+    s = (sirovi or "").strip().lower()
+    if not s:
+        return None
+    # Izašlo iz flote (prodano/odjava/rashod/razbijeno/neaktivno/pasivno…)
+    if any(k in s for k in ("prodan", "prodaj", "odjav", "rashod", "razbij",
+                            "neaktiv", "pasiv", "ne koristi")):
+        return StatusVozila.prodano
+    if any(k in s for k in ("radioni", "servis", "popravak", "popravk")):
+        return StatusVozila.u_radionici
+    if any(k in s for k in ("neisprav", "pokvar", "kvar")):
+        return StatusVozila.pokvareno
+    return StatusVozila.aktivno
+
+
 async def _sync_registar(db: Session) -> bool:
-    """Osvježi popisna polja (gb/reg/tip/kategorija) iz Flota OS-a; NE dira ručni
-    status ni napomenu. Vraća True ako je Flota odgovorila. Best-effort."""
+    """Osvježi popisna polja (gb/reg/tip/kategorija) iz Flota OS-a i predloži status
+    iz Mobilisisa. RUČNO postavljen status (rucno=True) se NE dira. Best-effort;
+    vraća True ako je Flota odgovorila."""
     vozila = await flota.vozila_flota()
     if vozila is None:
         return False
@@ -57,14 +75,19 @@ async def _sync_registar(db: Session) -> bool:
         gb = str(v.get("gb") or "").strip()
         if not gb:
             continue
+        mob = _status_iz_mobilisisa(v.get("status"))
         r = postojeci.get(gb)
         if r is None:
-            r = RegistarVozila(gb=gb, status=StatusVozila.aktivno)
+            r = RegistarVozila(gb=gb, status=(mob or StatusVozila.aktivno))
             db.add(r)
             postojeci[gb] = r
         r.registracija = v.get("reg")
         r.tip = v.get("tip")
         r.kategorija = v.get("kategorija")
+        r.mobilisis_status = v.get("status")
+        # Prijedlog iz Mobilisisa vrijedi dok ga netko ručno ne promijeni.
+        if not r.rucno and mob is not None:
+            r.status = mob
         r.sinkroniziran = sad
     db.commit()
     return True
@@ -124,17 +147,26 @@ def registar_status(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja),
     db: Session = Depends(get_db),
 ):
-    """Postavi ručni status (i napomenu) vozila — mjerodavno („sveto pismo")."""
-    try:
-        novi = StatusVozila(podaci.status)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Nepoznat status")
+    """Postavi ručni status (i napomenu) vozila — mjerodavno („sveto pismo").
+
+    `rucno=False` (bez statusa) = poništi ručno i vrati na Mobilisis prijedlog."""
     r = db.get(RegistarVozila, gb)
     if r is None:
         # vozilo možda još nije sinkronizirano — kreiraj minimalni zapis
         r = RegistarVozila(gb=gb)
         db.add(r)
-    r.status = novi
+    if podaci.rucno is False and not podaci.status:
+        # Vrati na Mobilisis: makni ručnu zastavicu i primijeni prijedlog.
+        r.rucno = False
+        mob = _status_iz_mobilisisa(r.mobilisis_status)
+        if mob is not None:
+            r.status = mob
+    else:
+        try:
+            r.status = StatusVozila(podaci.status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Nepoznat status")
+        r.rucno = True  # od sada ručno pobjeđuje nad Mobilisis prijedlogom
     if podaci.napomena is not None:
         r.napomena = podaci.napomena.strip() or None
     r.azurirao_id = korisnik.id
