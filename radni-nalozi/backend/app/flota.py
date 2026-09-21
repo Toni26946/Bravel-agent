@@ -166,6 +166,46 @@ def je_nezaduzena_slepa(z: dict | None) -> bool:
     return bool(z and z.get("prikolica") and not z.get("zaduzeno"))
 
 
+_prikolice_kes: dict = {"ts": 0.0, "podaci": None}
+_PRIK_TTL = 600  # 10 min
+
+
+async def nezaduzene_prikolice() -> list | None:
+    """Sve slobodne šlepe iz Flota OS: /api/flota/nezaduzene-prikolice. Keš 10 min.
+
+    Vraća listu [{gb, tip, reg}] ili None (nedostupno).
+    """
+    global _token
+    sad = time.monotonic()
+    if _prikolice_kes["podaci"] is not None and sad - _prikolice_kes["ts"] < _PRIK_TTL:
+        return _prikolice_kes["podaci"]
+    base = settings.flota_api_base.rstrip("/")
+    async with httpx.AsyncClient(base_url=base, timeout=25) as client:
+        if settings.flota_service_key:
+            headers = {"X-Service-Key": settings.flota_service_key}
+        else:
+            if not _token:
+                await _prijava(client)
+            headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+        try:
+            r = await client.get("/api/flota/nezaduzene-prikolice", headers=headers)
+            if r.status_code == 401 and not settings.flota_service_key:
+                await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                r = await client.get("/api/flota/nezaduzene-prikolice", headers=headers)
+            if r.status_code != 200:
+                return None
+            d = r.json()
+        except Exception:  # noqa: BLE001
+            return None
+    if not isinstance(d, dict) or d.get("greska"):
+        return None
+    lst = d.get("prikolice") or []
+    _prikolice_kes["podaci"] = lst
+    _prikolice_kes["ts"] = sad
+    return lst
+
+
 def _prestaro(vrijeme_iso: str | None) -> bool:
     """True ako je GPS zapis stariji od dopuštenog (ne javljaj lažne alarme)."""
     if not vrijeme_iso:

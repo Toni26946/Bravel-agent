@@ -453,6 +453,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .parking-ispis .np-prazno { text-align: center; color: #666; }
 .pk-vremena { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; color: var(--sivo); }
 .pk-lok { font-size: 14px; font-weight: 600; color: #1e7d34; }
+.nz-bez { cursor: default; opacity: .82; }
 .nalog-print .np-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 8px; }
 .nalog-print .np-logo-img { height: 46px; width: auto; display: block; }
 .nalog-print .np-adresa { font-size: 11px; margin-top: 2px; }

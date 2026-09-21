@@ -9,30 +9,45 @@ import { useT } from '../i18n'
 export default function NezaduzenaVozila() {
   const { t } = useT()
   const nav = useNavigate()
-  const [nalozi, setNalozi] = useState(null)
+  const [d, setD] = useState(null)
   const [greska, setGreska] = useState('')
 
-  const ucitaj = () => api.nezaduzena().then(setNalozi).catch((e) => setGreska(e.message))
+  const ucitaj = () => api.nezaduzena().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
-  useAutoOsvjezi(() => api.nezaduzena().then(setNalozi).catch(() => {}), 30000)
+  useAutoOsvjezi(() => api.nezaduzena().then(setD).catch(() => {}), 60000)
 
   if (greska) return <Layout naslov={t('tab.nezaduzena')}><div className="greska">{greska}</div></Layout>
-  if (!nalozi) return <Layout naslov={t('tab.nezaduzena')}><Spinner /></Layout>
+  if (!d) return <Layout naslov={t('tab.nezaduzena')}><Spinner /></Layout>
 
+  const prikolice = d.prikolice || []
   return (
     <Layout naslov={t('tab.nezaduzena')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('nezaduzena.opis')}</p>
-      {nalozi.length === 0 ? (
+      {!d.dostupno ? (
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nezaduzena.nedostupno')}</p></div>
+      ) : prikolice.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nezaduzena.nema')}</p></div>
       ) : (
-        nalozi.map((n) => (
-          <div className="karta izasli-red" key={n.id} onClick={() => nav(`/nalozi/${n.id}`)}>
-            <div className="izasli-info">
-              <div className="izasli-gb">🛻 {n.vozilo?.gb}</div>
-              <div className="meta">{n.broj} · {t('status.' + n.status)}{n.vozilo?.registracija ? ` · ${n.vozilo.registracija}` : ''}</div>
+        <>
+          <div className="sekcija-naslov" style={{ marginTop: 0 }}>{prikolice.length} {t('nezaduzena.slobodnih')}</div>
+          {prikolice.map((p) => (
+            <div
+              className={'karta izasli-red' + (p.nalog_id ? '' : ' nz-bez')}
+              key={p.gb}
+              onClick={() => p.nalog_id && nav(`/nalozi/${p.nalog_id}`)}
+            >
+              <div className="izasli-info">
+                <div className="izasli-gb">🛻 {p.gb}</div>
+                <div className="meta">
+                  {[p.tip, p.reg].filter(Boolean).join(' · ') || '—'}
+                  {p.nalog_id
+                    ? ` · ${p.broj} (${t('status.' + p.status)})`
+                    : ` · ${t('nezaduzena.nijeURadionici')}`}
+                </div>
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+        </>
       )}
       <Dijagnostika />
     </Layout>
