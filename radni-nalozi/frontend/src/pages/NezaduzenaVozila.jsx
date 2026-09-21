@@ -74,7 +74,26 @@ function Dijagnostika() {
           {!d ? <Spinner /> : (
             <>
               <div className="fs-red"><span>Flota konfigurirana</span><b>{d.flota_konfigurirano ? 'DA' : 'NE'}</b></div>
-              <div className="fs-red"><span>Vozila u radu</span><b>{d.broj_aktivnih}</b></div>
+              {/* Bulk popis svih slobodnih šlepa iz Flote */}
+              {!d.bulk ? (
+                <div className="fs-red"><span>Flota /nezaduzene-prikolice</span><b className="fs-lose">NEDOSTUPNO (greška/timeout)</b></div>
+              ) : (
+                <>
+                  <div className="fs-red"><span>Slobodnih šlepa (Flota)</span><b>{d.bulk.broj}</b></div>
+                  <div className="fs-red"><span>Vozila u mapi (total_gb)</span><b>{d.bulk.dijag?.total_gb ?? '—'}</b></div>
+                  <div className="fs-red"><span>Klasificirano kao prikolica</span><b>{d.bulk.dijag?.prikolica_ukupno ?? '—'}</b></div>
+                  <div className="fs-red"><span>Zauzetih (u kompoziciji)</span><b>{d.bulk.dijag?.zauzete ?? '—'}</b></div>
+                  {d.bulk.dijag?.tipovi && (
+                    <div className="fs-red" style={{ display: 'block' }}>
+                      <span>TIP-ovi vozila:</span>
+                      <div className="meta" style={{ marginTop: 4 }}>
+                        {Object.entries(d.bulk.dijag.tipovi).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="sekcija-naslov" style={{ margin: '10px 0 4px' }}>Vozila u radu ({d.broj_aktivnih})</div>
               {d.stavke.length === 0 && <p className="meta" style={{ margin: '8px 0 0' }}>Nema naloga u radu.</p>}
               {d.stavke.map((s) => (
                 <div className="fs-red" key={s.nalog_id} style={{ display: 'block' }}>

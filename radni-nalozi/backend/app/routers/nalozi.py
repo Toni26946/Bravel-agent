@@ -398,6 +398,7 @@ async def nezaduzena_dijagnostika(
         "flota_konfigurirano": flota.konfigurirano(),
         "broj_aktivnih": len(nalozi),
         "stavke": stavke,
+        "bulk": await flota.nezaduzene_prikolice_raw(),
     }
 
 
