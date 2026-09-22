@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     flota_lozinka: str = ""
     radiona_lat: float = 0.0
     radiona_lon: float = 0.0
-    radiona_radius_m: int = 300          # geokrug oko radione (metri)
+    radiona_radius_m: int = 300          # geokrug oko radione (metri) — alarm „izašao"
+    spremni_radius_m: int = 5000         # kamion je „spreman u radioni" dok je unutar ovog kruga
     flota_interval_s: int = 60           # koliko često provjeravati (Flota keš je 30 s)
     flota_max_starost_s: int = 1800      # ignoriraj GPS stariji od ovoga (izbjegni lažne alarme)
 

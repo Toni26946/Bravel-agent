@@ -9,6 +9,7 @@ import re
 from ..storage import obrisi_sliku, spremi_sliku
 
 from .. import flota
+from ..config import settings
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
 from ..models import (
@@ -217,6 +218,45 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     return out
 
 
+def _gotovi_kamioni(db: Session, pozicije: dict) -> list[dict]:
+    """Kamioni čiji je nalog gotov/zatvoren, a JOŠ su u krugu radione (nisu otišli).
+
+    Kamioni imaju GPS (Flota OS), pa izlaze s popisa kad napuste krug od
+    `spremni_radius_m` (default 5 km). Bez upisanih koordinata radione ili bez
+    GPS-a → prikaži ih (pretpostavi da su tu)."""
+    zavrseni = (StatusNaloga.gotov, StatusNaloga.zatvoren)
+    nalozi = (
+        db.query(Nalog).filter(Nalog.status.in_(zavrseni))
+        .order_by(Nalog.azuriran.desc()).all()
+    )
+    ima_radionu = bool(settings.radiona_lat) and bool(settings.radiona_lon)
+    radius = settings.spremni_radius_m
+    out = []
+    vidjeno: set = set()
+    for n in nalozi:
+        gb = str(n.vozilo.gb) if n.vozilo else None
+        if not gb or gb in vidjeno:
+            continue
+        vidjeno.add(gb)
+        r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
+            RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
+        if not r or r.kategorija != "kamion" or r.status == StatusVozila.prodano:
+            continue
+        p = pozicije.get(gb) or pozicije.get(gb.lstrip("0") or gb)
+        udalj = None
+        if ima_radionu and p and p.get("lat") is not None and p.get("lon") is not None:
+            udalj = int(flota.udaljenost_m(p["lat"], p["lon"],
+                                           settings.radiona_lat, settings.radiona_lon))
+            if udalj > radius:
+                continue  # napustio krug radione → više nije „spreman u radioni"
+        out.append({
+            "gb": gb, "reg": r.registracija, "tip": r.tip,
+            "nalog_id": n.id, "broj": n.broj,
+            "udaljenost_m": udalj, "ima_gps": bool(p),
+        })
+    return out
+
+
 @router.get("/spremne")
 async def spremne_slepe(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
@@ -254,11 +294,23 @@ async def spremne_slepe(
         for r in db.query(RegistarVozila).filter(RegistarVozila.lokacija.isnot(None)).all()
         if (r.lokacija or "").strip()
     })
+
+    # Gotovi kamioni — u krugu radione (GPS). Best-effort dohvat pozicija.
+    try:
+        pozicije = await flota.dohvati_pozicije()
+    except Exception:
+        pozicije = None
+    if not pozicije:
+        pozicije = flota.zadnje_pozicije()
+    kamioni = _gotovi_kamioni(db, pozicije or {})
+
     return {
         "broj_spremnih": len(spremne),
         "grupe": [{"lokacija": k, "slepe": v} for k, v in grupe.items()],
         "za_upisati": za_upisati,
         "lokacije": lokacije,
+        "kamioni": kamioni,
+        "kamion_radius_km": round(settings.spremni_radius_m / 1000, 1),
     }
 
 

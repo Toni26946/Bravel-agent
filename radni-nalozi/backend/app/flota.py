@@ -74,6 +74,11 @@ def _zabiljezi(pozicije: dict | None, greska: str | None) -> None:
         _zadnje_pozicije = pozicije
 
 
+def zadnje_pozicije() -> dict:
+    """Zadnje poznate GPS pozicije po GB-u (keš iz nadzorne petlje)."""
+    return _zadnje_pozicije
+
+
 async def dohvati_pozicije() -> dict | None:
     """Vrati {gb: {lat, lon, brzina, vrijeme, zastarjelo}} ili None na grešku."""
     global _token
