@@ -23,6 +23,7 @@ export default function SpremneSlepe() {
   const zaUpisati = d.za_upisati || []
   const grupe = d.grupe || []
   const lokacije = d.lokacije || []
+  const kamioni = d.kamioni || []
 
   return (
     <Layout naslov={t('tab.spremne')}>
@@ -40,6 +41,33 @@ export default function SpremneSlepe() {
           ))}
         </div>
       )}
+
+      {/* Gotovi kamioni — u krugu radione (GPS); nestaju kad odu */}
+      <div className="sekcija-naslov">
+        🚚 {t('spremne.kamioni')} ({kamioni.length})
+      </div>
+      {kamioni.length === 0
+        ? <p className="meta">{t('spremne.nemaKamiona')}</p>
+        : (
+          <div className="karta">
+            {kamioni.map((k) => (
+              <div className="sp-red" key={k.gb}>
+                <div className="sp-info" onClick={() => k.nalog_id && nav(`/nalozi/${k.nalog_id}`)}>
+                  <div className="sp-gb">🚚 {k.gb}</div>
+                  <div className="meta">
+                    {[k.reg, k.tip].filter(Boolean).join(' · ') || '—'}{k.broj ? ` · ${k.broj}` : ''}
+                  </div>
+                </div>
+                <span className="sp-gps">
+                  {k.udaljenost_m != null
+                    ? `📍 ${(k.udaljenost_m / 1000).toFixed(1)} km`
+                    : (k.ima_gps ? '📍 radiona' : t('spremne.nemaGps'))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      <p className="meta" style={{ marginTop: 4 }}>{t('spremne.kamioniOpis', { km: d.kamion_radius_km })}</p>
 
       <div className="sekcija-naslov">
         🟢 {t('spremne.spremne')} ({d.broj_spremnih})

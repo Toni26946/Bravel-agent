@@ -112,6 +112,7 @@ a { color: inherit; text-decoration: none; }
 .sp-gb { font-weight: 800; font-size: 16px; }
 .sp-nap { font-style: italic; }
 .sp-forma { min-width: 190px; }
+.sp-gps { flex: none; font-size: 12.5px; font-weight: 700; color: #0f7a45; white-space: nowrap; }
 /* boje statusa (chip + filter) */
 .sv-aktivno { background: #eaf6ec; color: #1e7d34; border-color: #bfe6c7; }
 .sv-u_radionici { background: #e7f0fd; color: #1e5fb8; border-color: #b9d3f5; }
