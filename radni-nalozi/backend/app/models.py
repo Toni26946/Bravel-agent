@@ -78,6 +78,7 @@ class StatusVozila(str, enum.Enum):
     pokvareno = "pokvareno"      # neispravno / čeka popravak
     prodano = "prodano"          # izašlo iz flote
     nezaduzeno = "nezaduzeno"    # slobodno / nije prikopčano ni na jedan kamion
+    spremno = "spremno"          # popravljena, ispravna, spremna za kamion (uz lokaciju parkinga)
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +160,11 @@ class RegistarVozila(Base):
     rucno: Mapped[bool] = mapped_column(Boolean, default=False)
     # Sirovi operativni status iz Mobilisisa (za usporedbu/prijedlog).
     mobilisis_status: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Gdje je vozilo (šlepa) parkirano — za spremne šlepe (nema GPS-a, upisuje se ručno).
+    lokacija: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    spreman_od: Mapped[date | None] = mapped_column(Date, nullable=True)  # kad je označeno „Spremno"
+    # Zadnji dnevni podsjetnik za upis spremnosti/lokacije (da se ne šalje više puta dnevno).
+    podsjetnik_zadnji: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 # ---------------------------------------------------------------------------
