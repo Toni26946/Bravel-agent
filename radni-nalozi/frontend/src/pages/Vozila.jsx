@@ -6,8 +6,8 @@ import { Spinner } from '../ui'
 import { useT } from '../i18n'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
-const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'prodano', 'nezaduzeno']
-const EMO = { aktivno: '✅', u_radionici: '🔧', pokvareno: '🛑', prodano: '💰', nezaduzeno: '🛻' }
+const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'prodano']
+const EMO = { aktivno: '✅', u_radionici: '🔧', pokvareno: '🛑', prodano: '💰', nezaduzeno: '🛻', spremno: '🟢' }
 
 // Naziv kategorije: prevedi ako postoji ključ, inače prikaži sirovu vrijednost.
 function katLabel(t, k) {
@@ -40,6 +40,10 @@ export default function Vozila() {
     for (const v of d || []) b[v.status] = (b[v.status] || 0) + 1
     return b
   }, [d])
+  const lokacije = useMemo(
+    () => [...new Set((d || []).map((v) => (v.lokacija || '').trim()).filter(Boolean))].sort(),
+    [d],
+  )
 
   const filtrirana = useMemo(() => {
     const p = pretraga.trim().toLowerCase()
@@ -96,32 +100,46 @@ export default function Vozila() {
               {[v.registracija, v.tip].filter(Boolean).join(' · ') || '—'}
               {v.nalog_id ? ` · ${v.broj}` : ''}
             </div>
+            {v.status === 'spremno' && v.lokacija && (
+              <div className="meta vz-lok">📍 {v.lokacija}</div>
+            )}
             <div className="meta vz-mob">
               {t('vozila.mobilisis')}: {v.mobilisis_status || '—'}
               {v.rucno && <span className="vz-rucno"> · {t('vozila.rucno')}</span>}
             </div>
           </div>
-          <StatusChip v={v} onPromjena={(izmjena) => promijeniLokalno(v.gb, izmjena)} />
+          <StatusChip v={v} lokacije={lokacije} onPromjena={(izmjena) => promijeniLokalno(v.gb, izmjena)} />
         </div>
       ))}
     </Layout>
   )
 }
 
-function StatusChip({ v, onPromjena }) {
+function StatusChip({ v, lokacije = [], onPromjena }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [radi, setRadi] = useState(false)
+  const [trazimLok, setTrazimLok] = useState(false)   // upisujemo lokaciju za „Spremno"
+  const [lok, setLok] = useState(v.lokacija || '')
+  const [greskaLok, setGreskaLok] = useState('')
 
-  const postavi = async (novi) => {
-    setRadi(true)
+  const posalji = async (body, izmjena) => {
+    setRadi(true); setGreskaLok('')
     try {
-      const r = await api.postaviStatusVozila(v.gb, { status: novi })
-      onPromjena({ status: r.status, rucno: r.rucno })
-      setOtvoren(false)
-    } catch (_) { /* tiho */ } finally { setRadi(false) }
+      const r = await api.postaviStatusVozila(v.gb, body)
+      onPromjena({ status: r.status, rucno: r.rucno, lokacija: r.lokacija, ...izmjena })
+      setOtvoren(false); setTrazimLok(false)
+    } catch (e) { setGreskaLok(e.message || 'Greška') } finally { setRadi(false) }
   }
 
+  const odabir = (s) => {
+    if (s === 'spremno') { setTrazimLok(true); setLok(v.lokacija || '') }  // traži lokaciju prvo
+    else posalji({ status: s })
+  }
+  const spremiSpremno = () => {
+    if (!lok.trim()) { setGreskaLok(t('spremne.lokObavezna')); return }
+    posalji({ status: 'spremno', lokacija: lok.trim() })
+  }
   const vratiMobilisis = async () => {
     setRadi(true)
     try {
@@ -133,20 +151,45 @@ function StatusChip({ v, onPromjena }) {
 
   return (
     <span className="chip-wrap">
-      <button type="button" className={'slobodni-chip sv-' + v.status} onClick={() => setOtvoren((o) => !o)} disabled={radi}>
+      <button type="button" className={'slobodni-chip sv-' + v.status} onClick={() => { setOtvoren((o) => !o); setTrazimLok(false) }} disabled={radi}>
         {EMO[v.status] || ''} {t('sv.' + v.status)}
       </button>
       {otvoren && (
-        <div className="chip-menu">
-          {STATUSI.map((s) => (
-            <button key={s} className={'cm-opt' + (v.status === s ? ' akt' : '')} disabled={radi} onClick={() => postavi(s)}>
-              {EMO[s]} {t('sv.' + s)}
-            </button>
-          ))}
-          {v.rucno && (
-            <button className="cm-opt" disabled={radi} onClick={vratiMobilisis} title={t('vozila.vratiMobilisisOpis')}>
-              ↺ {t('vozila.vratiMobilisis')}
-            </button>
+        <div className="chip-menu" onClick={(e) => e.stopPropagation()}>
+          {!trazimLok ? (
+            <>
+              {STATUSI.map((s) => (
+                <button key={s} className={'cm-opt' + (v.status === s ? ' akt' : '')} disabled={radi} onClick={() => odabir(s)}>
+                  {EMO[s]} {t('sv.' + s)}
+                </button>
+              ))}
+              {v.rucno && (
+                <button className="cm-opt" disabled={radi} onClick={vratiMobilisis} title={t('vozila.vratiMobilisisOpis')}>
+                  ↺ {t('vozila.vratiMobilisis')}
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="cm-form">
+              <div className="cm-naslov">🟢 {t('spremne.gdjeParkirana')}</div>
+              <input
+                list="lokacije-lista"
+                className="pretraga-input"
+                style={{ marginBottom: 6 }}
+                placeholder={t('spremne.lokPlaceholder')}
+                value={lok}
+                onChange={(e) => setLok(e.target.value)}
+                autoFocus
+              />
+              <datalist id="lokacije-lista">
+                {lokacije.map((l) => <option key={l} value={l} />)}
+              </datalist>
+              {greskaLok && <div className="greska" style={{ margin: '2px 0' }}>{greskaLok}</div>}
+              <div className="btn-red" style={{ marginTop: 4 }}>
+                <button className="btn mali" disabled={radi} onClick={spremiSpremno}>{radi ? '…' : t('common.spremi')}</button>
+                <button className="btn sekund mali" disabled={radi} onClick={() => setTrazimLok(false)}>{t('common.odustani')}</button>
+              </div>
+            </div>
           )}
         </div>
       )}

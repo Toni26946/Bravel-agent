@@ -12,6 +12,7 @@ import { GlavniIzbornik, VozilaURadu } from './pages/Nadzor'
 import IzasliIzRadione from './pages/IzasliIzRadione'
 import NezaduzenaVozila from './pages/NezaduzenaVozila'
 import Vozila from './pages/Vozila'
+import SpremneSlepe from './pages/SpremneSlepe'
 import Parkiranje from './pages/Parkiranje'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
@@ -50,6 +51,7 @@ export default function App() {
       <Route path="/vozila-u-radu" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><VozilaURadu /></Zasticeno>} />
       <Route path="/izasli" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><IzasliIzRadione /></Zasticeno>} />
       <Route path="/vozila" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozila /></Zasticeno>} />
+      <Route path="/spremne" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><SpremneSlepe /></Zasticeno>} />
       <Route path="/nezaduzena" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NezaduzenaVozila /></Zasticeno>} />
       <Route path="/parkiranje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Parkiranje /></Zasticeno>} />
 

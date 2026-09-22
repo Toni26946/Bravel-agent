@@ -163,16 +163,103 @@ def registar_status(
             r.status = mob
     else:
         try:
-            r.status = StatusVozila(podaci.status)
+            novi = StatusVozila(podaci.status)
         except ValueError:
             raise HTTPException(status_code=400, detail="Nepoznat status")
+        # „Spremno" (šlepa spremna za kamion) ne može bez lokacije parkinga —
+        # baš to ih tjeramo da upišu da se zna GDJE je spremna šlepa.
+        lok_nova = (podaci.lokacija if podaci.lokacija is not None else r.lokacija) or ""
+        if novi == StatusVozila.spremno and not lok_nova.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Za status Spremno upišite gdje je šlepa parkirana (lokacija).",
+            )
+        if novi == StatusVozila.spremno and r.status != StatusVozila.spremno:
+            r.spreman_od = date.today()
+        r.status = novi
         r.rucno = True  # od sada ručno pobjeđuje nad Mobilisis prijedlogom
+    if podaci.lokacija is not None:
+        r.lokacija = podaci.lokacija.strip() or None
     if podaci.napomena is not None:
         r.napomena = podaci.napomena.strip() or None
+    r.podsjetnik_zadnji = None  # upisali su nešto → prekini eskalaciju podsjetnika
     r.azurirao_id = korisnik.id
     db.commit()
     db.refresh(r)
     return RegistarVozilaOut.model_validate(r)
+
+
+def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
+    """Šlepe (prikolice) čiji je nalog nedavno završen, a još nisu dobile ishod:
+    nisu označene Spremno(+lokacija) ni Pokvareno. Njih moramo natjerati na upis."""
+    zavrseni = (StatusNaloga.gotov, StatusNaloga.zatvoren)
+    nalozi = (
+        db.query(Nalog).filter(Nalog.status.in_(zavrseni))
+        .order_by(Nalog.azuriran.desc()).all()
+    )
+    gbs: list[str] = []
+    vidjeno: set = set()
+    for n in nalozi:
+        gb = str(n.vozilo.gb) if n.vozilo else None
+        if gb and gb not in vidjeno:
+            vidjeno.add(gb)
+            gbs.append(gb)
+    out = []
+    for gb in gbs:
+        r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
+            RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
+        if not r or r.kategorija != "prikolica":
+            continue
+        rijeseno = (r.status == StatusVozila.spremno and (r.lokacija or "").strip()) \
+            or r.status in (StatusVozila.pokvareno, StatusVozila.prodano)
+        if not rijeseno:
+            out.append(r)
+    return out
+
+
+@router.get("/spremne")
+async def spremne_slepe(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Ploča spremnih šlepa: što imamo i gdje.
+
+    - `spremne`: šlepe sa statusom „Spremno", grupirane po parkingu (lokaciji).
+    - `za_upisati`: šlepe s nedavno završenim nalogom koje čekaju upis spremnosti+lokacije.
+    - `lokacije`: nedavno korišteni parkinzi (za prijedloge pri upisu).
+    """
+    await _sync_registar(db)
+    nalozi = _nalog_po_gb(db)
+
+    def _stavka(r: RegistarVozila) -> dict:
+        n = nalozi.get(r.gb) or nalozi.get(r.gb.lstrip("0") or r.gb)
+        return {
+            "gb": r.gb, "reg": r.registracija, "tip": r.tip,
+            "lokacija": r.lokacija, "napomena": r.napomena,
+            "spreman_od": r.spreman_od.isoformat() if r.spreman_od else None,
+            "nalog_id": n.id if n else None, "broj": n.broj if n else None,
+        }
+
+    spremne = (
+        db.query(RegistarVozila).filter(RegistarVozila.status == StatusVozila.spremno).all()
+    )
+    spremne.sort(key=lambda r: ((r.lokacija or "~"), len(r.gb), r.gb))
+    grupe: dict = {}
+    for r in spremne:
+        grupe.setdefault(r.lokacija or "—", []).append(_stavka(r))
+
+    za_upisati = [_stavka(r) for r in _prikolice_za_upisati(db)]
+
+    lokacije = sorted({
+        (r.lokacija or "").strip()
+        for r in db.query(RegistarVozila).filter(RegistarVozila.lokacija.isnot(None)).all()
+        if (r.lokacija or "").strip()
+    })
+    return {
+        "broj_spremnih": len(spremne),
+        "grupe": [{"lokacija": k, "slepe": v} for k, v in grupe.items()],
+        "za_upisati": za_upisati,
+        "lokacije": lokacije,
+    }
 
 
 @router.get("", response_model=list[VoziloOut])
