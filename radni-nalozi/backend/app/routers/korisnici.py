@@ -73,6 +73,7 @@ def kreiraj(podaci: KorisnikCreate, _: Korisnik = Depends(samo_voditelj), db: Se
         lozinka_hash=hash_lozinka(podaci.lozinka),
         uloga=podaci.uloga,
         telefon=podaci.telefon,
+        prijavljuje_se=True if podaci.prijavljuje_se is None else podaci.prijavljuje_se,
     )
     db.add(k)
     db.commit()

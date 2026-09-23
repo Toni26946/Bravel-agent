@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { Bedz, MikrofonGumb, Spinner, ULOGA } from '../ui'
+import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
 function _norm(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+// korisničko ime iz imena: „Ivan Horvat" → „ivan.horvat" (bez kvačica/razmaka)
+function _slug(ime) {
+  return _norm(ime).split(/\s+/).map((r) => r.replace(/[^a-z0-9]/g, '')).filter(Boolean).join('.')
 }
 
 export default function Sifrarnik() {
@@ -25,12 +30,22 @@ export default function Sifrarnik() {
   )
 }
 
+// „Što je" → uloga (+ prijavljuje li se na naloge). Redoslijed = redoslijed u izborniku.
+const VRSTE = {
+  serviser: { uloga: 'radnik', prijavljuje_se: true },
+  neprijavljuje: { uloga: 'radnik', prijavljuje_se: false },  // npr. skladištar
+  poslovodja: { uloga: 'poslovodja' },
+  voditelj: { uloga: 'voditelj' },
+  vozac: { uloga: 'vozac' },
+}
+
 function Korisnici() {
   const { t } = useT()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
-  const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: '', uloga: 'radnik', telefon: '' })
+  const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
+  const [korRucno, setKorRucno] = useState(false)  // je li korisničko ime ručno mijenjano
 
   // uvoz radnika
   const [uvozOtvori, setUvozOtvori] = useState(false)
@@ -54,9 +69,10 @@ function Korisnici() {
     e.preventDefault()
     setGreska('')
     try {
-      await api.kreirajKorisnika(f)
-      setF({ ime: '', korisnicko_ime: '', lozinka: '', uloga: 'radnik', telefon: '' })
-      setOtvori(false); ucitaj()
+      const { vrsta, ...osnovno } = f
+      await api.kreirajKorisnika({ ...osnovno, ...VRSTE[vrsta] })
+      setF({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
+      setKorRucno(false); setOtvori(false); ucitaj()
     } catch (err) { setGreska(err.message) }
   }
 
@@ -109,18 +125,32 @@ function Korisnici() {
         </div>
       )}
 
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>{t('sif.noviKorisnik')}</button>}
+      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>➕ {t('sif.noviKorisnik')}</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
           <label>{t('sif.ime')}</label>
-          <input value={f.ime} onChange={(e) => setF({ ...f, ime: e.target.value })} required />
+          <input
+            value={f.ime}
+            onChange={(e) => {
+              const ime = e.target.value
+              setF((p) => ({ ...p, ime, korisnicko_ime: korRucno ? p.korisnicko_ime : _slug(ime) }))
+            }}
+            required
+            autoFocus
+          />
           <label>{t('sif.korime')}</label>
-          <input value={f.korisnicko_ime} onChange={(e) => setF({ ...f, korisnicko_ime: e.target.value })} autoCapitalize="none" required />
+          <input
+            value={f.korisnicko_ime}
+            onChange={(e) => { setKorRucno(true); setF({ ...f, korisnicko_ime: e.target.value }) }}
+            autoCapitalize="none"
+            required
+          />
+          <p className="meta" style={{ marginTop: 0 }}>{t('sif.korimeHint')}</p>
           <label>{t('sif.lozinka')}</label>
           <input value={f.lozinka} onChange={(e) => setF({ ...f, lozinka: e.target.value })} required />
-          <label>{t('sif.uloga')}</label>
-          <select value={f.uloga} onChange={(e) => setF({ ...f, uloga: e.target.value })}>
-            {Object.keys(ULOGA).map((k) => <option key={k} value={k}>{t('uloga.' + k)}</option>)}
+          <label>{t('sif.stoJe')}</label>
+          <select value={f.vrsta} onChange={(e) => setF({ ...f, vrsta: e.target.value })}>
+            {Object.keys(VRSTE).map((k) => <option key={k} value={k}>{t('vrsta.' + k)}</option>)}
           </select>
           <label>{t('sif.telefonOpc')}</label>
           <input value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} />
