@@ -30,21 +30,12 @@ export default function Sifrarnik() {
   )
 }
 
-// „Što je" → uloga (+ prijavljuje li se na naloge). Redoslijed = redoslijed u izborniku.
-const VRSTE = {
-  serviser: { uloga: 'radnik', prijavljuje_se: true },
-  neprijavljuje: { uloga: 'radnik', prijavljuje_se: false },  // npr. skladištar
-  poslovodja: { uloga: 'poslovodja' },
-  voditelj: { uloga: 'voditelj' },
-  vozac: { uloga: 'vozac' },
-}
-
 function Korisnici() {
   const { t } = useT()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
-  const [f, setF] = useState({ ime: '', vrsta: 'serviser', telefon: '' })
+  const [f, setF] = useState({ ime: '', telefon: '' })
   const [noviRezultat, setNoviRezultat] = useState(null)  // prikaz generiranih pristupnih podataka
 
   // uvoz radnika
@@ -69,11 +60,11 @@ function Korisnici() {
     e.preventDefault()
     setGreska('')
     try {
-      const { vrsta, telefon, ime } = f
-      // Bez korisničkog imena i lozinke — server generira; prikažemo za predaju.
-      const nk = await api.kreirajKorisnika({ ime, telefon, ...VRSTE[vrsta] })
+      // Uvijek serviser (radnik koji se prijavljuje). Bez korisničkog imena i
+      // lozinke — server generira; prikažemo za predaju.
+      const nk = await api.kreirajKorisnika({ ime: f.ime, telefon: f.telefon, uloga: 'radnik', prijavljuje_se: true })
       setNoviRezultat({ ime: nk.ime, korisnicko_ime: nk.korisnicko_ime, lozinka: 'radnik123' })
-      setF({ ime: '', vrsta: 'serviser', telefon: '' })
+      setF({ ime: '', telefon: '' })
       ucitaj()
     } catch (err) { setGreska(err.message) }
   }
@@ -143,10 +134,6 @@ function Korisnici() {
         <form className="karta" onSubmit={spremi}>
           <label>{t('sif.ime')}</label>
           <input value={f.ime} onChange={(e) => setF({ ...f, ime: e.target.value })} required autoFocus />
-          <label>{t('sif.stoJe')}</label>
-          <select value={f.vrsta} onChange={(e) => setF({ ...f, vrsta: e.target.value })}>
-            {Object.keys(VRSTE).map((k) => <option key={k} value={k}>{t('vrsta.' + k)}</option>)}
-          </select>
           <label>{t('sif.telefonOpc')}</label>
           <input value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} />
           <p className="meta" style={{ marginTop: 6 }}>{t('sif.autoHint')}</p>
