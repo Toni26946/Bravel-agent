@@ -10,7 +10,10 @@ from datetime import datetime, timezone
 
 from .auth import hash_lozinka
 from .config import settings
-from .models import Korisnik, Nalog, PovijestRada, StatusNaloga, Uloga, Vozilo, Zadatak
+from .models import (
+    Korisnik, Nalog, PovijestRada, RegistarVozila, StatusNaloga, StatusVozila,
+    Uloga, Vozilo, Zadatak,
+)
 
 log = logging.getLogger("seed")
 
@@ -280,6 +283,32 @@ def osiguraj_kovacevica(db: Session) -> None:
     except OSError:
         pass
     log.info("Dario Kovačević osiguran kao aktivan serviser.")
+
+
+def osiguraj_vozilo_483(db: Session) -> None:
+    """Jednokratno: ručno dodaj vozilo GB 483 u matični popis (nije u Flota OS-u).
+
+    Registracija i napomena postavljene na „Volvo šumar" (uredit će se kasnije).
+    rucno=True da sinkronizacija ne dira. Ako red već postoji, ne pregazi ga."""
+    zastavica = Path(settings.upload_dir).parent / ".vozilo_483_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    if not db.get(RegistarVozila, "483"):
+        db.add(RegistarVozila(
+            gb="483", registracija="Volvo šumar", tip="Volvo šumar",
+            kategorija="kamion", napomena="Volvo šumar",
+            status=StatusVozila.aktivno, rucno=True,
+        ))
+        db.commit()
+        log.info("Vozilo GB 483 (Volvo šumar) dodano u matični popis.")
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def jednokratna_reaktivacija_roka(db: Session) -> None:
