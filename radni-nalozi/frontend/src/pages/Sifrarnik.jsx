@@ -44,8 +44,8 @@ function Korisnici() {
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
-  const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
-  const [korRucno, setKorRucno] = useState(false)  // je li korisničko ime ručno mijenjano
+  const [f, setF] = useState({ ime: '', vrsta: 'serviser', telefon: '' })
+  const [noviRezultat, setNoviRezultat] = useState(null)  // prikaz generiranih pristupnih podataka
 
   // uvoz radnika
   const [uvozOtvori, setUvozOtvori] = useState(false)
@@ -69,10 +69,12 @@ function Korisnici() {
     e.preventDefault()
     setGreska('')
     try {
-      const { vrsta, ...osnovno } = f
-      await api.kreirajKorisnika({ ...osnovno, ...VRSTE[vrsta] })
-      setF({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
-      setKorRucno(false); setOtvori(false); ucitaj()
+      const { vrsta, telefon, ime } = f
+      // Bez korisničkog imena i lozinke — server generira; prikažemo za predaju.
+      const nk = await api.kreirajKorisnika({ ime, telefon, ...VRSTE[vrsta] })
+      setNoviRezultat({ ime: nk.ime, korisnicko_ime: nk.korisnicko_ime, lozinka: 'radnik123' })
+      setF({ ime: '', vrsta: 'serviser', telefon: '' })
+      ucitaj()
     } catch (err) { setGreska(err.message) }
   }
 
@@ -125,37 +127,31 @@ function Korisnici() {
         </div>
       )}
 
-      {!otvori && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>➕ {t('sif.noviKorisnik')}</button>}
+      {noviRezultat && (
+        <div className="karta dr-ok">
+          <div><b>✅ {t('radnik.dodan')}:</b> {noviRezultat.ime}</div>
+          <div className="meta">{t('radnik.korisnicko')}: <b>{noviRezultat.korisnicko_ime}</b> · {t('radnik.lozinka')}: <b>{noviRezultat.lozinka}</b></div>
+          <p className="meta" style={{ margin: '4px 0 0' }}>{t('sif.predaj')}</p>
+          <div className="btn-red" style={{ marginTop: 6 }}>
+            <button className="btn mali" onClick={() => { setNoviRezultat(null); setOtvori(true) }}>➕ {t('radnik.josJedan')}</button>
+            <button className="btn sekund mali" onClick={() => setNoviRezultat(null)}>{t('common.zatvori')}</button>
+          </div>
+        </div>
+      )}
+      {!otvori && !noviRezultat && <button className="btn" onClick={() => setOtvori(true)} style={{ marginTop: 12 }}>➕ {t('sif.noviKorisnik')}</button>}
       {otvori && (
         <form className="karta" onSubmit={spremi}>
           <label>{t('sif.ime')}</label>
-          <input
-            value={f.ime}
-            onChange={(e) => {
-              const ime = e.target.value
-              setF((p) => ({ ...p, ime, korisnicko_ime: korRucno ? p.korisnicko_ime : _slug(ime) }))
-            }}
-            required
-            autoFocus
-          />
-          <label>{t('sif.korime')}</label>
-          <input
-            value={f.korisnicko_ime}
-            onChange={(e) => { setKorRucno(true); setF({ ...f, korisnicko_ime: e.target.value }) }}
-            autoCapitalize="none"
-            required
-          />
-          <p className="meta" style={{ marginTop: 0 }}>{t('sif.korimeHint')}</p>
-          <label>{t('sif.lozinka')}</label>
-          <input value={f.lozinka} onChange={(e) => setF({ ...f, lozinka: e.target.value })} required />
+          <input value={f.ime} onChange={(e) => setF({ ...f, ime: e.target.value })} required autoFocus />
           <label>{t('sif.stoJe')}</label>
           <select value={f.vrsta} onChange={(e) => setF({ ...f, vrsta: e.target.value })}>
             {Object.keys(VRSTE).map((k) => <option key={k} value={k}>{t('vrsta.' + k)}</option>)}
           </select>
           <label>{t('sif.telefonOpc')}</label>
           <input value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} />
+          <p className="meta" style={{ marginTop: 6 }}>{t('sif.autoHint')}</p>
           <div className="btn-red">
-            <button className="btn mali">{t('common.spremi')}</button>
+            <button className="btn mali">{t('sif.noviKorisnik')}</button>
             <button type="button" className="btn sekund mali" onClick={() => setOtvori(false)}>{t('common.odustani')}</button>
           </div>
         </form>

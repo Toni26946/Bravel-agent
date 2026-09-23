@@ -63,14 +63,22 @@ def popis(
     return q.order_by(Korisnik.ime).all()
 
 
+_ZADANA_LOZINKA = "radnik123"
+
+
 @router.post("", response_model=KorisnikOut, status_code=201)
 def kreiraj(podaci: KorisnikCreate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
-    if db.query(Korisnik).filter(Korisnik.korisnicko_ime == podaci.korisnicko_ime).first():
-        raise HTTPException(status_code=409, detail="Korisničko ime već postoji")
+    korisnicko = (podaci.korisnicko_ime or "").strip()
+    if korisnicko:
+        if db.query(Korisnik).filter(Korisnik.korisnicko_ime == korisnicko).first():
+            raise HTTPException(status_code=409, detail="Korisničko ime već postoji")
+    else:
+        # nije upisano → generiraj iz imena (jedinstveno)
+        korisnicko = _jedinstveno(db, _slug(podaci.ime), set())
     k = Korisnik(
         ime=podaci.ime,
-        korisnicko_ime=podaci.korisnicko_ime,
-        lozinka_hash=hash_lozinka(podaci.lozinka),
+        korisnicko_ime=korisnicko,
+        lozinka_hash=hash_lozinka(podaci.lozinka or _ZADANA_LOZINKA),
         uloga=podaci.uloga,
         telefon=podaci.telefon,
         prijavljuje_se=True if podaci.prijavljuje_se is None else podaci.prijavljuje_se,

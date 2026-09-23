@@ -40,7 +40,10 @@ class KorisnikBase(BaseModel):
 
 
 class KorisnikCreate(KorisnikBase):
-    lozinka: str = Field(min_length=8)
+    # Korisničko ime i lozinka su neobavezni — ako ih nema, server ih generira
+    # (korisničko iz imena, lozinka zadana). Voditelj upisuje samo ime i „što je".
+    korisnicko_ime: str | None = None
+    lozinka: str | None = Field(default=None, min_length=8)
     prijavljuje_se: bool | None = None  # serviser (True) ili npr. skladištar (False); default True
 
 
