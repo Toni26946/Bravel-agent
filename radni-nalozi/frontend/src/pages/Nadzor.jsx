@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
+import { useAuth } from '../auth'
 
 function msVremena(s) {
   if (!s) return 0
@@ -126,10 +127,65 @@ function RadnikChip({ r, onPromjena }) {
   )
 }
 
+// Voditelj brzo dodaje novog radnika (ime → auto korisničko ime + lozinka za predaju).
+function DodajRadnika({ onDodano }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [ime, setIme] = useState('')
+  const [lozinka, setLozinka] = useState('radnik123')
+  const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
+  const [rezultat, setRezultat] = useState(null)
+
+  const dodaj = async () => {
+    if (!ime.trim()) { setGreska(t('radnik.imeObavezno')); return }
+    setRadi(true); setGreska('')
+    try {
+      const r = await api.uvozKorisnika(ime.trim(), 'radnik', lozinka.trim() || 'radnik123')
+      if (r.dodano > 0 && r.korisnici?.length) {
+        setRezultat({ ...r.korisnici[0], lozinka: r.lozinka })
+        setIme(''); onDodano()
+      } else {
+        setGreska(t('radnik.vecPostoji'))
+      }
+    } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+  }
+
+  if (!otvoren) {
+    return <button className="btn sekund mali" onClick={() => { setOtvoren(true); setRezultat(null) }}>➕ {t('radnik.dodaj')}</button>
+  }
+  return (
+    <div className="dodaj-radnik">
+      {rezultat ? (
+        <div className="dr-ok">
+          <div><b>✅ {t('radnik.dodan')}:</b> {rezultat.ime}</div>
+          <div className="meta">{t('radnik.korisnicko')}: <b>{rezultat.korisnicko_ime}</b> · {t('radnik.lozinka')}: <b>{rezultat.lozinka}</b></div>
+          <div className="btn-red" style={{ marginTop: 6 }}>
+            <button className="btn mali" onClick={() => { setRezultat(null) }}>➕ {t('radnik.josJedan')}</button>
+            <button className="btn sekund mali" onClick={() => { setOtvoren(false); setRezultat(null) }}>{t('common.zatvori')}</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <input className="pretraga-input" placeholder={t('radnik.imePlaceholder')} value={ime} onChange={(e) => setIme(e.target.value)} autoFocus />
+          <label className="meta" style={{ display: 'block', margin: '2px 0' }}>{t('radnik.pocLozinka')}</label>
+          <input className="pretraga-input" value={lozinka} onChange={(e) => setLozinka(e.target.value)} />
+          {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
+          <div className="btn-red" style={{ marginTop: 4 }}>
+            <button className="btn mali" disabled={radi} onClick={dodaj}>{radi ? '…' : t('radnik.spremiDodaj')}</button>
+            <button className="btn sekund mali" disabled={radi} onClick={() => { setOtvoren(false); setGreska('') }}>{t('common.odustani')}</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // --- Glavni izbornik: tablica tekućih radova (aktivni mjerači) ---------------
 export function GlavniIzbornik() {
   const { t } = useT()
   const nav = useNavigate()
+  const { korisnik } = useAuth()
   const { nalozi, greska, sada, osvjezi } = useNadzor()
   const [radiId, setRadiId] = useState(0)
   const [radnici, setRadnici] = useState([])
@@ -166,7 +222,10 @@ export function GlavniIzbornik() {
 
   return (
     <Layout naslov={t('nadzor.izbornik')}>
-      <div className="sekcija-naslov" style={{ marginTop: 0 }}>{t('nadzor.slobodni')} ({slobodni.length})</div>
+      <div className="sekcija-glava">
+        <div className="sekcija-naslov" style={{ marginTop: 0 }}>{t('nadzor.slobodni')} ({slobodni.length})</div>
+        {korisnik?.uloga === 'voditelj' && <DodajRadnika onDodano={ucitajRadnike} />}
+      </div>
       {slobodni.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('nadzor.sviZauzeti')}</p></div>
       ) : (
