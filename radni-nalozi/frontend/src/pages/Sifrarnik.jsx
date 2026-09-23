@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
-import { Bedz, MikrofonGumb, Spinner, ULOGA } from '../ui'
+import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
@@ -30,12 +30,21 @@ export default function Sifrarnik() {
   )
 }
 
+// „Što je" → uloga (+ prijavljuje li se na naloge). Redoslijed = redoslijed u izborniku.
+const VRSTE = {
+  serviser: { uloga: 'radnik', prijavljuje_se: true },
+  neprijavljuje: { uloga: 'radnik', prijavljuje_se: false },  // npr. skladištar
+  poslovodja: { uloga: 'poslovodja' },
+  voditelj: { uloga: 'voditelj' },
+  vozac: { uloga: 'vozac' },
+}
+
 function Korisnici() {
   const { t } = useT()
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [otvori, setOtvori] = useState(false)
-  const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', uloga: 'radnik', telefon: '' })
+  const [f, setF] = useState({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
   const [korRucno, setKorRucno] = useState(false)  // je li korisničko ime ručno mijenjano
 
   // uvoz radnika
@@ -60,8 +69,9 @@ function Korisnici() {
     e.preventDefault()
     setGreska('')
     try {
-      await api.kreirajKorisnika(f)
-      setF({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', uloga: 'radnik', telefon: '' })
+      const { vrsta, ...osnovno } = f
+      await api.kreirajKorisnika({ ...osnovno, ...VRSTE[vrsta] })
+      setF({ ime: '', korisnicko_ime: '', lozinka: 'radnik123', vrsta: 'serviser', telefon: '' })
       setKorRucno(false); setOtvori(false); ucitaj()
     } catch (err) { setGreska(err.message) }
   }
@@ -138,9 +148,9 @@ function Korisnici() {
           <p className="meta" style={{ marginTop: 0 }}>{t('sif.korimeHint')}</p>
           <label>{t('sif.lozinka')}</label>
           <input value={f.lozinka} onChange={(e) => setF({ ...f, lozinka: e.target.value })} required />
-          <label>{t('sif.uloga')}</label>
-          <select value={f.uloga} onChange={(e) => setF({ ...f, uloga: e.target.value })}>
-            {Object.keys(ULOGA).map((k) => <option key={k} value={k}>{t('uloga.' + k)}</option>)}
+          <label>{t('sif.stoJe')}</label>
+          <select value={f.vrsta} onChange={(e) => setF({ ...f, vrsta: e.target.value })}>
+            {Object.keys(VRSTE).map((k) => <option key={k} value={k}>{t('vrsta.' + k)}</option>)}
           </select>
           <label>{t('sif.telefonOpc')}</label>
           <input value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} />

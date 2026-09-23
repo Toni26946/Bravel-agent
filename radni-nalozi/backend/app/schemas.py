@@ -41,6 +41,7 @@ class KorisnikBase(BaseModel):
 
 class KorisnikCreate(KorisnikBase):
     lozinka: str = Field(min_length=8)
+    prijavljuje_se: bool | None = None  # serviser (True) ili npr. skladištar (False); default True
 
 
 class KorisnikUpdate(BaseModel):
