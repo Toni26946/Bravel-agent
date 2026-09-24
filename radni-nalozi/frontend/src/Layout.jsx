@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 import { useT } from './i18n'
@@ -7,6 +8,17 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const { t } = useT()
   const nav = useNavigate()
   const lok = useLocation()
+  // Lijevi izbornik: skupljen (samo ikone) ili raširen (ikone + tekst). Pamti se.
+  const [navOtvoren, setNavOtvoren] = useState(() => {
+    try { const v = localStorage.getItem('nav_otvoren'); if (v !== null) return v === '1' } catch (_) { /* */ }
+    return typeof window !== 'undefined' && window.innerWidth >= 860
+  })
+  const toggleNav = () => setNavOtvoren((o) => {
+    const n = !o
+    try { localStorage.setItem('nav_otvoren', n ? '1' : '0') } catch (_) { /* */ }
+    return n
+  })
+  const zatvoriNaUsko = () => { if (typeof window !== 'undefined' && window.innerWidth < 760) setNavOtvoren(false) }
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
   // (ondje je vlastiti "+" za novu prijavu) i na samoj stranici kreiranja.
   const prikaziPlus = (korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja')
@@ -45,27 +57,29 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
 
   return (
-    <div className="app">
+    <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
       <header className="topbar">
+        <button className="nav-toggle" onClick={toggleNav} aria-label={t('nav.izbornik')} title={t('nav.izbornik')}>☰</button>
         {nazad && <span className="nazad" onClick={() => nav(nazad === true ? -1 : nazad)}>‹</span>}
         <h1>{naslov}</h1>
         {akcija}
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
       </header>
+      <nav className="tabbar">
+        {tabovi.map((t) => (
+          <NavLink key={t.do} to={t.do} onClick={zatvoriNaUsko} className={({ isActive }) => (isActive ? 'akt' : '')}>
+            <span className="ikona">{t.ikona}</span>
+            <span className="txt">{t.txt}</span>
+          </NavLink>
+        ))}
+      </nav>
+      {navOtvoren && <div className="nav-backdrop" onClick={toggleNav} />}
       <main className="sadrzaj">{children}</main>
       {prikaziPlus && (
         <button className="fab-novi" onClick={() => nav('/nalozi/novi')} title={t('noviNalog.title')} aria-label={t('noviNalog.title')}>
           +
         </button>
       )}
-      <nav className="tabbar">
-        {tabovi.map((t) => (
-          <NavLink key={t.do} to={t.do} className={({ isActive }) => (isActive ? 'akt' : '')}>
-            <span className="ikona">{t.ikona}</span>
-            {t.txt}
-          </NavLink>
-        ))}
-      </nav>
     </div>
   )
 }
