@@ -488,11 +488,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .nalog-print, .parking-ispis { display: none; }
 @media print {
   body * { visibility: hidden; }
-  .nalog-print, .nalog-print *, .parking-ispis, .parking-ispis * { visibility: visible; }
-  .nalog-print, .parking-ispis { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 16px 20px; color: #000; font-size: 12px; }
+  .nalog-print, .nalog-print *, .parking-ispis, .parking-ispis *, .dnevnik-ispis, .dnevnik-ispis * { visibility: visible; }
+  .nalog-print, .parking-ispis, .dnevnik-ispis { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 16px 20px; color: #000; font-size: 12px; }
   .no-print { display: none !important; }
   @page { margin: 12mm; }
 }
+/* Dnevnik prikapčanja — na ekranu tablica, i za ispis */
+.di-naslov { margin: 4px 0 10px; font-size: 16px; }
+.di-tab { width: 100%; border-collapse: collapse; }
+.di-tab th, .di-tab td { border: 1px solid var(--rub); padding: 6px 8px; text-align: left; font-size: 12.5px; }
+.di-tab th { background: #f1f5f9; }
+@media print { .di-tab th, .di-tab td { border-color: #999; } .di-naslov { text-align: center; } }
 .parking-ispis .np-head { display: flex; border-bottom: 2px solid #000; padding-bottom: 8px; }
 .parking-ispis .np-logo-img { height: 46px; width: auto; display: block; }
 .parking-ispis .np-adresa { font-size: 11px; margin-top: 2px; }

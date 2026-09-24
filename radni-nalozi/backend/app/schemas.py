@@ -157,6 +157,26 @@ class ParkingOut(ORM):
     naziv: str
 
 
+class DogadajCreate(BaseModel):
+    prikolica_gb: str
+    vrsta: str                       # 'prikaceno' | 'otkaceno'
+    kamion_gb: str | None = None
+    vozac: str | None = None
+    lokacija: str | None = None
+    napomena: str | None = None
+
+
+class DogadajOut(ORM):
+    id: int
+    prikolica_gb: str
+    kamion_gb: str | None = None
+    vozac: str | None = None
+    vrsta: str
+    lokacija: str | None = None
+    napomena: str | None = None
+    vrijeme: datetime | None = None
+
+
 class ParkingCreate(BaseModel):
     naziv: str
 

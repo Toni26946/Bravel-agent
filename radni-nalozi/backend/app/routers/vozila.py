@@ -1,5 +1,5 @@
 """Vozila (kamioni). Svi prijavljeni mogu vidjeti; uređuje samo voditelj."""
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from ..config import settings
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
 from ..models import (
+    DnevnikPrikapcanja,
     Korisnik,
     Nalog,
     Parking,
@@ -22,9 +23,12 @@ from ..models import (
     StatusVozila,
     Uloga,
     Vozilo,
+    VrstaDogadaja,
     ZamjenaDijela,
 )
 from ..schemas import (
+    DogadajCreate,
+    DogadajOut,
     ParkingCreate,
     ParkingOut,
     PovijestRadaOut,
@@ -110,6 +114,55 @@ def _nalog_po_gb(db: Session) -> dict:
             mapa.setdefault(str(gb), n)
             mapa.setdefault(str(gb).lstrip("0") or str(gb), n)
     return mapa
+
+
+@router.post("/prikapcanje", response_model=DogadajOut, status_code=201)
+def dodaj_dogadaj(
+    podaci: DogadajCreate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija)."""
+    gb = (podaci.prikolica_gb or "").strip()
+    if not gb:
+        raise HTTPException(status_code=400, detail="Garažni broj prikolice je obavezan")
+    try:
+        vrsta = VrstaDogadaja(podaci.vrsta)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Nepoznata vrsta događaja")
+    d = DnevnikPrikapcanja(
+        prikolica_gb=gb,
+        kamion_gb=(podaci.kamion_gb or "").strip() or None,
+        vozac=(podaci.vozac or "").strip() or None,
+        vrsta=vrsta,
+        lokacija=(podaci.lokacija or "").strip() or None,
+        napomena=(podaci.napomena or "").strip() or None,
+        kreirao_id=korisnik.id,
+    )
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.get("/prikapcanje", response_model=list[DogadajOut])
+def dnevnik(
+    gb: str | None = None, vrsta: str | None = None, dana: int = 90, limit: int = 500,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Dnevnik prikapčanja/otkapčanja (evidencija) — najnoviji prvi. Filtri gb/vrsta/dana."""
+    q = db.query(DnevnikPrikapcanja)
+    if gb:
+        g = gb.strip()
+        q = q.filter((DnevnikPrikapcanja.prikolica_gb == g) | (DnevnikPrikapcanja.kamion_gb == g))
+    if vrsta:
+        try:
+            q = q.filter(DnevnikPrikapcanja.vrsta == VrstaDogadaja(vrsta))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Nepoznata vrsta")
+    if dana and dana > 0:
+        granica = datetime.now(timezone.utc) - timedelta(days=dana)
+        q = q.filter(DnevnikPrikapcanja.vrijeme >= granica)
+    return q.order_by(DnevnikPrikapcanja.vrijeme.desc(), DnevnikPrikapcanja.id.desc()).limit(min(limit, 2000)).all()
 
 
 @router.get("/parkinzi", response_model=list[ParkingOut])
@@ -210,6 +263,12 @@ def registar_status(
             )
         if novi == StatusVozila.spremno and r.status != StatusVozila.spremno:
             r.spreman_od = date.today()
+            # Spremna (popravljena, na parkingu) = otkačena/slobodna → zabilježi u dnevnik.
+            db.add(DnevnikPrikapcanja(
+                prikolica_gb=r.gb, vrsta=VrstaDogadaja.otkaceno,
+                lokacija=lok_nova.strip() or None, kreirao_id=korisnik.id,
+                napomena="Spremno (radionica)",
+            ))
         r.status = novi
         r.rucno = True  # od sada ručno pobjeđuje nad Mobilisis prijedlogom
     if podaci.lokacija is not None:
