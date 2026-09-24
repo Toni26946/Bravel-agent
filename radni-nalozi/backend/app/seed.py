@@ -285,6 +285,36 @@ def osiguraj_kovacevica(db: Session) -> None:
     log.info("Dario Kovačević osiguran kao aktivan serviser.")
 
 
+def obavijesti_osvjezi(db: Session) -> None:
+    """Jednokratno: pošalji svim korisnicima push da osvježe aplikaciju (nova verzija).
+
+    Bump zastavice (.osvjezi_vN) kad treba ponovno poslati."""
+    zastavica = Path(settings.upload_dir).parent / ".osvjezi_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    try:
+        from .push import _posalji, push_omogucen
+        if push_omogucen():
+            poslano = 0
+            for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all():
+                if k.push_subscription:
+                    if _posalji(k.push_subscription, "Nova verzija aplikacije",
+                                "Osvježite aplikaciju: zatvorite je i ponovno otvorite (ili povucite prema dolje).",
+                                url="/"):
+                        poslano += 1
+            log.info("Poslana obavijest o osvježavanju: %d korisnika.", poslano)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Obavijest o osvježavanju nije poslana: %s", e)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def osiguraj_vozilo_483(db: Session) -> None:
     """Jednokratno: ručno dodaj vozilo GB 483 u matični popis (nije u Flota OS-u).
 

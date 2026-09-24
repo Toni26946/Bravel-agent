@@ -137,6 +137,29 @@ class Vozilo(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class VrstaDogadaja(str, enum.Enum):
+    prikaceno = "prikaceno"   # prikolica spojena na kamion
+    otkaceno = "otkaceno"     # prikolica otkačena / slobodna
+
+
+class DnevnikPrikapcanja(Base):
+    """Vlastiti dnevnik prikapčanja/otkapčanja priključnih vozila (evidencija).
+
+    Naša baza istine: koja je prikolica kad prikačena na koji kamion (i tko vozi)
+    ili otkačena. „Slobodna/nezadužena" = zadnji događaj je otkačeno."""
+    __tablename__ = "dnevnik_prikapcanja"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prikolica_gb: Mapped[str] = mapped_column(String(40), index=True)
+    kamion_gb: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    vozac: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    vrsta: Mapped[VrstaDogadaja] = mapped_column(Enum(VrstaDogadaja), index=True)
+    lokacija: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    vrijeme: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+
+
 class Parking(Base):
     """Fiksni popis parkinga (mjesta gdje šlepe stoje) — voditelj ga uređuje.
     Lokacija spremne šlepe bira se iz ovog popisa (da se ne upisuju imena/vozači)."""
