@@ -253,6 +253,9 @@ def _gotovi_kamioni(db: Session, pozicije: dict) -> list[dict]:
             "gb": gb, "reg": r.registracija, "tip": r.tip,
             "nalog_id": n.id, "broj": n.broj,
             "udaljenost_m": udalj, "ima_gps": bool(p),
+            "lat": (p.get("lat") if p else None),
+            "lon": (p.get("lon") if p else None),
+            "vrijeme": (p.get("vrijeme") if p else None),
         })
     return out
 

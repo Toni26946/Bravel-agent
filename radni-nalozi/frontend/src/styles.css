@@ -113,6 +113,9 @@ a { color: inherit; text-decoration: none; }
 .sp-nap { font-style: italic; }
 .sp-forma { min-width: 190px; }
 .sp-gps { flex: none; font-size: 12.5px; font-weight: 700; color: #0f7a45; white-space: nowrap; }
+.sp-gps-link { text-decoration: none; cursor: pointer; }
+.sp-gps-link:hover { text-decoration: underline; }
+.uredi-opis { width: 100%; box-sizing: border-box; margin: 10px 0; padding: 10px 12px; border: 1px solid var(--rub); border-radius: 10px; font-family: inherit; font-size: 14px; resize: vertical; }
 
 /* Dodavanje radnika (voditelj, na Tekućim radovima) */
 .sekcija-glava { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

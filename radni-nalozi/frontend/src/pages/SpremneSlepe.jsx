@@ -58,11 +58,24 @@ export default function SpremneSlepe() {
                     {[k.reg, k.tip].filter(Boolean).join(' · ') || '—'}{k.broj ? ` · ${k.broj}` : ''}
                   </div>
                 </div>
-                <span className="sp-gps">
-                  {k.udaljenost_m != null
-                    ? `📍 ${(k.udaljenost_m / 1000).toFixed(1)} km`
-                    : (k.ima_gps ? '📍 radiona' : t('spremne.nemaGps'))}
-                </span>
+                {k.lat != null && k.lon != null ? (
+                  <a
+                    className="sp-gps sp-gps-link"
+                    href={`https://www.google.com/maps?q=${k.lat},${k.lon}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('spremne.prikaziNaKarti')}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    📍 {k.udaljenost_m != null ? `${(k.udaljenost_m / 1000).toFixed(1)} km` : t('spremne.karta')}
+                  </a>
+                ) : (
+                  <span className="sp-gps">
+                    {k.udaljenost_m != null
+                      ? `📍 ${(k.udaljenost_m / 1000).toFixed(1)} km`
+                      : (k.ima_gps ? '📍 radiona' : t('spremne.nemaGps'))}
+                  </span>
+                )}
               </div>
             ))}
           </div>
