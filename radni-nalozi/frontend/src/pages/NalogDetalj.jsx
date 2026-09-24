@@ -255,13 +255,50 @@ function Operacije({ nalog, radnici, ucitaj, naGresku, jeVoditelj }) {
   )
 }
 
+// Tekst koji voditelj/poslovođa može urediti u mjestu (✏️ → input → ✓/✕).
+function TekstUredivi({ vrijednost, editable, prikazKlasa, onSpremi }) {
+  const [otvoren, setOtvoren] = useState(false)
+  const [val, setVal] = useState(vrijednost)
+  const spremi = () => {
+    const v = (val || '').trim()
+    if (v && v !== vrijednost) onSpremi(v)
+    setOtvoren(false)
+  }
+  if (otvoren) {
+    return (
+      <span className="tu-uredi">
+        <input
+          className="tu-input"
+          value={val}
+          autoFocus
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') spremi(); if (e.key === 'Escape') setOtvoren(false) }}
+        />
+        <span className="tu-ik ok" onClick={spremi}>✓</span>
+        <span className="tu-ik" onClick={() => { setVal(vrijednost); setOtvoren(false) }}>✕</span>
+      </span>
+    )
+  }
+  return (
+    <>
+      <span className={prikazKlasa}>{vrijednost}</span>
+      {editable && <span className="tu-ol" onClick={(e) => { e.preventDefault(); setVal(vrijednost); setOtvoren(true) }}>✏️</span>}
+    </>
+  )
+}
+
 function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVoditelj }) {
   const { t } = useT()
   const [dodaje, setDodaje] = useState(false)
   return (
     <div className="op2">
       <div className="op2-kat">
-        <span className="op2-ime">{op.kategorija}</span>
+        <TekstUredivi
+          vrijednost={op.kategorija}
+          editable={jeVoditelj}
+          prikazKlasa="op2-ime"
+          onSpremi={(v) => wrap(api.azurirajOperaciju(nalog.id, op.id, { kategorija: v }))}
+        />
         {jeVoditelj && <span className="op2-plus" onClick={() => setDodaje((v) => !v)}>＋</span>}
         {jeVoditelj && <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>}
       </div>

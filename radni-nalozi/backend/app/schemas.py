@@ -260,6 +260,10 @@ class OperacijaOut(ORM):
     zadaci: list[ZadatakOut] = []
 
 
+class OperacijaUpdate(BaseModel):
+    kategorija: str | None = None
+
+
 class ZadatakUnos(BaseModel):
     opis: str
     zaduzeni_id: int | None = None
