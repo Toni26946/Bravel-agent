@@ -4,29 +4,62 @@ import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
 
-// Dnevnik prikapčanja/otkapčanja priključnih vozila — vlastita stranica (evidencija/dokaz).
-// Filtri Sve/Prikačeno/Otkačeno + ispis. Zapisi nastaju kad se šlepa uzme ("Uzeta")
-// ili označi Spremno (otkačeno) na ekranu Spremne.
+// Evidencija prikapčanja — vlastita stranica.
+//  1) „Trenutno" — tko vozi koju prikolicu (zadnji događaj = prikačeno)
+//  2) Dnevnik svih događaja (prikačeno/otkačeno) s filterima i ispisom
 export default function EvidencijaPrikapcanja() {
   const { t } = useT()
+  const [trenutno, setTrenutno] = useState(null)
   const [rows, setRows] = useState(null)
   const [vrsta, setVrsta] = useState('')
 
-  const ucitaj = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
-  useEffect(() => { ucitaj('') }, [])
-  useAutoOsvjezi(() => api.dnevnikPrikapcanja({ vrsta, dana: 180 }).then(setRows).catch(() => {}), 60000)
+  const ucitajTrenutno = () => api.prikapcanjeTrenutno().then(setTrenutno).catch(() => setTrenutno([]))
+  const ucitajDnevnik = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
+  useEffect(() => { ucitajTrenutno(); ucitajDnevnik('') }, [])
+  useAutoOsvjezi(() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }, 60000)
 
   const oznaka = (x) => (x.vrsta === 'prikaceno' ? `🔗 ${t('spremne.prikaceno')}` : `⛓️‍💥 ${t('spremne.otkaceno')}`)
   const kada = (iso) => { try { return new Date(iso).toLocaleString('hr-HR') } catch (_) { return iso } }
+  const datumKratko = (iso) => { try { return new Date(iso).toLocaleDateString('hr-HR') } catch (_) { return iso } }
 
   return (
     <Layout naslov={t('tab.prikapcanje')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('prikapcanje.opis')}</p>
+
+      {/* Trenutno — tko vozi koju prikolicu */}
+      <div className="sekcija-naslov" style={{ marginTop: 0 }}>
+        🚚 {t('prikapcanje.trenutno')} {trenutno ? `(${trenutno.length})` : ''}
+      </div>
+      <div className="karta">
+        {trenutno === null ? <Spinner /> : trenutno.length === 0 ? (
+          <p className="meta" style={{ margin: 0 }}>{t('prikapcanje.nemaTrenutno')}</p>
+        ) : (
+          <table className="di-tab">
+            <thead>
+              <tr><th>{t('spremne.prikolica')}</th><th>{t('spremne.vozac')}</th>
+                <th>{t('spremne.kamion')}</th><th>{t('spremne.od')}</th></tr>
+            </thead>
+            <tbody>
+              {trenutno.map((x) => (
+                <tr key={x.prikolica_gb}>
+                  <td><strong>🛻 {x.prikolica_gb}</strong>{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
+                  <td>{x.vozac || '—'}</td>
+                  <td>{x.kamion_gb || '—'}</td>
+                  <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Dnevnik svih događaja */}
+      <div className="sekcija-naslov">📋 {t('prikapcanje.dnevnik')}</div>
       <div className="karta">
         <div className="vz-filteri no-print">
           {['', 'prikaceno', 'otkaceno'].map((v) => (
             <button key={v || 'sve'} className={'vz-fil' + (vrsta === v ? ' akt' : '')}
-              onClick={() => { setVrsta(v); ucitaj(v) }}>
+              onClick={() => { setVrsta(v); ucitajDnevnik(v) }}>
               {v === '' ? t('vozila.sve') : v === 'prikaceno' ? t('spremne.prikaceno') : t('spremne.otkaceno')}
             </button>
           ))}

@@ -114,6 +114,7 @@ export const api = {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
     return zahtjev('/vozila/prikapcanje' + (q ? `?${q}` : ''))
   },
+  prikapcanjeTrenutno: () => zahtjev('/vozila/prikapcanje/trenutno'),
   parkinzi: () => zahtjev('/vozila/parkinzi'),
   dodajParking: (naziv) => zahtjev('/vozila/parkinzi', { method: 'POST', body: { naziv } }),
   obrisiParking: (id) => zahtjev(`/vozila/parkinzi/${id}`, { method: 'DELETE' }),

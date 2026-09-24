@@ -165,6 +165,43 @@ def dnevnik(
     return q.order_by(DnevnikPrikapcanja.vrijeme.desc(), DnevnikPrikapcanja.id.desc()).limit(min(limit, 2000)).all()
 
 
+@router.get("/prikapcanje/trenutno")
+def prikapcanje_trenutno(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Trenutno stanje — tko vozi koju prikolicu.
+
+    Za svaku prikolicu gleda ZADNJI događaj; vraća samo one čiji je zadnji
+    događaj `prikaceno` (dakle još prikačene). Obogaćeno reg/tip iz matičnog popisa."""
+    svi = (
+        db.query(DnevnikPrikapcanja)
+        .order_by(
+            DnevnikPrikapcanja.prikolica_gb,
+            DnevnikPrikapcanja.vrijeme.desc(),
+            DnevnikPrikapcanja.id.desc(),
+        )
+        .all()
+    )
+    zadnji: dict = {}
+    for d in svi:
+        zadnji.setdefault(d.prikolica_gb, d)  # prvi viđeni = najnoviji (zbog poretka)
+    aktivni = [d for d in zadnji.values() if d.vrsta == VrstaDogadaja.prikaceno]
+    regmap = {r.gb: r for r in db.query(RegistarVozila).all()}
+    out = []
+    for d in aktivni:
+        r = regmap.get(d.prikolica_gb)
+        out.append({
+            "prikolica_gb": d.prikolica_gb,
+            "reg": r.registracija if r else None,
+            "tip": r.tip if r else None,
+            "kamion_gb": d.kamion_gb,
+            "vozac": d.vozac,
+            "vrijeme": d.vrijeme,
+        })
+    out.sort(key=lambda x: (len(x["prikolica_gb"]), x["prikolica_gb"]))
+    return out
+
+
 @router.get("/parkinzi", response_model=list[ParkingOut])
 def parkinzi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
     """Fiksni popis parkinga (aktivni) — za odabir lokacije spremne šlepe."""
