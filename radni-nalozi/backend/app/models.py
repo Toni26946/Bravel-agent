@@ -137,6 +137,17 @@ class Vozilo(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class Parking(Base):
+    """Fiksni popis parkinga (mjesta gdje šlepe stoje) — voditelj ga uređuje.
+    Lokacija spremne šlepe bira se iz ovog popisa (da se ne upisuju imena/vozači)."""
+    __tablename__ = "parkinzi"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    naziv: Mapped[str] = mapped_column(String(120), unique=True)
+    aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class RegistarVozila(Base):
     """Matični popis SVIH vozila iz flote s ručno postavljenim statusom.
 

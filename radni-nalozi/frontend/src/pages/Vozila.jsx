@@ -24,9 +24,10 @@ export default function Vozila() {
   const [pretraga, setPretraga] = useState('')
   const [kat, setKat] = useState('')
   const [stat, setStat] = useState('')
+  const [parkinzi, setParkinzi] = useState([])
 
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj() }, [])
+  useEffect(() => { ucitaj(); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
 
   const promijeniLokalno = (gb, izmjena) =>
     setD((prev) => (prev ? prev.map((v) => (v.gb === gb ? { ...v, ...izmjena } : v)) : prev))
@@ -40,10 +41,6 @@ export default function Vozila() {
     for (const v of d || []) b[v.status] = (b[v.status] || 0) + 1
     return b
   }, [d])
-  const lokacije = useMemo(
-    () => [...new Set((d || []).map((v) => (v.lokacija || '').trim()).filter(Boolean))].sort(),
-    [d],
-  )
 
   const filtrirana = useMemo(() => {
     const p = pretraga.trim().toLowerCase()
@@ -108,14 +105,14 @@ export default function Vozila() {
               {v.rucno && <span className="vz-rucno"> · {t('vozila.rucno')}</span>}
             </div>
           </div>
-          <StatusChip v={v} lokacije={lokacije} onPromjena={(izmjena) => promijeniLokalno(v.gb, izmjena)} />
+          <StatusChip v={v} parkinzi={parkinzi} onPromjena={(izmjena) => promijeniLokalno(v.gb, izmjena)} />
         </div>
       ))}
     </Layout>
   )
 }
 
-function StatusChip({ v, lokacije = [], onPromjena }) {
+function StatusChip({ v, parkinzi = [], onPromjena }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [radi, setRadi] = useState(false)
@@ -172,21 +169,18 @@ function StatusChip({ v, lokacije = [], onPromjena }) {
           ) : (
             <div className="cm-form">
               <div className="cm-naslov">🟢 {t('spremne.gdjeParkirana')}</div>
-              <input
-                list="lokacije-lista"
-                className="pretraga-input"
-                style={{ marginBottom: 6 }}
-                placeholder={t('spremne.lokPlaceholder')}
-                value={lok}
-                onChange={(e) => setLok(e.target.value)}
-                autoFocus
-              />
-              <datalist id="lokacije-lista">
-                {lokacije.map((l) => <option key={l} value={l} />)}
-              </datalist>
+              {parkinzi.length === 0 ? (
+                <div className="meta" style={{ marginBottom: 6 }}>{t('spremne.trebaParking')}</div>
+              ) : (
+                <select className="pretraga-input" style={{ marginBottom: 6 }} value={lok}
+                  onChange={(e) => setLok(e.target.value)} autoFocus>
+                  <option value="">{t('spremne.odaberiParking')}</option>
+                  {parkinzi.map((p) => <option key={p.id} value={p.naziv}>{p.naziv}</option>)}
+                </select>
+              )}
               {greskaLok && <div className="greska" style={{ margin: '2px 0' }}>{greskaLok}</div>}
               <div className="btn-red" style={{ marginTop: 4 }}>
-                <button className="btn mali" disabled={radi} onClick={spremiSpremno}>{radi ? '…' : t('common.spremi')}</button>
+                <button className="btn mali" disabled={radi || parkinzi.length === 0} onClick={spremiSpremno}>{radi ? '…' : t('common.spremi')}</button>
                 <button className="btn sekund mali" disabled={radi} onClick={() => setTrazimLok(false)}>{t('common.odustani')}</button>
               </div>
             </div>
