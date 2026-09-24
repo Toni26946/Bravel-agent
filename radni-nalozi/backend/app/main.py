@@ -28,6 +28,7 @@ from .seed import (
     osiguraj_poslovodju,
     osiguraj_dodatne_korisnike,
     osiguraj_vozilo_483,
+    obavijesti_osvjezi,
     preimenuj_naslove_naloga,
     seed,
     seed_radnici,
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
         osiguraj_poslovodju(db)
         osiguraj_kovacevica(db)
         osiguraj_vozilo_483(db)
+        obavijesti_osvjezi(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
     if flota.konfigurirano():
