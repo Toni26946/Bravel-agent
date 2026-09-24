@@ -38,6 +38,8 @@ export default function NalogDetalj() {
   const [n, setN] = useState(null)
   const [greska, setGreska] = useState('')
   const [radnici, setRadnici] = useState([])
+  const [uredi, setUredi] = useState(false)
+  const [forma, setForma] = useState({ naslov: '', opis: '' })
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -57,6 +59,14 @@ export default function NalogDetalj() {
     try { await api.nalogStatus(id, status); ucitaj() } catch (e) { setGreska(e.message) }
   }
 
+  const jeUrednik = korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'
+  const zapocniUredi = () => { setForma({ naslov: n.naslov || '', opis: n.opis || '' }); setUredi(true) }
+  const spremiUredi = async () => {
+    setGreska('')
+    try { await api.azurirajNalog(id, { naslov: forma.naslov, opis: forma.opis }); setUredi(false); ucitaj() }
+    catch (e) { setGreska(e.message) }
+  }
+
   return (
     <Layout naslov={n.broj} nazad={true}>
       {spojeno && (
@@ -64,7 +74,10 @@ export default function NalogDetalj() {
       )}
       <div className="karta">
         <div className="naslov-red">
-          <h3>{n.naslov}</h3>
+          {uredi
+            ? <input className="pretraga-input" style={{ marginRight: 8 }} value={forma.naslov}
+                onChange={(e) => setForma({ ...forma, naslov: e.target.value })} placeholder={t('nalog.naslovPh')} />
+            : <h3>{n.naslov}</h3>}
           <Bedz vrsta={n.status} tekst={t('status.' + n.status)} />
         </div>
         <p className="meta">
@@ -78,13 +91,26 @@ export default function NalogDetalj() {
         {n.voditelj && <p className="meta">🧑‍🔧 {t('nalog.voditelj')}: <strong>{n.voditelj.ime}</strong></p>}
         {n.vozac && <p className="meta">🚛 {t('nalog.vozac')}: <strong>{n.vozac.ime}</strong></p>}
         {n.rok && <p className="meta">📅 {t('nalog.rok')}: <strong>{datum(n.rok)}</strong></p>}
-        {n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>}
+        {uredi
+          ? <textarea className="uredi-opis" value={forma.opis} rows={4}
+              onChange={(e) => setForma({ ...forma, opis: e.target.value })} placeholder={t('nalog.opisPh')} />
+          : (n.opis && <p style={{ margin: '12px 0', whiteSpace: 'pre-wrap' }}>{n.opis}</p>)}
         <p className="meta">{t('nalog.kreirao')}: <strong>{n.kreirao?.ime}</strong> · {datumVrijeme(n.kreiran)}</p>
         <div className="btn-red no-print" style={{ marginTop: 10 }}>
-          {n.vozilo?.id && (
-            <button className="btn sekund mali" onClick={() => nav(`/vozila/${n.vozilo.id}`)}>📖 {t('nalog.povijestVozila')}</button>
+          {uredi ? (
+            <>
+              <button className="btn mali" onClick={spremiUredi}>{t('common.spremi')}</button>
+              <button className="btn sekund mali" onClick={() => setUredi(false)}>{t('common.odustani')}</button>
+            </>
+          ) : (
+            <>
+              {jeUrednik && <button className="btn sekund mali" onClick={zapocniUredi}>✏️ {t('nalog.uredi')}</button>}
+              {n.vozilo?.id && (
+                <button className="btn sekund mali" onClick={() => nav(`/vozila/${n.vozilo.id}`)}>📖 {t('nalog.povijestVozila')}</button>
+              )}
+              <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('nalog.ispisi')}</button>
+            </>
           )}
-          <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('nalog.ispisi')}</button>
         </div>
       </div>
 
