@@ -49,6 +49,7 @@ from ..schemas import (
     NalogUpdate,
     OperacijaCreate,
     OperacijaOut,
+    OperacijaUpdate,
     RadniSatCreate,
     RadniSatOut,
     ZadatakDodaj,
@@ -884,6 +885,26 @@ def dodaj_operaciju(
         if zad_id is not None and zid is None:
             zid = zad_id
     _spoji_u_zadatak(db, op, opisi, zid)  # unutar operacije samo jedan (spojeni) opis
+    db.commit()
+    db.refresh(op)
+    return op
+
+
+@router.patch("/{nalog_id}/operacije/{op_id}", response_model=OperacijaOut)
+def azuriraj_operaciju(
+    nalog_id: int, op_id: int, podaci: OperacijaUpdate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Preimenuj operaciju (kategoriju). Voditelj/poslovođa."""
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    op = db.get(Operacija, op_id)
+    if not op or op.nalog_id != nalog_id:
+        raise HTTPException(status_code=404, detail="Operacija ne postoji")
+    if podaci.kategorija is not None:
+        naziv = podaci.kategorija.strip()
+        if not naziv:
+            raise HTTPException(status_code=400, detail="Naziv operacije ne može biti prazan")
+        op.kategorija = naziv
     db.commit()
     db.refresh(op)
     return op

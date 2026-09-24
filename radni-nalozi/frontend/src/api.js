@@ -130,6 +130,7 @@ export const api = {
   dodajOperaciju: (id, kategorija, zadaci = []) =>
     zahtjev(`/nalozi/${id}/operacije`, { method: 'POST', body: { kategorija, zadaci } }),
   obrisiOperaciju: (id, opId) => zahtjev(`/nalozi/${id}/operacije/${opId}`, { method: 'DELETE' }),
+  azurirajOperaciju: (id, opId, izmjene) => zahtjev(`/nalozi/${id}/operacije/${opId}`, { method: 'PATCH', body: izmjene }),
   dodajZadatak: (id, opId, opis) =>
     zahtjev(`/nalozi/${id}/operacije/${opId}/zadaci`, { method: 'POST', body: { opis } }),
   azurirajZadatak: (id, zadatakId, izmjene) =>
