@@ -110,7 +110,69 @@ export default function SpremneSlepe() {
           ))}
         </div>
       ))}
+
+      <Evidencija />
     </Layout>
+  )
+}
+
+// Dnevnik prikapčanja/otkapčanja — popis + ispis (evidencija/dokaz).
+function Evidencija() {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [rows, setRows] = useState(null)
+  const [vrsta, setVrsta] = useState('')
+
+  const ucitaj = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
+  useEffect(() => { if (otvoren && rows === null) ucitaj() }, [otvoren])
+
+  const oznaka = (x) => (x.vrsta === 'prikaceno' ? `🔗 ${t('spremne.prikaceno')}` : `⛓️‍💥 ${t('spremne.otkaceno')}`)
+  const kada = (iso) => { try { return new Date(iso).toLocaleString('hr-HR') } catch (_) { return iso } }
+
+  return (
+    <div className="karta" style={{ marginTop: 14 }}>
+      <div className="fs-glava" onClick={() => setOtvoren((o) => !o)}>
+        <strong>📋 {t('spremne.evidencija')}</strong><span className="meta">{otvoren ? '▲' : '▼'}</span>
+      </div>
+      {otvoren && (
+        <div style={{ marginTop: 8 }}>
+          <div className="vz-filteri no-print">
+            {['', 'prikaceno', 'otkaceno'].map((v) => (
+              <button key={v || 'sve'} className={'vz-fil' + (vrsta === v ? ' akt' : '')}
+                onClick={() => { setVrsta(v); ucitaj(v) }}>
+                {v === '' ? t('vozila.sve') : v === 'prikaceno' ? t('spremne.prikaceno') : t('spremne.otkaceno')}
+              </button>
+            ))}
+            <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('spremne.ispisi')}</button>
+          </div>
+          {rows === null ? <Spinner /> : rows.length === 0 ? (
+            <p className="meta">{t('spremne.nemaEvidencije')}</p>
+          ) : (
+            <div className="dnevnik-ispis">
+              <h3 className="di-naslov">{t('spremne.evidencija')}</h3>
+              <table className="di-tab">
+                <thead>
+                  <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.prikolica')}</th>
+                    <th>{t('spremne.kamion')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
+                </thead>
+                <tbody>
+                  {rows.map((x) => (
+                    <tr key={x.id}>
+                      <td>{kada(x.vrijeme)}</td>
+                      <td>{oznaka(x)}</td>
+                      <td>{x.prikolica_gb}</td>
+                      <td>{x.kamion_gb || '—'}</td>
+                      <td>{x.vozac || '—'}</td>
+                      <td>{x.lokacija || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -216,14 +278,41 @@ function UpisRed({ s, parkinzi, nav, onGotovo }) {
   )
 }
 
-// „Uzeta" — kamion je odvezao šlepu → vraća se u pogon (Aktivno), skida s ploče.
+// „Uzeta" — kamion je odvezao šlepu: zabilježi PRIKAČENO (kamion/vozač, po potrebi)
+// i vrati šlepu u pogon (Aktivno), skini s ploče.
 function Uzeta({ gb, onGotovo }) {
   const { t } = useT()
+  const [forma, setForma] = useState(false)
+  const [kamion, setKamion] = useState('')
+  const [vozac, setVozac] = useState('')
   const [radi, setRadi] = useState(false)
-  const uzmi = async () => {
+
+  const potvrdi = async () => {
     setRadi(true)
-    try { await api.postaviStatusVozila(gb, { status: 'aktivno' }); onGotovo() }
-    catch (_) { /* tiho */ } finally { setRadi(false) }
+    try {
+      await api.zabiljeziPrikapcanje({
+        prikolica_gb: gb, vrsta: 'prikaceno',
+        kamion_gb: kamion.trim() || null, vozac: vozac.trim() || null,
+      })
+      await api.postaviStatusVozila(gb, { status: 'aktivno' })
+      onGotovo()
+    } catch (_) { /* tiho */ } finally { setRadi(false) }
   }
-  return <button className="btn sekund mali" disabled={radi} onClick={uzmi}>{radi ? '…' : t('spremne.uzeta')}</button>
+
+  if (!forma) {
+    return <button className="btn sekund mali" disabled={radi} onClick={() => setForma(true)}>{t('spremne.uzeta')}</button>
+  }
+  return (
+    <div className="sp-forma">
+      <div className="cm-naslov">{t('spremne.uzetaNaslov')}</div>
+      <input className="pretraga-input" style={{ marginBottom: 5 }} placeholder={t('spremne.kamionGb')}
+        value={kamion} onChange={(e) => setKamion(e.target.value)} />
+      <input className="pretraga-input" placeholder={t('spremne.vozacOpc')}
+        value={vozac} onChange={(e) => setVozac(e.target.value)} />
+      <div className="btn-red" style={{ marginTop: 5 }}>
+        <button className="btn mali" disabled={radi} onClick={potvrdi}>{radi ? '…' : t('spremne.uzeta')}</button>
+        <button className="btn sekund mali" disabled={radi} onClick={() => setForma(false)}>{t('common.odustani')}</button>
+      </div>
+    </div>
+  )
 }
