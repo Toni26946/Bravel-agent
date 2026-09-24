@@ -1,0 +1,89 @@
+name: Prezentacija (screenshotovi žive aplikacije)
+
+# Ručno pokretanje: na GitHub runneru (otvoreni internet) headless Chrome otvori
+# ŽIVU aplikaciju, prijavi se i snimi screenshotove ključnih ekrana. Slike se
+# gurnu na granu `app-prezentacija` (mapa out/) odakle ih Claude dohvati i vidi.
+# Koristi repo secret APP_USER/APP_PASS ako postoje, inače seed voditelj račun.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "URL aplikacije"
+        required: false
+        default: "https://bravel-radni-nalozi.fly.dev"
+
+permissions:
+  contents: write
+
+jobs:
+  snimi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instaliraj Playwright (chromium)
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.47.2 >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+
+      - name: Snimi ekrane
+        env:
+          APP_URL: ${{ github.event.inputs.app_url }}
+          APP_USER: ${{ secrets.APP_USER || 'mario.azinovic' }}
+          APP_PASS: ${{ secrets.APP_PASS || 'Mario7391' }}
+        run: |
+          mkdir -p shots
+          cat > snap.mjs <<'JS'
+          import { chromium } from 'playwright'
+          const BASE = (process.env.APP_URL || '').replace(/\/$/, '')
+          const body = new URLSearchParams({ username: process.env.APP_USER, password: process.env.APP_PASS })
+          const r = await fetch(BASE + '/api/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+          })
+          const j = await r.json().catch(() => ({}))
+          const token = j.access_token
+          if (!token) { console.error('LOGIN FAIL', r.status, JSON.stringify(j).slice(0,300)); process.exit(1) }
+          console.log('Login OK, korisnik:', j.korisnik && j.korisnik.korisnicko_ime)
+          const b = await chromium.launch()
+          async function snap(path, file, { w = 1280, h = 900, open = true } = {}) {
+            const ctx = await b.newContext({ viewport: { width: w, height: h } })
+            const pg = await ctx.newPage()
+            await pg.addInitScript(([t, o]) => {
+              try { localStorage.setItem('token', t) } catch (e) {}
+              try { localStorage.setItem('nav_otvoren', o) } catch (e) {}
+            }, [token, open ? '1' : '0'])
+            try {
+              await pg.goto(BASE + path, { waitUntil: 'networkidle', timeout: 45000 })
+            } catch (e) { console.error('nav', path, e.message) }
+            await pg.waitForTimeout(1800)
+            await pg.screenshot({ path: 'shots/' + file, fullPage: true })
+            console.log('snimljeno', file)
+            await ctx.close()
+          }
+          await snap('/spremne', '01-spremne.png', { open: true })
+          await snap('/vozila', '02-vozila.png', { open: true })
+          await snap('/izbornik', '03-tekuci-radovi.png', { open: false })
+          await snap('/nezaduzena', '04-nezaduzena.png', { open: false })
+          await snap('/spremne', '05-spremne-mobitel.png', { w: 390, h: 800, open: false })
+          await b.close()
+          JS
+          node snap.mjs
+
+      - name: Gurni slike na granu app-prezentacija
+        if: always()
+        run: |
+          if [ -z "$(ls -A shots 2>/dev/null)" ]; then echo "nema slika"; exit 0; fi
+          mkdir -p out && cp shots/*.png out/ 2>/dev/null || true
+          git config user.name "bravel-ci"
+          git config user.email "ci@bravel.local"
+          git checkout --orphan app-prezentacija
+          git reset
+          git add -f out/*.png
+          git commit -m "Screenshotovi žive aplikacije ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          git push -f origin app-prezentacija
