@@ -36,15 +36,15 @@ export default function EvidencijaPrikapcanja() {
         ) : (
           <table className="di-tab">
             <thead>
-              <tr><th>{t('spremne.prikolica')}</th><th>{t('spremne.vozac')}</th>
-                <th>{t('spremne.kamion')}</th><th>{t('spremne.od')}</th></tr>
+              <tr><th>{t('spremne.kamion')}</th><th>{t('spremne.prikolica')}</th>
+                <th>{t('spremne.vozac')}</th><th>{t('spremne.od')}</th></tr>
             </thead>
             <tbody>
               {trenutno.map((x) => (
                 <tr key={x.prikolica_gb}>
-                  <td><strong>🛻 {x.prikolica_gb}</strong>{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
+                  <td><strong>🚚 {x.kamion_gb || '—'}</strong></td>
+                  <td>🛻 {x.prikolica_gb}{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
                   <td>{x.vozac || '—'}</td>
-                  <td>{x.kamion_gb || '—'}</td>
                   <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
                 </tr>
               ))}
@@ -72,16 +72,16 @@ export default function EvidencijaPrikapcanja() {
             <h3 className="di-naslov">{t('spremne.evidencija')}</h3>
             <table className="di-tab">
               <thead>
-                <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.prikolica')}</th>
-                  <th>{t('spremne.kamion')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
+                <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.kamion')}</th>
+                  <th>{t('spremne.prikolica')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
               </thead>
               <tbody>
                 {rows.map((x) => (
                   <tr key={x.id}>
                     <td>{kada(x.vrijeme)}</td>
                     <td>{oznaka(x)}</td>
-                    <td>{x.prikolica_gb}</td>
                     <td>{x.kamion_gb || '—'}</td>
+                    <td>{x.prikolica_gb}</td>
                     <td>{x.vozac || '—'}</td>
                     <td>{x.lokacija || '—'}</td>
                   </tr>
