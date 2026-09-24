@@ -152,6 +152,15 @@ class RegistarVozilaOut(ORM):
     broj: str | None = None
 
 
+class ParkingOut(ORM):
+    id: int
+    naziv: str
+
+
+class ParkingCreate(BaseModel):
+    naziv: str
+
+
 class RegistarStatusUpdate(BaseModel):
     # status = None + rucno=False → vrati na Mobilisis prijedlog (poništi ručno).
     status: str | None = None

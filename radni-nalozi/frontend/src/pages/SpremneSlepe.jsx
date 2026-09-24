@@ -4,17 +4,21 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
+import { useAuth } from '../auth'
 
 // Ploča spremnih šlepa: što imamo i gdje. Gore „Za upisati" (tjeramo na upis),
 // dolje spremne grupirane po parkingu.
 export default function SpremneSlepe() {
   const { t } = useT()
   const nav = useNavigate()
+  const { korisnik } = useAuth()
   const [d, setD] = useState(null)
+  const [parkinzi, setParkinzi] = useState([])
   const [greska, setGreska] = useState('')
 
   const ucitaj = () => api.spremneSlepe().then(setD).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj() }, [])
+  const ucitajParkinge = () => api.parkinzi().then(setParkinzi).catch(() => {})
+  useEffect(() => { ucitaj(); ucitajParkinge() }, [])
   useAutoOsvjezi(() => api.spremneSlepe().then(setD).catch(() => {}), 60000)
 
   if (greska) return <Layout naslov={t('tab.spremne')}><div className="greska">{greska}</div></Layout>
@@ -22,12 +26,14 @@ export default function SpremneSlepe() {
 
   const zaUpisati = d.za_upisati || []
   const grupe = d.grupe || []
-  const lokacije = d.lokacije || []
   const kamioni = d.kamioni || []
+  const jeVoditelj = korisnik?.uloga === 'voditelj'
 
   return (
     <Layout naslov={t('tab.spremne')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('spremne.opis')}</p>
+
+      {jeVoditelj && <Parkinzi parkinzi={parkinzi} onPromjena={ucitajParkinge} />}
 
       {/* Za upisati — crveno, tjeramo radionicu na upis spremnosti + lokacije */}
       {zaUpisati.length > 0 && (
@@ -37,7 +43,7 @@ export default function SpremneSlepe() {
           </div>
           <p className="meta" style={{ marginTop: 0 }}>{t('spremne.zaUpisatiOpis')}</p>
           {zaUpisati.map((s) => (
-            <UpisRed key={s.gb} s={s} lokacije={lokacije} nav={nav} onGotovo={ucitaj} />
+            <UpisRed key={s.gb} s={s} parkinzi={parkinzi} nav={nav} onGotovo={ucitaj} />
           ))}
         </div>
       )}
@@ -108,8 +114,65 @@ export default function SpremneSlepe() {
   )
 }
 
-// Redak „za upisati": brzi upis Spremno (+ lokacija) ili Pokvareno.
-function UpisRed({ s, lokacije, nav, onGotovo }) {
+// Voditelj upravlja fiksnim popisom parkinga (da se lokacija bira, ne tipka).
+function Parkinzi({ parkinzi, onPromjena }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [novi, setNovi] = useState('')
+  const [radi, setRadi] = useState(false)
+
+  const dodaj = async () => {
+    if (!novi.trim()) return
+    setRadi(true)
+    try { await api.dodajParking(novi.trim()); setNovi(''); onPromjena() }
+    catch (_) { /* tiho */ } finally { setRadi(false) }
+  }
+  const makni = async (id) => { try { await api.obrisiParking(id); onPromjena() } catch (_) { /* tiho */ } }
+
+  return (
+    <div className="karta">
+      <div className="fs-glava" onClick={() => setOtvoren((o) => !o)}>
+        <strong>🅿️ {t('spremne.parkinzi')} ({parkinzi.length})</strong>
+        <span className="meta">{otvoren ? '▲' : '▼'}</span>
+      </div>
+      {otvoren && (
+        <div style={{ marginTop: 8 }}>
+          <div className="vz-filteri">
+            {parkinzi.map((p) => (
+              <span key={p.id} className="fil">
+                {p.naziv} <span className="x" style={{ marginLeft: 4 }} onClick={() => makni(p.id)}>×</span>
+              </span>
+            ))}
+            {parkinzi.length === 0 && <span className="meta">{t('spremne.nemaParkinga')}</span>}
+          </div>
+          <div className="btn-red" style={{ marginTop: 6 }}>
+            <input className="pretraga-input" style={{ maxWidth: 220 }} placeholder={t('spremne.noviParking')}
+              value={novi} onChange={(e) => setNovi(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') dodaj() }} />
+            <button className="btn mali" disabled={radi || !novi.trim()} onClick={dodaj}>➕ {t('spremne.dodajParking')}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Odabir parkinga iz fiksnog popisa (ili poruka da voditelj prvo doda parking).
+function ParkingSelect({ parkinzi, value, onChange }) {
+  const { t } = useT()
+  if (parkinzi.length === 0) {
+    return <div className="meta">{t('spremne.trebaParking')}</div>
+  }
+  return (
+    <select className="pretraga-input" value={value} onChange={(e) => onChange(e.target.value)} autoFocus>
+      <option value="">{t('spremne.odaberiParking')}</option>
+      {parkinzi.map((p) => <option key={p.id} value={p.naziv}>{p.naziv}</option>)}
+    </select>
+  )
+}
+
+// Redak „za upisati": brzi upis Spremno (+ parking) ili Pokvareno.
+function UpisRed({ s, parkinzi, nav, onGotovo }) {
   const { t } = useT()
   const [forma, setForma] = useState(false)
   const [lok, setLok] = useState('')
@@ -141,17 +204,7 @@ function UpisRed({ s, lokacije, nav, onGotovo }) {
         </div>
       ) : (
         <div className="sp-forma">
-          <input
-            list="upis-lokacije"
-            className="pretraga-input"
-            placeholder={t('spremne.lokPlaceholder')}
-            value={lok}
-            onChange={(e) => setLok(e.target.value)}
-            autoFocus
-          />
-          <datalist id="upis-lokacije">
-            {lokacije.map((l) => <option key={l} value={l} />)}
-          </datalist>
+          <ParkingSelect parkinzi={parkinzi} value={lok} onChange={setLok} />
           {greska && <div className="greska" style={{ margin: '2px 0' }}>{greska}</div>}
           <div className="btn-red" style={{ marginTop: 4 }}>
             <button className="btn mali" disabled={radi} onClick={spremno}>{radi ? '…' : t('common.spremi')}</button>

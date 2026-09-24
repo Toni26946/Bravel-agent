@@ -15,6 +15,7 @@ from ..database import get_db
 from ..models import (
     Korisnik,
     Nalog,
+    Parking,
     PovijestRada,
     RegistarVozila,
     StatusNaloga,
@@ -24,6 +25,8 @@ from ..models import (
     ZamjenaDijela,
 )
 from ..schemas import (
+    ParkingCreate,
+    ParkingOut,
     PovijestRadaOut,
     RegistarStatusUpdate,
     RegistarVozilaOut,
@@ -107,6 +110,36 @@ def _nalog_po_gb(db: Session) -> dict:
             mapa.setdefault(str(gb), n)
             mapa.setdefault(str(gb).lstrip("0") or str(gb), n)
     return mapa
+
+
+@router.get("/parkinzi", response_model=list[ParkingOut])
+def parkinzi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
+    """Fiksni popis parkinga (aktivni) — za odabir lokacije spremne šlepe."""
+    return db.query(Parking).filter(Parking.aktivan.is_(True)).order_by(Parking.naziv).all()
+
+
+@router.post("/parkinzi", response_model=ParkingOut, status_code=201)
+def dodaj_parking(podaci: ParkingCreate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
+    naziv = (podaci.naziv or "").strip()
+    if not naziv:
+        raise HTTPException(status_code=400, detail="Naziv parkinga je obavezan")
+    p = db.query(Parking).filter(Parking.naziv == naziv).first()
+    if p:
+        if not p.aktivan:
+            p.aktivan = True
+            db.commit(); db.refresh(p)
+        return p
+    p = Parking(naziv=naziv)
+    db.add(p); db.commit(); db.refresh(p)
+    return p
+
+
+@router.delete("/parkinzi/{parking_id}", status_code=204)
+def obrisi_parking(parking_id: int, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
+    p = db.get(Parking, parking_id)
+    if p:
+        p.aktivan = False  # deaktiviraj (ne briši — povijest lokacija ostaje smislena)
+        db.commit()
 
 
 @router.get("/registar", response_model=list[RegistarVozilaOut])
