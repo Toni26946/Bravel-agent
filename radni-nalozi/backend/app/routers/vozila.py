@@ -198,7 +198,13 @@ def prikapcanje_trenutno(
             "vozac": d.vozac,
             "vrijeme": d.vrijeme,
         })
-    out.sort(key=lambda x: (len(x["prikolica_gb"]), x["prikolica_gb"]))
+    def _num(g):
+        try:
+            return (0, int(g))
+        except (TypeError, ValueError):
+            return (1, 0)
+    # Poredaj po kamionu (koji vuče) pa po prikolici.
+    out.sort(key=lambda x: (_num(x["kamion_gb"]), _num(x["prikolica_gb"])))
     return out
 
 
