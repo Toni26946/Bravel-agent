@@ -313,6 +313,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .tr-red .tr-traj { position: absolute; top: 10px; right: 12px; background: #e2f5e6; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
   .tr-red .tr-akcija { margin-top: 8px; }
   .tr-red .tr-akcija .btn { width: 100%; }
+
+  /* Operacije i zadaci — na uskom ekranu okomito (zadatak gore, radnik dolje),
+     da tekst ne bude stisnut u dvije uske kolone. */
+  .op-head { display: none; }
+  .op2 { grid-template-columns: 1fr; }
+  .op2-kat-r { display: none; }
+  .op2-zad { font-size: 15px; }
+  .op2-rad { border-left: none; border-top: none; padding: 1px 10px 5px 34px; }
+  .op2-rad .rad-select, .op2-rad .rad-tekst { font-size: 13px; }
 }
 
 /* Vozila u radu (kartice) */
