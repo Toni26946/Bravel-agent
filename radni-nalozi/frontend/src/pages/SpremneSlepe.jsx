@@ -110,69 +110,7 @@ export default function SpremneSlepe() {
           ))}
         </div>
       ))}
-
-      <Evidencija />
     </Layout>
-  )
-}
-
-// Dnevnik prikapčanja/otkapčanja — popis + ispis (evidencija/dokaz).
-function Evidencija() {
-  const { t } = useT()
-  const [otvoren, setOtvoren] = useState(false)
-  const [rows, setRows] = useState(null)
-  const [vrsta, setVrsta] = useState('')
-
-  const ucitaj = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
-  useEffect(() => { if (otvoren && rows === null) ucitaj() }, [otvoren])
-
-  const oznaka = (x) => (x.vrsta === 'prikaceno' ? `🔗 ${t('spremne.prikaceno')}` : `⛓️‍💥 ${t('spremne.otkaceno')}`)
-  const kada = (iso) => { try { return new Date(iso).toLocaleString('hr-HR') } catch (_) { return iso } }
-
-  return (
-    <div className="karta" style={{ marginTop: 14 }}>
-      <div className="fs-glava" onClick={() => setOtvoren((o) => !o)}>
-        <strong>📋 {t('spremne.evidencija')}</strong><span className="meta">{otvoren ? '▲' : '▼'}</span>
-      </div>
-      {otvoren && (
-        <div style={{ marginTop: 8 }}>
-          <div className="vz-filteri no-print">
-            {['', 'prikaceno', 'otkaceno'].map((v) => (
-              <button key={v || 'sve'} className={'vz-fil' + (vrsta === v ? ' akt' : '')}
-                onClick={() => { setVrsta(v); ucitaj(v) }}>
-                {v === '' ? t('vozila.sve') : v === 'prikaceno' ? t('spremne.prikaceno') : t('spremne.otkaceno')}
-              </button>
-            ))}
-            <button className="btn sekund mali" onClick={() => window.print()}>🖨️ {t('spremne.ispisi')}</button>
-          </div>
-          {rows === null ? <Spinner /> : rows.length === 0 ? (
-            <p className="meta">{t('spremne.nemaEvidencije')}</p>
-          ) : (
-            <div className="dnevnik-ispis">
-              <h3 className="di-naslov">{t('spremne.evidencija')}</h3>
-              <table className="di-tab">
-                <thead>
-                  <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.prikolica')}</th>
-                    <th>{t('spremne.kamion')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
-                </thead>
-                <tbody>
-                  {rows.map((x) => (
-                    <tr key={x.id}>
-                      <td>{kada(x.vrijeme)}</td>
-                      <td>{oznaka(x)}</td>
-                      <td>{x.prikolica_gb}</td>
-                      <td>{x.kamion_gb || '—'}</td>
-                      <td>{x.vozac || '—'}</td>
-                      <td>{x.lokacija || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 
