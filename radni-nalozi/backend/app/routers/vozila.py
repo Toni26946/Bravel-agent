@@ -190,11 +190,13 @@ def prikapcanje_trenutno(
     out = []
     for d in aktivni:
         r = regmap.get(d.prikolica_gb)
+        rk = regmap.get(d.kamion_gb) if d.kamion_gb else None
         out.append({
             "prikolica_gb": d.prikolica_gb,
             "reg": r.registracija if r else None,
             "tip": r.tip if r else None,
             "kamion_gb": d.kamion_gb,
+            "kamion_reg": rk.registracija if rk else None,
             "vozac": d.vozac,
             "vrijeme": d.vrijeme,
         })
