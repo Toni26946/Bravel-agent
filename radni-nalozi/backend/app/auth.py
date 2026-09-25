@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,31 @@ from .config import jwt_secret, settings
 from .database import get_db
 from .models import Korisnik, Uloga
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# auto_error=False: zahtjev smije doći i bez Bearer tokena — tada se gleda
+# servisni ključ (M2M iz Flota OS-a). Ako nema ni jedno, sami vraćamo 401.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+
+# Račun pod kojim se bilježe promjene stigle iz Flota OS-a (M2M). Dnevnik tako
+# i dalje ima „tko je kreirao", a u napomeni stoji ime stvarne osobe.
+SERVIS_KORISNIK = "flota-os"
+
+
+def _servisni_korisnik(db: Session) -> Korisnik:
+    """Servisni račun za M2M pozive (kreira se pri prvom pozivu, bez upotrebljive lozinke)."""
+    k = db.query(Korisnik).filter(Korisnik.korisnicko_ime == SERVIS_KORISNIK).first()
+    if not k:
+        k = Korisnik(
+            ime="Flota OS",
+            korisnicko_ime=SERVIS_KORISNIK,
+            lozinka_hash="!",                 # nemoguć hash → prijava lozinkom nije moguća
+            uloga=Uloga.voditelj,
+            aktivan=True,
+            prijavljuje_se=False,
+        )
+        db.add(k)
+        db.commit()
+        db.refresh(k)
+    return k
 
 
 # --- lozinke -----------------------------------------------------------------
@@ -52,8 +76,21 @@ def _dekodiraj(token: str) -> dict:
 
 # --- ovisnosti ---------------------------------------------------------------
 def trenutni_korisnik(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    x_servis_kljuc: str | None = Header(default=None),
 ) -> Korisnik:
+    # M2M: Flota OS se javlja servisnim ključem (bez korisničkog tokena).
+    if not token and x_servis_kljuc:
+        if not settings.servis_kljuc or x_servis_kljuc != settings.servis_kljuc:
+            raise HTTPException(status_code=401, detail="Nevažeći servisni ključ")
+        return _servisni_korisnik(db)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nedostaje token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     podaci = _dekodiraj(token)
     korisnik = db.get(Korisnik, int(podaci.get("sub", 0)))
     if not korisnik or not korisnik.aktivan:

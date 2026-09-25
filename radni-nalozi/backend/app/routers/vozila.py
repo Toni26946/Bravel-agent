@@ -116,12 +116,38 @@ def _nalog_po_gb(db: Session) -> dict:
     return mapa
 
 
+def _prikolice_na_kamionu(db: Session, kamion_gb: str) -> list[str]:
+    """GB-ovi prikolica čiji je ZADNJI događaj 'prikaceno' na dani kamion.
+
+    Kamion normalno vuče jednu prikolicu; ovo služi da pri novom prikačivanju
+    automatski otkačimo prethodnu prikolicu tog kamiona."""
+    svi = (
+        db.query(DnevnikPrikapcanja)
+        .order_by(
+            DnevnikPrikapcanja.prikolica_gb,
+            DnevnikPrikapcanja.vrijeme.desc(),
+            DnevnikPrikapcanja.id.desc(),
+        )
+        .all()
+    )
+    zadnji: dict = {}
+    for e in svi:
+        zadnji.setdefault(e.prikolica_gb, e)
+    return [
+        p for p, e in zadnji.items()
+        if e.vrsta == VrstaDogadaja.prikaceno and (e.kamion_gb or "") == kamion_gb
+    ]
+
+
 @router.post("/prikapcanje", response_model=DogadajOut, status_code=201)
 def dodaj_dogadaj(
     podaci: DogadajCreate,
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
-    """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija)."""
+    """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija).
+
+    Kad se prikolica PRIKAČI na kamion, automatski se otkači prethodna prikolica
+    tog kamiona (kamion vuče samo jednu)."""
     gb = (podaci.prikolica_gb or "").strip()
     if not gb:
         raise HTTPException(status_code=400, detail="Garažni broj prikolice je obavezan")
@@ -129,9 +155,23 @@ def dodaj_dogadaj(
         vrsta = VrstaDogadaja(podaci.vrsta)
     except ValueError:
         raise HTTPException(status_code=400, detail="Nepoznata vrsta događaja")
+    kamion = (podaci.kamion_gb or "").strip() or None
+
+    # Auto-otkači prethodnu prikolicu tog kamiona (osim ako je to baš ova).
+    if vrsta == VrstaDogadaja.prikaceno and kamion:
+        for stara in _prikolice_na_kamionu(db, kamion):
+            if stara != gb:
+                db.add(DnevnikPrikapcanja(
+                    prikolica_gb=stara,
+                    kamion_gb=kamion,
+                    vrsta=VrstaDogadaja.otkaceno,
+                    kreirao_id=korisnik.id,
+                    napomena=f"Automatski otkačeno — kamion {kamion} preuzeo prikolicu {gb}",
+                ))
+
     d = DnevnikPrikapcanja(
         prikolica_gb=gb,
-        kamion_gb=(podaci.kamion_gb or "").strip() or None,
+        kamion_gb=kamion,
         vozac=(podaci.vozac or "").strip() or None,
         vrsta=vrsta,
         lokacija=(podaci.lokacija or "").strip() or None,
@@ -163,6 +203,51 @@ def dnevnik(
         granica = datetime.now(timezone.utc) - timedelta(days=dana)
         q = q.filter(DnevnikPrikapcanja.vrijeme >= granica)
     return q.order_by(DnevnikPrikapcanja.vrijeme.desc(), DnevnikPrikapcanja.id.desc()).limit(min(limit, 2000)).all()
+
+
+@router.get("/prikapcanje/trenutno")
+def prikapcanje_trenutno(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Trenutno stanje — tko vozi koju prikolicu.
+
+    Za svaku prikolicu gleda ZADNJI događaj; vraća samo one čiji je zadnji
+    događaj `prikaceno` (dakle još prikačene). Obogaćeno reg/tip iz matičnog popisa."""
+    svi = (
+        db.query(DnevnikPrikapcanja)
+        .order_by(
+            DnevnikPrikapcanja.prikolica_gb,
+            DnevnikPrikapcanja.vrijeme.desc(),
+            DnevnikPrikapcanja.id.desc(),
+        )
+        .all()
+    )
+    zadnji: dict = {}
+    for d in svi:
+        zadnji.setdefault(d.prikolica_gb, d)  # prvi viđeni = najnoviji (zbog poretka)
+    aktivni = [d for d in zadnji.values() if d.vrsta == VrstaDogadaja.prikaceno]
+    regmap = {r.gb: r for r in db.query(RegistarVozila).all()}
+    out = []
+    for d in aktivni:
+        r = regmap.get(d.prikolica_gb)
+        rk = regmap.get(d.kamion_gb) if d.kamion_gb else None
+        out.append({
+            "prikolica_gb": d.prikolica_gb,
+            "reg": r.registracija if r else None,
+            "tip": r.tip if r else None,
+            "kamion_gb": d.kamion_gb,
+            "kamion_reg": rk.registracija if rk else None,
+            "vozac": d.vozac,
+            "vrijeme": d.vrijeme,
+        })
+    def _num(g):
+        try:
+            return (0, int(g))
+        except (TypeError, ValueError):
+            return (1, 0)
+    # Poredaj po kamionu (koji vuče) pa po prikolici.
+    out.sort(key=lambda x: (_num(x["kamion_gb"]), _num(x["prikolica_gb"])))
+    return out
 
 
 @router.get("/parkinzi", response_model=list[ParkingOut])
