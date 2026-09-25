@@ -158,6 +158,7 @@ export const api = {
   zaduzenja: () => zahtjev('/zaduzenja'),
   zaduzenje: (id) => zahtjev(`/zaduzenja/${id}`),
   zaduzenjePredlozak: () => zahtjev('/zaduzenja/predlozak'),
+  zaduzenjeVozaci: () => zahtjev('/zaduzenja/vozaci'),
   kreirajZaduzenje: (b) => zahtjev('/zaduzenja', { method: 'POST', body: b }),
   azurirajZaduzenje: (id, b) => zahtjev(`/zaduzenja/${id}`, { method: 'PATCH', body: b }),
   obrisiZaduzenje: (id) => zahtjev(`/zaduzenja/${id}`, { method: 'DELETE' }),
