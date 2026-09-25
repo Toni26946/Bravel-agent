@@ -12,6 +12,10 @@ on:
         description: "URL aplikacije"
         required: false
         default: "https://bravel-radni-nalozi.fly.dev"
+      cilj:
+        description: "Što snimiti: 'zaduzenje' ili 'sve'"
+        required: false
+        default: "zaduzenje"
 
 permissions:
   contents: write
@@ -35,6 +39,7 @@ jobs:
       - name: Snimi ekrane
         env:
           APP_URL: ${{ github.event.inputs.app_url }}
+          CILJ: ${{ github.event.inputs.cilj }}
           APP_USER: ${{ secrets.APP_USER || 'mario.azinovic' }}
           APP_PASS: ${{ secrets.APP_PASS || 'Mario7391' }}
         run: |
@@ -42,6 +47,7 @@ jobs:
           cat > snap.mjs <<'JS'
           import { chromium } from 'playwright'
           const BASE = (process.env.APP_URL || '').replace(/\/$/, '')
+          const CILJ = process.env.CILJ || 'zaduzenje'
           const body = new URLSearchParams({ username: process.env.APP_USER, password: process.env.APP_PASS })
           const r = await fetch(BASE + '/api/auth/login', {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
@@ -50,6 +56,8 @@ jobs:
           const token = j.access_token
           if (!token) { console.error('LOGIN FAIL', r.status, JSON.stringify(j).slice(0,300)); process.exit(1) }
           console.log('Login OK, korisnik:', j.korisnik && j.korisnik.korisnicko_ime)
+          const H = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+
           const b = await chromium.launch()
           async function snap(path, file, { w = 1280, h = 900, open = true } = {}) {
             const ctx = await b.newContext({ viewport: { width: w, height: h } })
@@ -66,11 +74,53 @@ jobs:
             console.log('snimljeno', file)
             await ctx.close()
           }
-          await snap('/spremne', '01-spremne.png', { open: true })
-          await snap('/vozila', '02-vozila.png', { open: true })
-          await snap('/izbornik', '03-tekuci-radovi.png', { open: false })
-          await snap('/nezaduzena', '04-nezaduzena.png', { open: false })
-          await snap('/spremne', '05-spremne-mobitel.png', { w: 390, h: 800, open: false })
+
+          // ---- Zaduženje: napravi privremeni DEMO zapis, snimi, pa ga obriši ----
+          let demoId = null
+          if (CILJ === 'zaduzenje' || CILJ === 'sve') {
+            try {
+              const cr = await fetch(BASE + '/api/zaduzenja', {
+                method: 'POST', headers: H,
+                body: JSON.stringify({
+                  kamion_registracija: 'ZG 1234-AB (DEMO)',
+                  prikolica_registracija: 'ZG 9876-PR (DEMO)',
+                  odradio: 'Skladište', predao: 'Radionica', preuzeo: 'Demo Vozač',
+                }),
+              })
+              const z = await cr.json()
+              demoId = z.id
+              // Označi većinu stavki kao predano (+), par kao nedostaje (-) s napomenom.
+              const st = (z.stavke || []).map((s, i) => {
+                if (i === 5) return { ...s, stanje: 'ne', napomena: 'naručeno' }
+                if (i === 12) return { ...s, stanje: 'ne', napomena: 'kod vozača' }
+                return { ...s, stanje: 'da', kolicina: s.kom }
+              })
+              await fetch(BASE + '/api/zaduzenja/' + demoId, {
+                method: 'PATCH', headers: H, body: JSON.stringify({ stavke: st }),
+              })
+              console.log('DEMO zaduženje id', demoId)
+            } catch (e) { console.error('demo create', e.message) }
+
+            await snap('/zaduzenja', '01-zaduzenja-popis.png', { open: true })
+            if (demoId) await snap('/zaduzenja/' + demoId, '02-zaduzenje-obrazac.png', { open: true })
+            await snap('/zaduzenja/novo', '03-zaduzenje-novo.png', { open: true })
+            if (demoId) await snap('/zaduzenja/' + demoId, '04-zaduzenje-mobitel.png', { w: 390, h: 900, open: false })
+
+            // Obriši demo da produkcija ostane čista.
+            if (demoId) {
+              try {
+                const dr = await fetch(BASE + '/api/zaduzenja/' + demoId, { method: 'DELETE', headers: H })
+                console.log('DEMO obrisan', dr.status)
+              } catch (e) { console.error('demo delete', e.message) }
+            }
+          }
+
+          if (CILJ === 'sve') {
+            await snap('/spremne', '11-spremne.png', { open: true })
+            await snap('/vozila', '12-vozila.png', { open: true })
+            await snap('/izbornik', '13-tekuci-radovi.png', { open: false })
+          }
+
           await b.close()
           JS
           node snap.mjs
