@@ -610,3 +610,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .zad-glava input, .zad-potpisi input, .zad-obrazac textarea { border: none; border-bottom: 1px solid #000; border-radius: 0; padding: 2px 0; }
   .zad-glava label, .zad-potpisi label { color: #000; }
 }
+
+/* --- Šifrarnik vozača ------------------------------------------------------ */
+.ikonbtn { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 6px; }
+.ikonbtn:hover { background: #eef2f7; }
+.voz-neaktivan { opacity: .55; }
+.voz-neaktivan td { text-decoration: none; }

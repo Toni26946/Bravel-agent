@@ -616,6 +616,28 @@ class ZaduzenjeOut(ORM):
     azuriran: datetime
 
 
+# --- Vozači (šifrarnik) ------------------------------------------------------
+class VozacOut(ORM):
+    id: int
+    ime: str
+    sektor: str | None = None
+    telefon: str | None = None
+    aktivan: bool = True
+
+
+class VozacCreate(BaseModel):
+    ime: str
+    sektor: str | None = None
+    telefon: str | None = None
+
+
+class VozacUpdate(BaseModel):
+    ime: str | None = None
+    sektor: str | None = None
+    telefon: str | None = None
+    aktivan: bool | None = None
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict
