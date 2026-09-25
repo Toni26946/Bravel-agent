@@ -524,6 +524,77 @@ class PovijestRadaOut(ORM):
     minute: int | None = None
 
 
+# --- Zaduženje kamiona/prikolice (primopredajni obrazac) ---------------------
+class ZaduzenjeStavka(BaseModel):
+    br: int | str | None = None
+    grupa: str = "kamion"                 # 'kamion' | 'prikolica'
+    oprema: str
+    kom: int = 1                          # propisana količina iz obrasca
+    stanje: str = ""                      # '' (neprovjereno) | 'da' (+) | 'ne' (-)
+    kolicina: int | None = None           # stvarno predana količina (opcionalno)
+    napomena: str | None = None
+
+
+class ZaduzenjeStavkaGrupa(BaseModel):
+    kamion: list[ZaduzenjeStavka] = []
+    prikolica: list[ZaduzenjeStavka] = []
+
+
+class ZaduzenjeCreate(BaseModel):
+    kamion_registracija: str | None = None
+    kamion_gb: str | None = None
+    prikolica_registracija: str | None = None
+    prikolica_gb: str | None = None
+    datum: date | None = None
+    odradio: str | None = None
+    predao: str | None = None
+    preuzeo: str | None = None
+    napomena: str | None = None
+    status: str | None = None             # default 'u_tijeku'
+    stavke: list[ZaduzenjeStavka] | None = None  # ako se izostavi, uzima se predložak
+
+
+class ZaduzenjeUpdate(BaseModel):
+    kamion_registracija: str | None = None
+    kamion_gb: str | None = None
+    prikolica_registracija: str | None = None
+    prikolica_gb: str | None = None
+    datum: date | None = None
+    odradio: str | None = None
+    predao: str | None = None
+    preuzeo: str | None = None
+    napomena: str | None = None
+    status: str | None = None
+    stavke: list[ZaduzenjeStavka] | None = None
+
+
+class ZaduzenjeListItem(ORM):
+    id: int
+    kamion_registracija: str | None = None
+    prikolica_registracija: str | None = None
+    datum: date | None = None
+    preuzeo: str | None = None
+    status: str
+    kreiran: datetime
+
+
+class ZaduzenjeOut(ORM):
+    id: int
+    kamion_registracija: str | None = None
+    kamion_gb: str | None = None
+    prikolica_registracija: str | None = None
+    prikolica_gb: str | None = None
+    datum: date | None = None
+    odradio: str | None = None
+    predao: str | None = None
+    preuzeo: str | None = None
+    napomena: str | None = None
+    status: str
+    stavke: list[ZaduzenjeStavka] = []
+    kreiran: datetime
+    azuriran: datetime
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict

@@ -150,6 +150,14 @@ export const api = {
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/odjava`, { method: 'POST' }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
+  // Zaduženje kamiona i prikolice (primopredajni obrazac)
+  zaduzenja: () => zahtjev('/zaduzenja'),
+  zaduzenje: (id) => zahtjev(`/zaduzenja/${id}`),
+  zaduzenjePredlozak: () => zahtjev('/zaduzenja/predlozak'),
+  kreirajZaduzenje: (b) => zahtjev('/zaduzenja', { method: 'POST', body: b }),
+  azurirajZaduzenje: (id, b) => zahtjev(`/zaduzenja/${id}`, { method: 'PATCH', body: b }),
+  obrisiZaduzenje: (id) => zahtjev(`/zaduzenja/${id}`, { method: 'DELETE' }),
+
   // Šteta
   stete: () => zahtjev('/stete'),
   glasovniParseStete: (tekst, vozaci) =>

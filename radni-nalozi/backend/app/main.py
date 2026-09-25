@@ -15,7 +15,7 @@ from . import podsjetnici
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
-from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila
+from .routers import auth, dijelovi, korisnici, nalozi, prijave, push, stete, vozila, zaduzenja
 from .routers import flota as flota_router
 from .seed import (
     backfill_povijest_gotovih,
@@ -119,6 +119,7 @@ app.include_router(nalozi.router, prefix="/api")
 app.include_router(stete.router, prefix="/api")
 app.include_router(dijelovi.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
+app.include_router(zaduzenja.router, prefix="/api")
 app.include_router(flota_router.router, prefix="/api")
 
 
