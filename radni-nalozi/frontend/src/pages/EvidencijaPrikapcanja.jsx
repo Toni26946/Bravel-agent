@@ -27,6 +27,8 @@ export default function EvidencijaPrikapcanja() {
     <Layout naslov={t('tab.prikapcanje')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('prikapcanje.opis')}</p>
 
+      <NovaPromjena onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
+
       {/* Trenutno — tko vozi koju prikolicu */}
       {(() => {
         const upit = q.trim().toLowerCase()
@@ -125,5 +127,88 @@ export default function EvidencijaPrikapcanja() {
         })()}
       </div>
     </Layout>
+  )
+}
+
+// Ručni unos promjene prikapčanja: odaberi prikolicu + (novi) kamion → Prikači/Otkači.
+// Vozila se biraju iz padajućih popisa (matični popis), da se ne tipka GB.
+function NovaPromjena({ onGotovo }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [vozila, setVozila] = useState(null)
+  const [prikolicaGb, setPrikolicaGb] = useState('')
+  const [kamionGb, setKamionGb] = useState('')
+  const [vozac, setVozac] = useState('')
+  const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
+
+  useEffect(() => {
+    if (otvoren && vozila === null) api.vozilaRegistar().then(setVozila).catch(() => setVozila([]))
+  }, [otvoren, vozila])
+
+  const jePrikolica = (v) => /prikolic/i.test(v.kategorija || '') || /prikolic|šlep|slep/i.test(v.tip || '')
+  const jeKamion = (v) => /kamion/i.test(v.kategorija || '')
+  const sortGb = (a, b) => {
+    const na = parseInt(a.gb, 10), nb = parseInt(b.gb, 10)
+    if (!isNaN(na) && !isNaN(nb)) return na - nb
+    return (a.gb || '').localeCompare(b.gb || '')
+  }
+  const prikolice = (vozila || []).filter(jePrikolica).sort(sortGb)
+  const kamioni = (vozila || []).filter(jeKamion).sort(sortGb)
+
+  const posalji = async (vrsta) => {
+    if (!prikolicaGb) { setGreska(t('prikapcanje.trebaPrikolica')); return }
+    if (vrsta === 'prikaceno' && !kamionGb) { setGreska(t('prikapcanje.trebaKamion')); return }
+    setRadi(true); setGreska('')
+    try {
+      await api.zabiljeziPrikapcanje({
+        prikolica_gb: prikolicaGb,
+        vrsta,
+        kamion_gb: vrsta === 'prikaceno' ? kamionGb : null,
+        vozac: vozac.trim() || null,
+      })
+      setPrikolicaGb(''); setKamionGb(''); setVozac(''); setOtvoren(false)
+      onGotovo()
+    } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+  }
+
+  return (
+    <div className="karta" style={{ marginBottom: 12 }}>
+      <div className="fs-glava" onClick={() => setOtvoren((o) => !o)}>
+        <strong>➕ {t('prikapcanje.novaPromjena')}</strong>
+        <span className="meta">{otvoren ? '▲' : '▼'}</span>
+      </div>
+      {otvoren && (
+        <div style={{ marginTop: 10 }}>
+          {vozila === null ? <Spinner /> : (
+            <>
+              <label style={{ marginTop: 0 }}>{t('spremne.prikolica')}</label>
+              <select className="pretraga-input" value={prikolicaGb} onChange={(e) => setPrikolicaGb(e.target.value)}>
+                <option value="">{t('prikapcanje.odaberiPrikolicu')}</option>
+                {prikolice.map((v) => (
+                  <option key={v.gb} value={v.gb}>{v.gb}{v.registracija ? ` · ${v.registracija}` : ''}</option>
+                ))}
+              </select>
+              <label style={{ marginTop: 8 }}>{t('spremne.kamion')}</label>
+              <select className="pretraga-input" value={kamionGb} onChange={(e) => setKamionGb(e.target.value)}>
+                <option value="">{t('prikapcanje.odaberiKamion')}</option>
+                {kamioni.map((v) => (
+                  <option key={v.gb} value={v.gb}>{v.gb}{v.registracija ? ` · ${v.registracija}` : ''}</option>
+                ))}
+              </select>
+              <label style={{ marginTop: 8 }}>{t('spremne.vozac')}</label>
+              <input className="pretraga-input" placeholder={t('spremne.vozacOpc')}
+                value={vozac} onChange={(e) => setVozac(e.target.value)} />
+              {greska && <div className="greska" style={{ marginTop: 6 }}>{greska}</div>}
+              <div className="btn-red" style={{ marginTop: 10 }}>
+                <button className="btn" disabled={radi} onClick={() => posalji('prikaceno')}>🔗 {t('spremne.prikaceno')}</button>
+                <button className="btn sekund" disabled={radi} onClick={() => posalji('otkaceno')}>⛓️‍💥 {t('spremne.otkaceno')}</button>
+              </div>
+              <p className="meta" style={{ marginTop: 6 }}>{t('prikapcanje.napomenaUnos')}</p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
