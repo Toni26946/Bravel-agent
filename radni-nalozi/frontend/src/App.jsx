@@ -17,6 +17,8 @@ import EvidencijaPrikapcanja from './pages/EvidencijaPrikapcanja'
 import Parkiranje from './pages/Parkiranje'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
+import Zaduzenja from './pages/Zaduzenja'
+import ZaduzenjeDetalj from './pages/ZaduzenjeDetalj'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
@@ -61,6 +63,11 @@ export default function App() {
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><Nalozi /></Zasticeno>} />
       <Route path="/nalozi/novi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NoviNalog /></Zasticeno>} />
       <Route path="/nalozi/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><NalogDetalj /></Zasticeno>} />
+
+      {/* Zaduženje kamiona/prikolica: voditelj + poslovođa */}
+      <Route path="/zaduzenja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Zaduzenja /></Zasticeno>} />
+      <Route path="/zaduzenja/novo" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj novo /></Zasticeno>} />
+      <Route path="/zaduzenja/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj /></Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

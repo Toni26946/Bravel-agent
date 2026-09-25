@@ -452,6 +452,35 @@ zadatak_radnici = Table(
 # ---------------------------------------------------------------------------
 # Zadatak (stavka unutar operacije, s oznakom gotovo)
 # ---------------------------------------------------------------------------
+class Zaduzenje(Base):
+    """Zaduženje kamiona i prikolice — primopredajni obrazac s popisom opreme.
+
+    Kad se kamion (i prikolica) zadužuje vozaču, prolazi se kroz popis dokumenata
+    i opreme (iz obrasca „ZADUŽENJE KAMIONA"). Za svaku stavku bilježi se je li
+    predana (+/-), količina i napomena. Zaglavlje: registracije, datum i tko je
+    odradio/predao/preuzeo. Popis stavki čuva se kao JSON snimka obrasca."""
+    __tablename__ = "zaduzenja"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kamion_registracija: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    kamion_gb: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    prikolica_registracija: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    prikolica_gb: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    datum: Mapped[date] = mapped_column(Date, default=date.today, index=True)
+    odradio: Mapped[str | None] = mapped_column(String(120), nullable=True)   # tko je odradio provjeru
+    predao: Mapped[str | None] = mapped_column(String(120), nullable=True)    # tko je predao vozilo
+    preuzeo: Mapped[str | None] = mapped_column(String(120), nullable=True)   # tko je preuzeo (vozač)
+    napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="u_tijeku", index=True)  # u_tijeku | zavrseno
+    # Snimka obrasca: [{br, grupa, oprema, kom, stanje, kolicina, napomena}]
+    stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    kreirao: Mapped["Korisnik | None"] = relationship()
+
+
 class Zadatak(Base):
     __tablename__ = "zadaci"
 

@@ -38,6 +38,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
+    tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
@@ -51,6 +52,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
+    tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
   if (korisnik?.uloga === 'radnik') {
