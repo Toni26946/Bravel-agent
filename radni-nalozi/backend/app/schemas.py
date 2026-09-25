@@ -555,6 +555,7 @@ class ZaduzenjeCreate(BaseModel):
     kamion_gb: str | None = None
     prikolica_registracija: str | None = None
     prikolica_gb: str | None = None
+    vozac: str | None = None
     datum: date | None = None
     odradio: str | None = None
     predao: str | None = None
@@ -569,6 +570,7 @@ class ZaduzenjeUpdate(BaseModel):
     kamion_gb: str | None = None
     prikolica_registracija: str | None = None
     prikolica_gb: str | None = None
+    vozac: str | None = None
     datum: date | None = None
     odradio: str | None = None
     predao: str | None = None
@@ -582,6 +584,7 @@ class ZaduzenjeListItem(ORM):
     id: int
     kamion_registracija: str | None = None
     prikolica_registracija: str | None = None
+    vozac: str | None = None
     datum: date | None = None
     preuzeo: str | None = None
     status: str
@@ -594,6 +597,7 @@ class ZaduzenjeOut(ORM):
     kamion_gb: str | None = None
     prikolica_registracija: str | None = None
     prikolica_gb: str | None = None
+    vozac: str | None = None
     datum: date | None = None
     odradio: str | None = None
     predao: str | None = None

@@ -27,7 +27,7 @@ export default function ZaduzenjeDetalj({ novo = false }) {
         const sve = [...(p.kamion || []), ...(p.prikolica || [])]
         setStavke(sve)
         setZ({
-          kamion_registracija: '', prikolica_registracija: '',
+          kamion_registracija: '', prikolica_registracija: '', vozac: '',
           datum: new Date().toISOString().slice(0, 10),
           odradio: '', predao: '', preuzeo: '', napomena: '', status: 'u_tijeku',
         })
@@ -53,12 +53,19 @@ export default function ZaduzenjeDetalj({ novo = false }) {
   }
 
   const spremi = async (noviStatus) => {
+    // Obavezno: kamion, prikolica i vozač.
+    const fali = []
+    if (!(z.kamion_registracija || '').trim()) fali.push(t('zad.kamion'))
+    if (!(z.prikolica_registracija || '').trim()) fali.push(t('zad.prikolica'))
+    if (!(z.vozac || '').trim()) fali.push(t('zad.vozac'))
+    if (fali.length) { setGreska(t('zad.faliPolja', { polja: fali.join(', ') })); setPoruka(''); return }
     setRadi(true); setGreska(''); setPoruka('')
     const telo = {
       kamion_registracija: z.kamion_registracija,
       kamion_gb: z.kamion_gb,
       prikolica_registracija: z.prikolica_registracija,
       prikolica_gb: z.prikolica_gb,
+      vozac: z.vozac,
       datum: z.datum,
       odradio: z.odradio,
       predao: z.predao,
@@ -103,14 +110,19 @@ export default function ZaduzenjeDetalj({ novo = false }) {
         <div className="karta no-print-sjena">
           <div className="zad-glava">
             <div>
-              <label>{t('zad.kamionReg')}</label>
-              <input className="pretraga-input" value={z.kamion_registracija || ''}
+              <label>{t('zad.kamionReg')} <span className="zad-ob">*</span></label>
+              <input className={'pretraga-input' + (!(z.kamion_registracija || '').trim() ? ' zad-prazno-ob' : '')} value={z.kamion_registracija || ''}
                 onChange={(e) => postavi('kamion_registracija', e.target.value)} placeholder={t('zad.regPh')} />
             </div>
             <div>
-              <label>{t('zad.prikolicaReg')}</label>
-              <input className="pretraga-input" value={z.prikolica_registracija || ''}
+              <label>{t('zad.prikolicaReg')} <span className="zad-ob">*</span></label>
+              <input className={'pretraga-input' + (!(z.prikolica_registracija || '').trim() ? ' zad-prazno-ob' : '')} value={z.prikolica_registracija || ''}
                 onChange={(e) => postavi('prikolica_registracija', e.target.value)} placeholder={t('zad.regPh')} />
+            </div>
+            <div>
+              <label>{t('zad.vozac')} <span className="zad-ob">*</span></label>
+              <input className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')} value={z.vozac || ''}
+                onChange={(e) => postavi('vozac', e.target.value)} placeholder={t('zad.vozacPh')} />
             </div>
             <div>
               <label>{t('zad.datum')}</label>

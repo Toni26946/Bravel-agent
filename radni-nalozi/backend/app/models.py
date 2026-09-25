@@ -470,6 +470,7 @@ class Zaduzenje(Base):
     kamion_gb: Mapped[str | None] = mapped_column(String(40), nullable=True)
     prikolica_registracija: Mapped[str | None] = mapped_column(String(40), nullable=True)
     prikolica_gb: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    vozac: Mapped[str | None] = mapped_column(String(120), nullable=True)   # vozač koji preuzima (obavezno)
     datum: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     odradio: Mapped[str | None] = mapped_column(String(120), nullable=True)   # tko je odradio provjeru
     predao: Mapped[str | None] = mapped_column(String(120), nullable=True)    # tko je predao vozilo

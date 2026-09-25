@@ -18,7 +18,7 @@ export default function Zaduzenja() {
   const upit = q.trim().toLowerCase()
   const filt = (redovi || []).filter((z) => {
     if (!upit) return true
-    return [z.kamion_registracija, z.prikolica_registracija, z.preuzeo]
+    return [z.kamion_registracija, z.prikolica_registracija, z.vozac, z.preuzeo]
       .some((v) => (v || '').toString().toLowerCase().includes(upit))
   })
 
@@ -46,7 +46,7 @@ export default function Zaduzenja() {
                 <th>{t('zad.datum')}</th>
                 <th>{t('zad.kamion')}</th>
                 <th>{t('zad.prikolica')}</th>
-                <th>{t('zad.preuzeo')}</th>
+                <th>{t('zad.vozac')}</th>
                 <th>{t('zad.status')}</th>
               </tr>
             </thead>
@@ -56,7 +56,7 @@ export default function Zaduzenja() {
                   <td>{datum(z.datum)}</td>
                   <td><strong>🚚 {z.kamion_registracija || '—'}</strong></td>
                   <td>🛻 {z.prikolica_registracija || '—'}</td>
-                  <td>{z.preuzeo || '—'}</td>
+                  <td>{z.vozac || z.preuzeo || '—'}</td>
                   <td>
                     <span className={'zad-znak ' + (z.status === 'zavrseno' ? 'zad-ok' : 'zad-tijek')}>
                       {z.status === 'zavrseno' ? t('zad.zavrseno') : t('zad.uTijeku')}
