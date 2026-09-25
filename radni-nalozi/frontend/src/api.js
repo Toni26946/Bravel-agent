@@ -118,6 +118,7 @@ export const api = {
   servisi: () => zahtjev('/vozila/servisi'),
   servisiUvoz: (stavke) => zahtjev('/vozila/servisi/uvoz', { method: 'POST', body: stavke }),
   servisiKmUvoz: (stavke) => zahtjev('/vozila/servisi/km-uvoz', { method: 'POST', body: stavke }),
+  servisVozila: (gb) => zahtjev(`/vozila/servisi/vozilo/${encodeURIComponent(gb)}`),
   servisiUredi: (gb, b) => zahtjev(`/vozila/servisi/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
   parkinzi: () => zahtjev('/vozila/parkinzi'),
   dodajParking: (naziv) => zahtjev('/vozila/parkinzi', { method: 'POST', body: { naziv } }),

@@ -72,6 +72,7 @@ export default function NalogDetalj() {
       {spojeno && (
         <div className="uspjeh">{t('nalog.spojeno')}</div>
       )}
+      {n.vozilo?.gb && <ServisBanner gb={n.vozilo.gb} />}
       <div className="karta">
         <div className="naslov-red">
           {uredi
@@ -135,6 +136,55 @@ export default function NalogDetalj() {
       {/* Ispis naloga (vidljivo samo pri printanju) */}
       <NalogPrint n={n} />
     </Layout>
+  )
+}
+
+// --- Servisni banner u nalogu ------------------------------------------------
+// Uvijek pokaže koliko još km do servisa; ako je dospjelo/uskoro — bode u oči.
+function kmFmt(x) { try { return Math.round(x).toLocaleString('hr-HR') } catch (_) { return x } }
+
+function ServisBanner({ gb }) {
+  const { t } = useT()
+  const [s, setS] = useState(null)
+  useEffect(() => { api.servisVozila(gb).then(setS).catch(() => setS(null)) }, [gb])
+  if (!s) return null
+
+  const imaKm = s.km_preostalo !== null && s.km_preostalo !== undefined
+  const imaVrijeme = s.preostalo_dana !== null && s.preostalo_dana !== undefined
+  if (!imaKm && !imaVrijeme) return null
+
+  // Dijelovi teksta za km i vrijeme.
+  const kmTxt = !imaKm ? null
+    : s.km_preostalo <= 0
+      ? `🛣️ ${t('servisi.prekoraceno')} ${kmFmt(-s.km_preostalo)} km`
+      : `🛣️ ${t('nalog.jos')} ${kmFmt(s.km_preostalo)} km ${t('nalog.doServisa')}`
+  const vrTxt = !imaVrijeme ? null
+    : s.preostalo_dana <= 0
+      ? `🗓️ ${t('servisi.proslo')} ${Math.abs(s.preostalo_dana)} ${t('servisi.dana')}`
+      : `🗓️ ${t('nalog.jos')} ${s.preostalo_dana} ${t('servisi.dana')}${s.iduci_datum ? ` (${datum(s.iduci_datum)})` : ''}`
+  const detalji = [kmTxt, vrTxt].filter(Boolean).join('  ·  ')
+
+  if (s.status === 'dospjelo') {
+    return (
+      <div className="servis-banner dospjelo">
+        <div className="sb-naslov">⚠️ {t('nalog.servisDospio')}</div>
+        <div className="sb-det">{detalji}</div>
+      </div>
+    )
+  }
+  if (s.status === 'uskoro') {
+    return (
+      <div className="servis-banner uskoro">
+        <div className="sb-naslov">🟡 {t('nalog.servisUskoro')}</div>
+        <div className="sb-det">{detalji}</div>
+      </div>
+    )
+  }
+  // OK / poznato: nenametljiva linija sa km do servisa.
+  return (
+    <div className="servis-banner ok">
+      <span className="sb-naslov">🛢️ {t('nalog.servis')}:</span> {detalji}
+    </div>
   )
 }
 
