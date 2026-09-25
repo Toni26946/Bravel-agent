@@ -177,6 +177,16 @@ class DogadajOut(ORM):
     vrijeme: datetime | None = None
 
 
+class ServisUvozStavka(BaseModel):
+    gb: str
+    datum: date
+
+
+class ServisUpdate(BaseModel):
+    servis_zadnji: date | None = None
+    servis_prag_km: int | None = None
+
+
 class ParkingCreate(BaseModel):
     naziv: str
 

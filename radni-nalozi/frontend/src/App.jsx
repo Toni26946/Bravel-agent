@@ -14,6 +14,7 @@ import NezaduzenaVozila from './pages/NezaduzenaVozila'
 import Vozila from './pages/Vozila'
 import SpremneSlepe from './pages/SpremneSlepe'
 import EvidencijaPrikapcanja from './pages/EvidencijaPrikapcanja'
+import Servisi from './pages/Servisi'
 import Parkiranje from './pages/Parkiranje'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
@@ -58,6 +59,7 @@ export default function App() {
       <Route path="/nezaduzena" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NezaduzenaVozila /></Zasticeno>} />
       <Route path="/parkiranje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Parkiranje /></Zasticeno>} />
       <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><EvidencijaPrikapcanja /></Zasticeno>} />
+      <Route path="/servisi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Servisi /></Zasticeno>} />
 
       {/* Nalozi: voditelj/poslovođa (svi, kreiranje/uređivanje) + radnik (dodijeljeni) */}
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><Nalozi /></Zasticeno>} />
