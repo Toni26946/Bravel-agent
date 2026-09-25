@@ -160,6 +160,12 @@ export const api = {
   zaduzenje: (id) => zahtjev(`/zaduzenja/${id}`),
   zaduzenjePredlozak: () => zahtjev('/zaduzenja/predlozak'),
   zaduzenjeVozaci: () => zahtjev('/zaduzenja/vozaci'),
+
+  // Šifrarnik vozača
+  vozaci: (aktivni) => zahtjev('/vozaci' + (aktivni ? '?aktivni=true' : '')),
+  dodajVozaca: (b) => zahtjev('/vozaci', { method: 'POST', body: b }),
+  azurirajVozaca: (id, b) => zahtjev(`/vozaci/${id}`, { method: 'PATCH', body: b }),
+  obrisiVozaca: (id) => zahtjev(`/vozaci/${id}`, { method: 'DELETE' }),
   kreirajZaduzenje: (b) => zahtjev('/zaduzenja', { method: 'POST', body: b }),
   azurirajZaduzenje: (id, b) => zahtjev(`/zaduzenja/${id}`, { method: 'PATCH', body: b }),
   obrisiZaduzenje: (id) => zahtjev(`/zaduzenja/${id}`, { method: 'DELETE' }),

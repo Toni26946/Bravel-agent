@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
-from ..models import DnevnikPrikapcanja, Korisnik, Uloga, Zaduzenje
+from ..models import DnevnikPrikapcanja, Korisnik, Uloga, Vozac, Zaduzenje
 from ..schemas import (
     ZaduzenjeCreate,
     ZaduzenjeListItem,
@@ -135,7 +135,8 @@ def predlozak(_: Korisnik = Depends(voditelj_ili_poslovodja)):
 @router.get("/vozaci", response_model=list[str])
 def vozaci(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
     """Popis poznatih vozača (za padajući izbornik) — objedinjeno iz:
-    korisnika uloge 'vozac', dnevnika prikapčanja i ranijih zaduženja."""
+    šifrarnika vozača (aktivni), korisnika uloge 'vozac', dnevnika
+    prikapčanja i ranijih zaduženja."""
     imena: dict[str, str] = {}  # ključ = lowercase (dedup), vrijednost = prikaz
 
     def _dodaj(v):
@@ -143,6 +144,8 @@ def vozaci(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_pos
             s = v.strip()
             imena.setdefault(s.lower(), s)
 
+    for (ime,) in db.query(Vozac.ime).filter(Vozac.aktivan == True).all():  # noqa: E712
+        _dodaj(ime)
     for (ime,) in db.query(Korisnik.ime).filter(Korisnik.uloga == Uloga.vozac, Korisnik.aktivan == True).all():  # noqa: E712
         _dodaj(ime)
     for (v,) in db.query(DnevnikPrikapcanja.vozac).filter(DnevnikPrikapcanja.vozac.isnot(None)).distinct().all():

@@ -490,6 +490,24 @@ class Zaduzenje(Base):
     kreirao: Mapped["Korisnik | None"] = relationship()
 
 
+class Vozac(Base):
+    """Šifrarnik vozača — naša evidencija tko je vozač (ime, sektor, telefon).
+
+    Puni se jednokratno iz matične tablice („VOZACI DODJELJENI KAMIONIMA" +
+    obračun doprinosa za vozače), a voditelj ga dalje uređuje (dodaje/miče/
+    deaktivira). Popis vozača za obrazac zaduženja crpi se odavde."""
+    __tablename__ = "vozaci"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ime: Mapped[str] = mapped_column(String(120), index=True)          # ime i prezime
+    sektor: Mapped[str | None] = mapped_column(String(40), nullable=True)   # TEGLJAČ / DIZALICA / …
+    telefon: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    aktivan: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    izvor: Mapped[str | None] = mapped_column(String(20), nullable=True)    # 'seed' | 'rucno'
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class Zadatak(Base):
     __tablename__ = "zadaci"
 

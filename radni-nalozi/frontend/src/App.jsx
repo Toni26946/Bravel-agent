@@ -20,6 +20,7 @@ import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
 import Zaduzenja from './pages/Zaduzenja'
 import ZaduzenjeDetalj from './pages/ZaduzenjeDetalj'
+import Vozaci from './pages/Vozaci'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
@@ -70,6 +71,9 @@ export default function App() {
       <Route path="/zaduzenja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Zaduzenja /></Zasticeno>} />
       <Route path="/zaduzenja/novo" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj novo /></Zasticeno>} />
       <Route path="/zaduzenja/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj /></Zasticeno>} />
+
+      {/* Šifrarnik vozača: voditelj + poslovođa */}
+      <Route path="/vozaci" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozaci /></Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
