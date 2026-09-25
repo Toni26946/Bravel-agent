@@ -144,12 +144,21 @@ def kreiraj(
     db: Session = Depends(get_db),
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja),
 ):
+    kamion = (podaci.kamion_registracija or "").strip()
+    prikolica = (podaci.prikolica_registracija or "").strip()
+    vozac = (podaci.vozac or "").strip()
+    nedostaje = [
+        naziv for naziv, vrijednost in (("kamion", kamion), ("prikolica", prikolica), ("vozač", vozac)) if not vrijednost
+    ]
+    if nedostaje:
+        raise HTTPException(status_code=400, detail="Obavezna polja nedostaju: " + ", ".join(nedostaje))
     stavke = [s.model_dump() for s in podaci.stavke] if podaci.stavke is not None else _predlozak_stavke()
     z = Zaduzenje(
-        kamion_registracija=(podaci.kamion_registracija or "").strip() or None,
+        kamion_registracija=kamion,
         kamion_gb=(podaci.kamion_gb or "").strip() or None,
-        prikolica_registracija=(podaci.prikolica_registracija or "").strip() or None,
+        prikolica_registracija=prikolica,
         prikolica_gb=(podaci.prikolica_gb or "").strip() or None,
+        vozac=vozac,
         datum=podaci.datum or date.today(),
         odradio=(podaci.odradio or "").strip() or None,
         predao=(podaci.predao or "").strip() or None,
@@ -187,7 +196,11 @@ def azuriraj(
     if "stavke" in podaci and podaci["stavke"] is not None:
         z.stavke = [s.model_dump() if hasattr(s, "model_dump") else s for s in izmjene.stavke]
         podaci.pop("stavke")
-    for polje in ("kamion_registracija", "kamion_gb", "prikolica_registracija", "prikolica_gb", "odradio", "predao", "preuzeo", "napomena"):
+    # Obavezna polja se ne smiju isprazniti kad su eksplicitno poslana.
+    for polje, naziv in (("kamion_registracija", "kamion"), ("prikolica_registracija", "prikolica"), ("vozac", "vozač")):
+        if polje in podaci and not (podaci[polje] or "").strip():
+            raise HTTPException(status_code=400, detail=f"Obavezno polje ne može biti prazno: {naziv}")
+    for polje in ("kamion_registracija", "kamion_gb", "prikolica_registracija", "prikolica_gb", "vozac", "odradio", "predao", "preuzeo", "napomena"):
         if polje in podaci:
             v = podaci[polje]
             setattr(z, polje, (v or "").strip() or None if isinstance(v, str) else v)
