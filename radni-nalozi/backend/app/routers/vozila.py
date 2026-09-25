@@ -116,12 +116,38 @@ def _nalog_po_gb(db: Session) -> dict:
     return mapa
 
 
+def _prikolice_na_kamionu(db: Session, kamion_gb: str) -> list[str]:
+    """GB-ovi prikolica čiji je ZADNJI događaj 'prikaceno' na dani kamion.
+
+    Kamion normalno vuče jednu prikolicu; ovo služi da pri novom prikačivanju
+    automatski otkačimo prethodnu prikolicu tog kamiona."""
+    svi = (
+        db.query(DnevnikPrikapcanja)
+        .order_by(
+            DnevnikPrikapcanja.prikolica_gb,
+            DnevnikPrikapcanja.vrijeme.desc(),
+            DnevnikPrikapcanja.id.desc(),
+        )
+        .all()
+    )
+    zadnji: dict = {}
+    for e in svi:
+        zadnji.setdefault(e.prikolica_gb, e)
+    return [
+        p for p, e in zadnji.items()
+        if e.vrsta == VrstaDogadaja.prikaceno and (e.kamion_gb or "") == kamion_gb
+    ]
+
+
 @router.post("/prikapcanje", response_model=DogadajOut, status_code=201)
 def dodaj_dogadaj(
     podaci: DogadajCreate,
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
 ):
-    """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija)."""
+    """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija).
+
+    Kad se prikolica PRIKAČI na kamion, automatski se otkači prethodna prikolica
+    tog kamiona (kamion vuče samo jednu)."""
     gb = (podaci.prikolica_gb or "").strip()
     if not gb:
         raise HTTPException(status_code=400, detail="Garažni broj prikolice je obavezan")
@@ -129,9 +155,23 @@ def dodaj_dogadaj(
         vrsta = VrstaDogadaja(podaci.vrsta)
     except ValueError:
         raise HTTPException(status_code=400, detail="Nepoznata vrsta događaja")
+    kamion = (podaci.kamion_gb or "").strip() or None
+
+    # Auto-otkači prethodnu prikolicu tog kamiona (osim ako je to baš ova).
+    if vrsta == VrstaDogadaja.prikaceno and kamion:
+        for stara in _prikolice_na_kamionu(db, kamion):
+            if stara != gb:
+                db.add(DnevnikPrikapcanja(
+                    prikolica_gb=stara,
+                    kamion_gb=kamion,
+                    vrsta=VrstaDogadaja.otkaceno,
+                    kreirao_id=korisnik.id,
+                    napomena=f"Automatski otkačeno — kamion {kamion} preuzeo prikolicu {gb}",
+                ))
+
     d = DnevnikPrikapcanja(
         prikolica_gb=gb,
-        kamion_gb=(podaci.kamion_gb or "").strip() or None,
+        kamion_gb=kamion,
         vozac=(podaci.vozac or "").strip() or None,
         vrsta=vrsta,
         lokacija=(podaci.lokacija or "").strip() or None,
