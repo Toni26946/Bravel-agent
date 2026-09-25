@@ -4,3 +4,10 @@ bot.db
 monitor.db
 *.db-wal
 *.db-shm
+
+# Runtime tajne i seed zastavice (generira ih backend kad se pokreće lokalno) —
+# nikad se ne commitaju; u produkciji žive na montiranom volumenu, ne u repou.
+radni-nalozi/backend/.jwt_secret
+radni-nalozi/backend/.vapid
+radni-nalozi/backend/.*_v[0-9]*
+radni-nalozi/backend/uploads/
