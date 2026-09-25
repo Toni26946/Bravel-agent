@@ -142,6 +142,28 @@ def _prikolice_na_kamionu(db: Session, kamion_gb: str) -> list[str]:
     ]
 
 
+def _prikacene_prikolice(db: Session) -> set[str]:
+    """GB-ovi svih prikolica čiji je ZADNJI događaj 'prikaceno' (trenutno na kamionu)."""
+    svi = (
+        db.query(DnevnikPrikapcanja)
+        .order_by(
+            DnevnikPrikapcanja.prikolica_gb,
+            DnevnikPrikapcanja.vrijeme.desc(),
+            DnevnikPrikapcanja.id.desc(),
+        )
+        .all()
+    )
+    zadnji: dict = {}
+    for e in svi:
+        zadnji.setdefault(e.prikolica_gb, e)
+    out: set[str] = set()
+    for p, e in zadnji.items():
+        if e.vrsta == VrstaDogadaja.prikaceno and p:
+            out.add(p)
+            out.add(p.lstrip("0") or p)  # i bez vodećih nula (uskladi s registrom)
+    return out
+
+
 @router.post("/prikapcanje", response_model=DogadajOut, status_code=201)
 def dodaj_dogadaj(
     podaci: DogadajCreate,
@@ -554,12 +576,16 @@ def registar_status(
 
 def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     """Šlepe (prikolice) čiji je nalog nedavno završen, a još nisu dobile ishod:
-    nisu označene Spremno(+lokacija) ni Pokvareno. Njih moramo natjerati na upis."""
+    nisu označene Spremno(+lokacija) ni Pokvareno. Njih moramo natjerati na upis.
+
+    Prikazuju se SAMO nezadužene šlepe — one koje su po dnevniku prikapčanja
+    trenutno prikačene na kamion se preskaču (vuku se, nisu za parking/upis)."""
     zavrseni = (StatusNaloga.gotov, StatusNaloga.zatvoren)
     nalozi = (
         db.query(Nalog).filter(Nalog.status.in_(zavrseni))
         .order_by(Nalog.azuriran.desc()).all()
     )
+    prikacene = _prikacene_prikolice(db)
     gbs: list[str] = []
     vidjeno: set = set()
     for n in nalozi:
@@ -572,6 +598,9 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
         r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
             RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
         if not r or r.kategorija != "prikolica":
+            continue
+        # Preskoči šlepe koje su trenutno zadužene (prikačene) na kamion.
+        if r.gb in prikacene or (r.gb.lstrip("0") or r.gb) in prikacene:
             continue
         rijeseno = (r.status == StatusVozila.spremno and (r.lokacija or "").strip()) \
             or r.status in (StatusVozila.pokvareno, StatusVozila.prodano)
