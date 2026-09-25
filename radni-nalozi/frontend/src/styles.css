@@ -230,6 +230,25 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .prazno .emo { font-size: 44px; display: block; margin-bottom: 12px; }
 .greska { background: #fdeaea; color: var(--crvena); padding: 12px; border-radius: 10px; font-size: 14px; margin: 10px 0; }
 .uspjeh { background: #e8f5e9; color: var(--zelena); padding: 12px; border-radius: 10px; font-size: 14px; margin: 10px 0; }
+
+/* Servisni banner u nalogu */
+.servis-banner { border-radius: 12px; margin: 0 0 12px; padding: 12px 16px; }
+.servis-banner .sb-naslov { font-weight: 800; }
+.servis-banner .sb-det { margin-top: 4px; font-weight: 600; }
+.servis-banner.dospjelo {
+  background: #fdeaea; color: #b3261e; border: 2px solid #e5534b;
+  box-shadow: 0 0 0 4px rgba(229,83,75,.12);
+}
+.servis-banner.dospjelo .sb-naslov { font-size: 18px; letter-spacing: .3px; }
+.servis-banner.uskoro {
+  background: #fff5e0; color: #8a5a00; border: 2px solid #eab308;
+}
+.servis-banner.uskoro .sb-naslov { font-size: 16px; }
+.servis-banner.ok {
+  background: var(--pozadina2, #f4f6f8); color: var(--tekst2, #5b6470);
+  padding: 8px 14px; font-size: 13px;
+}
+.servis-banner.ok .sb-naslov { font-weight: 700; }
 .fab {
   position: fixed; bottom: calc(74px + env(safe-area-inset-bottom)); right: max(16px, calc(50% - 320px + 16px));
   width: 56px; height: 56px; border-radius: 50%; background: var(--plava); color: #fff;

@@ -293,6 +293,43 @@ def _status_km(km_preostalo: int | None) -> str:
     return "ok"
 
 
+def _servis_info(r: RegistarVozila, danas: date) -> dict:
+    """Sračunaj servisni status jednog kamiona (vrijeme + km, ukupno = prvi koji istekne)."""
+    prag = r.servis_prag_km or _servis_prag(r.tip)
+    zadnji = r.servis_zadnji
+    iduci = _plus_12m(zadnji) if zadnji else None
+    preostalo = (iduci - danas).days if iduci else None
+    st_vrijeme = _status_vrijeme(preostalo, zadnji is not None)
+
+    # Km uvjet (Faza 2)
+    km_proslo = None
+    km_preostalo = None
+    if r.servis_km is not None and r.km_trenutni is not None:
+        km_proslo = max(0, r.km_trenutni - r.servis_km)
+        km_preostalo = prag - km_proslo
+    st_km = _status_km(km_preostalo)
+
+    # Ukupni status = najhitniji od poznatih uvjeta
+    poznati = [s for s in (st_vrijeme, st_km) if s != "nepoznato"]
+    status = min(poznati, key=lambda s: _RANG[s]) if poznati else "nepoznato"
+
+    return {
+        "gb": r.gb, "reg": r.registracija, "tip": r.tip,
+        "servis_zadnji": zadnji.isoformat() if zadnji else None,
+        "prag_km": prag,
+        "iduci_datum": iduci.isoformat() if iduci else None,
+        "preostalo_dana": preostalo,
+        "status_vrijeme": st_vrijeme,
+        "servis_km": r.servis_km,
+        "km_trenutni": r.km_trenutni,
+        "km_azuriran": r.km_azuriran.isoformat() if r.km_azuriran else None,
+        "km_proslo": km_proslo,
+        "km_preostalo": km_preostalo,
+        "status_km": st_km,
+        "status": status,
+    }
+
+
 @router.get("/servisi")
 def servisi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
     """Pregled servisa po kamionu: zadnji servis, idući rok po vremenu (12 mj) I po km.
@@ -305,47 +342,24 @@ def servisi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session =
         .filter(RegistarVozila.kategorija == "kamion")
         .all()
     )
-    out = []
-    for r in redovi:
-        prag = r.servis_prag_km or _servis_prag(r.tip)
-        zadnji = r.servis_zadnji
-        iduci = _plus_12m(zadnji) if zadnji else None
-        preostalo = (iduci - danas).days if iduci else None
-        st_vrijeme = _status_vrijeme(preostalo, zadnji is not None)
-
-        # Km uvjet (Faza 2)
-        km_proslo = None
-        km_preostalo = None
-        if r.servis_km is not None and r.km_trenutni is not None:
-            km_proslo = max(0, r.km_trenutni - r.servis_km)
-            km_preostalo = prag - km_proslo
-        st_km = _status_km(km_preostalo)
-
-        # Ukupni status = najhitniji od poznatih uvjeta
-        poznati = [s for s in (st_vrijeme, st_km) if s != "nepoznato"]
-        status = min(poznati, key=lambda s: _RANG[s]) if poznati else "nepoznato"
-
-        out.append({
-            "gb": r.gb, "reg": r.registracija, "tip": r.tip,
-            "servis_zadnji": zadnji.isoformat() if zadnji else None,
-            "prag_km": prag,
-            "iduci_datum": iduci.isoformat() if iduci else None,
-            "preostalo_dana": preostalo,
-            "status_vrijeme": st_vrijeme,
-            "servis_km": r.servis_km,
-            "km_trenutni": r.km_trenutni,
-            "km_azuriran": r.km_azuriran.isoformat() if r.km_azuriran else None,
-            "km_proslo": km_proslo,
-            "km_preostalo": km_preostalo,
-            "status_km": st_km,
-            "status": status,
-        })
+    out = [_servis_info(r, danas) for r in redovi]
     # Poredak: dospjelo prvo, pa nepoznato, uskoro, ok; sekundarno po preostalo (vrijeme/km).
     def _sec(x):
         kandidati = [v for v in (x["preostalo_dana"], x["km_preostalo"]) if v is not None]
         return min(kandidati) if kandidati else 10**9
     out.sort(key=lambda x: (_RANG.get(x["status"], 9), _sec(x)))
     return out
+
+
+@router.get("/servisi/vozilo/{gb}")
+def servis_vozila(
+    gb: str, korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Servisni status jednog vozila (za prikaz u radnom nalogu). None ako nije kamion."""
+    r = db.get(RegistarVozila, gb)
+    if r is None or r.kategorija != "kamion":
+        return None
+    return _servis_info(r, date.today())
 
 
 @router.post("/servisi/uvoz")
