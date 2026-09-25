@@ -19,9 +19,10 @@ export default function ZaduzenjeDetalj({ novo = false }) {
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
   const [vozaci, setVozaci] = useState([])
+  const [rucniVozac, setRucniVozac] = useState(false)  // upis novog vozača (izvan popisa)
 
   useEffect(() => {
-    api.korisnici('vozac').then((v) => setVozaci(v || [])).catch(() => setVozaci([]))
+    api.zaduzenjeVozaci().then((v) => setVozaci(v || [])).catch(() => setVozaci([]))
   }, [])
 
   useEffect(() => {
@@ -126,21 +127,28 @@ export default function ZaduzenjeDetalj({ novo = false }) {
             </div>
             <div>
               <label>{t('zad.vozac')} <span className="zad-ob">*</span></label>
-              {vozaci.length > 0 ? (
+              {(rucniVozac || vozaci.length === 0) ? (
+                <>
+                  <input className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')} value={z.vozac || ''}
+                    onChange={(e) => postavi('vozac', e.target.value)} placeholder={t('zad.vozacPh')} autoFocus={rucniVozac} />
+                  {vozaci.length > 0 && (
+                    <button type="button" className="zad-veza" onClick={() => { setRucniVozac(false); postavi('vozac', '') }}>
+                      ‹ {t('zad.izPopisa')}
+                    </button>
+                  )}
+                </>
+              ) : (
                 <select className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')}
-                  value={z.vozac || ''} onChange={(e) => postavi('vozac', e.target.value)}>
+                  value={z.vozac || ''}
+                  onChange={(e) => { if (e.target.value === '__novi__') { setRucniVozac(true); postavi('vozac', '') } else postavi('vozac', e.target.value) }}>
                   <option value="">{t('zad.odaberiVozaca')}</option>
                   {/* Postojeća vrijednost koja nije u popisu (npr. stari slobodni unos) */}
-                  {z.vozac && !vozaci.some((v) => v.ime === z.vozac) && (
-                    <option value={z.vozac}>{z.vozac}</option>
-                  )}
+                  {z.vozac && !vozaci.includes(z.vozac) && <option value={z.vozac}>{z.vozac}</option>}
                   {vozaci.map((v) => (
-                    <option key={v.id} value={v.ime}>{v.ime}</option>
+                    <option key={v} value={v}>{v}</option>
                   ))}
+                  <option value="__novi__">➕ {t('zad.noviVozac')}</option>
                 </select>
-              ) : (
-                <input className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')} value={z.vozac || ''}
-                  onChange={(e) => postavi('vozac', e.target.value)} placeholder={t('zad.vozacPh')} />
               )}
             </div>
             <div>
