@@ -12,6 +12,7 @@ export default function EvidencijaPrikapcanja() {
   const [trenutno, setTrenutno] = useState(null)
   const [rows, setRows] = useState(null)
   const [vrsta, setVrsta] = useState('')
+  const [q, setQ] = useState('')
 
   const ucitajTrenutno = () => api.prikapcanjeTrenutno().then(setTrenutno).catch(() => setTrenutno([]))
   const ucitajDnevnik = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
@@ -27,31 +28,52 @@ export default function EvidencijaPrikapcanja() {
       <p className="meta" style={{ marginTop: 0 }}>{t('prikapcanje.opis')}</p>
 
       {/* Trenutno — tko vozi koju prikolicu */}
-      <div className="sekcija-naslov" style={{ marginTop: 0 }}>
-        🚚 {t('prikapcanje.trenutno')} {trenutno ? `(${trenutno.length})` : ''}
-      </div>
-      <div className="karta">
-        {trenutno === null ? <Spinner /> : trenutno.length === 0 ? (
-          <p className="meta" style={{ margin: 0 }}>{t('prikapcanje.nemaTrenutno')}</p>
-        ) : (
-          <table className="di-tab">
-            <thead>
-              <tr><th>{t('spremne.kamion')}</th><th>{t('spremne.prikolica')}</th>
-                <th>{t('spremne.vozac')}</th><th>{t('spremne.od')}</th></tr>
-            </thead>
-            <tbody>
-              {trenutno.map((x) => (
-                <tr key={x.prikolica_gb}>
-                  <td><strong>🚚 {x.kamion_gb || '—'}</strong></td>
-                  <td>🛻 {x.prikolica_gb}{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
-                  <td>{x.vozac || '—'}</td>
-                  <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {(() => {
+        const upit = q.trim().toLowerCase()
+        const filtrirano = (trenutno || []).filter((x) => {
+          if (!upit) return true
+          return [x.kamion_gb, x.kamion_reg, x.prikolica_gb, x.reg, x.vozac]
+            .some((v) => (v || '').toString().toLowerCase().includes(upit))
+        })
+        return (
+          <>
+            <div className="sekcija-naslov" style={{ marginTop: 0 }}>
+              🚚 {t('prikapcanje.trenutno')} {trenutno ? `(${filtrirano.length}${upit ? '/' + trenutno.length : ''})` : ''}
+            </div>
+            <input
+              className="pretraga-input"
+              style={{ marginBottom: 8 }}
+              placeholder={t('prikapcanje.trazi')}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <div className="karta">
+              {trenutno === null ? <Spinner /> : trenutno.length === 0 ? (
+                <p className="meta" style={{ margin: 0 }}>{t('prikapcanje.nemaTrenutno')}</p>
+              ) : filtrirano.length === 0 ? (
+                <p className="meta" style={{ margin: 0 }}>{t('prikapcanje.nemaRezultata')}</p>
+              ) : (
+                <table className="di-tab">
+                  <thead>
+                    <tr><th>{t('spremne.kamion')}</th><th>{t('spremne.prikolica')}</th>
+                      <th>{t('spremne.vozac')}</th><th>{t('spremne.od')}</th></tr>
+                  </thead>
+                  <tbody>
+                    {filtrirano.map((x) => (
+                      <tr key={x.prikolica_gb}>
+                        <td><strong>🚚 {x.kamion_gb || '—'}</strong>{x.kamion_reg ? <span className="meta"> · {x.kamion_reg}</span> : ''}</td>
+                        <td>🛻 {x.prikolica_gb}{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
+                        <td>{x.vozac || '—'}</td>
+                        <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )
+      })()}
 
       {/* Dnevnik svih događaja */}
       <div className="sekcija-naslov">📋 {t('prikapcanje.dnevnik')}</div>
