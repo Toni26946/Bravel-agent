@@ -18,6 +18,11 @@ export default function ZaduzenjeDetalj({ novo = false }) {
   const [radi, setRadi] = useState(false)
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
+  const [vozaci, setVozaci] = useState([])
+
+  useEffect(() => {
+    api.korisnici('vozac').then((v) => setVozaci(v || [])).catch(() => setVozaci([]))
+  }, [])
 
   useEffect(() => {
     let ziv = true
@@ -121,8 +126,22 @@ export default function ZaduzenjeDetalj({ novo = false }) {
             </div>
             <div>
               <label>{t('zad.vozac')} <span className="zad-ob">*</span></label>
-              <input className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')} value={z.vozac || ''}
-                onChange={(e) => postavi('vozac', e.target.value)} placeholder={t('zad.vozacPh')} />
+              {vozaci.length > 0 ? (
+                <select className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')}
+                  value={z.vozac || ''} onChange={(e) => postavi('vozac', e.target.value)}>
+                  <option value="">{t('zad.odaberiVozaca')}</option>
+                  {/* Postojeća vrijednost koja nije u popisu (npr. stari slobodni unos) */}
+                  {z.vozac && !vozaci.some((v) => v.ime === z.vozac) && (
+                    <option value={z.vozac}>{z.vozac}</option>
+                  )}
+                  {vozaci.map((v) => (
+                    <option key={v.id} value={v.ime}>{v.ime}</option>
+                  ))}
+                </select>
+              ) : (
+                <input className={'pretraga-input' + (!(z.vozac || '').trim() ? ' zad-prazno-ob' : '')} value={z.vozac || ''}
+                  onChange={(e) => postavi('vozac', e.target.value)} placeholder={t('zad.vozacPh')} />
+              )}
             </div>
             <div>
               <label>{t('zad.datum')}</label>
