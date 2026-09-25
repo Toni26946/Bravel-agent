@@ -34,6 +34,8 @@ _STUPCI = [
     ("registar_vozila", "lokacija", "VARCHAR(300)"),
     ("registar_vozila", "spreman_od", "DATE"),
     ("registar_vozila", "podsjetnik_zadnji", "DATE"),
+    ("registar_vozila", "servis_zadnji", "DATE"),
+    ("registar_vozila", "servis_prag_km", "INTEGER"),
 ]
 
 

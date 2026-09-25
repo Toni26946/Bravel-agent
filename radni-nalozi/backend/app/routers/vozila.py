@@ -34,6 +34,8 @@ from ..schemas import (
     PovijestRadaOut,
     RegistarStatusUpdate,
     RegistarVozilaOut,
+    ServisUpdate,
+    ServisUvozStavka,
     VoziloCreate,
     VoziloOut,
     VoziloUpdate,
@@ -248,6 +250,107 @@ def prikapcanje_trenutno(
     # Poredaj po kamionu (koji vuče) pa po prikolici.
     out.sort(key=lambda x: (_num(x["kamion_gb"]), _num(x["prikolica_gb"])))
     return out
+
+
+# --- Servisi (rok idućeg servisa: vrijeme sad, km u Fazi 2) -------------------
+def _servis_prag(tip: str | None) -> int:
+    """Pretpostavljeni prag km do servisa po tipu vozila."""
+    t = (tip or "").lower()
+    if "dizal" in t or "šumar" in t or "sumar" in t:
+        return 40000  # šumari / dizaličari
+    return 45000      # tegljači (serija 75k = ručna iznimka)
+
+
+def _plus_12m(d: date) -> date:
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:  # 29.2.
+        return d.replace(year=d.year + 1, day=28)
+
+
+@router.get("/servisi")
+def servisi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
+    """Pregled servisa po kamionu: zadnji servis, idući (zadnji + 12 mj), preostalo dana.
+
+    Faza 1 = samo vremenski uvjet (12 mj). Km uvjet dolazi u Fazi 2 (iz Mobilisisa).
+    Status: 'nepoznato' (nema zadnjeg servisa), 'dospjelo', 'uskoro' (<=30 dana), 'ok'."""
+    danas = date.today()
+    redovi = (
+        db.query(RegistarVozila)
+        .filter(RegistarVozila.kategorija == "kamion")
+        .all()
+    )
+    out = []
+    for r in redovi:
+        prag = r.servis_prag_km or _servis_prag(r.tip)
+        zadnji = r.servis_zadnji
+        iduci = _plus_12m(zadnji) if zadnji else None
+        preostalo = (iduci - danas).days if iduci else None
+        if zadnji is None:
+            status = "nepoznato"
+        elif preostalo is not None and preostalo <= 0:
+            status = "dospjelo"
+        elif preostalo is not None and preostalo <= 30:
+            status = "uskoro"
+        else:
+            status = "ok"
+        out.append({
+            "gb": r.gb, "reg": r.registracija, "tip": r.tip,
+            "servis_zadnji": zadnji.isoformat() if zadnji else None,
+            "prag_km": prag,
+            "iduci_datum": iduci.isoformat() if iduci else None,
+            "preostalo_dana": preostalo,
+            "status": status,
+        })
+    # Poredak: nepoznato i dospjelo prvo (najhitnije), pa po preostalo_dana rastuće.
+    rang = {"dospjelo": 0, "nepoznato": 1, "uskoro": 2, "ok": 3}
+    out.sort(key=lambda x: (rang.get(x["status"], 9),
+                            x["preostalo_dana"] if x["preostalo_dana"] is not None else 10**9))
+    return out
+
+
+@router.post("/servisi/uvoz")
+def servisi_uvoz(
+    stavke: list[ServisUvozStavka],
+    _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+):
+    """Uvezi datume zadnjeg servisa (iz razduženja dijelova). Postavlja i prag po tipu ako fali."""
+    n = 0
+    for s in stavke:
+        gb = (s.gb or "").strip()
+        if not gb:
+            continue
+        r = db.get(RegistarVozila, gb)
+        if r is None:
+            r = RegistarVozila(gb=gb)
+            db.add(r)
+        r.servis_zadnji = s.datum
+        if not r.servis_prag_km:
+            r.servis_prag_km = _servis_prag(r.tip)
+        n += 1
+    db.commit()
+    return {"uvezeno": n}
+
+
+@router.patch("/servisi/{gb}")
+def servisi_uredi(
+    gb: str, podaci: ServisUpdate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Ručno postavi datum zadnjeg servisa (i/ili prag km) za kamion."""
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        r = RegistarVozila(gb=gb)
+        db.add(r)
+    if podaci.servis_zadnji is not None:
+        r.servis_zadnji = podaci.servis_zadnji
+    if podaci.servis_prag_km is not None:
+        r.servis_prag_km = podaci.servis_prag_km
+    if not r.servis_prag_km:
+        r.servis_prag_km = _servis_prag(r.tip)
+    r.azurirao_id = korisnik.id
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/parkinzi", response_model=list[ParkingOut])

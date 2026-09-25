@@ -199,6 +199,10 @@ class RegistarVozila(Base):
     spreman_od: Mapped[date | None] = mapped_column(Date, nullable=True)  # kad je označeno „Spremno"
     # Zadnji dnevni podsjetnik za upis spremnosti/lokacije (da se ne šalje više puta dnevno).
     podsjetnik_zadnji: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Servis: datum zadnjeg servisa (iz razduženja servisnih dijelova) i prag km
+    # do idućeg servisa (pretpostavljen po tipu: dizalica/šumar 40k, tegljač 45k, serija 75k).
+    servis_zadnji: Mapped[date | None] = mapped_column(Date, nullable=True)
+    servis_prag_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 # ---------------------------------------------------------------------------
