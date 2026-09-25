@@ -65,13 +65,18 @@ a { color: inherit; text-decoration: none; }
 .app.nav-open .tabbar .txt { display: inline; }
 .nav-backdrop { display: none; }
 
-/* Na užem ekranu: raširen izbornik prekriva sadržaj (ne stišće ga). */
+/* Na užem ekranu (mobitel): nema stalnog raila — sadržaj dobije punu širinu,
+   a izbornik (ikone + nazivi) otvara se na ☰ kao klizni panel preko sadržaja. */
 @media (max-width: 760px) {
-  .app.nav-open { grid-template-columns: 60px 1fr; }
+  .app { grid-template-columns: 1fr; grid-template-areas: "top" "main"; }
+  .tabbar { display: none; }
+  .app.nav-open { grid-template-columns: 1fr; }
   .app.nav-open .tabbar {
+    display: flex;
     position: fixed; top: 0; left: 0; height: 100%; width: 216px; z-index: 40;
     box-shadow: 0 8px 30px rgba(0,0,0,.25); padding-top: calc(max(env(safe-area-inset-top), 12px) + 8px);
   }
+  .app.nav-open .tabbar .txt { display: inline; }
   .nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 35; }
 }
 
