@@ -34,6 +34,7 @@ from ..schemas import (
     PovijestRadaOut,
     RegistarStatusUpdate,
     RegistarVozilaOut,
+    ServisKmUvozStavka,
     ServisUpdate,
     ServisUvozStavka,
     VoziloCreate,
@@ -268,12 +269,36 @@ def _plus_12m(d: date) -> date:
         return d.replace(year=d.year + 1, day=28)
 
 
+_KM_USKORO = 3000  # km: koliko prije praga se pali "uskoro"
+_RANG = {"dospjelo": 0, "nepoznato": 1, "uskoro": 2, "ok": 3}
+
+
+def _status_vrijeme(preostalo: int | None, ima_datum: bool) -> str:
+    if not ima_datum:
+        return "nepoznato"
+    if preostalo is not None and preostalo <= 0:
+        return "dospjelo"
+    if preostalo is not None and preostalo <= 30:
+        return "uskoro"
+    return "ok"
+
+
+def _status_km(km_preostalo: int | None) -> str:
+    if km_preostalo is None:
+        return "nepoznato"
+    if km_preostalo <= 0:
+        return "dospjelo"
+    if km_preostalo <= _KM_USKORO:
+        return "uskoro"
+    return "ok"
+
+
 @router.get("/servisi")
 def servisi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
-    """Pregled servisa po kamionu: zadnji servis, idući (zadnji + 12 mj), preostalo dana.
+    """Pregled servisa po kamionu: zadnji servis, idući rok po vremenu (12 mj) I po km.
 
-    Faza 1 = samo vremenski uvjet (12 mj). Km uvjet dolazi u Fazi 2 (iz Mobilisisa).
-    Status: 'nepoznato' (nema zadnjeg servisa), 'dospjelo', 'uskoro' (<=30 dana), 'ok'."""
+    Uvjeti (servis kad istekne PRVI): vrijeme = zadnji + 12 mj; km = prag − (km_sad − km_na_servisu).
+    Ukupni status je najhitniji od poznatih (vrijeme/km); 'nepoznato' ako nijedan nije poznat."""
     danas = date.today()
     redovi = (
         db.query(RegistarVozila)
@@ -286,26 +311,40 @@ def servisi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session =
         zadnji = r.servis_zadnji
         iduci = _plus_12m(zadnji) if zadnji else None
         preostalo = (iduci - danas).days if iduci else None
-        if zadnji is None:
-            status = "nepoznato"
-        elif preostalo is not None and preostalo <= 0:
-            status = "dospjelo"
-        elif preostalo is not None and preostalo <= 30:
-            status = "uskoro"
-        else:
-            status = "ok"
+        st_vrijeme = _status_vrijeme(preostalo, zadnji is not None)
+
+        # Km uvjet (Faza 2)
+        km_proslo = None
+        km_preostalo = None
+        if r.servis_km is not None and r.km_trenutni is not None:
+            km_proslo = max(0, r.km_trenutni - r.servis_km)
+            km_preostalo = prag - km_proslo
+        st_km = _status_km(km_preostalo)
+
+        # Ukupni status = najhitniji od poznatih uvjeta
+        poznati = [s for s in (st_vrijeme, st_km) if s != "nepoznato"]
+        status = min(poznati, key=lambda s: _RANG[s]) if poznati else "nepoznato"
+
         out.append({
             "gb": r.gb, "reg": r.registracija, "tip": r.tip,
             "servis_zadnji": zadnji.isoformat() if zadnji else None,
             "prag_km": prag,
             "iduci_datum": iduci.isoformat() if iduci else None,
             "preostalo_dana": preostalo,
+            "status_vrijeme": st_vrijeme,
+            "servis_km": r.servis_km,
+            "km_trenutni": r.km_trenutni,
+            "km_azuriran": r.km_azuriran.isoformat() if r.km_azuriran else None,
+            "km_proslo": km_proslo,
+            "km_preostalo": km_preostalo,
+            "status_km": st_km,
             "status": status,
         })
-    # Poredak: nepoznato i dospjelo prvo (najhitnije), pa po preostalo_dana rastuće.
-    rang = {"dospjelo": 0, "nepoznato": 1, "uskoro": 2, "ok": 3}
-    out.sort(key=lambda x: (rang.get(x["status"], 9),
-                            x["preostalo_dana"] if x["preostalo_dana"] is not None else 10**9))
+    # Poredak: dospjelo prvo, pa nepoznato, uskoro, ok; sekundarno po preostalo (vrijeme/km).
+    def _sec(x):
+        kandidati = [v for v in (x["preostalo_dana"], x["km_preostalo"]) if v is not None]
+        return min(kandidati) if kandidati else 10**9
+    out.sort(key=lambda x: (_RANG.get(x["status"], 9), _sec(x)))
     return out
 
 
@@ -325,6 +364,35 @@ def servisi_uvoz(
             r = RegistarVozila(gb=gb)
             db.add(r)
         r.servis_zadnji = s.datum
+        if not r.servis_prag_km:
+            r.servis_prag_km = _servis_prag(r.tip)
+        n += 1
+    db.commit()
+    return {"uvezeno": n}
+
+
+@router.post("/servisi/km-uvoz")
+def servisi_km_uvoz(
+    stavke: list[ServisKmUvozStavka],
+    _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+):
+    """Uvezi km podatke iz Mobilisisa (Popis vožnji): trenutni brojčanik i,
+    ako je poznato, brojčanik na datum zadnjeg servisa."""
+    n = 0
+    for s in stavke:
+        gb = (s.gb or "").strip()
+        if not gb:
+            continue
+        r = db.get(RegistarVozila, gb)
+        if r is None:
+            r = RegistarVozila(gb=gb)
+            db.add(r)
+        if s.km_trenutni is not None:
+            r.km_trenutni = s.km_trenutni
+        if s.km_azuriran is not None:
+            r.km_azuriran = s.km_azuriran
+        if s.servis_km is not None:
+            r.servis_km = s.servis_km
         if not r.servis_prag_km:
             r.servis_prag_km = _servis_prag(r.tip)
         n += 1

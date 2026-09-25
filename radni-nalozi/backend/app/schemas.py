@@ -187,6 +187,13 @@ class ServisUpdate(BaseModel):
     servis_prag_km: int | None = None
 
 
+class ServisKmUvozStavka(BaseModel):
+    gb: str
+    km_trenutni: int | None = None
+    km_azuriran: date | None = None
+    servis_km: int | None = None
+
+
 class ParkingCreate(BaseModel):
     naziv: str
 
