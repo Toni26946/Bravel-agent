@@ -84,7 +84,7 @@ jobs:
                 body: JSON.stringify({
                   kamion_registracija: 'ZG 1234-AB (DEMO)',
                   prikolica_registracija: 'ZG 9876-PR (DEMO)',
-                  odradio: 'Skladište', predao: 'Radionica', preuzeo: 'Demo Vozač',
+                  vozac: 'Demo Vozač', odradio: 'Skladište', predao: 'Radionica', preuzeo: 'Demo Vozač',
                 }),
               })
               const z = await cr.json()
