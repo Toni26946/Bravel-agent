@@ -27,7 +27,7 @@ export default function EvidencijaPrikapcanja() {
     <Layout naslov={t('tab.prikapcanje')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('prikapcanje.opis')}</p>
 
-      <NovaPromjena onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
+      <NovaPromjena trenutno={trenutno} onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
 
       {/* Trenutno — tko vozi koju prikolicu */}
       {(() => {
@@ -132,7 +132,7 @@ export default function EvidencijaPrikapcanja() {
 
 // Ručni unos promjene prikapčanja: odaberi prikolicu + (novi) kamion → Prikači/Otkači.
 // Vozila se biraju iz padajućih popisa (matični popis), da se ne tipka GB.
-function NovaPromjena({ onGotovo }) {
+function NovaPromjena({ trenutno, onGotovo }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [vozila, setVozila] = useState(null)
@@ -159,6 +159,13 @@ function NovaPromjena({ onGotovo }) {
   const posalji = async (vrsta) => {
     if (!prikolicaGb) { setGreska(t('prikapcanje.trebaPrikolica')); return }
     if (vrsta === 'prikaceno' && !kamionGb) { setGreska(t('prikapcanje.trebaKamion')); return }
+    // Ako odabrani kamion već vuče drugu prikolicu — traži potvrdu (auto-otkači).
+    if (vrsta === 'prikaceno') {
+      const stara = (trenutno || []).find((x) => x.kamion_gb === kamionGb && x.prikolica_gb !== prikolicaGb)
+      if (stara && !window.confirm(t('prikapcanje.potvrdiZamjenu', { kamion: kamionGb, stara: stara.prikolica_gb, nova: prikolicaGb }))) {
+        return
+      }
+    }
     setRadi(true); setGreska('')
     try {
       await api.zabiljeziPrikapcanje({
