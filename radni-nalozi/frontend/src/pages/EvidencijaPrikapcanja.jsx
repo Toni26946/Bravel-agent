@@ -89,29 +89,40 @@ export default function EvidencijaPrikapcanja() {
         </div>
         {rows === null ? <Spinner /> : rows.length === 0 ? (
           <p className="meta">{t('spremne.nemaEvidencije')}</p>
-        ) : (
-          <div className="dnevnik-ispis">
-            <h3 className="di-naslov">{t('spremne.evidencija')}</h3>
-            <table className="di-tab">
-              <thead>
-                <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.kamion')}</th>
-                  <th>{t('spremne.prikolica')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
-              </thead>
-              <tbody>
-                {rows.map((x) => (
-                  <tr key={x.id}>
-                    <td>{kada(x.vrijeme)}</td>
-                    <td>{oznaka(x)}</td>
-                    <td>{x.kamion_gb || '—'}</td>
-                    <td>{x.prikolica_gb}</td>
-                    <td>{x.vozac || '—'}</td>
-                    <td>{x.lokacija || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        ) : (() => {
+          const upit = q.trim().toLowerCase()
+          const dnevnikFiltriran = rows.filter((x) => {
+            if (!upit) return true
+            return [x.kamion_gb, x.prikolica_gb, x.vozac, x.lokacija]
+              .some((v) => (v || '').toString().toLowerCase().includes(upit))
+          })
+          if (dnevnikFiltriran.length === 0) {
+            return <p className="meta">{t('prikapcanje.nemaRezultata')}</p>
+          }
+          return (
+            <div className="dnevnik-ispis">
+              <h3 className="di-naslov">{t('spremne.evidencija')}</h3>
+              <table className="di-tab">
+                <thead>
+                  <tr><th>{t('spremne.kada')}</th><th>{t('spremne.dogadaj')}</th><th>{t('spremne.kamion')}</th>
+                    <th>{t('spremne.prikolica')}</th><th>{t('spremne.vozac')}</th><th>{t('spremne.lokacijaKol')}</th></tr>
+                </thead>
+                <tbody>
+                  {dnevnikFiltriran.map((x) => (
+                    <tr key={x.id}>
+                      <td>{kada(x.vrijeme)}</td>
+                      <td>{oznaka(x)}</td>
+                      <td>{x.kamion_gb || '—'}</td>
+                      <td>{x.prikolica_gb}</td>
+                      <td>{x.vozac || '—'}</td>
+                      <td>{x.lokacija || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        })()}
       </div>
     </Layout>
   )
