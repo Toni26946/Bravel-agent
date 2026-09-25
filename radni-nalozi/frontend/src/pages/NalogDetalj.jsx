@@ -40,6 +40,7 @@ export default function NalogDetalj() {
   const [radnici, setRadnici] = useState([])
   const [uredi, setUredi] = useState(false)
   const [forma, setForma] = useState({ naslov: '', opis: '' })
+  const [servis, setServis] = useState(null)
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -48,6 +49,12 @@ export default function NalogDetalj() {
   useEffect(() => {
     api.korisnici('radnik').then(setRadnici).catch(() => {})
   }, [])
+  // Servisni status vozila (za banner na ekranu i u ispisu).
+  const voziloGb = n?.vozilo?.gb
+  useEffect(() => {
+    if (!voziloGb) { setServis(null); return }
+    api.servisVozila(voziloGb).then(setServis).catch(() => setServis(null))
+  }, [voziloGb])
 
   if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
   if (!n) return <Layout naslov="Nalog" nazad={true}><Spinner /></Layout>
@@ -72,7 +79,7 @@ export default function NalogDetalj() {
       {spojeno && (
         <div className="uspjeh">{t('nalog.spojeno')}</div>
       )}
-      {n.vozilo?.gb && <ServisBanner gb={n.vozilo.gb} />}
+      <ServisBanner s={servis} />
       <div className="karta">
         <div className="naslov-red">
           {uredi
@@ -134,7 +141,7 @@ export default function NalogDetalj() {
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'} />
 
       {/* Ispis naloga (vidljivo samo pri printanju) */}
-      <NalogPrint n={n} />
+      <NalogPrint n={n} servis={servis} />
     </Layout>
   )
 }
@@ -143,28 +150,31 @@ export default function NalogDetalj() {
 // Uvijek pokaže koliko još km do servisa; ako je dospjelo/uskoro — bode u oči.
 function kmFmt(x) { try { return Math.round(x).toLocaleString('hr-HR') } catch (_) { return x } }
 
-function ServisBanner({ gb }) {
-  const { t } = useT()
-  const [s, setS] = useState(null)
-  useEffect(() => { api.servisVozila(gb).then(setS).catch(() => setS(null)) }, [gb])
+// Zajednički izračun teksta (ekran + ispis). Vrati null ako nema km ni vremena.
+function servisTekst(t, s) {
   if (!s) return null
-
   const imaKm = s.km_preostalo !== null && s.km_preostalo !== undefined
   const imaVrijeme = s.preostalo_dana !== null && s.preostalo_dana !== undefined
   if (!imaKm && !imaVrijeme) return null
 
-  // Dijelovi teksta za km i vrijeme.
   const kmTxt = !imaKm ? null
     : s.km_preostalo <= 0
-      ? `🛣️ ${t('servisi.prekoraceno')} ${kmFmt(-s.km_preostalo)} km`
-      : `🛣️ ${t('nalog.jos')} ${kmFmt(s.km_preostalo)} km ${t('nalog.doServisa')}`
+      ? `${t('servisi.prekoraceno')} ${kmFmt(-s.km_preostalo)} km`
+      : `${t('nalog.jos')} ${kmFmt(s.km_preostalo)} km ${t('nalog.doServisa')}`
   const vrTxt = !imaVrijeme ? null
     : s.preostalo_dana <= 0
-      ? `🗓️ ${t('servisi.proslo')} ${Math.abs(s.preostalo_dana)} ${t('servisi.dana')}`
-      : `🗓️ ${t('nalog.jos')} ${s.preostalo_dana} ${t('servisi.dana')}${s.iduci_datum ? ` (${datum(s.iduci_datum)})` : ''}`
-  const detalji = [kmTxt, vrTxt].filter(Boolean).join('  ·  ')
+      ? `${t('servisi.proslo')} ${Math.abs(s.preostalo_dana)} ${t('servisi.dana')}`
+      : `${t('nalog.jos')} ${s.preostalo_dana} ${t('servisi.dana')}${s.iduci_datum ? ` (${datum(s.iduci_datum)})` : ''}`
+  return { status: s.status, kmTxt, vrTxt }
+}
 
-  if (s.status === 'dospjelo') {
+function ServisBanner({ s }) {
+  const { t } = useT()
+  const info = servisTekst(t, s)
+  if (!info) return null
+  const detalji = [info.kmTxt && `🛣️ ${info.kmTxt}`, info.vrTxt && `🗓️ ${info.vrTxt}`].filter(Boolean).join('  ·  ')
+
+  if (info.status === 'dospjelo') {
     return (
       <div className="servis-banner dospjelo">
         <div className="sb-naslov">⚠️ {t('nalog.servisDospio')}</div>
@@ -172,7 +182,7 @@ function ServisBanner({ gb }) {
       </div>
     )
   }
-  if (s.status === 'uskoro') {
+  if (info.status === 'uskoro') {
     return (
       <div className="servis-banner uskoro">
         <div className="sb-naslov">🟡 {t('nalog.servisUskoro')}</div>
@@ -188,8 +198,21 @@ function ServisBanner({ gb }) {
   )
 }
 
+// Servisni redak za ispis naloga (crno-bijelo; okvir + podebljano kad dospije/blizu).
+function ServisPrint({ s }) {
+  const { t } = useT()
+  const info = servisTekst(t, s)
+  if (!info) return null
+  const detalji = [info.kmTxt, info.vrTxt].filter(Boolean).join(' · ')
+  const naslov = info.status === 'dospjelo' ? `⚠ ${t('nalog.servisDospio')}`
+    : info.status === 'uskoro' ? t('nalog.servisUskoro')
+    : t('nalog.servis')
+  const klasa = 'np-servis' + (info.status === 'dospjelo' ? ' dospjelo' : info.status === 'uskoro' ? ' uskoro' : '')
+  return <div className={klasa}><span>{naslov}:</span> {detalji}</div>
+}
+
 // --- Ispis radnog naloga -----------------------------------------------------
-function NalogPrint({ n }) {
+function NalogPrint({ n, servis }) {
   const v = n.vozilo || {}
   return (
     <div className="nalog-print">
@@ -217,6 +240,8 @@ function NalogPrint({ n }) {
         {n.vozac && <div><span>Vozač:</span> {n.vozac.ime}</div>}
         {n.rok && <div><span>Predviđeni datum isporuke:</span> {datum(n.rok)}</div>}
       </div>
+
+      <ServisPrint s={servis} />
 
       {n.opis && (
         <div className="np-napomena"><span>Napomena:</span> {n.opis}</div>

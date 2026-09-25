@@ -552,6 +552,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .nalog-print .np-info { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin-bottom: 10px; }
 .nalog-print .np-info span { color: #444; margin-right: 4px; }
 .nalog-print .np-info div { border-bottom: 1px dotted #bbb; padding: 3px 0; }
+.nalog-print .np-servis { margin: 10px 0; padding: 7px 10px; border: 1px solid #000; font-size: 12px; }
+.nalog-print .np-servis span { font-weight: 700; margin-right: 6px; }
+.nalog-print .np-servis.dospjelo { border: 2px solid #000; background: #eee; font-weight: 700; }
+.nalog-print .np-servis.dospjelo span { text-transform: uppercase; }
+.nalog-print .np-servis.uskoro { border: 2px solid #000; }
 .nalog-print .np-napomena { margin: 10px 0; padding: 6px 0; border-top: 1px solid #000; border-bottom: 1px solid #000; }
 .nalog-print .np-napomena span { font-weight: 700; margin-right: 6px; }
 .nalog-print .np-sekcija { font-weight: 700; margin: 12px 0 6px; }
