@@ -203,6 +203,10 @@ class RegistarVozila(Base):
     # do idućeg servisa (pretpostavljen po tipu: dizalica/šumar 40k, tegljač 45k, serija 75k).
     servis_zadnji: Mapped[date | None] = mapped_column(Date, nullable=True)
     servis_prag_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Km uvjet (Faza 2): brojčanik na dan zadnjeg servisa i trenutni brojčanik (iz Mobilisisa).
+    servis_km: Mapped[int | None] = mapped_column(Integer, nullable=True)      # km na datum servisa
+    km_trenutni: Mapped[int | None] = mapped_column(Integer, nullable=True)    # zadnji poznati km
+    km_azuriran: Mapped[date | None] = mapped_column(Date, nullable=True)      # datum zadnjeg km-a
 
 
 # ---------------------------------------------------------------------------

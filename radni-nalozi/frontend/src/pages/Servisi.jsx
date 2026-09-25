@@ -71,6 +71,21 @@ function preostaloTekst(t, x) {
   return `${t('servisi.jos')} ${x.preostalo_dana} ${t('servisi.dana')}`
 }
 
+function kmBroj(n) { try { return Math.round(n).toLocaleString('hr-HR') } catch (_) { return n } }
+
+function kmTekst(t, x) {
+  if (x.servis_km === null || x.servis_km === undefined
+      || x.km_trenutni === null || x.km_trenutni === undefined) {
+    return t('servisi.nepoznato')
+  }
+  const emo = EMO[x.status_km] || ''
+  const proslo = `${kmBroj(x.km_proslo)} / ${kmBroj(x.prag_km)} km`
+  if (x.km_preostalo <= 0) {
+    return `${emo} ${proslo} · ${t('servisi.prekoraceno')} ${kmBroj(-x.km_preostalo)} km`
+  }
+  return `${emo} ${proslo} · ${t('servisi.jos')} ${kmBroj(x.km_preostalo)} km`
+}
+
 const EMO = { dospjelo: '🔴', uskoro: '🟡', ok: '🟢', nepoznato: '⚪' }
 
 function ServisRed({ x, onGotovo }) {
@@ -92,9 +107,12 @@ function ServisRed({ x, onGotovo }) {
         <div className="sp-gb">🚚 {x.gb} {EMO[x.status] || ''}
           {x.reg && <span className="meta" style={{ fontWeight: 400 }}> · {x.reg}</span>}</div>
         <div className="meta">
-          {t('servisi.zadnji')}: <strong>{datum(x.servis_zadnji)}</strong>
+          🗓️ {t('servisi.zadnji')}: <strong>{datum(x.servis_zadnji)}</strong>
           {' · '}{t('servisi.iduci')}: {datum(x.iduci_datum)}
-          {' · '}{preostaloTekst(t, x)}
+          {' · '}{EMO[x.status_vrijeme] || ''} {preostaloTekst(t, x)}
+        </div>
+        <div className="meta">
+          🛣️ {t('servisi.km')}: {kmTekst(t, x)}
         </div>
         <div className="meta" style={{ fontSize: 11.5, opacity: .8 }}>
           {t('servisi.prag')}: {(x.prag_km / 1000)} 000 km / 12 {t('servisi.mj')}
