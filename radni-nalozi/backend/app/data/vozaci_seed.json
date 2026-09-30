@@ -10,6 +10,16 @@
 "telefon": "00385994850282"
 },
 {
+"ime": "Andrii Pylypenko",
+"sektor": "TEGLJAČ",
+"telefon": "00385993927107"
+},
+{
+"ime": "Ante Rači",
+"sektor": "TEGLJAČ",
+"telefon": "00385994393862"
+},
+{
 "ime": "Antonio Ivšić",
 "sektor": "TEGLJAČ",
 "telefon": "00385912319138"
@@ -20,29 +30,14 @@
 "telefon": "00385996023074"
 },
 {
+"ime": "Antun Račan",
+"sektor": "TEGLJAČ",
+"telefon": "00385992953007"
+},
+{
 "ime": "Anđelko Đukić",
 "sektor": "DIZALICA",
 "telefon": "00385994396447"
-},
-{
-"ime": "Babu Paulose Babu Paulose",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Biju George",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Binoy Thomas",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Bishankhe Karna Bahadur",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Boris Jakčin",
@@ -50,19 +45,14 @@
 "telefon": "00385992319162"
 },
 {
-"ime": "Celso Blanco",
-"sektor": null,
-"telefon": null
+"ime": "Branko Predragović",
+"sektor": "TEGLJAČ",
+"telefon": "00385994976678"
 },
 {
-"ime": "Chenganmoolayil Saimon Bijosh",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Chudamani Khatiwada",
-"sektor": null,
-"telefon": null
+"ime": "Branko Štefun",
+"sektor": "TEGLJAČ",
+"telefon": "00385996034717"
 },
 {
 "ime": "Dalibor Banjeglav",
@@ -86,8 +76,28 @@
 },
 {
 "ime": "Damir Žebec",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385994966538"
+},
+{
+"ime": "Danijel Račan",
+"sektor": "DIZALICA",
+"telefon": "00385992319161"
+},
+{
+"ime": "Danijel Sokol",
+"sektor": "TEGLJAČ",
+"telefon": "00385996173000"
+},
+{
+"ime": "Danijel Starčević",
+"sektor": "DIZALICA",
+"telefon": "00385996173016"
+},
+{
+"ime": "Danijel Tumarčić",
+"sektor": "DIZALICA",
+"telefon": "00385996023204"
 },
 {
 "ime": "Danijel Čokić",
@@ -95,9 +105,9 @@
 "telefon": "00385996034735"
 },
 {
-"ime": "Danijel Škrinjarić",
-"sektor": null,
-"telefon": null
+"ime": "Danijel ŧkrinjarić",
+"sektor": "DIZALICA",
+"telefon": "00385996023100"
 },
 {
 "ime": "Dario Ferenčić",
@@ -115,19 +125,19 @@
 "telefon": "00385912319112"
 },
 {
+"ime": "Dario Modrić",
+"sektor": "TEGLJAČ",
+"telefon": "00385994863406"
+},
+{
 "ime": "Dario Pavičić",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385996097982"
 },
 {
 "ime": "Dario Viljevac",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "David Maloča",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385992319183"
 },
 {
 "ime": "Davor Komes",
@@ -135,29 +145,14 @@
 "telefon": "00385994906959"
 },
 {
-"ime": "Davor Vidaković",
-"sektor": null,
-"telefon": null
+"ime": "Dejan Ninković",
+"sektor": "TEGLJAČ",
+"telefon": "00385994870667"
 },
 {
-"ime": "Dejan Špirović",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Denis Jelušić",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Denis Ošust",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Dhakal Indra Bahadur",
-"sektor": null,
-"telefon": null
+"ime": "Denni Volenik",
+"sektor": "DIZALICA",
+"telefon": "00385994902924"
 },
 {
 "ime": "Domagoj Kešer",
@@ -166,23 +161,28 @@
 },
 {
 "ime": "Domagoj Šlogar",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385994879408"
 },
 {
-"ime": "Dragan Vasiljević",
-"sektor": null,
-"telefon": null
+"ime": "Domagoj Štefun",
+"sektor": "TEGLJAČ",
+"telefon": "00385994396445"
 },
 {
-"ime": "Dražen Galunić",
-"sektor": null,
-"telefon": null
+"ime": "Dominik Vidaković",
+"sektor": "TEGLJAČ",
+"telefon": "00385995253166"
 },
 {
-"ime": "Dražen Tončić",
-"sektor": null,
-"telefon": null
+"ime": "Dragan Vasilić",
+"sektor": "TEGLJAČ",
+"telefon": "00385992319159"
+},
+{
+"ime": "Dražen Rači",
+"sektor": "TEGLJAČ",
+"telefon": "00385996282190"
 },
 {
 "ime": "Dražen Čobović",
@@ -195,34 +195,14 @@
 "telefon": "00385992319164"
 },
 {
-"ime": "Dženan Karalija",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Eldanbouki Mohamed Ata Mohamed Ata",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Eldin Mathew",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Evelin Arnaut",
 "sektor": "TEGLJAČ",
-"telefon": "1800"
+"telefon": "1805"
 },
 {
 "ime": "Filip Mikloš",
 "sektor": "DIZALICA",
 "telefon": "00385994773180"
-},
-{
-"ime": "Ghole Suk Bahadur",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Goran Grbić",
@@ -236,13 +216,8 @@
 },
 {
 "ime": "Hrvoje Sabo",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Igor Eremeev",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385994739902"
 },
 {
 "ime": "Igor Golić",
@@ -270,9 +245,24 @@
 "telefon": "00385996097894"
 },
 {
-"ime": "Ivana Rebrović",
-"sektor": null,
-"telefon": null
+"ime": "Ivan Presečki",
+"sektor": "TEGLJAČ",
+"telefon": "00385994975295"
+},
+{
+"ime": "Ivan Vovylka",
+"sektor": "DIZALICA",
+"telefon": "00385992319181"
+},
+{
+"ime": "Ivan Vuksanović",
+"sektor": "DIZALICA",
+"telefon": "00385994976698"
+},
+{
+"ime": "Ivan Šimunović",
+"sektor": "TEGLJAČ",
+"telefon": "00385993845772"
 },
 {
 "ime": "Ivica Goreta",
@@ -280,14 +270,14 @@
 "telefon": "00385993285972"
 },
 {
+"ime": "Ivica Pleša",
+"sektor": "TEGLJAČ",
+"telefon": "00385992319160"
+},
+{
 "ime": "Izudin Alispahić",
 "sektor": "TEGLJAČ",
 "telefon": "00385992319185"
-},
-{
-"ime": "Jaimon Joseph",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Jasmin Ćato",
@@ -295,34 +285,29 @@
 "telefon": "00385994840809"
 },
 {
-"ime": "Joby Kurian",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Jose Jobin Chethiyil",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Jose Varghese",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Josip Mesarić",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Josip Ostroški",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385993927110"
 },
 {
 "ime": "Josip Pintar",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385995355997"
+},
+{
+"ime": "Josip Račan",
+"sektor": "TEGLJAČ",
+"telefon": "00385992319187"
+},
+{
+"ime": "Josip Zrinski",
+"sektor": "DIZALICA",
+"telefon": "00385911319017"
+},
+{
+"ime": "Josip Žmegač",
+"sektor": "TEGLJAČ",
+"telefon": "00385912319153"
 },
 {
 "ime": "Jovica Malić",
@@ -330,14 +315,14 @@
 "telefon": "00385996023067"
 },
 {
-"ime": "Kandathil John George",
-"sektor": null,
-"telefon": null
+"ime": "Karlo Stančec",
+"sektor": "TEGLJAČ",
+"telefon": "00385959136787"
 },
 {
-"ime": "Koirala Gopal Prasad",
-"sektor": null,
-"telefon": null
+"ime": "Krešimir Ocepek",
+"sektor": "TEGLJAČ",
+"telefon": "00385993285973"
 },
 {
 "ime": "Kristijan Markić",
@@ -346,13 +331,13 @@
 },
 {
 "ime": "Kristijan Sabo",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385912319137"
 },
 {
 "ime": "Krstan Regojević",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385993930278"
 },
 {
 "ime": "Krunoslav Klasić",
@@ -360,24 +345,19 @@
 "telefon": "00385994909433"
 },
 {
-"ime": "Kumbakkil Lukose Sibi",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Kuzhuppayil Sreedharan Sajimon",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Latheesh Vasu",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Leon Banović",
 "sektor": "TEGLJAČ",
 "telefon": "00385995253161"
+},
+{
+"ime": "Leonardo Šogorić",
+"sektor": "DIZALICA",
+"telefon": "00385993845773"
+},
+{
+"ime": "Ljubomir Vitomir",
+"sektor": "DIZALICA",
+"telefon": "00385995253138"
 },
 {
 "ime": "Luka Boban",
@@ -385,19 +365,14 @@
 "telefon": "00385912319114"
 },
 {
-"ime": "Mahendra Shrestha",
-"sektor": null,
-"telefon": null
+"ime": "Mahendra Sodari",
+"sektor": "TEGLJAČ",
+"telefon": "00385994870668"
 },
 {
 "ime": "Marijan Forgač",
 "sektor": "TEGLJAČ",
 "telefon": "00385996097981"
-},
-{
-"ime": "Marijan Pisačić",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Marijo Lisičak",
@@ -408,6 +383,11 @@
 "ime": "Marin Lončar",
 "sektor": "DIZALICA",
 "telefon": "00385912319129"
+},
+{
+"ime": "Marin Osmanović",
+"sektor": "TEGLJAČ",
+"telefon": "00385996103306"
 },
 {
 "ime": "Marinko Abramović",
@@ -430,9 +410,19 @@
 "telefon": "00385994976713"
 },
 {
+"ime": "Mario Mužina",
+"sektor": "TEGLJAČ",
+"telefon": "0911319020"
+},
+{
+"ime": "Mario Sofrić",
+"sektor": "TEGLJAČ",
+"telefon": "00385994317088"
+},
+{
 "ime": "Mario Tesarik",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385912319135"
 },
 {
 "ime": "Marko Antonić",
@@ -440,34 +430,19 @@
 "telefon": "00385911319016"
 },
 {
-"ime": "Marko Gospić",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Marko Jandrić",
 "sektor": "DIZALICA",
 "telefon": "00385994975294"
 },
 {
-"ime": "Marko Kakša",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Marko Malić",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Marko Munjeković",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385992319156"
 },
 {
 "ime": "Marko Vrdoljak",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385994966537"
 },
 {
 "ime": "Marko Čakmak",
@@ -476,13 +451,23 @@
 },
 {
 "ime": "Marko Šašinović",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385996097988"
+},
+{
+"ime": "Marko Šinogl",
+"sektor": "TEGLJAČ",
+"telefon": "00385992319182"
 },
 {
 "ime": "Martin Cupan",
 "sektor": "TEGLJAČ",
 "telefon": "00385912319118"
+},
+{
+"ime": "Martin Pajur",
+"sektor": "DIZALICA",
+"telefon": "00385993230482"
 },
 {
 "ime": "Matej Grgičin",
@@ -495,11 +480,6 @@
 "telefon": "00385994905396"
 },
 {
-"ime": "Mathai Geevo Kanjirakattu",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Matija Klemeš",
 "sektor": "DIZALICA",
 "telefon": "00385912319113"
@@ -510,9 +490,9 @@
 "telefon": "00385994396449"
 },
 {
-"ime": "Mattathil Joseph Sijo",
-"sektor": null,
-"telefon": null
+"ime": "Matija Špiranec",
+"sektor": "DIZALICA",
+"telefon": "00385993927109"
 },
 {
 "ime": "Mersudin Hozanović",
@@ -526,13 +506,8 @@
 },
 {
 "ime": "Miomir Stanisavljević",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Miroslav Babić",
-"sektor": null,
-"telefon": null
+"sektor": "DIZALICA",
+"telefon": "00385994773181"
 },
 {
 "ime": "Miroslav Kudrnovski",
@@ -545,19 +520,9 @@
 "telefon": "00385911319006"
 },
 {
-"ime": "Mislav Plaščar",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Mladen Malić",
 "sektor": "TEGLJAČ",
 "telefon": "00385994824545"
-},
-{
-"ime": "Mooleri Raghavan Manoj",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Muriz Adilović",
@@ -565,34 +530,14 @@
 "telefon": "00385995253888"
 },
 {
+"ime": "Mykhailo Vovylka",
+"sektor": "DIZALICA",
+"telefon": "00385993762332"
+},
+{
 "ime": "Mykola Huryn",
 "sektor": "TEGLJAČ",
 "telefon": "00385912319130"
-},
-{
-"ime": "Nabaraj Magar",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Nabin Tamang",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Nalinakshan Shibinraj",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Neven Levar",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Nexhat Ajvazaj",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Neđat Ajvazaj",
@@ -600,19 +545,14 @@
 "telefon": "00385994863407"
 },
 {
-"ime": "Nihad Šehić",
-"sektor": null,
-"telefon": null
+"ime": "Nikola Smolčec",
+"sektor": "TEGLJAČ",
+"telefon": "00385911319009"
 },
 {
-"ime": "Njundanmackal Damodaran Subhadran",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Oleksandr Kalashnykov",
-"sektor": null,
-"telefon": null
+"ime": "Novo Zeljković",
+"sektor": "TEGLJAČ",
+"telefon": "00385993930269"
 },
 {
 "ime": "Pavlo Ivanko",
@@ -620,24 +560,14 @@
 "telefon": "00385994824533"
 },
 {
-"ime": "Perun Kunić",
-"sektor": null,
-"telefon": null
+"ime": "Petar Vidaković",
+"sektor": "TEGLJAČ",
+"telefon": "00385993285971"
 },
 {
 "ime": "Petar Đuranović",
 "sektor": "TEGLJAČ",
 "telefon": "00385993927108"
-},
-{
-"ime": "Predrag Radošević",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Quiming Fernando Jr",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Radojica Malić",
@@ -650,49 +580,29 @@
 "telefon": "00385994739904"
 },
 {
-"ime": "Rai Santa Bahadur",
-"sektor": null,
-"telefon": null
+"ime": "Ranko Radančević",
+"sektor": "TEGLJAČ",
+"telefon": "00385994829331"
 },
 {
-"ime": "Rajeevkumar Ravi",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Reni Thomas",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Sabu Josephus",
-"sektor": null,
-"telefon": null
+"ime": "Sadik Varda",
+"sektor": "DIZALICA",
+"telefon": "00385994960284"
 },
 {
 "ime": "Sagar Rai",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385996173014"
 },
 {
-"ime": "Sajan Majeed",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Saša Vučković",
-"sektor": null,
-"telefon": null
+"ime": "Sandro Stojanović",
+"sektor": "TEGLJAČ",
+"telefon": "00385911319005"
 },
 {
 "ime": "Saša Čengić",
 "sektor": "DIZALICA",
 "telefon": "00385995832417"
-},
-{
-"ime": "Shaiju Thomas",
-"sektor": null,
-"telefon": null
 },
 {
 "ime": "Siniša Bera",
@@ -705,19 +615,19 @@
 "telefon": "00385996173001"
 },
 {
+"ime": "Siniša Selaković",
+"sektor": "TEGLJAČ",
+"telefon": "00385994975298"
+},
+{
 "ime": "Slaven Banjac",
 "sektor": "TEGLJAČ",
 "telefon": "00385992319169"
 },
 {
-"ime": "Stephan Varada",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Stevica Glumac",
-"sektor": null,
-"telefon": null
+"ime": "Slaviša Vasković",
+"sektor": "DIZALICA",
+"telefon": "00385912319117"
 },
 {
 "ime": "Stipo Lujić",
@@ -725,24 +635,9 @@
 "telefon": "00385996023205"
 },
 {
-"ime": "Sunil Tamang",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Tamang Akkal Bahadur",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Tamang Bir Bahadur",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Tamang Nima Sange",
-"sektor": null,
-"telefon": null
+"ime": "Svetislav Selaković",
+"sektor": "TEGLJAČ",
+"telefon": "00385994739820"
 },
 {
 "ime": "Tomislav Bajsar",
@@ -750,19 +645,19 @@
 "telefon": "00385994909431"
 },
 {
-"ime": "Tomislav Kovač",
-"sektor": null,
-"telefon": null
-},
-{
 "ime": "Tomislav Krupljan",
 "sektor": "TEGLJAČ",
 "telefon": "00385994879411"
 },
 {
-"ime": "Vanja Đermanović",
-"sektor": null,
-"telefon": null
+"ime": "Toni Pejić",
+"sektor": "TEGLJAČ",
+"telefon": "00385994850338"
+},
+{
+"ime": "Vedran Vlajinić",
+"sektor": "DIZALICA",
+"telefon": "00385911319019"
 },
 {
 "ime": "Velibor Gojković",
@@ -770,19 +665,34 @@
 "telefon": "00385995253153"
 },
 {
+"ime": "Viacheslav Popadiuk",
+"sektor": "TEGLJAČ",
+"telefon": "00385995253136"
+},
+{
+"ime": "Vlado Šavor",
+"sektor": "DIZALICA",
+"telefon": "00385912319109"
+},
+{
+"ime": "Vlado Šoštarić",
+"sektor": "TEGLJAČ",
+"telefon": "00385912319140"
+},
+{
 "ime": "Vojkan Milijić",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385911319018"
+},
+{
+"ime": "Volodymyr Kurcharczuk",
+"sektor": "TEGLJAČ",
+"telefon": "00385996097975"
 },
 {
 "ime": "Volodymyr Zhylovskyi",
-"sektor": null,
-"telefon": null
-},
-{
-"ime": "Zdravko Klemeš",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385996034720"
 },
 {
 "ime": "Zlatan Hršak",
@@ -791,8 +701,8 @@
 },
 {
 "ime": "Đuro Račan",
-"sektor": null,
-"telefon": null
+"sektor": "TEGLJAČ",
+"telefon": "00385992953005"
 },
 {
 "ime": "Željko Grežina",
@@ -813,5 +723,10 @@
 "ime": "Željko Kovač",
 "sektor": "TEGLJAČ",
 "telefon": "00385996097954"
+},
+{
+"ime": "Željko Šimunović",
+"sektor": "DIZALICA",
+"telefon": "00385993927105"
 }
 ]
