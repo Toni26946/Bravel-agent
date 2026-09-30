@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import zahtijevaj_uloge
+from ..config import settings
 from ..database import get_db
 from ..models import Korisnik, Uloga, Vozac
 from ..schemas import VozacCreate, VozacOut, VozacUpdate
@@ -24,6 +25,9 @@ voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 
 _SEED = Path(__file__).resolve().parent.parent / "data" / "vozaci_seed.json"
+# Verzija seed-popisa — povećaj kad se popis zamijeni (v2 = potpun popis iz
+# „VOZACI DODJELJENI KAMIONIMA" s telefonima i sektorom).
+_SEED_VERZIJA = ".vozaci_seed_v2"
 
 
 def _kljuc(ime: str) -> frozenset[str]:
@@ -31,8 +35,13 @@ def _kljuc(ime: str) -> frozenset[str]:
 
 
 def seed_vozaci(db: Session) -> None:
-    """Jednokratno napuni šifrarnik vozača iz priložene datoteke (ako je prazan
-    ili nedostaju neki). Postojeće (po skupu riječi imena) ne dira."""
+    """Napuni/uskladi šifrarnik vozača iz priložene datoteke.
+
+    - Novi vozači iz datoteke se dodaju; postojećima (po imenu) se dopunjuju
+      sektor/telefon ako nedostaju.
+    - Jednokratno po verziji (`_SEED_VERZIJA`): seed-unosi kojih više nema u
+      datoteci se uklanjaju (zamjena popisa). Ručno dodani (izvor='rucno') i
+      ručne izmjene (aktivan) se NE diraju."""
     if not _SEED.is_file():
         return
     try:
@@ -40,27 +49,49 @@ def seed_vozaci(db: Session) -> None:
     except Exception as e:  # pragma: no cover
         log.warning("Ne mogu učitati seed vozača: %s", e)
         return
-    postojeci = {_kljuc(v.ime) for v in db.execute(select(Vozac)).scalars().all()}
+
+    postojeci = db.execute(select(Vozac)).scalars().all()
+    po_kljucu: dict[frozenset[str], Vozac] = {}
+    for v in postojeci:
+        po_kljucu.setdefault(_kljuc(v.ime), v)
+
+    kljucevi_datoteke: set[frozenset[str]] = set()
     dodano = 0
     for r in podaci:
         ime = (r.get("ime") or "").strip()
         if not ime:
             continue
         k = _kljuc(ime)
-        if k in postojeci:
-            continue
-        db.add(Vozac(
-            ime=ime,
-            sektor=(r.get("sektor") or None),
-            telefon=(r.get("telefon") or None),
-            aktivan=True,
-            izvor="seed",
-        ))
-        postojeci.add(k)
-        dodano += 1
-    if dodano:
+        kljucevi_datoteke.add(k)
+        sektor = (r.get("sektor") or None)
+        telefon = (r.get("telefon") or None)
+        v = po_kljucu.get(k)
+        if v is None:
+            v = Vozac(ime=ime, sektor=sektor, telefon=telefon, aktivan=True, izvor="seed")
+            db.add(v)
+            po_kljucu[k] = v
+            dodano += 1
+        else:
+            # dopuni detalje ako nedostaju (ne gazi ručne izmjene imena)
+            if not v.telefon and telefon:
+                v.telefon = telefon
+            if not v.sektor and sektor:
+                v.sektor = sektor
+
+    # Zamjena popisa (jednokratno po verziji): makni seed-vozače kojih nema u datoteci.
+    zastavica = Path(settings.upload_dir).parent / _SEED_VERZIJA
+    uklonjeno = 0
+    if not zastavica.exists():
+        for v in postojeci:
+            if (v.izvor or "seed") != "rucno" and _kljuc(v.ime) not in kljucevi_datoteke:
+                db.delete(v)
+                uklonjeno += 1
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+
+    if dodano or uklonjeno:
         db.commit()
-        log.info("Seed vozača: dodano %d vozača.", dodano)
+        log.info("Seed vozača: dodano %d, uklonjeno %d.", dodano, uklonjeno)
 
 
 @router.get("", response_model=list[VozacOut])
