@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import statistics
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy import select
@@ -23,9 +24,14 @@ log = logging.getLogger("norme")
 KLJUC_EUR = "eur_po_normi"      # € po jednom norma-satu
 KLJUC_OSNOVICA = "osnovica"     # mjesečna osnovica (€) — informativno
 KLJUC_SHADOW = "shadow_mode"    # '1' = samo mjerimo, ne mijenjamo plaću
+KLJUC_ZADNJI = "norme_zadnji_preracun"  # datum zadnjeg auto-preračuna (ISO)
 
 _SEED_VERZIJA = ".norme_seed_v1"
+_EUR_VERZIJA = ".norme_eur_v1"
 _MIN_UZORAKA = 3                # ispod ovoga normu treba ručno potvrditi
+# Kalibrirana stopa: Bruto 2 radione 2025. H1 / proizvedeni norma-sati (27 servisera),
+# tako da ukupni trošak ostane isti, samo preraspodijeljen po učinku. Voditelj mijenja.
+_KALIB_EUR = "8.45"
 
 
 def norm_kat(s: str | None) -> str:
@@ -112,8 +118,44 @@ def seed_norme(db: Session) -> None:
         set_postavka(db, KLJUC_SHADOW, "1")    # kreni u shadow modu
     db.commit()
     izracunaj_norme(db)
+    set_postavka(db, KLJUC_ZADNJI, date.today().isoformat())
+    db.commit()
     try:
         zastavica.parent.mkdir(parents=True, exist_ok=True)
         zastavica.write_text("done", encoding="utf-8")
     except OSError:
         pass
+
+
+def uskladi_norme(db: Session) -> None:
+    """Pri pokretanju: (1) jednokratno postavi kalibriranu €/norma-sat ako još
+    nije postavljena, (2) auto-preračunaj norme ako su starije od ~30 dana."""
+    # (1) kalibrirana cijena (jednokratno, ne gazi ručno postavljenu)
+    zf = Path(settings.upload_dir).parent / _EUR_VERZIJA
+    try:
+        postoji = zf.exists()
+    except OSError:
+        postoji = False
+    if not postoji:
+        trenutno = get_postavka(db, KLJUC_EUR)
+        if trenutno in (None, "", "0", "0.0"):
+            set_postavka(db, KLJUC_EUR, _KALIB_EUR)
+            db.commit()
+            log.info("Norme: postavljena kalibrirana €/norma-sat = %s", _KALIB_EUR)
+        try:
+            zf.parent.mkdir(parents=True, exist_ok=True)
+            zf.write_text("done", encoding="utf-8")
+        except OSError:
+            pass
+    # (2) mjesečni auto-preračun
+    treba = True
+    zadnji = get_postavka(db, KLJUC_ZADNJI)
+    if zadnji:
+        try:
+            treba = (date.today() - date.fromisoformat(zadnji)).days >= 30
+        except ValueError:
+            treba = True
+    if treba:
+        izracunaj_norme(db)
+        set_postavka(db, KLJUC_ZADNJI, date.today().isoformat())
+        db.commit()
