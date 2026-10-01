@@ -647,6 +647,7 @@ class NormaOut(ORM):
     p60_min: int | None = None
     broj_uzoraka: int = 0
     rucno: bool = False
+    cijena_eur: float = 0  # predložena cijena posla = norma_min × (€/norma-sat)/60
 
 
 class NormaUpdate(BaseModel):

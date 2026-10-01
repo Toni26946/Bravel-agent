@@ -96,6 +96,7 @@ function Norme({ t, voditelj }) {
   return (
     <div>
       <p className="meta" style={{ marginTop: 0 }}>{t('pos.normeOpis')}</p>
+      <p className="meta" style={{ marginTop: -4 }}>{t('pos.cijenaOpis')}</p>
       <div className="btn-red no-print" style={{ marginBottom: 8, gap: 8 }}>
         <input className="pretraga-input" placeholder={t('pos.traziNorma')} value={q} onChange={(e) => setQ(e.target.value)} />
         {voditelj && <button className="btn sekund mali" disabled={radi} onClick={preracunaj}>🔄 {t('pos.preracunaj')}</button>}
@@ -107,6 +108,7 @@ function Norme({ t, voditelj }) {
               <tr>
                 <th>{t('pos.kategorija')}</th><th>{t('pos.uzoraka')}</th>
                 <th>{t('pos.medijan')}</th><th>{t('pos.normaMin')}</th>
+                <th>{t('pos.cijena')}</th>
                 {voditelj && <th className="no-print"></th>}
               </tr>
             </thead>
@@ -141,6 +143,7 @@ function NormaRed({ n, voditelj, onPromjena, t }) {
           <input className="pos-min" type="number" min="0" value={v} onChange={(e) => setV(e.target.value)} />
         ) : (<strong>{n.norma_min}</strong>)} <span className="meta">min</span>
       </td>
+      <td className="pos-cijena">{(n.cijena_eur || 0).toLocaleString('hr-HR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })}</td>
       {voditelj && (
         <td className="no-print" style={{ whiteSpace: 'nowrap' }}>
           {promijenjeno && <button className="ikonbtn" disabled={radi} onClick={spremi} title={t('pos.spremi')}>✓</button>}

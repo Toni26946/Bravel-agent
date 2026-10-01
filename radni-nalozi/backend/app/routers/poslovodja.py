@@ -49,7 +49,14 @@ def _fnum(s, zadano=0.0) -> float:
 # --- Norme -------------------------------------------------------------------
 @router.get("/norme", response_model=list[NormaOut])
 def norme(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
-    return db.execute(select(NormaPosla).order_by(NormaPosla.broj_uzoraka.desc())).scalars().all()
+    eur = _fnum(get_postavka(db, KLJUC_EUR, "0"))
+    redovi = db.execute(select(NormaPosla).order_by(NormaPosla.broj_uzoraka.desc())).scalars().all()
+    out = []
+    for n in redovi:
+        o = NormaOut.model_validate(n)
+        o.cijena_eur = round((n.norma_min or 0) * eur / 60.0, 2)
+        out.append(o)
+    return out
 
 
 @router.patch("/norme/{norma_id}", response_model=NormaOut)
