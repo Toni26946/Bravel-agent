@@ -27,11 +27,16 @@ KLJUC_SHADOW = "shadow_mode"    # '1' = samo mjerimo, ne mijenjamo plaću
 KLJUC_ZADNJI = "norme_zadnji_preracun"  # datum zadnjeg auto-preračuna (ISO)
 
 _SEED_VERZIJA = ".norme_seed_v1"
-_EUR_VERZIJA = ".norme_eur_v1"
+_EUR_VERZIJA = ".norme_eur_v2"
 _MIN_UZORAKA = 3                # ispod ovoga normu treba ručno potvrditi
-# Kalibrirana stopa: Bruto 2 radione 2025. H1 / proizvedeni norma-sati (27 servisera),
-# tako da ukupni trošak ostane isti, samo preraspodijeljen po učinku. Voditelj mijenja.
-_KALIB_EUR = "8.45"
+# Kalibrirana stopa: stvarni obračun radione (srpanj+kolovoz 2026) / proizvedeni
+# norma-sati, samo za servisere na podu (≥60 norma-sati/mj; poslovođe na fiksnoj
+# osnovici koji ne klikaju operacije se ne računaju). Revenue-neutral za taj skup
+# (€35.046 / 2.786 norma-sati ≈ 12,58). Voditelj mijenja u Postavkama.
+_KALIB_EUR = "12.50"
+# Prethodno auto-kalibrirane vrijednosti koje nova kalibracija smije zamijeniti
+# (ručno postavljenu vrijednost voditelja NE diramo).
+_STARE_AUTO_EUR = {None, "", "0", "0.0", "8.45"}
 
 
 def norm_kat(s: str | None) -> str:
@@ -138,7 +143,7 @@ def uskladi_norme(db: Session) -> None:
         postoji = False
     if not postoji:
         trenutno = get_postavka(db, KLJUC_EUR)
-        if trenutno in (None, "", "0", "0.0"):
+        if trenutno in _STARE_AUTO_EUR:
             set_postavka(db, KLJUC_EUR, _KALIB_EUR)
             db.commit()
             log.info("Norme: postavljena kalibrirana €/norma-sat = %s", _KALIB_EUR)
