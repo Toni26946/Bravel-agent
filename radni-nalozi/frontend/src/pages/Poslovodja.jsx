@@ -157,18 +157,50 @@ function NormaRed({ n, voditelj, onPromjena, t }) {
 function Postavke({ t, voditelj }) {
   const [p, setP] = useState(null)
   const [poruka, setPoruka] = useState('')
+  const [info, setInfo] = useState(null)
+  const [rekRadi, setRekRadi] = useState(false)
+  const [rekPoruka, setRekPoruka] = useState('')
   useEffect(() => { api.poslovodjaPostavke().then(setP).catch(() => setP({ eur_po_normi: 0, osnovica: 0, shadow: true })) }, [])
+  useEffect(() => { api.obracunInfo().then(setInfo).catch(() => setInfo(null)) }, [])
   const spremi = async (izmjene) => {
     const az = await api.azurirajPoslovodjaPostavke(izmjene)
     setP(az); setPoruka(t('pos.spremljeno')); setTimeout(() => setPoruka(''), 2000)
+  }
+  const rekalibriraj = async () => {
+    setRekRadi(true); setRekPoruka('')
+    try {
+      const r = await api.rekalibriraj()
+      if (r.ok && r.valjana) {
+        setRekPoruka(t('pos.rekOk', { stopa: r.stopa, n: r.poklopljeno }))
+        const [np, ni] = await Promise.all([api.poslovodjaPostavke(), api.obracunInfo()])
+        setP(np); setInfo(ni)
+      } else {
+        setRekPoruka(t('pos.rekLose'))
+      }
+    } catch { setRekPoruka(t('pos.rekLose')) }
+    finally { setRekRadi(false); setTimeout(() => setRekPoruka(''), 6000) }
   }
   if (!p) return <Spinner />
   return (
     <div className="karta" style={{ maxWidth: 460 }}>
       <label style={{ marginTop: 0 }}>{t('pos.eurPoNormi')}</label>
-      <input className="pretraga-input" type="number" min="0" step="0.5" defaultValue={p.eur_po_normi}
+      <input key={p.eur_po_normi} className="pretraga-input" type="number" min="0" step="0.5" defaultValue={p.eur_po_normi}
         disabled={!voditelj} onBlur={(e) => voditelj && spremi({ eur_po_normi: Number(e.target.value) })} />
       <p className="meta" style={{ marginTop: 4 }}>{t('pos.eurOpis')}</p>
+
+      <div className="pos-rekalib">
+        <div className="meta" style={{ marginBottom: 6 }}>
+          {info && info.zadnji_sync
+            ? t('pos.obracunZadnji', { datum: info.zadnji_sync, stopa: info.stopa, n: info.poklopljeno })
+            : t('pos.obracunNema')}
+        </div>
+        {voditelj && (
+          <button className="btn sekund mali" disabled={rekRadi} onClick={rekalibriraj}>
+            🔄 {t('pos.rekalibriraj')}
+          </button>
+        )}
+        {rekPoruka && <div className="meta" style={{ marginTop: 6 }}>{rekPoruka}</div>}
+      </div>
 
       <label style={{ marginTop: 10 }}>{t('pos.osnovica')}</label>
       <input className="pretraga-input" type="number" min="0" step="10" defaultValue={p.osnovica}
