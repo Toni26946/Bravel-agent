@@ -626,5 +626,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pos-min { width: 80px; border: 1px solid var(--rub); border-radius: 6px; padding: 4px 6px; font-size: 13px; }
 .pos-znak { font-size: 11px; color: var(--plava); margin-left: 6px; }
 .pos-malo td { background: #fffdf5; }
+.pos-cijena { font-weight: 700; color: var(--zelena, #137333); white-space: nowrap; }
 .pos-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .pos-toggle input { width: 18px; height: 18px; }
