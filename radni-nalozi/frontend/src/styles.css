@@ -629,5 +629,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pos-cijena { font-weight: 700; color: var(--zelena, #137333); white-space: nowrap; }
 .pos-rekalib { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rub); }
 .pos-slab { margin-left: 5px; color: var(--upoz, #b45309); cursor: help; }
+.lj-top td { background: #fffbea; }
+
+/* Moj učinak (radnik) */
+.mu-kpi { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin-bottom: 16px; }
+.mu-glavni { flex: 1 1 200px; background: var(--zelena, #137333); color: #fff; border-radius: 14px; padding: 16px 18px; }
+.mu-glavni .mu-n { font-size: 34px; font-weight: 800; line-height: 1; }
+.mu-glavni .mu-l { opacity: .9; font-size: 13px; margin-top: 6px; }
+.mu-sporedni { flex: 1 1 160px; display: flex; gap: 10px; }
+.mu-sporedni > div { flex: 1; background: var(--karta-bg, #fff); border: 1px solid var(--rub); border-radius: 14px; padding: 14px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.mu-sporedni strong { font-size: 26px; }
+.mu-sporedni span { display: block; color: var(--meta, #6b7280); font-size: 12px; margin-top: 4px; }
+.mu-naslov { margin: 10px 0 8px; font-size: 16px; }
+.mu-lista { display: flex; flex-direction: column; gap: 8px; }
+.mu-posao { display: block; text-decoration: none; color: inherit; background: var(--karta-bg, #fff); border: 1px solid var(--rub); border-radius: 12px; padding: 12px 14px; }
+.mu-posao:hover { border-color: var(--zelena, #137333); }
+.mu-posao-glava { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mu-op { font-weight: 700; }
+.mu-cijena { font-weight: 800; color: var(--zelena, #137333); white-space: nowrap; }
+.mu-posao-opis { margin-top: 3px; }
+.mu-posao-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 10px; color: var(--meta, #6b7280); font-size: 12px; }
+.mu-mjeri { color: var(--plava, #2563eb); font-weight: 600; }
 .pos-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .pos-toggle input { width: 18px; height: 18px; }

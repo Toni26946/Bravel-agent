@@ -179,6 +179,8 @@ export const api = {
   ucinak: (dana = 30) => zahtjev(`/poslovodja/ucinak?dana=${dana}`),
   obracunInfo: () => zahtjev('/poslovodja/obracun-info'),
   rekalibriraj: () => zahtjev('/poslovodja/rekalibriraj', { method: 'POST' }),
+  ljestvica: (dana = 7) => zahtjev(`/ucinak/ljestvica?dana=${dana}`),
+  mojUcinak: (dana = 7) => zahtjev(`/ucinak/moj?dana=${dana}`),
 
   // Šteta
   stete: () => zahtjev('/stete'),

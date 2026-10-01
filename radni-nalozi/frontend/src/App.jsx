@@ -22,6 +22,7 @@ import Zaduzenja from './pages/Zaduzenja'
 import ZaduzenjeDetalj from './pages/ZaduzenjeDetalj'
 import Vozaci from './pages/Vozaci'
 import Poslovodja from './pages/Poslovodja'
+import MojUcinak from './pages/MojUcinak'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
@@ -78,6 +79,7 @@ export default function App() {
 
       {/* AI Poslovođa (norme, učinak, postavke): voditelj + poslovođa */}
       <Route path="/poslovodja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Poslovodja /></Zasticeno>} />
+      <Route path="/moj-ucinak" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><MojUcinak /></Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

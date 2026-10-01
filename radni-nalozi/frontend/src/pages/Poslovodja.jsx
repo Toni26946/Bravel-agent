@@ -17,10 +17,12 @@ export default function Poslovodja() {
       <p className="meta" style={{ marginTop: 0 }}>{t('pos.opis')}</p>
       <div className="pos-tabovi no-print" style={{ marginBottom: 10 }}>
         <button className={'pos-tab' + (tab === 'ucinak' ? ' akt' : '')} onClick={() => setTab('ucinak')}>📊 {t('pos.ucinak')}</button>
+        <button className={'pos-tab' + (tab === 'ljestvica' ? ' akt' : '')} onClick={() => setTab('ljestvica')}>🏆 {t('pos.ljestvica')}</button>
         <button className={'pos-tab' + (tab === 'norme' ? ' akt' : '')} onClick={() => setTab('norme')}>💶 {t('pos.norme')}</button>
         <button className={'pos-tab' + (tab === 'postavke' ? ' akt' : '')} onClick={() => setTab('postavke')}>⚙️ {t('pos.postavke')}</button>
       </div>
       {tab === 'ucinak' && <Ucinak t={t} />}
+      {tab === 'ljestvica' && <Ljestvica t={t} />}
       {tab === 'norme' && <Norme t={t} voditelj={voditelj} />}
       {tab === 'postavke' && <Postavke t={t} voditelj={voditelj} />}
     </Layout>
@@ -69,6 +71,48 @@ function Ucinak({ t }) {
             </table>
           </div>
           {d.bez_norme > 0 && <p className="meta">{t('pos.bezNorme', { n: d.bez_norme })}</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
+function Ljestvica({ t }) {
+  const [dana, setDana] = useState(7)
+  const [d, setD] = useState(null)
+  useEffect(() => { setD(null); api.ljestvica(dana).then(setD).catch(() => setD({ redovi: [] })) }, [dana])
+  const eur = (x) => (x || 0).toLocaleString('hr-HR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  const medalja = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1)
+  return (
+    <div>
+      <div className="vz-filteri" style={{ marginBottom: 8 }}>
+        {[7, 30, 90].map((n) => (
+          <button key={n} className={'vz-fil' + (dana === n ? ' akt' : '')} onClick={() => setDana(n)}>{n} {t('pos.dana')}</button>
+        ))}
+      </div>
+      {d === null ? <Spinner /> : d.redovi.length === 0 ? (
+        <p className="meta">{t('pos.ljestvicaPrazno')}</p>
+      ) : (
+        <>
+          {d.eur_po_normi === 0 && <div className="pos-upozorenje">⚠️ {t('pos.nemaEur')}</div>}
+          <div className="karta">
+            <table className="di-tab">
+              <thead>
+                <tr><th>#</th><th>{t('pos.radnik')}</th><th>{t('pos.poslova')}</th><th>{t('pos.zarada')}</th></tr>
+              </thead>
+              <tbody>
+                {d.redovi.map((r, i) => (
+                  <tr key={r.radnik_id} className={i < 3 ? 'lj-top' : ''}>
+                    <td style={{ fontSize: i < 3 ? 18 : 14 }}>{medalja(i)}</td>
+                    <td><strong>{r.ime}</strong></td>
+                    <td>{r.broj_poslova}</td>
+                    <td className="pos-cijena">{eur(r.zarada_eur)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="meta" style={{ marginTop: 8 }}>{t('pos.ljestvicaNapo')}</p>
         </>
       )}
     </div>

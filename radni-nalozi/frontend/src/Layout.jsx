@@ -62,6 +62,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
   if (korisnik?.uloga === 'radnik') {
+    tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
   tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
