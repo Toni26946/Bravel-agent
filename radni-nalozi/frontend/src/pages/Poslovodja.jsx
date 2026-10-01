@@ -134,9 +134,9 @@ function NormaRed({ n, voditelj, onPromjena, t }) {
   }
   const vratiAuto = async () => { setRadi(true); try { await api.azurirajNormu(n.id, { rucno: false }); onPromjena() } finally { setRadi(false) } }
   return (
-    <tr className={n.broj_uzoraka < 3 ? 'pos-malo' : ''}>
+    <tr className={n.broj_uzoraka < 15 ? 'pos-malo' : ''}>
       <td>{n.kategorija}{n.rucno && <span className="pos-znak">{t('pos.rucno')}</span>}</td>
-      <td>{n.broj_uzoraka}</td>
+      <td>{n.broj_uzoraka}{n.broj_uzoraka < 15 && <span className="pos-slab" title={t('pos.slabOpis')}>⚠</span>}</td>
       <td className="meta">{n.medijan_min ?? '—'}{n.p60_min ? ` / ${n.p60_min}` : ''}</td>
       <td>
         {voditelj ? (
