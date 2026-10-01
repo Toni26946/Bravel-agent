@@ -21,6 +21,7 @@ import NalogDetalj from './pages/NalogDetalj'
 import Zaduzenja from './pages/Zaduzenja'
 import ZaduzenjeDetalj from './pages/ZaduzenjeDetalj'
 import Vozaci from './pages/Vozaci'
+import Poslovodja from './pages/Poslovodja'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
@@ -74,6 +75,9 @@ export default function App() {
 
       {/* Šifrarnik vozača: voditelj + poslovođa */}
       <Route path="/vozaci" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozaci /></Zasticeno>} />
+
+      {/* AI Poslovođa (norme, učinak, postavke): voditelj + poslovođa */}
+      <Route path="/poslovodja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Poslovodja /></Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

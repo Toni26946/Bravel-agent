@@ -170,6 +170,14 @@ export const api = {
   azurirajZaduzenje: (id, b) => zahtjev(`/zaduzenja/${id}`, { method: 'PATCH', body: b }),
   obrisiZaduzenje: (id) => zahtjev(`/zaduzenja/${id}`, { method: 'DELETE' }),
 
+  // AI Poslovođa (norme, postavke, učinak)
+  norme: () => zahtjev('/poslovodja/norme'),
+  azurirajNormu: (id, b) => zahtjev(`/poslovodja/norme/${id}`, { method: 'PATCH', body: b }),
+  preracunajNorme: () => zahtjev('/poslovodja/norme/preracunaj', { method: 'POST' }),
+  poslovodjaPostavke: () => zahtjev('/poslovodja/postavke'),
+  azurirajPoslovodjaPostavke: (b) => zahtjev('/poslovodja/postavke', { method: 'PATCH', body: b }),
+  ucinak: (dana = 30) => zahtjev(`/poslovodja/ucinak?dana=${dana}`),
+
   // Šteta
   stete: () => zahtjev('/stete'),
   glasovniParseStete: (tekst, vozaci) =>

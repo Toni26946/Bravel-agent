@@ -616,3 +616,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ikonbtn:hover { background: #eef2f7; }
 .voz-neaktivan { opacity: .55; }
 .voz-neaktivan td { text-decoration: none; }
+
+/* --- AI Poslovođa (norme, učinak, postavke) -------------------------------- */
+.pos-tabovi { display: flex; gap: 6px; flex-wrap: wrap; }
+.pos-tab { background: #fff; border: 1px solid var(--rub); border-radius: 999px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
+.pos-tab.akt { background: var(--plava); color: #fff; border-color: var(--plava); }
+.pos-shadow { background: #eef4ff; color: #1d4ed8; border: 1px solid #c7d7fe; border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
+.pos-upozorenje { background: #fff4e5; color: #9a6400; border: 1px solid #ffe0b2; border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px; }
+.pos-min { width: 80px; border: 1px solid var(--rub); border-radius: 6px; padding: 4px 6px; font-size: 13px; }
+.pos-znak { font-size: 11px; color: var(--plava); margin-left: 6px; }
+.pos-malo td { background: #fffdf5; }
+.pos-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.pos-toggle input { width: 18px; height: 18px; }
