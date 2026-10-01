@@ -490,6 +490,33 @@ class Zaduzenje(Base):
     kreirao: Mapped["Korisnik | None"] = relationship()
 
 
+class NormaPosla(Base):
+    """Norma (standardno vrijeme) po vrsti posla — temelj plaćanja po učinku.
+
+    Računa se iz povijesti rada (medijan/percentil izmjerenog trajanja po
+    kategoriji). Voditelj može ručno korigirati (rucno=True → auto preračun je
+    ne dira). Cijena posla = norma_min × (€/norma-sat)/60."""
+    __tablename__ = "norme_posla"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kategorija: Mapped[str] = mapped_column(String(160), unique=True, index=True)  # normalizirano ime
+    norma_min: Mapped[int] = mapped_column(Integer, default=0)       # važeća norma (min)
+    medijan_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    p60_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    broj_uzoraka: Mapped[int] = mapped_column(Integer, default=0)
+    rucno: Mapped[bool] = mapped_column(Boolean, default=False)      # ručno postavljena norma
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class Postavka(Base):
+    """Generički ključ-vrijednost za postavke aplikacije (npr. €/norma-sat)."""
+    __tablename__ = "postavke"
+
+    kljuc: Mapped[str] = mapped_column(String(80), primary_key=True)
+    vrijednost: Mapped[str | None] = mapped_column(Text, nullable=True)
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class Vozac(Base):
     """Šifrarnik vozača — naša evidencija tko je vozač (ime, sektor, telefon).
 

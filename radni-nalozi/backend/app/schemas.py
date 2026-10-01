@@ -638,6 +638,52 @@ class VozacUpdate(BaseModel):
     aktivan: bool | None = None
 
 
+# --- AI Poslovođa: norme, postavke, učinak -----------------------------------
+class NormaOut(ORM):
+    id: int
+    kategorija: str
+    norma_min: int
+    medijan_min: int | None = None
+    p60_min: int | None = None
+    broj_uzoraka: int = 0
+    rucno: bool = False
+
+
+class NormaUpdate(BaseModel):
+    norma_min: int | None = Field(default=None, ge=0)
+    rucno: bool | None = None  # False = vrati na izračunatu (medijan)
+
+
+class PostavkeOut(BaseModel):
+    eur_po_normi: float = 0
+    osnovica: float = 0
+    shadow: bool = True
+
+
+class PostavkeUpdate(BaseModel):
+    eur_po_normi: float | None = Field(default=None, ge=0)
+    osnovica: float | None = Field(default=None, ge=0)
+    shadow: bool | None = None
+
+
+class UcinakRedak(BaseModel):
+    radnik: str
+    broj_poslova: int
+    norma_min: int
+    norma_sati: float
+    procijenjena_zarada: float
+
+
+class UcinakOut(BaseModel):
+    od: date
+    do: date
+    dana: int
+    eur_po_normi: float
+    shadow: bool
+    bez_norme: int  # broj zapisa čija kategorija nema normu (nije uračunato)
+    redovi: list[UcinakRedak] = []
+
+
 # --- Push --------------------------------------------------------------------
 class PushSubscription(BaseModel):
     subscription: dict
