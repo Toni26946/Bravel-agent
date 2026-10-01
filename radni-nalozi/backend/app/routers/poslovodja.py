@@ -86,6 +86,20 @@ def preracunaj(db: Session = Depends(get_db), _: Korisnik = Depends(samo_voditel
     return {"preracunato": broj}
 
 
+# --- Obračun radione (živo povezivanje) --------------------------------------
+@router.get("/obracun-info")
+def obracun_info(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
+    from ..obracun_radione import info
+    return info(db)
+
+
+@router.post("/rekalibriraj")
+def rekalibriraj(db: Session = Depends(get_db), _: Korisnik = Depends(samo_voditelj)):
+    """Dohvati obračun radione i (ako je valjano) postavi €/norma-sat."""
+    from ..obracun_radione import sinkroniziraj
+    return sinkroniziraj(db, primijeni=True)
+
+
 # --- Postavke ----------------------------------------------------------------
 @router.get("/postavke", response_model=PostavkeOut)
 def postavke(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):

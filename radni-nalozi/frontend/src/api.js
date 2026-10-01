@@ -177,6 +177,8 @@ export const api = {
   poslovodjaPostavke: () => zahtjev('/poslovodja/postavke'),
   azurirajPoslovodjaPostavke: (b) => zahtjev('/poslovodja/postavke', { method: 'PATCH', body: b }),
   ucinak: (dana = 30) => zahtjev(`/poslovodja/ucinak?dana=${dana}`),
+  obracunInfo: () => zahtjev('/poslovodja/obracun-info'),
+  rekalibriraj: () => zahtjev('/poslovodja/rekalibriraj', { method: 'POST' }),
 
   // Šteta
   stete: () => zahtjev('/stete'),
