@@ -17,7 +17,7 @@ from .database import Base, SessionLocal, engine
 from .migrate import migrate
 from .routers import auth, dijelovi, korisnici, nalozi, poslovodja, prijave, push, stete, vozaci, vozila, zaduzenja
 from .routers.vozaci import seed_vozaci
-from .norme import seed_norme
+from .norme import seed_norme, uskladi_norme
 from .routers import flota as flota_router
 from .seed import (
     backfill_povijest_gotovih,
@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
         obavijesti_osvjezi(db)
         seed_vozaci(db)
         seed_norme(db)
+        uskladi_norme(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
     if flota.konfigurirano():
