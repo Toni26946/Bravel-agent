@@ -43,12 +43,24 @@ export default function NoviNalog() {
     if (vid) setVoditeljId(vid)
     if (zid) setVozacId(zid)
     if (ops && ops.length) {
-      // Spoji sve opise jedne operacije u JEDAN opis (odvojene " • ").
-      setOperacije(ops.map((op) => {
-        const opisi = (op.zadaci || []).map((z) => (z.opis || '').trim()).filter(Boolean)
-        const zid2 = (op.zadaci || []).map((z) => z.zaduzeni_id).find((x) => x) || null
-        return { kategorija: op.kategorija, opis: opisi.join(' • '), zaduzeni_id: zid2 }
-      }))
+      // DODAJ izdiktirane operacije na postojeće (ne zamjenjuj!) — da se više diktata
+      // nadovezuje. Iste kategorije spoji u jedan redak; isti opisi se ne dupliciraju.
+      setOperacije((prev) => {
+        const spojeno = prev.map((o) => ({ ...o }))
+        for (const op of ops) {
+          const opisi = (op.zadaci || []).map((z) => (z.opis || '').trim()).filter(Boolean)
+          const zid2 = (op.zadaci || []).map((z) => z.zaduzeni_id).find((x) => x) || null
+          const i = spojeno.findIndex((o) => (o.kategorija || '').toLowerCase() === (op.kategorija || '').toLowerCase())
+          if (i >= 0) {
+            const postoj = (spojeno[i].opis || '').split(' • ').map((s) => s.trim()).filter(Boolean)
+            for (const o of opisi) if (!postoj.includes(o)) postoj.push(o)
+            spojeno[i] = { ...spojeno[i], opis: postoj.join(' • '), zaduzeni_id: spojeno[i].zaduzeni_id || zid2 }
+          } else {
+            spojeno.push({ kategorija: op.kategorija, opis: opisi.join(' • '), zaduzeni_id: zid2 })
+          }
+        }
+        return spojeno
+      })
     }
     setGlasNapomene(napomene || [])
     setGlasOtvoren(false)
