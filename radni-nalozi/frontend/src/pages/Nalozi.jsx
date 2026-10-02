@@ -14,6 +14,7 @@ const FILTERI = [
   { k: 'otvoren', lk: 'filter.otvoreni' },
   { k: 'u_radu', lk: 'filter.uradu' },
   { k: 'gotov', lk: 'filter.gotovi' },
+  { k: 'zatvoren', lk: 'filter.zatvoreni' },
 ]
 
 export default function Nalozi() {

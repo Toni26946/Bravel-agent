@@ -171,7 +171,7 @@ const HR = {
   'status.gotov': 'Gotov', 'status.zatvoren': 'Zatvoren',
   // nalozi (popis)
   'nalozi.title.radnik': 'Moji nalozi', 'nalozi.title.ostalo': 'Radni nalozi',
-  'filter.sve': 'Sve', 'filter.otvoreni': 'Otvoreni', 'filter.uradu': 'U radu', 'filter.gotovi': 'Gotovi',
+  'filter.sve': 'Sve', 'filter.otvoreni': 'Otvoreni', 'filter.uradu': 'U radu', 'filter.gotovi': 'Gotovi', 'filter.zatvoreni': 'Zatvoreni',
   'nalozi.savjetBrisi': 'Savjet: dugim pritiskom na nalog možeš ga obrisati.',
   'nalozi.prazno': 'Nema naloga za prikaz.', 'nalozi.rok': 'rok', 'nalozi.trazi': 'Traži nalog (broj, kamion, naslov)…',
   'nalozi.obrisatiNalog': 'Obrisati nalog?', 'nalozi.brisanjeTrajno': 'brisanje je trajno.',
@@ -460,7 +460,7 @@ const EN = {
   'status.otvoren': 'Open', 'status.u_radu': 'In progress', 'status.ceka_dijelove': 'Waiting for parts',
   'status.gotov': 'Done', 'status.zatvoren': 'Closed',
   'nalozi.title.radnik': 'My orders', 'nalozi.title.ostalo': 'Work orders',
-  'filter.sve': 'All', 'filter.otvoreni': 'Open', 'filter.uradu': 'In progress', 'filter.gotovi': 'Done',
+  'filter.sve': 'All', 'filter.otvoreni': 'Open', 'filter.uradu': 'In progress', 'filter.gotovi': 'Done', 'filter.zatvoreni': 'Closed',
   'nalozi.savjetBrisi': 'Tip: long-press an order to delete it.',
   'nalozi.prazno': 'No orders to show.', 'nalozi.rok': 'due', 'nalozi.trazi': 'Search orders (number, truck, title)…',
   'nalozi.obrisatiNalog': 'Delete order?', 'nalozi.brisanjeTrajno': 'deletion is permanent.',
