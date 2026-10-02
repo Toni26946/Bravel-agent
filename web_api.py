@@ -174,6 +174,53 @@ async def handle_putanja(request):
     return _json(rez)
 
 
+async def handle_vozac_nalog(request):
+    """POST /api/vozac/nalog — Flota OS (Plan naloga → 📨) šalje vozaču nalog s linkom na rutu.
+
+    Tijelo: {"vozac": "Prezime Ime", "poruka": "jedna linija s linkom", "broj": "385…" (opcionalno)}.
+    Broj: zadani iz Flote OS, inače iz WHATSAPP_DRIVERS po imenu. Šalje se VEĆ ODOBRENI predložak
+    `poruka_dispecera` ({{1}} ime, {{2}} poruka) → radi i izvan 24 h prozora. Štiti X-Api-Key."""
+    err = _check_key(request)
+    if err is not None:
+        return err
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "Neispravan JSON."}, status=400)
+    vozac = " ".join(str(body.get("vozac") or "").split())[:120]
+    # parametar predloška ne smije imati novi red / tab / >4 razmaka (Meta pravilo)
+    poruka = " ".join(str(body.get("poruka") or "").split())[:900]
+    if not poruka:
+        return _json({"ok": False, "error": "Poruka je prazna."}, status=400)
+    try:
+        import whatsapp
+        import whatsapp_paljenje
+        import whatsapp_racuni
+        if not whatsapp.is_configured():
+            return _json({"ok": False, "error": "WhatsApp nije konfiguriran na bravel-agentu."}, status=503)
+        broj = whatsapp_racuni._norm_broj(body.get("broj")) if body.get("broj") else None
+        if not broj:
+            broj = whatsapp_paljenje._telefon_za_ime(vozac)
+        if not broj:
+            return _json({"ok": False, "error": f"Vozač „{vozac}” nema WhatsApp broj (WHATSAPP_DRIVERS) — upiši broj u Floti OS.",
+                          "bez_broja": True}, status=404)
+        ime = vozac.split()[-1] if len(vozac.split()) > 1 else (vozac or "vozaču")   # „Prezime Ime" → Ime
+        loop = asyncio.get_event_loop()
+        res = await loop.run_in_executor(None, lambda: whatsapp.send_template(
+            broj, "poruka_dispecera", "hr",
+            components=[{"type": "body", "parameters": [{"type": "text", "text": ime},
+                                                        {"type": "text", "text": poruka}]}]))
+        maska = broj[:5] + "…" + broj[-3:] if len(broj) > 8 else broj
+        if res.get("ok"):
+            _log(f"nalog vozaču {vozac} ({maska}) poslan")
+            return _json({"ok": True, "broj": maska, "kanal": "whatsapp"})
+        return _json({"ok": False, "broj": maska, "error": whatsapp.opisi_gresku(res)}, status=502)
+    except Exception as e:
+        _log(f"vozac/nalog GRESKA: {e}")
+        monitoring.error("Web API: slanje naloga vozaču nije uspjelo", source="web_api", exc=e)
+        return _json({"ok": False, "error": f"Greška: {e}"}, status=500)
+
+
 async def handle_benzinske(request):
     """GET /api/benzinske — registar benzinskih lanaca s lokacijama i zadnjim
     cijenama goriva + zabiljezena promjena. Stiti X-Api-Key. Cita iz baze
@@ -389,6 +436,7 @@ def _run():
         app.router.add_get("/whatsapp/webhook", handle_wa_webhook_verify)
         app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
         app.router.add_get("/privatnost", handle_privatnost)
+        app.router.add_post("/api/vozac/nalog", handle_vozac_nalog)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
