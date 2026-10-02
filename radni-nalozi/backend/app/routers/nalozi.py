@@ -1,8 +1,9 @@
 """Radni nalozi — kreiranje (voditelj), dodjele, statusi, sati, dijelovi, fotografije."""
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
@@ -319,6 +320,9 @@ AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_
 # Novi unos se spaja u postojeći nalog ako je aktivan (otvoren, u radu ili čeka
 # dijelove). Gotov/zatvoren → stvara se novi nalog.
 SPOJIVI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+# Koliko dugo nakon "gotov" nalog još hvatamo za dopunu (kamion se vratio, nađen novi
+# posao) — spoji u njega i ponovno otvori, umjesto da se napravi drugi (paralelni) nalog.
+DOPUNA_GOTOV_DANA = 30
 
 
 @router.get("/nadzor", response_model=list[NalogOut])
@@ -513,15 +517,28 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(voditelj_ili_poslo
         if not prijava:
             raise HTTPException(status_code=404, detail="Prijava ne postoji")
 
-    # Ako za isti kamion već postoji aktivan (nezatvoren) nalog — spoji u njega.
+    # Ako za isti kamion već postoji aktivan nalog — ili nedavno završen ("gotov") —
+    # spoji novi unos u njega (dopuna). Nedavno gotov se pritom ponovno otvori, da se
+    # ne napravi drugi (paralelni) nalog i da prijašnje operacije ostanu na istom nalogu.
+    gotov_od = datetime.now(timezone.utc) - timedelta(days=DOPUNA_GOTOV_DANA)
     postojeci = (
         db.query(Nalog)
-        .filter(Nalog.vozilo_id == vozilo.id, Nalog.status.in_(SPOJIVI_STATUSI))
+        .filter(
+            Nalog.vozilo_id == vozilo.id,
+            or_(
+                Nalog.status.in_(SPOJIVI_STATUSI),
+                and_(Nalog.status == StatusNaloga.gotov, Nalog.azuriran >= gotov_od),
+            ),
+        )
         .order_by(Nalog.kreiran.desc())
         .first()
     )
     if postojeci:
         stari_status = postojeci.status
+        # Nedavno "gotov" nalog koji se dopunjava — ponovno ga otvori (stigao novi posao).
+        if postojeci.status == StatusNaloga.gotov:
+            postojeci.status = StatusNaloga.otvoren
+            postojeci.zatvoren = None
         dirnuti = _spoji_operacije(db, postojeci, podaci.operacije)
         db.flush()
         # Čim se spoji, radnicima dodijeljenim na (novu) operaciju kreni mjeriti
@@ -535,9 +552,10 @@ def kreiraj(podaci: NalogCreate, voditelj: Korisnik = Depends(voditelj_ili_poslo
         if prijava:
             prijava.status = StatusPrijave.u_obradi
             prijava.nalog_id = postojeci.id
+        ponovno = " (ponovno otvoren)" if stari_status == StatusNaloga.gotov else ""
         db.add(PovijestStatusa(
             nalog_id=postojeci.id, stari_status=stari_status.value, novi_status=postojeci.status.value,
-            napomena=f"Spojen novi unos ({len(podaci.operacije)} operacija) za kamion {vozilo.gb}",
+            napomena=f"Spojen novi unos ({len(podaci.operacije)} operacija) za kamion {vozilo.gb}{ponovno}",
             promijenio_id=voditelj.id,
         ))
         postojeci.azuriran = datetime.now(timezone.utc)
