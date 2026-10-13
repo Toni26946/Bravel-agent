@@ -39,6 +39,8 @@ export default function Vozila() {
   const brojac = useMemo(() => {
     const b = {}
     for (const v of d || []) b[v.status] = (b[v.status] || 0) + 1
+    // „U radionici" je IZVEDENO: ručni/Mobilisis status ILI (GPS u krugu radione I otvoren nalog).
+    b.u_radionici = (d || []).filter((v) => v.u_radionici).length
     return b
   }, [d])
 
@@ -46,7 +48,10 @@ export default function Vozila() {
     const p = pretraga.trim().toLowerCase()
     return (d || []).filter((v) => {
       if (kat && v.kategorija !== kat) return false
-      if (stat && v.status !== stat) return false
+      if (stat) {
+        if (stat === 'u_radionici') { if (!v.u_radionici) return false }
+        else if (v.status !== stat) return false
+      }
       if (!p) return true
       return [v.gb, v.registracija, v.tip].some((x) => (x || '').toLowerCase().includes(p))
     })
@@ -86,6 +91,7 @@ export default function Vozila() {
           </button>
         ))}
       </div>
+      {stat === 'u_radionici' && <p className="meta" style={{ marginTop: -4 }}>{t('vozila.uRadioniciObjasnjenje')}</p>}
 
       <div className="sekcija-naslov">{filtrirana.length} / {d.length} {t('vozila.vozila')}</div>
       {filtrirana.length === 0 && <p className="meta">{t('vozila.nema')}</p>}
@@ -96,6 +102,7 @@ export default function Vozila() {
             <div className="meta">
               {[v.registracija, v.tip].filter(Boolean).join(' · ') || '—'}
               {v.nalog_id ? ` · ${v.broj}` : ''}
+              {v.u_radionici && v.status !== 'u_radionici' && <span className="vz-uradu"> · 🔧 {t('sv.u_radionici')}</span>}
             </div>
             {v.status === 'spremno' && v.lokacija && (
               <div className="meta vz-lok">📍 {v.lokacija}</div>

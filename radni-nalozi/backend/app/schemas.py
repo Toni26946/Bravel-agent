@@ -150,6 +150,9 @@ class RegistarVozilaOut(ORM):
     # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
     nalog_id: int | None = None
     broj: str | None = None
+    # Izvedeno „u radionici": ručni/Mobilisis status u_radionici ILI (GPS u krugu
+    # radione I ima otvoren nalog). Puni router.
+    u_radionici: bool = False
 
 
 class ParkingOut(ORM):
