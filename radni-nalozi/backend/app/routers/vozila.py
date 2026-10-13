@@ -516,6 +516,12 @@ async def registar(
         stavka = RegistarVozilaOut.model_validate(r)
         stavka.nalog_id = n.id if n else None
         stavka.broj = n.broj if n else None
+        # Izvedeno „u radionici": ručni/Mobilisis status, ILI oba uvjeta zajedno —
+        # GPS u krugu radione I ima otvoren nalog.
+        stavka.u_radionici = (
+            r.status == StatusVozila.u_radionici
+            or (n is not None and flota.je_u_krugu_radione(r.gb))
+        )
         out.append(stavka)
     return out
 

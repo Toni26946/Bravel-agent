@@ -142,6 +142,7 @@ a { color: inherit; text-decoration: none; }
 .vz-gb { font-weight: 800; font-size: 17px; }
 .vz-mob { font-size: 11.5px; opacity: .8; margin-top: 1px; }
 .vz-rucno { color: var(--plava); font-weight: 700; }
+.vz-uradu { color: var(--plava, #2563eb); font-weight: 600; }
 .vz-lok { font-size: 12px; color: #0f7a45; font-weight: 600; margin-top: 1px; }
 
 /* --- Ploča spremnih šlepa --- */
