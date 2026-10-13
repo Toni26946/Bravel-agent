@@ -144,6 +144,21 @@ def zdrav():
 
 # --- Posluživanje izgrađenog PWA frontenda (SPA) -----------------------------
 _dist = Path(settings.frontend_dist)
+# Datoteke koje browser NIKAD ne smije poslužiti iz keša bez provjere sa
+# serverom — inače nakon deploya ostane stari index.html koji gađa obrisane
+# (hashirane) assete → bijeli ekran. ETag/Last-Modified i dalje vrijede pa je
+# revalidacija jeftina (304 kad nema promjene). Hashirani /assets/* se smiju
+# keširati zauvijek jer im se ime mijenja svaki build.
+_BEZ_KESA = {"index.html", "sw.js", "registerSW.js", "manifest.webmanifest"}
+
+
+def _spa_response(datoteka: Path) -> FileResponse:
+    odgovor = FileResponse(datoteka)
+    if datoteka.name in _BEZ_KESA or datoteka.suffix == ".html":
+        odgovor.headers["Cache-Control"] = "no-cache"
+    return odgovor
+
+
 if _dist.is_dir():
     # Statičke datoteke (assets, ikone) i SPA fallback na index.html.
     app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
@@ -154,10 +169,10 @@ if _dist.is_dir():
             raise HTTPException(status_code=404, detail="Not found")
         datoteka = _dist / putanja
         if putanja and datoteka.is_file():
-            return FileResponse(datoteka)
+            return _spa_response(datoteka)
         index = _dist / "index.html"
         if index.is_file():
-            return FileResponse(index)
+            return _spa_response(index)
         raise HTTPException(status_code=404, detail="Frontend nije izgrađen")
 
     log.info("Poslužujem frontend iz %s", _dist)
