@@ -70,30 +70,40 @@ a { color: inherit; text-decoration: none; }
 /* Kartica traži pažnju voditelja (crveno + badge s brojem) */
 .tabbar a.paznja { color: #c0392b; font-weight: 600; box-shadow: inset 3px 0 0 #c0392b; }
 .tabbar a.paznja.akt { background: #fdecec; }
-.tabbar a .nav-badge {
+.tabbar a .nav-badge, .tabbar .nav-grupa-glava .nav-badge {
   margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: #c0392b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px;
   text-align: center; flex: none;
 }
 /* Skupljen izbornik (samo ikone): badge kao kutna točka na ikoni */
-.app:not(.nav-open) .tabbar a { position: relative; }
-.app:not(.nav-open) .tabbar a .nav-badge {
+.app:not(.nav-open) .tabbar a, .app:not(.nav-open) .tabbar .nav-grupa-glava { position: relative; }
+.app:not(.nav-open) .tabbar a .nav-badge,
+.app:not(.nav-open) .tabbar .nav-grupa-glava .nav-badge {
   position: absolute; top: 3px; right: 3px; margin: 0;
   min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px;
 }
 .tabbar .ikona { font-size: 22px; line-height: 1; flex: none; width: 26px; text-align: center; }
 .tabbar .txt { display: none; }
 .app.nav-open .tabbar .txt { display: inline; }
-/* Padajuća grupa u izborniku (npr. Vozila → Popis, Povijest, Servisi) */
+/* Padajuća grupa u izborniku (npr. Vozila → Popis, Spremna/Slobodna, Servisi) */
 .tabbar .nav-grupa { display: flex; flex-direction: column; gap: 2px; }
+.app.nav-open .tabbar .nav-grupa.otv { background: rgba(37,99,235,.06); border-radius: 10px; padding-bottom: 2px; }
 .tabbar .nav-grupa-glava {
   display: flex; flex-direction: row; align-items: center; gap: 12px;
   padding: 11px 8px; border-radius: 10px; color: var(--sivo);
   font-size: 14px; white-space: nowrap; text-align: left;
   background: none; border: none; cursor: pointer; width: 100%; font-family: inherit;
 }
+.app.nav-open .tabbar .nav-grupa-glava { background: #eef1f5; }
+.tabbar .nav-grupa-glava:hover { background: #e6eaf0; }
 .tabbar .nav-grupa-glava.akt { color: var(--plava); font-weight: 600; }
-.tabbar .nav-strelica { margin-left: auto; font-size: 11px; opacity: .65; }
+.tabbar .nav-grupa-glava.paznja { color: #c0392b; font-weight: 600; box-shadow: inset 3px 0 0 #c0392b; }
+.tabbar .nav-strelica {
+  margin-left: auto; flex: none; font-size: 11px; color: var(--plava);
+  width: 20px; height: 20px; border-radius: 6px; background: rgba(37,99,235,.14);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.app:not(.nav-open) .tabbar .nav-strelica { display: none; }
 .app.nav-open .tabbar a.nav-dijete { padding-left: 24px; }
 .tabbar a.nav-dijete .ikona { font-size: 19px; }
 .nz-lokacija { margin-top: 2px; }
