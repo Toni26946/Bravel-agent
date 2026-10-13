@@ -76,7 +76,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
-    tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
   }
@@ -101,7 +100,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
-  tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
+  // Voditelju Profil ide gore desno (u zaglavlje), ostalima u izbornik.
+  if (korisnik?.uloga !== 'voditelj') {
+    tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
+  }
 
   return (
     <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
@@ -111,6 +113,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         <h1>{naslov}</h1>
         {akcija}
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
+        {korisnik?.uloga === 'voditelj' && (
+          <NavLink to="/profil" title={t('tab.profil')}
+            className={({ isActive }) => 'topbar-profil' + (isActive ? ' akt' : '')}>
+            <span className="tp-ikona">👤</span>
+            <span className="tp-txt">{t('tab.profil')}</span>
+          </NavLink>
+        )}
       </header>
       <nav className="tabbar">
         {tabovi.map((item) => {

@@ -319,6 +319,73 @@ def je_u_krugu_radione(gb: str | None) -> bool:
     return d <= settings.radiona_radius_m
 
 
+# --- Reverzno geokodiranje (koordinate → naziv mjesta) ----------------------
+_geo_kes: dict = {}          # (rlat, rlon) -> (monotonic_ts, ime|None)
+_GEO_TTL = 24 * 3600         # 24 h (isto mjesto → isti naziv)
+
+
+def _kratko_mjesto(d: dict) -> str | None:
+    a = (d or {}).get("address") or {}
+    naselje = (a.get("city") or a.get("town") or a.get("village") or a.get("municipality")
+               or a.get("hamlet") or a.get("suburb") or a.get("county"))
+    cesta = a.get("road")
+    drzava = (a.get("country_code") or "").upper()
+    dijelovi = [x for x in (naselje, cesta) if x]
+    ime = ", ".join(dijelovi) if dijelovi else ((d.get("display_name") or "").split(",")[0].strip() or None)
+    if ime and drzava and drzava != "HR":
+        ime = f"{ime} ({drzava})"
+    return ime or None
+
+
+async def reverse_geocode(lat: float, lon: float) -> str | None:
+    """Koordinate → kratak naziv mjesta (OpenStreetMap Nominatim). Keširano 24 h.
+    Na bilo kakvu grešku/timeout vrati None (fallback na udaljenost/kartu)."""
+    try:
+        kljuc = (round(float(lat), 3), round(float(lon), 3))
+    except (TypeError, ValueError):
+        return None
+    sad = time.monotonic()
+    hit = _geo_kes.get(kljuc)
+    if hit and sad - hit[0] < _GEO_TTL:
+        return hit[1]
+    ime = None
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"format": "jsonv2", "lat": lat, "lon": lon, "zoom": 14, "accept-language": "hr"},
+                headers={"User-Agent": "BravelRadniNalozi/1.0 (radionica)"},
+            )
+            if r.status_code == 200:
+                ime = _kratko_mjesto(r.json())
+    except Exception as e:  # noqa: BLE001
+        log.warning("reverse_geocode greška: %s", e)
+    _geo_kes[kljuc] = (sad, ime)
+    return ime
+
+
+async def lokacija_vozila(gb: str | None) -> dict:
+    """Trenutna lokacija vozila po GPS-u: {lat, lon, udaljenost_m, mjesto}.
+    Prazno (None vrijednosti) ako nema svježe pozicije. Nikad ne baca."""
+    out = {"lat": None, "lon": None, "udaljenost_m": None, "mjesto": None}
+    if not gb:
+        return out
+    p = _zadnje_pozicije.get(str(gb)) or _zadnje_pozicije.get(str(gb).lstrip("0") or str(gb))
+    if not p or p.get("zastarjelo") or _prestaro(p.get("vrijeme")):
+        return out
+    lat, lon = p.get("lat"), p.get("lon")
+    if lat is None or lon is None:
+        return out
+    out["lat"], out["lon"] = lat, lon
+    try:
+        if settings.radiona_lat and settings.radiona_lon:
+            out["udaljenost_m"] = int(udaljenost_m(lat, lon, settings.radiona_lat, settings.radiona_lon))
+    except (TypeError, ValueError):
+        pass
+    out["mjesto"] = await reverse_geocode(lat, lon)
+    return out
+
+
 def obradi_pozicije(pozicije: dict) -> int:
     """Za aktivne (u radu) naloge provjeri je li vozilo izvan geokruga radione.
 
