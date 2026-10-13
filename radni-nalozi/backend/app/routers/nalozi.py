@@ -391,7 +391,8 @@ async def nezaduzena_vozila(
     """
     redovi = (
         db.query(RegistarVozila)
-        .filter(RegistarVozila.status == StatusVozila.nezaduzeno)
+        .filter(RegistarVozila.status == StatusVozila.nezaduzeno,
+                RegistarVozila.kategorija == "prikolica")
         .all()
     )
     redovi.sort(key=lambda r: (len(r.gb), r.gb))
