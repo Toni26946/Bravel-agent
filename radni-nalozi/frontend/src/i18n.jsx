@@ -305,6 +305,7 @@ const HR = {
   'steta.gbNePostoji': 'Kamion s tim GB ne postoji (ostavite prazno ako nije vezano za kamion).',
   'steta.obrisati': 'Obrisati ovu štetu?',
   'steta.uredi': 'Uredi', 'steta.urediNaslov': 'Uredi štetu', 'steta.spremiIzmjene': 'Spremi izmjene',
+  'steta.dodajFoto': 'Dodaj fotku', 'steta.obrisiFoto': 'Obrisati ovu fotografiju?',
   'steta.dodajStavku': '+ dodaj stavku', 'steta.nazivStavke': 'Stavka', 'steta.cijenaStavke': 'Cijena (€)',
   'steta.postaviUkupno': '= zbroj stavki',
   // šifrarnik
@@ -609,6 +610,7 @@ const EN = {
   'steta.gbNePostoji': 'No truck with that number (leave empty if not tied to a truck).',
   'steta.obrisati': 'Delete this damage?',
   'steta.uredi': 'Edit', 'steta.urediNaslov': 'Edit damage', 'steta.spremiIzmjene': 'Save changes',
+  'steta.dodajFoto': 'Add photo', 'steta.obrisiFoto': 'Delete this photo?',
   'steta.dodajStavku': '+ add item', 'steta.nazivStavke': 'Item', 'steta.cijenaStavke': 'Price (€)',
   'steta.postaviUkupno': '= sum of items',
   'sif.title': 'Vehicle history', 'sif.korisnici': 'Workers', 'sif.vozila': 'Vehicles', 'sif.dijelovi': 'Parts',

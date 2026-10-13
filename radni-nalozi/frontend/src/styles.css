@@ -712,3 +712,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .skl-red { transition: background .12s; }
 .skl-red:hover { background: var(--svijetla, #f3f4f6); }
 .skl-red:active { background: var(--rub, #e5e7eb); }
+
+/* Štete — fotografije (evidencija) */
+.steta-fotke { margin-top: 12px; }
+.steta-fotke-red { display: flex; flex-wrap: wrap; gap: 8px; }
+.steta-foto { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid var(--rub); display: block; }
+.steta-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.steta-foto-x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,.6); color: #fff; font-size: 15px; line-height: 20px; text-align: center; cursor: pointer; }
+.steta-foto-dodaj { width: 84px; height: 84px; border-radius: 10px; border: 1px dashed var(--rub);
+  background: var(--panel, #fff); color: var(--sivo, #555); cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; font-family: inherit; }
+.steta-foto-dodaj:hover { border-color: var(--plava); color: var(--plava); }
+.steta-foto-dodaj .sfd-ik { font-size: 22px; line-height: 1; }
+.steta-foto-dodaj .sfd-txt { font-size: 11px; }

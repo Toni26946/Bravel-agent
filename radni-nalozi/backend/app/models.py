@@ -344,6 +344,7 @@ class Fotografija(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nalog_id: Mapped[int | None] = mapped_column(ForeignKey("nalozi.id", ondelete="CASCADE"), nullable=True, index=True)
     prijava_id: Mapped[int | None] = mapped_column(ForeignKey("prijave.id", ondelete="CASCADE"), nullable=True, index=True)
+    steta_id: Mapped[int | None] = mapped_column(ForeignKey("stete.id", ondelete="CASCADE"), nullable=True, index=True)
     putanja: Mapped[str] = mapped_column(String(300))
     tip: Mapped[TipFotografije] = mapped_column(Enum(TipFotografije), default=TipFotografije.ostalo)
     postavio_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
@@ -354,6 +355,9 @@ class Fotografija(Base):
     )
     prijava: Mapped["Prijava | None"] = relationship(
         back_populates="fotografije", primaryjoin="Prijava.id==Fotografija.prijava_id",
+    )
+    steta: Mapped["Steta | None"] = relationship(
+        back_populates="fotografije", primaryjoin="Steta.id==Fotografija.steta_id",
     )
 
 
@@ -394,6 +398,10 @@ class Steta(Base):
     vozilo: Mapped["Vozilo | None"] = relationship()
     vozac: Mapped["Korisnik | None"] = relationship(foreign_keys=[vozac_id])
     kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
+    fotografije: Mapped[list["Fotografija"]] = relationship(
+        back_populates="steta", cascade="all, delete-orphan",
+        primaryjoin="Steta.id==Fotografija.steta_id",
+    )
 
 
 # ---------------------------------------------------------------------------
