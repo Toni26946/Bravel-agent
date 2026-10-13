@@ -30,6 +30,7 @@ from .seed import (
     osiguraj_aktivnog_voditelja,
     osiguraj_poslovodju,
     osiguraj_dodatne_korisnike,
+    osiguraj_roka,
     osiguraj_vozilo_483,
     obavijesti_osvjezi,
     preimenuj_naslove_naloga,
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
         osiguraj_aktivnog_voditelja(db)
         jednokratna_reaktivacija_roka(db)
         osiguraj_dodatne_korisnike(db)
+        osiguraj_roka(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
         backfill_povijest_gotovih(db)

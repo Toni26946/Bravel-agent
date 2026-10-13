@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -11,6 +12,9 @@ export default function Poslovodja() {
   const { korisnik } = useAuth()
   const voditelj = korisnik?.uloga === 'voditelj'
   const [tab, setTab] = useState('ucinak')
+
+  // AI Poslovođa je (za sad) vidljiva samo vlasniku.
+  if (korisnik && !korisnik.ai_poslovodja) return <Navigate to="/" replace />
 
   return (
     <Layout naslov={t('tab.poslovodja')}>

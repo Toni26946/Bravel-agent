@@ -108,3 +108,20 @@ def zahtijevaj_uloge(*uloge: Uloga):
         return korisnik
 
     return _provjera
+
+
+def zahtijevaj_ai_poslovodja():
+    """Ovisnost: pristup AI Poslovođi samo vlasniku (settings.ai_poslovodja_user).
+    Ako vlasnik nije postavljen (prazno) — fallback na voditelja, da se ne zaključa."""
+    def _provjera(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
+        from .config import settings
+        ov = (settings.ai_poslovodja_user or "").strip().lower()
+        ime = (korisnik.korisnicko_ime or "").strip().lower()
+        if ov:
+            if ime == ov:
+                return korisnik
+        elif korisnik.uloga == Uloga.voditelj:
+            return korisnik
+        raise HTTPException(status_code=403, detail="Nemate pristup AI Poslovođi")
+
+    return _provjera

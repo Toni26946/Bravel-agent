@@ -76,7 +76,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
-    tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
@@ -88,7 +88,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
-    tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
   if (korisnik?.uloga === 'skladistar') {
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
