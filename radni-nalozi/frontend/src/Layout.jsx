@@ -38,7 +38,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const grupaVozila = (jeVoditelj) => ({
     grupa: 'vozila', ikona: '🚙', txt: t('tab.vozila'),
     djeca: [
-      { do: '/vozila', ikona: '📋', txt: t('tab.popisVozila') },
       ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
