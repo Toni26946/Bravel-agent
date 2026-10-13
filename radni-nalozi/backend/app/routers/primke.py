@@ -1,8 +1,9 @@
 """Primke robe — skladištar fotografira otpremnicu dobavljača (1+ stranica), AI izvuče stavke."""
 import os
 from datetime import datetime
+from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from ..ai import ai_dostupan, parsiraj_otpremnicu
@@ -102,6 +103,53 @@ def procitaj(zahtjev: OtpremnicaZahtjev, _: Korisnik = Depends(skladiste)):
 @router.get("", response_model=list[PrimkaOut])
 def popis(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     return db.query(Primka).order_by(Primka.kreiran.desc()).all()
+
+
+@router.get("/izvoz.xlsx")
+def izvoz(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Izvoz svih primki u Excel — jedan red po stavci (ravna tablica za analizu)."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Primke"
+    zaglavlja = ["Dobavljač", "Broj otpremnice", "Datum", "Artikl",
+                 "Količina", "Jedinica", "Cijena (EUR)", "Iznos (EUR)"]
+    ws.append(zaglavlja)
+    for c in ws[1]:
+        c.font = c.font.copy(bold=True)
+
+    for p in db.query(Primka).order_by(Primka.kreiran.desc()).all():
+        stavke = p.stavke or []
+        if not stavke:
+            ws.append([p.dobavljac, p.broj_otpremnice, p.datum, None, None, None, None, None])
+            continue
+        for s in stavke:
+            try:
+                kol = float(s.get("kolicina")) if s.get("kolicina") not in (None, "") else None
+            except (TypeError, ValueError):
+                kol = None
+            try:
+                cij = float(s.get("cijena")) if s.get("cijena") not in (None, "") else None
+            except (TypeError, ValueError):
+                cij = None
+            iznos = round((kol or 0) * cij, 2) if cij is not None else None
+            ws.append([p.dobavljac, p.broj_otpremnice, p.datum, s.get("artikl"),
+                       kol, s.get("jedinica"), cij, iznos])
+
+    # oblik stupca Datum + približne širine
+    for red in ws.iter_rows(min_row=2, min_col=3, max_col=3):
+        red[0].number_format = "DD.MM.YYYY"
+    for stupac, sirina in zip("ABCDEFGH", (26, 18, 12, 44, 10, 10, 13, 13)):
+        ws.column_dimensions[stupac].width = sirina
+
+    buf = BytesIO()
+    wb.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=primke.xlsx"},
+    )
 
 
 @router.get("/{primka_id}", response_model=PrimkaOut)

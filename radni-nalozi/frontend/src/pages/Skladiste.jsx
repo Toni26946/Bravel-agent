@@ -135,6 +135,18 @@ export default function Skladiste() {
     try { await api.obrisiPrimku(p.id); setDetalj(null); ucitaj() } catch (err) { setGreska(err.message) }
   }
 
+  const izvoz = async () => {
+    setGreska('')
+    try {
+      const blob = await api.preuzmiPrimkeExcel()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'primke.xlsx'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) { setGreska(err.message) }
+  }
+
   // Tablica stavki (s iznosom po retku) — koristi se u pregledu primke.
   const tablicaStavki = (stavke) => (
     <table className="skl-tablica">
@@ -177,7 +189,8 @@ export default function Skladiste() {
     return (
       <Layout naslov={t('skl.naslov')} nazad={() => setDetalj(null)}>
         {greska && <div className="greska">{greska}</div>}
-        <div className="karta">
+        <button className="btn sekund" onClick={() => setDetalj(null)}>‹ {t('skl.natrag')}</button>
+        <div className="karta" style={{ marginTop: 10 }}>
           <div className="naslov-red">
             <h3>{detalj.dobavljac || t('skl.bezDobavljaca')}</h3>
             {detalj.datum && <span className="meta">{datumHR(detalj.datum)}</span>}
@@ -198,7 +211,6 @@ export default function Skladiste() {
             </div>
           )}
           <div className="btn-red" style={{ marginTop: 10 }}>
-            <button className="btn sekund" onClick={() => setDetalj(null)}>‹ {t('skl.natrag')}</button>
             <button className="btn sekund mali" onClick={() => obrisi(detalj)}>{t('skl.obrisi')}</button>
           </div>
         </div>
@@ -310,7 +322,12 @@ export default function Skladiste() {
     <Layout naslov={t('skl.naslov')}>
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
-      <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
+      <div className="btn-red">
+        <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
+        {lista.length > 0 && (
+          <button className="btn sekund" onClick={izvoz}>{t('skl.izvoz')}</button>
+        )}
+      </div>
 
       <div style={{ marginTop: 14 }}>
         {lista.length === 0 ? (
