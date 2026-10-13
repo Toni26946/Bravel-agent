@@ -16,6 +16,8 @@ function zbrojStavki(stavke) {
   return ima ? s : null
 }
 const eur = (n) => (n == null ? '' : n.toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
+// Broj s hrvatskim decimalnim zarezom (bez prisilnih decimala): 2 → "2", 1.5 → "1,5"
+const broj = (n) => (n == null || n === '' || isNaN(Number(n)) ? (n ?? '') : Number(n).toLocaleString('hr-HR'))
 
 function praznaPrimka() {
   return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
@@ -257,9 +259,9 @@ export default function Skladiste() {
                       {p.stavke.map((s, i) => (
                         <tr key={i}>
                           <td>{s.artikl}</td>
-                          <td className="num">{s.kolicina}</td>
+                          <td className="num">{broj(s.kolicina)}</td>
                           <td>{s.jedinica}</td>
-                          <td className="num">{s.cijena != null ? `${s.cijena} €` : ''}</td>
+                          <td className="num">{s.cijena != null ? eur(s.cijena) : ''}</td>
                         </tr>
                       ))}
                     </tbody>
