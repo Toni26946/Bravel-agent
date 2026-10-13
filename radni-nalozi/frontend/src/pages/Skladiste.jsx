@@ -135,15 +135,18 @@ export default function Skladiste() {
     try { await api.obrisiPrimku(p.id); setDetalj(null); ucitaj() } catch (err) { setGreska(err.message) }
   }
 
-  const izvoz = async () => {
+  const spremiBlob = (blob, naziv) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = naziv
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  const izvozJedne = async (p) => {
     setGreska('')
     try {
-      const blob = await api.preuzmiPrimkeExcel()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url; a.download = 'primke.xlsx'
-      document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      const blob = await api.preuzmiPrimkuExcel(p.id)
+      spremiBlob(blob, `primka-${(p.broj_otpremnice || p.id)}.xlsx`)
     } catch (err) { setGreska(err.message) }
   }
 
@@ -211,6 +214,7 @@ export default function Skladiste() {
             </div>
           )}
           <div className="btn-red" style={{ marginTop: 10 }}>
+            <button className="btn sekund" onClick={() => izvozJedne(detalj)}>{t('skl.izvoz')}</button>
             <button className="btn sekund mali" onClick={() => obrisi(detalj)}>{t('skl.obrisi')}</button>
           </div>
         </div>
@@ -322,12 +326,7 @@ export default function Skladiste() {
     <Layout naslov={t('skl.naslov')}>
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
-      <div className="btn-red">
-        <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
-        {lista.length > 0 && (
-          <button className="btn sekund" onClick={izvoz}>{t('skl.izvoz')}</button>
-        )}
-      </div>
+      <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
 
       <div style={{ marginTop: 14 }}>
         {lista.length === 0 ? (

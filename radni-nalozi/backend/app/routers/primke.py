@@ -105,51 +105,56 @@ def popis(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     return db.query(Primka).order_by(Primka.kreiran.desc()).all()
 
 
+def _kol_cij(s: dict):
+    try:
+        kol = float(s.get("kolicina")) if s.get("kolicina") not in (None, "") else None
+    except (TypeError, ValueError):
+        kol = None
+    try:
+        cij = float(s.get("cijena")) if s.get("cijena") not in (None, "") else None
+    except (TypeError, ValueError):
+        cij = None
+    iznos = round((kol or 0) * cij, 2) if cij is not None else None
+    return kol, cij, iznos
+
+
+def _xlsx_odgovor(wb, naziv: str) -> Response:
+    sigurno = "".join(c if (c.isalnum() or c in " -_.") else "_" for c in (naziv or "primka")) or "primka"
+    buf = BytesIO()
+    wb.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{sigurno}.xlsx"'},
+    )
+
+
 @router.get("/izvoz.xlsx")
 def izvoz(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
-    """Izvoz svih primki u Excel — jedan red po stavci (ravna tablica za analizu)."""
+    """Izvoz SVIH primki u Excel — jedan red po stavci (ravna tablica za analizu)."""
     from openpyxl import Workbook
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Primke"
-    zaglavlja = ["Dobavljač", "Broj otpremnice", "Datum", "Artikl",
-                 "Količina", "Jedinica", "Cijena (EUR)", "Iznos (EUR)"]
-    ws.append(zaglavlja)
+    ws.append(["Dobavljač", "Broj otpremnice", "Datum", "Artikl",
+               "Količina", "Jedinica", "Cijena (EUR)", "Iznos (EUR)"])
     for c in ws[1]:
         c.font = c.font.copy(bold=True)
-
     for p in db.query(Primka).order_by(Primka.kreiran.desc()).all():
         stavke = p.stavke or []
         if not stavke:
             ws.append([p.dobavljac, p.broj_otpremnice, p.datum, None, None, None, None, None])
             continue
         for s in stavke:
-            try:
-                kol = float(s.get("kolicina")) if s.get("kolicina") not in (None, "") else None
-            except (TypeError, ValueError):
-                kol = None
-            try:
-                cij = float(s.get("cijena")) if s.get("cijena") not in (None, "") else None
-            except (TypeError, ValueError):
-                cij = None
-            iznos = round((kol or 0) * cij, 2) if cij is not None else None
+            kol, cij, iznos = _kol_cij(s)
             ws.append([p.dobavljac, p.broj_otpremnice, p.datum, s.get("artikl"),
                        kol, s.get("jedinica"), cij, iznos])
-
-    # oblik stupca Datum + približne širine
     for red in ws.iter_rows(min_row=2, min_col=3, max_col=3):
         red[0].number_format = "DD.MM.YYYY"
     for stupac, sirina in zip("ABCDEFGH", (26, 18, 12, 44, 10, 10, 13, 13)):
         ws.column_dimensions[stupac].width = sirina
-
-    buf = BytesIO()
-    wb.save(buf)
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=primke.xlsx"},
-    )
+    return _xlsx_odgovor(wb, "primke")
 
 
 @router.get("/{primka_id}", response_model=PrimkaOut)
@@ -158,6 +163,48 @@ def dohvati(primka_id: int, _: Korisnik = Depends(skladiste), db: Session = Depe
     if not p:
         raise HTTPException(status_code=404, detail="Primka ne postoji")
     return p
+
+
+@router.get("/{primka_id}/izvoz.xlsx")
+def izvoz_jedne(primka_id: int, _: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Izvoz JEDNE primke u Excel (zaglavlje + stavke s iznosom + ukupno)."""
+    from openpyxl import Workbook
+
+    p = db.get(Primka, primka_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Primka ne postoji")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Primka"
+    ws.append(["Dobavljač", p.dobavljac or ""])
+    ws.append(["Broj otpremnice", p.broj_otpremnice or ""])
+    ws.append(["Datum", p.datum])
+    if p.napomena:
+        ws.append(["Napomena", p.napomena])
+    ws["B3"].number_format = "DD.MM.YYYY"
+    ws.append([])
+    red_zaglavlja = ws.max_row + 1
+    ws.append(["Artikl", "Količina", "Jedinica", "Cijena (EUR)", "Iznos (EUR)"])
+    for c in ws[red_zaglavlja]:
+        c.font = c.font.copy(bold=True)
+
+    ukupno = 0.0
+    ima = False
+    for s in (p.stavke or []):
+        kol, cij, iznos = _kol_cij(s)
+        ws.append([s.get("artikl"), kol, s.get("jedinica"), cij, iznos])
+        if iznos is not None:
+            ukupno += iznos
+            ima = True
+    if ima:
+        ws.append(["", "", "", "Ukupno", round(ukupno, 2)])
+        for c in ws[ws.max_row]:
+            c.font = c.font.copy(bold=True)
+
+    for stupac, sirina in zip("ABCDE", (46, 10, 10, 13, 13)):
+        ws.column_dimensions[stupac].width = sirina
+    return _xlsx_odgovor(wb, f"primka-{p.broj_otpremnice or p.id}")
 
 
 @router.post("", response_model=PrimkaOut, status_code=201)
