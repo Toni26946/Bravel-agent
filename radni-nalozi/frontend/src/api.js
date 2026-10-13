@@ -202,6 +202,13 @@ export const api = {
   kreirajPrimku: (b) => zahtjev('/primke', { method: 'POST', body: b }),
   azurirajPrimku: (id, b) => zahtjev(`/primke/${id}`, { method: 'PATCH', body: b }),
   obrisiPrimku: (id) => zahtjev(`/primke/${id}`, { method: 'DELETE' }),
+  preuzmiPrimkeExcel: async () => {
+    const res = await fetch(BASE + '/api/primke/izvoz.xlsx', {
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+    })
+    if (!res.ok) throw new Error(`Izvoz nije uspio (${res.status})`)
+    return res.blob()
+  },
 
   // Flota OS (GPS) dijagnostika
   flotaStatus: () => zahtjev('/flota/status'),
