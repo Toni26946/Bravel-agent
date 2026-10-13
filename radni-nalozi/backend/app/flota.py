@@ -387,6 +387,39 @@ def health() -> dict:
     }
 
 
+def broj_u_radionici() -> dict:
+    """Izvedeni broj vozila 'u radionici' — isti kriterij kao Popis vozila:
+    ručni/Mobilisis status u_radionici ILI (GPS u krugu radione I otvoren nalog).
+    Vraća i raščlambu. Nikad ne baca (na grešku vrati nule)."""
+    from .database import SessionLocal
+    from .models import Nalog, RegistarVozila, StatusNaloga, StatusVozila
+    aktivni = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+    rez = {"u_radionici": 0, "po_statusu": 0, "gps_i_nalog": 0, "s_otvorenim_nalogom": 0}
+    try:
+        with SessionLocal() as db:
+            aktivni_gb: set = set()
+            for n in db.query(Nalog).filter(Nalog.status.in_(aktivni)).all():
+                gb = n.vozilo.gb if n.vozilo else None
+                if gb:
+                    aktivni_gb.add(str(gb))
+                    aktivni_gb.add(str(gb).lstrip("0") or str(gb))
+            for r in db.query(RegistarVozila).all():
+                ima_nalog = r.gb in aktivni_gb or (r.gb.lstrip("0") or r.gb) in aktivni_gb
+                po_statusu = r.status == StatusVozila.u_radionici
+                gps_nalog = ima_nalog and je_u_krugu_radione(r.gb)
+                if po_statusu or gps_nalog:
+                    rez["u_radionici"] += 1
+                if po_statusu:
+                    rez["po_statusu"] += 1
+                if gps_nalog:
+                    rez["gps_i_nalog"] += 1
+                if ima_nalog:
+                    rez["s_otvorenim_nalogom"] += 1
+    except Exception as e:  # noqa: BLE001
+        log.warning("broj_u_radionici greška: %s", e)
+    return rez
+
+
 def status() -> dict:
     """Dijagnostika Flota OS nadzora (za voditelje) — je li živ i što vidi."""
     from .database import SessionLocal

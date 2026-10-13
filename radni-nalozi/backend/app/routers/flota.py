@@ -17,6 +17,13 @@ def health() -> dict:
     return flota.health()
 
 
+@router.get("/radionica")
+def radionica() -> dict:
+    """Javni izvedeni broj vozila 'u radionici' (status ILI GPS u krugu + otvoren
+    nalog) s raščlambom. Samo brojevi, bez vozila/registracija."""
+    return flota.broj_u_radionici()
+
+
 @router.get("/status")
 def status(_: Korisnik = Depends(_samo_voditelj)) -> dict:
     """Trenutno stanje GPS nadzora: zadnji dohvat, broj pozicija, aktivni nalozi."""
