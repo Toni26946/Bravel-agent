@@ -80,7 +80,6 @@ function Korisnici() {
   }
   const prebaciUlogu = async (k, nova) => {
     if (!nova || nova === k.uloga) return
-    if (!window.confirm(t('sif.potvrdiUloga', { ime: k.ime, uloga: t('uloga.' + nova) }))) return
     try { await api.azurirajKorisnika(k.id, { uloga: nova }); ucitaj() }
     catch (e) { setGreska(e.message) }
   }
