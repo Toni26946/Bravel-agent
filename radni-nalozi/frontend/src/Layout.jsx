@@ -57,6 +57,8 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     djeca: [
       { do: '/vozila', ikona: '📋', txt: t('tab.popisVozila') },
       ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
+      { do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') },
+      { do: '/spremne', ikona: '🟢', txt: t('tab.spremne') },
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
   })
@@ -69,8 +71,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
     tabovi.push(grupaVozila(true))
-    tabovi.push({ do: '/spremne', ikona: '🟢', txt: t('tab.spremne') })
-    tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
@@ -84,8 +84,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push(grupaVozila(false))
-    tabovi.push({ do: '/spremne', ikona: '🟢', txt: t('tab.spremne') })
-    tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
     tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
@@ -136,21 +134,28 @@ export default function Layout({ naslov, nazad, children, akcija }) {
           }
           const djetetAktivno = item.djeca.some((d) => lok.pathname === d.do || lok.pathname.startsWith(d.do + '/'))
           const otvorena = grupeOtvorene[item.grupa] ?? djetetAktivno
+          const grupaPaznja = item.djeca.reduce((s, d) => s + paznjaZa(d.do), 0)
           return (
             <div key={item.grupa} className={'nav-grupa' + (otvorena ? ' otv' : '')}>
-              <button type="button" className={'nav-grupa-glava' + (djetetAktivno ? ' akt' : '')}
+              <button type="button"
+                className={'nav-grupa-glava' + (djetetAktivno ? ' akt' : '') + (grupaPaznja > 0 ? ' paznja' : '')}
                 onClick={() => toggleGrupa(item.grupa)} aria-expanded={otvorena}>
                 <span className="ikona">{item.ikona}</span>
                 <span className="txt">{item.txt}</span>
-                <span className="nav-strelica txt" aria-hidden="true">{otvorena ? '▾' : '▸'}</span>
+                {grupaPaznja > 0 && !otvorena && <span className="nav-badge">{grupaPaznja}</span>}
+                <span className="nav-strelica" aria-hidden="true">{otvorena ? '▾' : '▸'}</span>
               </button>
-              {otvorena && item.djeca.map((d) => (
-                <NavLink key={d.do} to={d.do} onClick={zatvoriNaUsko}
-                  className={({ isActive }) => 'nav-dijete' + (isActive ? ' akt' : '')}>
-                  <span className="ikona">{d.ikona}</span>
-                  <span className="txt">{d.txt}</span>
-                </NavLink>
-              ))}
+              {otvorena && item.djeca.map((d) => {
+                const dn = paznjaZa(d.do)
+                return (
+                  <NavLink key={d.do} to={d.do} onClick={zatvoriNaUsko}
+                    className={({ isActive }) => 'nav-dijete' + (isActive ? ' akt' : '') + (dn > 0 ? ' paznja' : '')}>
+                    <span className="ikona">{d.ikona}</span>
+                    <span className="txt">{d.txt}</span>
+                    {dn > 0 && <span className="nav-badge">{dn}</span>}
+                  </NavLink>
+                )
+              })}
             </div>
           )
         })}
