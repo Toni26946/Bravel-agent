@@ -97,50 +97,36 @@ export default function SkladisteDashboard() {
         const cls = x.gotov ? ' gotov' : (x.dana > 6 ? ' kasni' : '')
         const u = unos[kljuc(x)] || {}
         return (
-          <div key={kljuc(x)} className={'karta skl-dio' + cls}>
-            <div className="naslov-red">
-              <h3 style={{ fontSize: 15 }}>{x.artikl}</h3>
-              <span className="meta" style={{ fontWeight: 700 }}>
+          <div key={kljuc(x)} className={'skl-dio-red' + cls}>
+            <div className="sdr-glava">
+              <span className="sdr-naziv" title={x.artikl}>{x.artikl}</span>
+              <span className="sdr-meta">
                 {x.gotov ? '✓ ' + t('skl.ugradjeno') : `${t('skl.preostalo')}: ${broj(x.preostalo)} ${x.jedinica}`}
+                {` · ${t('skl.primljeno')} ${broj(x.prim)}`}
+                {x.datum ? ` · ${t('skl.prijeDana', { n: x.dana })}` : ''}
+                {x.brojOtp ? ` · ${x.brojOtp}` : ''}
               </span>
             </div>
-            <p className="meta" style={{ marginTop: 0 }}>
-              {x.dobavljac || ''}{x.brojOtp ? ` · ${x.brojOtp}` : ''} · {t('skl.primljeno')}: {broj(x.prim)} {x.jedinica}
-              {x.datum ? ` · ${t('skl.prijeDana', { n: x.dana })}` : ''}
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-              <span className="meta">{t('skl.narucio')}:</span>
-              <select value={x.narucioId || ''} onChange={(e) => postaviNarucio(x, e.target.value)} style={{ width: 'auto', margin: 0 }}>
-                <option value="">—</option>
-                {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
-              </select>
-            </div>
-
-            {x.razd.length > 0 && (
-              <div className="dio-lista" style={{ marginTop: 6 }}>
-                {x.razd.map((r, ri) => (
-                  <div key={ri} className="steta-stavka">
-                    <span>{t('skl.gb')} {r.gb}</span>
-                    <span className="c">
-                      {broj(r.kolicina)} {x.jedinica}
-                      <button className="btn sekund mali" style={{ marginLeft: 8, padding: '0 6px' }} onClick={() => makniRazd(x, ri)}>✕</button>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
+            <select className="sdr-nar" value={x.narucioId || ''} title={t('skl.narucio')}
+              onChange={(e) => postaviNarucio(x, e.target.value)}>
+              <option value="">{t('skl.narucio')}…</option>
+              {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
+            </select>
             {!x.gotov && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'flex-end' }}>
-                <div style={{ flex: '1 1 90px' }}>
-                  <label style={{ marginTop: 0 }}>{t('skl.gb')}</label>
-                  <input value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
-                </div>
-                <div style={{ flex: '1 1 70px' }}>
-                  <label style={{ marginTop: 0 }}>{t('skl.kolicina')}</label>
-                  <input type="number" step="any" value={u.kol || ''} onChange={(e) => setU(x, 'kol', e.target.value)} placeholder={String(x.preostalo)} />
-                </div>
-                <button className="btn mali" onClick={() => razduzi(x)}>{t('skl.razduzi')}</button>
+              <>
+                <input className="sdr-gb" value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
+                <input className="sdr-kol" type="number" step="any" value={u.kol || ''}
+                  onChange={(e) => setU(x, 'kol', e.target.value)} placeholder={String(x.preostalo)} />
+                <button className="btn mali sdr-btn" onClick={() => razduzi(x)}>{t('skl.razduzi')}</button>
+              </>
+            )}
+            {x.razd.length > 0 && (
+              <div className="sdr-razd">
+                {x.razd.map((r, ri) => (
+                  <span key={ri} className="sdr-chip">{t('skl.gb')} {r.gb}: {broj(r.kolicina)}
+                    <button className="sdr-chip-x" onClick={() => makniRazd(x, ri)} title="✕">✕</button>
+                  </span>
+                ))}
               </div>
             )}
           </div>
