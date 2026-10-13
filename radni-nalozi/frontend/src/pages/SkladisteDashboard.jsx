@@ -33,6 +33,7 @@ export default function SkladisteDashboard() {
   const [od, setOd] = useState(() => prijeDana(30))
   const [doDat, setDoDat] = useState(() => danasISO())
   const [samoStari, setSamoStari] = useState(false)
+  const [sort, setSort] = useState('dana')   // dana | naziv | iznos | preostalo | dobavljac
   const [unos, setUnos] = useState({})   // { "pid:idx": {gb, kol} }
 
   const odaberiRazdoblje = (kljuc) => {
@@ -59,14 +60,23 @@ export default function SkladisteDashboard() {
       const preostalo = Math.round((prim - poslano) * 1000) / 1000
       const gotov = prim > 0 && preostalo <= 0
       const dana = datum ? Math.floor((danas - new Date(datum)) / 86400000) : 0
-      dijelovi.push({ pid: p.id, idx, artikl: s.artikl, jedinica: s.jedinica || 'kom', cijena: s.cijena,
+      const cij = s.cijena == null || s.cijena === '' ? null : parseFloat(s.cijena)
+      dijelovi.push({ pid: p.id, idx, artikl: s.artikl, jedinica: s.jedinica || 'kom', cijena: cij,
+        iznos: cij == null ? null : Math.round(cij * prim * 100) / 100,
         prim, razd, preostalo, gotov, dana, datum, dobavljac: p.dobavljac, brojOtp: p.broj_otpremnice, narucioId: s.narucio_id })
     })
   }
   let vidljivi = dijelovi
   if (samoStari) vidljivi = dijelovi.filter((x) => !x.gotov && x.dana > 6)
-  // neugrađeni prvo (najstariji gore), gotovi na dno
-  vidljivi.sort((a, b) => (a.gotov ? 1 : 0) - (b.gotov ? 1 : 0) || b.dana - a.dana)
+  const usporedba = {
+    dana: (a, b) => b.dana - a.dana,
+    naziv: (a, b) => (a.artikl || '').localeCompare(b.artikl || '', 'hr'),
+    iznos: (a, b) => (b.iznos || 0) - (a.iznos || 0),
+    preostalo: (a, b) => b.preostalo - a.preostalo,
+    dobavljac: (a, b) => (a.dobavljac || '').localeCompare(b.dobavljac || '', 'hr'),
+  }[sort] || ((a, b) => b.dana - a.dana)
+  // gotovi (potrošeni) uvijek na dno; unutar grupe po odabranom sortiranju
+  vidljivi.sort((a, b) => (a.gotov ? 1 : 0) - (b.gotov ? 1 : 0) || usporedba(a, b))
 
   const kljuc = (x) => `${x.pid}:${x.idx}`
   const setU = (x, polje, v) => setUnos((p) => ({ ...p, [kljuc(x)]: { ...(p[kljuc(x)] || {}), [polje]: v } }))
@@ -123,6 +133,15 @@ export default function SkladisteDashboard() {
         {t('skl.stari6')}
       </label>
 
+      <label style={{ marginTop: 8 }}>{t('skl.sortiraj')}</label>
+      <select value={sort} onChange={(e) => setSort(e.target.value)}>
+        <option value="dana">{t('skl.sNajstariji')}</option>
+        <option value="naziv">{t('skl.sNaziv')}</option>
+        <option value="iznos">{t('skl.sIznos')}</option>
+        <option value="preostalo">{t('skl.sPreostalo')}</option>
+        <option value="dobavljac">{t('skl.sDobavljac')}</option>
+      </select>
+
       <p className="meta" style={{ marginTop: 8 }}>{t('skl.dijelova', { n: vidljivi.length })}</p>
 
       {vidljivi.length === 0 ? (
@@ -137,6 +156,8 @@ export default function SkladisteDashboard() {
               <span className="sdr-meta">
                 {x.gotov ? '✓ ' + t('skl.ugradjeno') : `${t('skl.preostalo')}: ${broj(x.preostalo)} ${x.jedinica}`}
                 {` · ${t('skl.primljeno')} ${broj(x.prim)}`}
+                {x.cijena != null ? ` · ${eur(x.cijena)}/${x.jedinica}` : ''}
+                {x.iznos != null ? ` · ${t('skl.iznos')} ${eur(x.iznos)}` : ''}
                 {x.datum ? ` · ${t('skl.prijeDana', { n: x.dana })}` : ''}
                 {x.brojOtp ? ` · ${x.brojOtp}` : ''}
               </span>
