@@ -27,6 +27,7 @@ import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
 import Skladiste from './pages/Skladiste'
+import SkladisteDashboard from './pages/SkladisteDashboard'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
@@ -89,6 +90,7 @@ export default function App() {
 
       {/* Skladište (primke otpremnica): skladištar + voditelj + poslovođa */}
       <Route path="/skladiste" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><Skladiste /></Zasticeno>} />
+      <Route path="/skladiste/dashboard" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><SkladisteDashboard /></Zasticeno>} />
 
       {/* Kamion (detalj + povijest dijelova): voditelj + poslovođa + radnik */}
       <Route path="/vozila/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><VoziloDetalj /></Zasticeno>} />

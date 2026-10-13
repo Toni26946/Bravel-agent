@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
@@ -9,20 +10,41 @@ const iso = (d) => d.toISOString().slice(0, 10)
 const danasISO = () => iso(new Date())
 const prijeDana = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d) }
 
+// Preseti razdoblja → {od, do}. 'prilagodjeno' = ručni Od/Do.
+function rasponZa(kljuc) {
+  const d = new Date()
+  const danas = iso(d)
+  if (kljuc === '7') return { od: prijeDana(7), do: danas }
+  if (kljuc === '14') return { od: prijeDana(14), do: danas }
+  if (kljuc === '30') return { od: prijeDana(30), do: danas }
+  if (kljuc === 'mjesec') return { od: iso(new Date(d.getFullYear(), d.getMonth(), 1)), do: danas }
+  if (kljuc === 'tjedan') {
+    const p = new Date(d); p.setDate(p.getDate() - ((p.getDay() + 6) % 7)); return { od: iso(p), do: danas }
+  }
+  return null
+}
+
 export default function SkladisteDashboard() {
   const { t } = useT()
   const [primke, setPrimke] = useState(null)
   const [narucitelji, setNarucitelji] = useState([])
   const [greska, setGreska] = useState('')
+  const [razdoblje, setRazdoblje] = useState('30')
   const [od, setOd] = useState(() => prijeDana(30))
   const [doDat, setDoDat] = useState(() => danasISO())
   const [samoStari, setSamoStari] = useState(false)
   const [unos, setUnos] = useState({})   // { "pid:idx": {gb, kol} }
 
+  const odaberiRazdoblje = (kljuc) => {
+    setRazdoblje(kljuc)
+    const r = rasponZa(kljuc)
+    if (r) { setOd(r.od); setDoDat(r.do) }
+  }
+
   const ucitaj = () => api.primke().then(setPrimke).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj(); api.narucitelji().then(setNarucitelji).catch(() => {}) }, [])
 
-  if (primke === null) return <Spinner />
+  if (primke === null) return <Layout naslov={t('skl.dashNaslov')}><Spinner /></Layout>
 
   const danas = new Date()
   const dijelovi = []
@@ -71,19 +93,31 @@ export default function SkladisteDashboard() {
   }
 
   return (
-    <>
+    <Layout naslov={t('skl.dashNaslov')}>
       {greska && <div className="greska">{greska}</div>}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: '1 1 130px' }}>
-          <label style={{ marginTop: 0 }}>{t('skl.od')}</label>
-          <input type="date" value={od} onChange={(e) => setOd(e.target.value)} />
+      <label style={{ marginTop: 0 }}>{t('skl.razdoblje')}</label>
+      <select value={razdoblje} onChange={(e) => odaberiRazdoblje(e.target.value)}>
+        <option value="7">{t('skl.r7')}</option>
+        <option value="14">{t('skl.r14')}</option>
+        <option value="30">{t('skl.r30')}</option>
+        <option value="mjesec">{t('skl.rMjesec')}</option>
+        <option value="tjedan">{t('skl.rTjedan')}</option>
+        <option value="prilagodjeno">{t('skl.rPrilagodjeno')}</option>
+      </select>
+
+      {razdoblje === 'prilagodjeno' && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 130px' }}>
+            <label style={{ marginTop: 0 }}>{t('skl.od')}</label>
+            <input type="date" value={od} onChange={(e) => setOd(e.target.value)} />
+          </div>
+          <div style={{ flex: '1 1 130px' }}>
+            <label style={{ marginTop: 0 }}>{t('skl.do')}</label>
+            <input type="date" value={doDat} onChange={(e) => setDoDat(e.target.value)} />
+          </div>
         </div>
-        <div style={{ flex: '1 1 130px' }}>
-          <label style={{ marginTop: 0 }}>{t('skl.do')}</label>
-          <input type="date" value={doDat} onChange={(e) => setDoDat(e.target.value)} />
-        </div>
-      </div>
+      )}
       <label className="pos-toggle" style={{ marginTop: 8 }}>
         <input type="checkbox" checked={samoStari} onChange={(e) => setSamoStari(e.target.checked)} />
         {t('skl.stari6')}
@@ -132,6 +166,6 @@ export default function SkladisteDashboard() {
           </div>
         )
       })}
-    </>
+    </Layout>
   )
 }
