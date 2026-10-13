@@ -196,7 +196,8 @@ export const api = {
   // Primke robe (otpremnice dobavljača — skladište)
   primke: () => zahtjev('/primke'),
   primka: (id) => zahtjev(`/primke/${id}`),
-  procitajOtpremnicu: (fd) => zahtjev('/primke/procitaj', { method: 'POST', form: fd }),
+  uploadStranicaOtpremnice: (fd) => zahtjev('/primke/stranica', { method: 'POST', form: fd }),
+  procitajOtpremnicu: (fotke) => zahtjev('/primke/procitaj', { method: 'POST', body: { fotke } }),
   kreirajPrimku: (b) => zahtjev('/primke', { method: 'POST', body: b }),
   azurirajPrimku: (id, b) => zahtjev(`/primke/${id}`, { method: 'PATCH', body: b }),
   obrisiPrimku: (id) => zahtjev(`/primke/${id}`, { method: 'DELETE' }),

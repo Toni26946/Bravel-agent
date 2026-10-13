@@ -153,39 +153,69 @@ def parsiraj_stetu_govor(tekst: str, vozaci: list[str]) -> dict:
 
 # --- Čitanje otpremnice (fotografija → stavke) -------------------------------
 SUSTAV_OTPREMNICA = (
-    "Ti si asistent u skladištu servisa teretnih vozila. Na fotografiji je OTPREMNICA / "
-    "dostavnica / račun dobavljača (često na hrvatskom, može i strani jezik). Pažljivo je "
-    "pročitaj i izvuci podatke. Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
+    "Ti si precizan asistent u skladištu servisa teretnih vozila. Na fotografijama je JEDNA "
+    "otpremnica / dostavnica / račun dobavljača (hrvatski ili strani jezik). Ako je više slika, "
+    "to su UZASTOPNE STRANICE ISTOG dokumenta (npr. 'Stranica 1/4') — obradi ih kao cjelinu. "
+    "Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
     '{"dobavljac": string|null, "broj_otpremnice": string|null, "datum": string|null, '
     '"stavke": [{"artikl": string, "kolicina": number, "jedinica": string, "cijena": number|null}]}\n'
     "Pravila:\n"
-    "- dobavljac: naziv tvrtke koja je isporučila robu (pošiljatelj/dobavljač), ne primatelj. Ako ne piše → null.\n"
+    "- dobavljac: tvrtka koja ISPORUČUJE robu (pošiljatelj/dobavljač, obično uz logo na vrhu), NE primatelj/kupac. Ako ne piše → null.\n"
     "- broj_otpremnice: broj dokumenta (otpremnice/dostavnice/računa). Ako ga nema → null.\n"
-    "- datum: datum dokumenta u formatu DD.MM.GGGG. Ako ga nema → null.\n"
-    "- stavke: svaka stavka robe je jedan red. artikl = naziv/opis artikla (uključi šifru ako postoji). "
-    "kolicina = broj (zadano 1 ako nije jasno). jedinica = mjerna jedinica (kom, kg, l, m, pak…); zadano \"kom\". "
-    "cijena = jedinična cijena u EUR ako je navedena, inače null.\n"
-    "- Prepiši točno ono što piše; NE izmišljaj artikle ni brojeve. Ako je nešto nečitko, izostavi.\n"
-    "- Ako na slici nema prepoznatljive otpremnice, vrati prazne vrijednosti (stavke: [])."
+    "- datum: datum dokumenta (datum izdavanja/otpreme) u formatu DD.MM.GGGG. Ako ga nema → null.\n"
+    "- stavke: stavke robe iz tablice, SVE sa SVIH stranica, istim redoslijedom.\n"
+    "  VAŽNO o formatu retka: jedan artikl često zauzima DVA reda — u gornjem redu su šifra/kod, "
+    "barcode, količina i cijene, a naziv artikla je u DRUGOM redu (odmah ISPOD šifre istog rednog broja). "
+    "Šifra i naziv tog istog rednog broja pripadaju ISTOM artiklu — NE pomiči naziv na susjedni red. "
+    "Provjeri po rednom broju (Red.br/RB) i poravnaj točno.\n"
+    "  artikl = naziv artikla + šifra u zagradi, npr. \"Disk pločice (13.0460-2796.2)\". Ako nema naziva, stavi samo šifru.\n"
+    "  kolicina = iz stupca Količina (može biti >1). jedinica = iz stupca Mj/jedinica (kom, kg, l, m, pak, set…); zadano \"kom\".\n"
+    "  cijena = JEDINIČNA cijena u EUR (po jednom komadu), iz stupca jedinične cijene (Cijena/JM, VPC ili Cijena), "
+    "a NE ukupna vrijednost retka (Vrijednost). Ako su cijene u kunama (kn), preračunaj nije potrebno — uzmi stupac u EUR (€). Ako cijene nema → null.\n"
+    "- Preskoči zaglavlje, podnožje, poreze, zbrojeve i dostavne napomene — samo artikle iz tablice.\n"
+    "- Prepiši TOČNO ono što piše; NE izmišljaj artikle, šifre ni brojeve. Ako je redak nečitak, radije ga izostavi nego pogodi.\n"
+    "- Ako na slikama nema prepoznatljive otpremnice, vrati prazne vrijednosti (stavke: [])."
 )
 
 
-def parsiraj_otpremnicu(slika: bytes, media_type: str) -> dict:
-    """Pročitaj fotografiju otpremnice preko Claude vision → {dobavljac, broj_otpremnice, datum, stavke}."""
+def parsiraj_otpremnicu(slike: list[tuple[bytes, str]]) -> dict:
+    """Pročitaj jednu ili više stranica otpremnice preko Claude vision.
+
+    slike: lista (bajtovi, media_type). Više slika = uzastopne stranice istog dokumenta.
+    Koristi jači vizualni model (ANTHROPIC_VISION_MODEL); ako padne, pokuša osnovnim modelom.
+    """
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    b64 = base64.standard_b64encode(slika).decode()
-    poruka = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=3000,
-        temperature=0,
-        system=SUSTAV_OTPREMNICA,
-        messages=[{"role": "user", "content": [
-            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-            {"type": "text", "text": "Pročitaj ovu otpremnicu i vrati tražene podatke kao JSON."},
-        ]}],
-    )
-    sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
-    return _izvuci_json(sirovo)
+    sadrzaj: list[dict] = []
+    vise = len(slike) > 1
+    for i, (bajtovi, mt) in enumerate(slike, 1):
+        if vise:
+            sadrzaj.append({"type": "text", "text": f"Stranica {i} od {len(slike)}:"})
+        sadrzaj.append({"type": "image", "source": {
+            "type": "base64", "media_type": mt, "data": base64.standard_b64encode(bajtovi).decode()}})
+    sadrzaj.append({"type": "text", "text": (
+        "Pročitaj cijelu otpremnicu (sve stranice) i vrati tražene podatke kao JSON." if vise
+        else "Pročitaj ovu otpremnicu i vrati tražene podatke kao JSON.")})
+
+    modeli: list[str] = []
+    if settings.anthropic_vision_model:
+        modeli.append(settings.anthropic_vision_model)
+    if settings.anthropic_model and settings.anthropic_model not in modeli:
+        modeli.append(settings.anthropic_model)  # fallback ako vizualni model nije dostupan
+
+    zadnja_greska: Exception | None = None
+    for model in modeli:
+        try:
+            poruka = client.messages.create(
+                model=model, max_tokens=4000, temperature=0,
+                system=SUSTAV_OTPREMNICA,
+                messages=[{"role": "user", "content": sadrzaj}],
+            )
+            sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
+            return _izvuci_json(sirovo)
+        except Exception as e:  # noqa: BLE001 — probaj sljedeći model
+            log.warning("Čitanje otpremnice modelom %s nije uspjelo: %s", model, e)
+            zadnja_greska = e
+    raise zadnja_greska or RuntimeError("Nema dostupnog modela za čitanje otpremnice")
 
 
 def procijeni_stetu(opis: str, vozilo_opis: str | None = None) -> dict:

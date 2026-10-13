@@ -40,6 +40,7 @@ _STUPCI = [
     ("registar_vozila", "servis_km", "INTEGER"),
     ("registar_vozila", "km_trenutni", "INTEGER"),
     ("registar_vozila", "km_azuriran", "DATE"),
+    ("primke", "fotografije", "JSON"),
 ]
 
 
