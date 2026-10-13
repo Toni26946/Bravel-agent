@@ -121,6 +121,8 @@ class Korisnik(Base):
     # Prijavljuje li se radnik na operacije (serviser=True). Skladištar/uprava i sl.
     # koji ne rade na nalozima → False (ne pojavljuje se u prijavama/dodjelama).
     prijavljuje_se: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Može li biti "naručitelj" dijela na skladišnom dashboardu (bira voditelj).
+    narucitelj: Mapped[bool] = mapped_column(Boolean, default=False)
     # Odsutnost radnika: godišnji/bolovanje za razdoblje (za prikaz statusa/boje).
     odsutnost_vrsta: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'godisnji' | 'bolovanje'
     odsutnost_od: Mapped[date | None] = mapped_column(Date, nullable=True)

@@ -109,10 +109,10 @@ def popis(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
 
 @router.get("/narucitelji", response_model=list[KorisnikOut])
 def narucitelji(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
-    """Poslovođe i voditelji — mogući naručitelji dijela (za dropdown)."""
+    """Korisnici označeni kao naručitelji (kvačica u šifrarniku) — za dropdown."""
     return (
         db.query(Korisnik)
-        .filter(Korisnik.aktivan.is_(True), Korisnik.uloga.in_([Uloga.poslovodja, Uloga.voditelj]))
+        .filter(Korisnik.aktivan.is_(True), Korisnik.narucitelj.is_(True))
         .order_by(Korisnik.ime)
         .all()
     )

@@ -78,6 +78,10 @@ function Korisnici() {
   const prebaciPrijavu = async (k) => {
     await api.azurirajKorisnika(k.id, { prijavljuje_se: k.prijavljuje_se === false }); ucitaj()
   }
+  const prebaciNarucitelja = async (k) => {
+    try { await api.azurirajKorisnika(k.id, { narucitelj: !k.narucitelj }); ucitaj() }
+    catch (e) { setGreska(e.message) }
+  }
   const prebaciUlogu = async (k, nova) => {
     if (!nova || nova === k.uloga) return
     try { await api.azurirajKorisnika(k.id, { uloga: nova }); ucitaj() }
@@ -178,6 +182,9 @@ function Korisnici() {
                 {k.prijavljuje_se === false ? t('sif.postaviServiser') : t('sif.postaviNePrijavljuje')}
               </button>
             )}
+            <button className={'btn mali ' + (k.narucitelj ? '' : 'sekund')} onClick={() => prebaciNarucitelja(k)}>
+              {k.narucitelj ? t('sif.jeNarucitelj') : t('sif.nijeNarucitelj')}
+            </button>
           </div>
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
         </div>
