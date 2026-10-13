@@ -25,6 +25,8 @@ const eur = (n) => (n == null ? '' : n.toLocaleString('hr-HR', { minimumFraction
 // Broj s hrvatskim decimalnim zarezom (bez prisilnih decimala): 2 → "2", 1.5 → "1,5"
 const broj = (n) => (n == null || n === '' || isNaN(Number(n)) ? (n ?? '') : Number(n).toLocaleString('hr-HR'))
 const datumHR = (d) => (d ? d.split('-').reverse().join('.') + '.' : '')
+// mala slova bez dijakritika — za pretragu neosjetljivu na kvačice
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 function praznaPrimka() {
   return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
@@ -37,6 +39,7 @@ export default function Skladiste() {
   const [poruka, setPoruka] = useState('')
   const [nova, setNova] = useState(null)       // objekt forme ili null (zatvoreno)
   const [detalj, setDetalj] = useState(null)   // otvorena primka (pregled) ili null
+  const [q, setQ] = useState('')               // pretraga po artiklu (i dobavljaču/broju)
   const [dodajem, setDodajem] = useState(false)   // učitavanje stranice
   const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
@@ -324,18 +327,34 @@ export default function Skladiste() {
   }
 
   // --- Popis primki (kompaktno) ---
+  const qn = norm(q.trim())
+  const matchArtikli = (p) => (qn ? (p.stavke || []).filter((s) => norm(s.artikl).includes(qn)) : [])
+  const odgovara = (p) => !qn
+    || norm(p.dobavljac).includes(qn)
+    || norm(p.broj_otpremnice).includes(qn)
+    || matchArtikli(p).length > 0
+  const prikaz = lista.filter(odgovara)
+
   return (
     <Layout naslov={t('skl.naslov')}>
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
       <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
 
+      {lista.length > 0 && (
+        <input style={{ marginTop: 10 }} value={q}
+          onChange={(e) => setQ(e.target.value)} placeholder={t('skl.trazi')} />
+      )}
+
       <div style={{ marginTop: 14 }}>
         {lista.length === 0 ? (
           <p className="meta">{t('skl.nema')}</p>
-        ) : lista.map((p) => {
+        ) : prikaz.length === 0 ? (
+          <p className="meta">{t('skl.nemaRezultata', { q: q.trim() })}</p>
+        ) : prikaz.map((p) => {
           const str = (p.fotografije && p.fotografije.length ? p.fotografije : (p.foto_putanja ? [p.foto_putanja] : []))
           const uk = zbrojStavki(p.stavke)
+          const mArt = matchArtikli(p)
           return (
             <div key={p.id} className="karta skl-red" onClick={() => { setPoruka(''); setDetalj(p) }} style={{ cursor: 'pointer' }}>
               <div className="naslov-red">
@@ -348,6 +367,11 @@ export default function Skladiste() {
                 {str.length ? ` · ${t('skl.brStranica', { n: str.length })}` : ''}
                 {uk != null ? ` · ${eur(uk)}` : ''}
               </p>
+              {mArt.length > 0 && (
+                <p className="meta" style={{ marginTop: 4, color: 'var(--plava, #2563eb)' }}>
+                  🔎 {mArt.slice(0, 3).map((s) => s.artikl).join(' · ')}{mArt.length > 3 ? ` +${mArt.length - 3}` : ''}
+                </p>
+              )}
             </div>
           )
         })}
