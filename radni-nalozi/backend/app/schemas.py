@@ -65,6 +65,7 @@ class KorisnikUpdate(BaseModel):
     telefon: str | None = None
     aktivan: bool | None = None
     prijavljuje_se: bool | None = None
+    narucitelj: bool | None = None
     lozinka: str | None = Field(default=None, min_length=8)
 
 
@@ -76,6 +77,7 @@ class KorisnikOut(ORM):
     telefon: str | None = None
     aktivan: bool
     prijavljuje_se: bool = True
+    narucitelj: bool = False
     odsutnost_vrsta: str | None = None   # 'godisnji' | 'bolovanje'
     odsutnost_od: date | None = None
     odsutnost_do: date | None = None

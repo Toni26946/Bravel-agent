@@ -158,6 +158,8 @@ def azuriraj(
         k.aktivan = podaci.aktivan
     if podaci.prijavljuje_se is not None:
         k.prijavljuje_se = podaci.prijavljuje_se
+    if podaci.narucitelj is not None:
+        k.narucitelj = podaci.narucitelj
     if podaci.lozinka:
         k.lozinka_hash = hash_lozinka(podaci.lozinka)
     db.commit()

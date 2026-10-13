@@ -42,6 +42,7 @@ _STUPCI = [
     ("registar_vozila", "km_azuriran", "DATE"),
     ("primke", "fotografije", "JSON"),
     ("fotografije", "steta_id", "INTEGER"),
+    ("korisnici", "narucitelj", "BOOLEAN DEFAULT FALSE"),
 ]
 
 
