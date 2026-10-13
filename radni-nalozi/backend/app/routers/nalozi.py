@@ -379,6 +379,9 @@ def posalji_izasli_obavijest(
             url="/izasli",
         )
     return {"poslano": True, "broj": len(izasli)}
+
+
+@router.get("/nezaduzena")
 async def nezaduzena_vozila(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
