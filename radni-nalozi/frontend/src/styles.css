@@ -63,6 +63,18 @@ a { color: inherit; text-decoration: none; }
 .tabbar .ikona { font-size: 22px; line-height: 1; flex: none; width: 26px; text-align: center; }
 .tabbar .txt { display: none; }
 .app.nav-open .tabbar .txt { display: inline; }
+/* Padajuća grupa u izborniku (npr. Vozila → Popis, Povijest, Servisi) */
+.tabbar .nav-grupa { display: flex; flex-direction: column; gap: 2px; }
+.tabbar .nav-grupa-glava {
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  padding: 11px 8px; border-radius: 10px; color: var(--sivo);
+  font-size: 14px; white-space: nowrap; text-align: left;
+  background: none; border: none; cursor: pointer; width: 100%; font-family: inherit;
+}
+.tabbar .nav-grupa-glava.akt { color: var(--plava); font-weight: 600; }
+.tabbar .nav-strelica { margin-left: auto; font-size: 11px; opacity: .65; }
+.app.nav-open .tabbar a.nav-dijete { padding-left: 24px; }
+.tabbar a.nav-dijete .ikona { font-size: 19px; }
 .nav-backdrop { display: none; }
 
 /* Na užem ekranu (mobitel): nema stalnog raila — sadržaj dobije punu širinu,

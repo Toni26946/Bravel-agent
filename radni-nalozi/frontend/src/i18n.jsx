@@ -34,7 +34,7 @@ const HR = {
   // tabovi / uloge
   'tab.prijave': 'Prijave', 'tab.nalozi': 'Nalozi', 'tab.sifrarnik': 'Povijest vozila',
   'tab.izbornik': 'Tekući radovi', 'tab.vozilaURadu': 'Vozila u radu', 'tab.izasli': 'Izašli',
-  'tab.nezaduzena': 'Nezadužena', 'tab.parkiranje': 'Parkiranje', 'tab.vozila': 'Vozila',
+  'tab.nezaduzena': 'Nezadužena', 'tab.parkiranje': 'Parkiranje', 'tab.vozila': 'Vozila', 'tab.popisVozila': 'Popis vozila',
   'vozila.opis': 'Matični popis svih vozila. Status postavljaš ručno i on je mjerodavan.',
   'vozila.pretraga': 'Traži po GB-u, registraciji ili tipu…',
   'vozila.sve': 'Sve', 'vozila.sviStatusi': 'Svi statusi', 'vozila.vozila': 'vozila', 'vozila.nema': 'Nema vozila za ovaj filtar.',
@@ -329,7 +329,7 @@ const EN = {
   'login.submit': 'Sign in', 'login.submitting': 'Signing in…',
   'tab.prijave': 'Reports', 'tab.nalozi': 'Orders', 'tab.sifrarnik': 'Vehicle history',
   'tab.izbornik': 'Main menu', 'tab.vozilaURadu': 'Trucks', 'tab.izasli': 'Left shop',
-  'tab.nezaduzena': 'Unassigned', 'tab.parkiranje': 'Parking', 'tab.vozila': 'Vehicles',
+  'tab.nezaduzena': 'Unassigned', 'tab.parkiranje': 'Parking', 'tab.vozila': 'Vehicles', 'tab.popisVozila': 'Vehicle list',
   'vozila.opis': 'Master list of all vehicles. You set the status manually and it is authoritative.',
   'vozila.pretraga': 'Search by yard no., plate or type…',
   'vozila.sve': 'All', 'vozila.sviStatusi': 'All statuses', 'vozila.vozila': 'vehicles', 'vozila.nema': 'No vehicles for this filter.',
