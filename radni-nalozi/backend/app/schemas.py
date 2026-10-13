@@ -519,6 +519,7 @@ class StetaOut(ORM):
     stavke: list[StetaStavka] | None = None
     kreirao: KorisnikOut
     kreiran: datetime
+    fotografije: list[FotografijaOut] = []
 
 
 # --- Primka robe (otpremnica dobavljača) -------------------------------------
