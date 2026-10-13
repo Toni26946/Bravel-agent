@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # treba tek kreirati. Ako prazno — privremena. Postojeći račun se ne dira.
     vlasnik_lozinka: str = ""
     vlasnik_ime: str = "Toni"
+    # Tonijev „Moj mozak" smije SAMO čitati učinak AI Poslovođe (jutarnji pregled ponedjeljkom).
+    # Zaglavlje X-Mozak-Kljuc; fly secret MOZAK_KLJUC. Prazno = mozak nema pristup.
+    mozak_kljuc: str = ""
 
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
