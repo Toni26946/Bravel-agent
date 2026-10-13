@@ -371,6 +371,22 @@ async def petlja() -> None:
         await asyncio.sleep(interval)
 
 
+def health() -> dict:
+    """Javni, minimalni status Flota GPS nadzora — BEZ vozila, registracija i
+    korisnika. Služi za brzu provjeru je li GPS živ (konfiguriran + svježe
+    pozicije), bez prijave."""
+    sada = datetime.now(timezone.utc)
+    greska = (_zadnja_greska or "")[:200] or None
+    return {
+        "konfigurirano": konfigurirano(),
+        "sekundi_od_osvjezenja": int((sada - _zadnje_osvjezeno).total_seconds()) if _zadnje_osvjezeno else None,
+        "broj_pozicija": _broj_pozicija,
+        "zadnja_greska": greska,
+        "radius_m": settings.radiona_radius_m,
+        "interval_s": max(30, int(settings.flota_interval_s)),
+    }
+
+
 def status() -> dict:
     """Dijagnostika Flota OS nadzora (za voditelje) — je li živ i što vidi."""
     from .database import SessionLocal
