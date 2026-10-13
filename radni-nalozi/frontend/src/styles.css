@@ -712,12 +712,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .skl-red { transition: background .12s; }
 .skl-red:hover { background: var(--svijetla, #f3f4f6); }
 .skl-red:active { background: var(--rub, #e5e7eb); }
-/* Dashboard skladišta — dio po stanju */
-.skl-dio.gotov { background: #ecfdf5; border-left: 4px solid var(--zelena, #16a34a); }
-.skl-dio.kasni { background: #fef2f2; border-left: 4px solid var(--crvena, #dc2626); }
+/* Dashboard skladišta — dio u jednom retku */
+.skl-dio-red { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; margin-top: 6px;
+  border: 1px solid var(--rub, #e5e7eb); border-left: 4px solid var(--rub, #e5e7eb); border-radius: 8px; }
+.skl-dio-red.gotov { background: #ecfdf5; border-left-color: var(--zelena, #16a34a); }
+.skl-dio-red.kasni { background: #fef2f2; border-left-color: var(--crvena, #dc2626); }
+.sdr-glava { flex: 1 1 180px; min-width: 0; }
+.sdr-naziv { display: block; font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sdr-meta { font-size: 11.5px; color: var(--meta, #6b7280); }
+.skl-dio-red select, .skl-dio-red input { margin: 0; height: 32px; }
+.sdr-nar { width: 112px; }
+.sdr-gb { width: 64px; }
+.sdr-kol { width: 52px; }
+.sdr-btn { height: 32px; padding: 0 12px; }
+.sdr-razd { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; }
+.sdr-chip { font-size: 11.5px; background: var(--svijetla, #eef2f7); border-radius: 12px; padding: 1px 4px 1px 8px; display: inline-flex; align-items: center; gap: 2px; }
+.sdr-chip-x { border: none; background: transparent; cursor: pointer; color: var(--meta, #6b7280); font-size: 13px; line-height: 1; padding: 0 2px; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .skl-dio.gotov { background: rgba(22,163,74,.12); }
-  :root:not([data-theme="light"]) .skl-dio.kasni { background: rgba(220,38,38,.12); }
+  :root:not([data-theme="light"]) .skl-dio-red.gotov { background: rgba(22,163,74,.12); }
+  :root:not([data-theme="light"]) .skl-dio-red.kasni { background: rgba(220,38,38,.12); }
+  :root:not([data-theme="light"]) .sdr-chip { background: rgba(255,255,255,.08); }
 }
 
 /* Štete — fotografije (evidencija) */
