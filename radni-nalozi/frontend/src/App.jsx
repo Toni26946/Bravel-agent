@@ -26,12 +26,12 @@ import MojUcinak from './pages/MojUcinak'
 import Steta from './pages/Steta'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
+import Skladiste from './pages/Skladiste'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
-  // Skladištar još nema vlastiti ekran (otpremnice dolaze kasnije) — šaljemo ga na
-  // profil da ne upadne u redirect petlju (/nalozi mu je zabranjen).
-  if (uloga === 'skladistar') return '/profil'
+  // Skladištar: njegov ekran je skladište (primke otpremnica).
+  if (uloga === 'skladistar') return '/skladiste'
   return '/nalozi'
 }
 
@@ -86,6 +86,9 @@ export default function App() {
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
+
+      {/* Skladište (primke otpremnica): skladištar + voditelj + poslovođa */}
+      <Route path="/skladiste" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><Skladiste /></Zasticeno>} />
 
       {/* Kamion (detalj + povijest dijelova): voditelj + poslovođa + radnik */}
       <Route path="/vozila/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><VoziloDetalj /></Zasticeno>} />

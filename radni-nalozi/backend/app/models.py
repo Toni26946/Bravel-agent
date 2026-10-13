@@ -390,6 +390,25 @@ class Steta(Base):
 
 
 # ---------------------------------------------------------------------------
+# Primka robe — skladištar fotografira otpremnicu dobavljača, AI izvuče stavke
+# ---------------------------------------------------------------------------
+class Primka(Base):
+    __tablename__ = "primke"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dobavljac: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    broj_otpremnice: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    datum: Mapped[date | None] = mapped_column(Date, nullable=True)   # datum otpremnice
+    napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
+    foto_putanja: Mapped[str | None] = mapped_column(String(300), nullable=True)  # slika otpremnice
+    stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)  # [{artikl, kolicina, jedinica, cijena}]
+    kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
+
+
+# ---------------------------------------------------------------------------
 # Povijest zamjene dijelova po kamionu (kada i zašto se dio mijenjao)
 # ---------------------------------------------------------------------------
 class ZamjenaDijela(Base):
