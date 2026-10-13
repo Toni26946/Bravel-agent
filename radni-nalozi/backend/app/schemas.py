@@ -506,6 +506,53 @@ class StetaOut(ORM):
     kreiran: datetime
 
 
+# --- Primka robe (otpremnica dobavljača) -------------------------------------
+class PrimkaStavka(BaseModel):
+    artikl: str
+    kolicina: float = 1
+    jedinica: str = "kom"
+    cijena: float | None = None
+
+
+class OtpremnicaProcitana(BaseModel):
+    """Rezultat AI čitanja fotografije otpremnice (prijedlog za uređivanje)."""
+    foto: str | None = None
+    dobavljac: str | None = None
+    broj_otpremnice: str | None = None
+    datum: date | None = None
+    stavke: list[PrimkaStavka] = []
+    ai: bool = False  # je li AI stvarno obradio sliku (False = samo spremljena slika)
+
+
+class PrimkaCreate(BaseModel):
+    dobavljac: str | None = None
+    broj_otpremnice: str | None = None
+    datum: date | None = None
+    napomena: str | None = None
+    foto: str | None = None
+    stavke: list[PrimkaStavka] = []
+
+
+class PrimkaUpdate(BaseModel):
+    dobavljac: str | None = None
+    broj_otpremnice: str | None = None
+    datum: date | None = None
+    napomena: str | None = None
+    stavke: list[PrimkaStavka] | None = None
+
+
+class PrimkaOut(ORM):
+    id: int
+    dobavljac: str | None = None
+    broj_otpremnice: str | None = None
+    datum: date | None = None
+    napomena: str | None = None
+    foto_putanja: str | None = None
+    stavke: list[PrimkaStavka] | None = None
+    kreirao: KorisnikOut | None = None
+    kreiran: datetime
+
+
 # --- Povijest zamjene dijelova -----------------------------------------------
 class ZamjenaDijelaCreate(BaseModel):
     naziv: str

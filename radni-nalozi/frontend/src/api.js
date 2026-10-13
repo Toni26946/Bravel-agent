@@ -193,6 +193,14 @@ export const api = {
   azurirajStetu: (id, b) => zahtjev(`/stete/${id}`, { method: 'PATCH', body: b }),
   obrisiStetu: (id) => zahtjev(`/stete/${id}`, { method: 'DELETE' }),
 
+  // Primke robe (otpremnice dobavljača — skladište)
+  primke: () => zahtjev('/primke'),
+  primka: (id) => zahtjev(`/primke/${id}`),
+  procitajOtpremnicu: (fd) => zahtjev('/primke/procitaj', { method: 'POST', form: fd }),
+  kreirajPrimku: (b) => zahtjev('/primke', { method: 'POST', body: b }),
+  azurirajPrimku: (id, b) => zahtjev(`/primke/${id}`, { method: 'PATCH', body: b }),
+  obrisiPrimku: (id) => zahtjev(`/primke/${id}`, { method: 'DELETE' }),
+
   // Flota OS (GPS) dijagnostika
   flotaStatus: () => zahtjev('/flota/status'),
   flotaProvjeri: () => zahtjev('/flota/provjeri', { method: 'POST' }),

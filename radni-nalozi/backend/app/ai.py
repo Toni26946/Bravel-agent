@@ -1,4 +1,5 @@
 """AI obrada izgovorenog naloga (Claude) → strukturirani radni nalog."""
+import base64
 import json
 import logging
 
@@ -145,6 +146,43 @@ def parsiraj_stetu_govor(tekst: str, vozaci: list[str]) -> dict:
         temperature=0,
         system=SUSTAV_STETA_GOVOR,
         messages=[{"role": "user", "content": korisnicki}],
+    )
+    sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
+    return _izvuci_json(sirovo)
+
+
+# --- Čitanje otpremnice (fotografija → stavke) -------------------------------
+SUSTAV_OTPREMNICA = (
+    "Ti si asistent u skladištu servisa teretnih vozila. Na fotografiji je OTPREMNICA / "
+    "dostavnica / račun dobavljača (često na hrvatskom, može i strani jezik). Pažljivo je "
+    "pročitaj i izvuci podatke. Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
+    '{"dobavljac": string|null, "broj_otpremnice": string|null, "datum": string|null, '
+    '"stavke": [{"artikl": string, "kolicina": number, "jedinica": string, "cijena": number|null}]}\n'
+    "Pravila:\n"
+    "- dobavljac: naziv tvrtke koja je isporučila robu (pošiljatelj/dobavljač), ne primatelj. Ako ne piše → null.\n"
+    "- broj_otpremnice: broj dokumenta (otpremnice/dostavnice/računa). Ako ga nema → null.\n"
+    "- datum: datum dokumenta u formatu DD.MM.GGGG. Ako ga nema → null.\n"
+    "- stavke: svaka stavka robe je jedan red. artikl = naziv/opis artikla (uključi šifru ako postoji). "
+    "kolicina = broj (zadano 1 ako nije jasno). jedinica = mjerna jedinica (kom, kg, l, m, pak…); zadano \"kom\". "
+    "cijena = jedinična cijena u EUR ako je navedena, inače null.\n"
+    "- Prepiši točno ono što piše; NE izmišljaj artikle ni brojeve. Ako je nešto nečitko, izostavi.\n"
+    "- Ako na slici nema prepoznatljive otpremnice, vrati prazne vrijednosti (stavke: [])."
+)
+
+
+def parsiraj_otpremnicu(slika: bytes, media_type: str) -> dict:
+    """Pročitaj fotografiju otpremnice preko Claude vision → {dobavljac, broj_otpremnice, datum, stavke}."""
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    b64 = base64.standard_b64encode(slika).decode()
+    poruka = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=3000,
+        temperature=0,
+        system=SUSTAV_OTPREMNICA,
+        messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+            {"type": "text", "text": "Pročitaj ovu otpremnicu i vrati tražene podatke kao JSON."},
+        ]}],
     )
     sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
     return _izvuci_json(sirovo)

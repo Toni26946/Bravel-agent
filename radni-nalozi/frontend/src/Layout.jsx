@@ -60,6 +60,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
+    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
   }
   if (korisnik?.uloga === 'poslovodja') {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
@@ -73,6 +74,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
+    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
+  }
+  if (korisnik?.uloga === 'skladistar') {
+    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
   }
   if (korisnik?.uloga === 'radnik') {
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
