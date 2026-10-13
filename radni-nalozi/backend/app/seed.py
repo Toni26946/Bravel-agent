@@ -167,13 +167,12 @@ _BATCH_KORISNICI = [
 ]
 
 
-def osiguraj_roka(db: Session) -> None:
+def osiguraj_vlasnika(db: Session) -> None:
     """Osiguraj voditeljski račun vlasnika AI Poslovođe (settings.ai_poslovodja_user).
 
-    Ako ne postoji — kreiraj ga (ime Roko Jendriš, uloga voditelj). Lozinka iz
-    fly secreta ROKO_LOZINKA; ako prazno, privremena koju vlasnik mijenja pri
-    prvoj prijavi. Postojeći račun samo osiguraj kao aktivan voditelj (ne diramo
-    lozinku)."""
+    Postojeći račun (npr. 'toni') se NE dira osim što se osigura da je aktivan
+    voditelj (lozinku ne mijenjamo). Samo ako račun uopće ne postoji — kreira se
+    (lozinka iz fly secreta VLASNIK_LOZINKA; ako prazno, privremena)."""
     uname = (settings.ai_poslovodja_user or "").strip()
     if not uname:
         return
@@ -189,9 +188,9 @@ def osiguraj_roka(db: Session) -> None:
         if promjena:
             db.commit()
         return
-    lozinka = settings.roko_lozinka or "bravel123"
+    lozinka = settings.vlasnik_lozinka or "bravel123"
     db.add(Korisnik(
-        ime=settings.roko_ime, korisnicko_ime=uname,
+        ime=settings.vlasnik_ime or uname, korisnicko_ime=uname,
         lozinka_hash=hash_lozinka(lozinka), uloga=Uloga.voditelj, aktivan=True,
     ))
     db.commit()
