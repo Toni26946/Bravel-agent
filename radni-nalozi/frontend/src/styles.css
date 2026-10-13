@@ -712,6 +712,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .skl-red { transition: background .12s; }
 .skl-red:hover { background: var(--svijetla, #f3f4f6); }
 .skl-red:active { background: var(--rub, #e5e7eb); }
+/* Dashboard skladišta — dio po stanju */
+.skl-dio.gotov { background: #ecfdf5; border-left: 4px solid var(--zelena, #16a34a); }
+.skl-dio.kasni { background: #fef2f2; border-left: 4px solid var(--crvena, #dc2626); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .skl-dio.gotov { background: rgba(22,163,74,.12); }
+  :root:not([data-theme="light"]) .skl-dio.kasni { background: rgba(220,38,38,.12); }
+}
 
 /* Štete — fotografije (evidencija) */
 .steta-fotke { margin-top: 12px; }

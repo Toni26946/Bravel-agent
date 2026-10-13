@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from ..ai import ai_dostupan, parsiraj_otpremnicu
@@ -12,12 +12,14 @@ from ..config import settings
 from ..database import get_db
 from ..models import Korisnik, Primka, Uloga
 from ..schemas import (
+    KorisnikOut,
     OtpremnicaProcitana,
     OtpremnicaZahtjev,
     PrimkaCreate,
     PrimkaOut,
     PrimkaStavka,
     PrimkaUpdate,
+    RazduzenjeIn,
     StranicaOtpremnice,
 )
 from ..storage import spremi_sliku
@@ -103,6 +105,17 @@ def procitaj(zahtjev: OtpremnicaZahtjev, _: Korisnik = Depends(skladiste)):
 @router.get("", response_model=list[PrimkaOut])
 def popis(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     return db.query(Primka).order_by(Primka.kreiran.desc()).all()
+
+
+@router.get("/narucitelji", response_model=list[KorisnikOut])
+def narucitelji(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Poslovođe i voditelji — mogući naručitelji dijela (za dropdown)."""
+    return (
+        db.query(Korisnik)
+        .filter(Korisnik.aktivan.is_(True), Korisnik.uloga.in_([Uloga.poslovodja, Uloga.voditelj]))
+        .order_by(Korisnik.ime)
+        .all()
+    )
 
 
 def _kol_cij(s: dict):
@@ -253,3 +266,70 @@ def obrisi(primka_id: int, _: Korisnik = Depends(skladiste), db: Session = Depen
         raise HTTPException(status_code=404, detail="Primka ne postoji")
     db.delete(p)
     db.commit()
+
+
+# --- Dashboard skladišta: naručitelj po dijelu + razduženje na vozila ---------
+def _stavke_kopija(p: Primka, idx: int) -> list[dict]:
+    stavke = [dict(s) for s in (p.stavke or [])]
+    if idx < 0 or idx >= len(stavke):
+        raise HTTPException(status_code=404, detail="Stavka ne postoji")
+    return stavke
+
+
+@router.patch("/{primka_id}/stavka/{idx}", response_model=PrimkaOut)
+def uredi_stavku(primka_id: int, idx: int, narucio_id: int | None = Body(default=None, embed=True),
+                 _: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Postavi poslovođu koji je naručio taj dio (po stavci)."""
+    p = db.get(Primka, primka_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Primka ne postoji")
+    stavke = _stavke_kopija(p, idx)
+    stavke[idx] = {**stavke[idx], "narucio_id": narucio_id}
+    p.stavke = stavke
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@router.post("/{primka_id}/stavka/{idx}/razduzenje", response_model=PrimkaOut)
+def dodaj_razduzenje(primka_id: int, idx: int, podaci: RazduzenjeIn,
+                     _: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Dio je otišao na vozilo (GB) u nekoj količini."""
+    gb = (podaci.gb or "").strip()
+    if not gb:
+        raise HTTPException(status_code=400, detail="Upiši garažni broj (GB).")
+    try:
+        kol = float(podaci.kolicina)
+    except (TypeError, ValueError):
+        kol = 0
+    if kol <= 0:
+        raise HTTPException(status_code=400, detail="Količina mora biti veća od 0.")
+    p = db.get(Primka, primka_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Primka ne postoji")
+    stavke = _stavke_kopija(p, idx)
+    razd = list(stavke[idx].get("razduzenja") or [])
+    razd.append({"gb": gb, "kolicina": kol})
+    stavke[idx] = {**stavke[idx], "razduzenja": razd}
+    p.stavke = stavke
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@router.delete("/{primka_id}/stavka/{idx}/razduzenje/{rid}", response_model=PrimkaOut)
+def obrisi_razduzenje(primka_id: int, idx: int, rid: int,
+                      _: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    p = db.get(Primka, primka_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Primka ne postoji")
+    stavke = _stavke_kopija(p, idx)
+    razd = list(stavke[idx].get("razduzenja") or [])
+    if rid < 0 or rid >= len(razd):
+        raise HTTPException(status_code=404, detail="Razduženje ne postoji")
+    razd.pop(rid)
+    stavke[idx] = {**stavke[idx], "razduzenja": razd}
+    p.stavke = stavke
+    db.commit()
+    db.refresh(p)
+    return p
