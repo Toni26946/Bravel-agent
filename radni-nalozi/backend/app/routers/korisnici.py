@@ -19,7 +19,7 @@ router = APIRouter(prefix="/korisnici", tags=["korisnici"])
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
-_VRSTE_ODSUTNOSTI = {"godisnji", "bolovanje"}
+_VRSTE_ODSUTNOSTI = {"godisnji", "bolovanje", "odsutan"}
 
 # Preslikavanje hrvatskih/stranih slova u ASCII za korisničko ime.
 _ASCII = str.maketrans({
