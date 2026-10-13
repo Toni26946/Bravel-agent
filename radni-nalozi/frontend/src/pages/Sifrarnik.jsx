@@ -15,6 +15,9 @@ function _slug(ime) {
   return _norm(ime).split(/\s+/).map((r) => r.replace(/[^a-z0-9]/g, '')).filter(Boolean).join('.')
 }
 
+// uloge koje voditelj može dodijeliti u šifrarniku
+const ULOGE = ['voditelj', 'poslovodja', 'radnik', 'skladistar', 'vozac']
+
 export default function Sifrarnik() {
   const { t } = useT()
   const [tab, setTab] = useState('vozila')
@@ -74,6 +77,12 @@ function Korisnici() {
   }
   const prebaciPrijavu = async (k) => {
     await api.azurirajKorisnika(k.id, { prijavljuje_se: k.prijavljuje_se === false }); ucitaj()
+  }
+  const prebaciUlogu = async (k, nova) => {
+    if (!nova || nova === k.uloga) return
+    if (!window.confirm(t('sif.potvrdiUloga', { ime: k.ime, uloga: t('uloga.' + nova) }))) return
+    try { await api.azurirajKorisnika(k.id, { uloga: nova }); ucitaj() }
+    catch (e) { setGreska(e.message) }
   }
 
   if (lista === null) return <Spinner />
@@ -150,6 +159,12 @@ function Korisnici() {
             <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
           </div>
           <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}</p>
+          <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {t('sif.uloga')}:
+            <select value={k.uloga} onChange={(e) => prebaciUlogu(k, e.target.value)} style={{ width: 'auto', margin: 0 }}>
+              {ULOGE.map((o) => <option key={o} value={o}>{t('uloga.' + o)}</option>)}
+            </select>
+          </p>
           {k.uloga === 'radnik' && (
             <p className="meta">
               {t('sif.vrsta')}: <strong>{k.prijavljuje_se === false ? t('sif.nePrijavljuje') : t('sif.serviser')}</strong>
