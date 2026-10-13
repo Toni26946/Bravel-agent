@@ -29,6 +29,9 @@ import VoziloDetalj from './pages/VoziloDetalj'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
+  // Skladištar još nema vlastiti ekran (otpremnice dolaze kasnije) — šaljemo ga na
+  // profil da ne upadne u redirect petlju (/nalozi mu je zabranjen).
+  if (uloga === 'skladistar') return '/profil'
   return '/nalozi'
 }
 
