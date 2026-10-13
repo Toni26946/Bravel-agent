@@ -668,3 +668,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .mu-mjeri { color: var(--plava, #2563eb); font-weight: 600; }
 .pos-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .pos-toggle input { width: 18px; height: 18px; }
+
+/* Skladište — tablica stavki primke (s nazivima stupaca) */
+.skl-tablica { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.skl-tablica th, .skl-tablica td { border-bottom: 1px solid var(--rub, #e5e7eb); padding: 5px 8px; text-align: left; vertical-align: top; }
+.skl-tablica thead th { font-weight: 700; color: var(--meta, #6b7280); border-bottom: 2px solid var(--rub, #d1d5db); white-space: nowrap; }
+.skl-tablica .num { text-align: right; white-space: nowrap; }
+.skl-tablica tbody tr:last-child td { border-bottom: none; }

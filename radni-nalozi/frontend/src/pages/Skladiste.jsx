@@ -228,16 +228,26 @@ export default function Skladiste() {
                   {p.kreirao ? ` · ${p.kreirao.ime}` : ''}
                 </p>
                 {(p.stavke || []).length > 0 && (
-                  <div className="dio-lista" style={{ marginTop: 6 }}>
-                    {p.stavke.map((s, i) => (
-                      <div key={i} className="steta-stavka">
-                        <span>{s.artikl}</span>
-                        <span className="c">
-                          {s.kolicina} {s.jedinica}{s.cijena != null ? ` · ${s.cijena} €` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <table className="skl-tablica">
+                    <thead>
+                      <tr>
+                        <th>{t('skl.artiklKratko')}</th>
+                        <th className="num">{t('skl.kolicina')}</th>
+                        <th>{t('skl.jedinica')}</th>
+                        <th className="num">{t('skl.cijena')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {p.stavke.map((s, i) => (
+                        <tr key={i}>
+                          <td>{s.artikl}</td>
+                          <td className="num">{s.kolicina}</td>
+                          <td>{s.jedinica}</td>
+                          <td className="num">{s.cijena != null ? `${s.cijena} €` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
                 {str.length > 0 && (
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
