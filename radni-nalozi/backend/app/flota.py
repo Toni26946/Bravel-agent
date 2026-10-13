@@ -114,8 +114,13 @@ async def dohvati_pozicije() -> dict | None:
         gb = v.get("gb")
         if not gb or v.get("lat") is None or v.get("lon") is None:
             continue  # vozila bez GB-a ili bez pozicije preskačemo
+        try:
+            lat = float(v["lat"])
+            lon = float(v["lon"])
+        except (TypeError, ValueError):
+            continue  # neispravna koordinata — preskoči SAMO taj zapis, ne cijeli tick
         izlaz[str(gb)] = {
-            "lat": float(v["lat"]), "lon": float(v["lon"]),
+            "lat": lat, "lon": lon,
             "brzina": v.get("brzina"), "vrijeme": v.get("vrijeme"),
             "zastarjelo": zastarjelo,
         }
