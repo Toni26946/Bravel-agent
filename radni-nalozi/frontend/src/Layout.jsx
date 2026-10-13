@@ -59,6 +59,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
       { do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') },
       { do: '/spremne', ikona: '🟢', txt: t('tab.spremne') },
+      { do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') },
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
   })
@@ -71,7 +72,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
     tabovi.push(grupaVozila(true))
-    tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
@@ -83,7 +83,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push(grupaVozila(false))
-    tabovi.push({ do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
