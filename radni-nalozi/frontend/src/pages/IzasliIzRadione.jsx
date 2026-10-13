@@ -12,6 +12,8 @@ export default function IzasliIzRadione() {
   const [nalozi, setNalozi] = useState(null)
   const [greska, setGreska] = useState('')
   const [radiId, setRadiId] = useState(0)
+  const [saljem, setSaljem] = useState(false)
+  const [poruka, setPoruka] = useState('')
 
   const ucitaj = () => api.izasli().then(setNalozi).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
@@ -23,12 +25,28 @@ export default function IzasliIzRadione() {
     catch (e) { setGreska(e.message) } finally { setRadiId(0) }
   }
 
+  const posaljiObavijest = async () => {
+    setSaljem(true); setPoruka('')
+    try {
+      const r = await api.izasliObavijest()
+      setPoruka(r.poslano ? t('izasli.poslano', { n: r.broj }) : t('izasli.nemaZaSlanje'))
+    } catch (e) { setPoruka(e.message) } finally { setSaljem(false); setTimeout(() => setPoruka(''), 5000) }
+  }
+
   if (greska) return <Layout naslov={t('tab.izasli')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('tab.izasli')}><Spinner /></Layout>
 
   return (
     <Layout naslov={t('tab.izasli')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('izasli.opis')}</p>
+      {nalozi.length > 0 && (
+        <div className="btn-red no-print" style={{ marginBottom: 10 }}>
+          <button className="btn sekund mali" disabled={saljem} onClick={posaljiObavijest}>
+            {saljem ? '…' : `🔔 ${t('izasli.posaljiObavijest')}`}
+          </button>
+          {poruka && <span className="meta" style={{ alignSelf: 'center' }}>{poruka}</span>}
+        </div>
+      )}
       {nalozi.length === 0 ? (
         <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('izasli.nema')}</p></div>
       ) : (

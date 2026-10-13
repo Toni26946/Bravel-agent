@@ -316,7 +316,7 @@ def obradi_pozicije(pozicije: dict) -> int:
             vani = d > settings.radiona_radius_m
             if vani and not n.izvan_radione_javljeno:
                 obavijesti_ulogu(
-                    db, Uloga.voditelj, "Vozilo je napustilo radionu",
+                    db, [Uloga.voditelj, Uloga.poslovodja], "Vozilo je napustilo radionu",
                     f"{gb}: nalog je još u radu, a vozilo je ~{int(d)} m izvan radione. "
                     f"Je li vozilo završeno?",
                     url=f"/nalozi/{n.id}",
@@ -360,7 +360,8 @@ def status() -> dict:
     with SessionLocal() as db:
         voditelja_s_pushom = (
             db.query(Korisnik)
-            .filter(Korisnik.uloga == Uloga.voditelj, Korisnik.push_subscription.isnot(None))
+            .filter(Korisnik.uloga.in_([Uloga.voditelj, Uloga.poslovodja]),
+                    Korisnik.push_subscription.isnot(None))
             .count()
         )
         for n in db.query(Nalog).filter(Nalog.status == StatusNaloga.u_radu).all():

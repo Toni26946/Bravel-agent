@@ -100,6 +100,7 @@ export const api = {
   nalozi: (status) => zahtjev('/nalozi' + (status ? `?status=${status}` : '')),
   nadzor: () => zahtjev('/nalozi/nadzor'),
   izasli: () => zahtjev('/nalozi/izasli'),
+  izasliObavijest: () => zahtjev('/nalozi/izasli/obavijesti', { method: 'POST' }),
   nezaduzena: () => zahtjev('/nalozi/nezaduzena'),
   nezaduzenaDijagnostika: () => zahtjev('/nalozi/nezaduzena/dijagnostika'),
   vozilaRegistar: (params = {}) => {

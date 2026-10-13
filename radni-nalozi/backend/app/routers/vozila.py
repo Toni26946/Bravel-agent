@@ -708,8 +708,39 @@ async def spremne_slepe(
     }
 
 
+def _osiguraj_vozila_iz_registra(db: Session) -> int:
+    """Za svako vozilo iz matičnog popisa (RegistarVozila) koje još nema zapis u
+    tablici `vozila`, kreiraj ga — da se na svaki registrirani kamion/prikolicu
+    mogu pisati radni nalozi. Garažni broj je ključ (neovisno o malim/velikim
+    slovima i vodećim nulama). Vraća broj novododanih."""
+    postojeci = set()
+    for (gb,) in db.query(Vozilo.gb).all():
+        if gb:
+            postojeci.add(gb.strip().lower())
+            postojeci.add(gb.strip().lower().lstrip("0"))
+    novo = 0
+    for r in db.query(RegistarVozila).all():
+        if not r.gb:
+            continue
+        kljuc = r.gb.strip().lower()
+        if kljuc in postojeci or (kljuc.lstrip("0") in postojeci):
+            continue
+        db.add(Vozilo(gb=r.gb, registracija=r.registracija, marka=r.tip))
+        postojeci.add(kljuc)
+        postojeci.add(kljuc.lstrip("0"))
+        novo += 1
+    if novo:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            novo = 0
+    return novo
+
+
 @router.get("", response_model=list[VoziloOut])
 def popis(_: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    _osiguraj_vozila_iz_registra(db)
     return db.query(Vozilo).filter(Vozilo.aktivan.is_(True)).order_by(Vozilo.gb).all()
 
 
