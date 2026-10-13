@@ -202,6 +202,10 @@ export const api = {
   kreirajPrimku: (b) => zahtjev('/primke', { method: 'POST', body: b }),
   azurirajPrimku: (id, b) => zahtjev(`/primke/${id}`, { method: 'PATCH', body: b }),
   obrisiPrimku: (id) => zahtjev(`/primke/${id}`, { method: 'DELETE' }),
+  narucitelji: () => zahtjev('/primke/narucitelji'),
+  urediStavku: (id, idx, b) => zahtjev(`/primke/${id}/stavka/${idx}`, { method: 'PATCH', body: b }),
+  dodajRazduzenje: (id, idx, b) => zahtjev(`/primke/${id}/stavka/${idx}/razduzenje`, { method: 'POST', body: b }),
+  obrisiRazduzenje: (id, idx, rid) => zahtjev(`/primke/${id}/stavka/${idx}/razduzenje/${rid}`, { method: 'DELETE' }),
   preuzmiPrimkeExcel: async () => {
     const res = await fetch(BASE + '/api/primke/izvoz.xlsx', {
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},

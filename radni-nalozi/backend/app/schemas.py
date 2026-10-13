@@ -522,11 +522,23 @@ class StetaOut(ORM):
 
 
 # --- Primka robe (otpremnica dobavljača) -------------------------------------
+class Razduzenje(BaseModel):
+    gb: str                      # garažni broj vozila na koje je dio otišao
+    kolicina: float = 1
+
+
+class RazduzenjeIn(BaseModel):
+    gb: str
+    kolicina: float = 1
+
+
 class PrimkaStavka(BaseModel):
     artikl: str
     kolicina: float = 1
     jedinica: str = "kom"
     cijena: float | None = None
+    narucio_id: int | None = None       # poslovođa koji je naručio TAJ dio
+    razduzenja: list[Razduzenje] = []   # kamo je dio otišao (GB + količina)
 
 
 class StranicaOtpremnice(BaseModel):

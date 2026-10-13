@@ -3,6 +3,7 @@ import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
+import SkladisteDashboard from './SkladisteDashboard'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
@@ -29,7 +30,7 @@ const datumHR = (d) => (d ? d.split('-').reverse().join('.') + '.' : '')
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 function praznaPrimka() {
-  return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
+  return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', narucio_id: '', fotografije: [], stavke: [] }
 }
 
 export default function Skladiste() {
@@ -37,16 +38,18 @@ export default function Skladiste() {
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
+  const [tab, setTab] = useState('primke')     // 'primke' | 'dashboard'
   const [nova, setNova] = useState(null)       // objekt forme ili null (zatvoreno)
   const [detalj, setDetalj] = useState(null)   // otvorena primka (pregled) ili null
   const [q, setQ] = useState('')               // pretraga po artiklu (i dobavljaču/broju)
+  const [narucitelji, setNarucitelji] = useState([])
   const [dodajem, setDodajem] = useState(false)   // učitavanje stranice
   const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
   const fileRef = useRef(null)
 
   const ucitaj = () => api.primke().then(setLista).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj() }, [])
+  useEffect(() => { ucitaj(); api.narucitelji().then(setNarucitelji).catch(() => {}) }, [])
 
   const zapocni = () => { setGreska(''); setPoruka(''); setDetalj(null); setNova(praznaPrimka()) }
   const odustani = () => { setNova(null); setCitam(false); setDodajem(false) }
@@ -102,6 +105,7 @@ export default function Skladiste() {
 
   const spremi = async () => {
     setGreska('')
+    const narId = nova.narucio_id ? parseInt(nova.narucio_id, 10) : null
     const stavke = nova.stavke
       .filter((s) => (s.artikl || '').trim())
       .map((s) => ({
@@ -109,6 +113,7 @@ export default function Skladiste() {
         kolicina: parseFloat(s.kolicina) || 1,
         jedinica: (s.jedinica || 'kom').trim() || 'kom',
         cijena: s.cijena === '' || s.cijena == null ? null : parseFloat(s.cijena),
+        narucio_id: narId,
       }))
     const telo = {
       dobavljac: nova.dobavljac.trim() || null,
@@ -188,6 +193,23 @@ export default function Skladiste() {
   )
 
   if (lista === null) return <Layout naslov={t('skl.naslov')}><Spinner /></Layout>
+
+  const tabovi = (
+    <div className="chips" style={{ marginBottom: 10 }}>
+      <span className={`chip ${tab === 'primke' ? 'akt' : ''}`} onClick={() => setTab('primke')}>{t('skl.primkeTab')}</span>
+      <span className={`chip ${tab === 'dashboard' ? 'akt' : ''}`} onClick={() => setTab('dashboard')}>{t('skl.dashboard')}</span>
+    </div>
+  )
+
+  // --- Dashboard skladišta (dijelovi iz primki) ---
+  if (tab === 'dashboard' && !nova && !detalj) {
+    return (
+      <Layout naslov={t('skl.naslov')}>
+        {tabovi}
+        <SkladisteDashboard />
+      </Layout>
+    )
+  }
 
   // --- Pregled jedne primke ---
   if (detalj) {
@@ -278,6 +300,12 @@ export default function Skladiste() {
             </div>
           </div>
 
+          <label>{t('skl.narucioZadano')}</label>
+          <select value={nova.narucio_id || ''} onChange={(e) => postaviPolje('narucio_id', e.target.value)}>
+            <option value="">—</option>
+            {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
+          </select>
+
           <label>{t('skl.stavke')} ({nova.stavke.length})</label>
           {nova.stavke.map((s, i) => (
             <div key={i} className="karta" style={{ padding: 8, marginTop: 6 }}>
@@ -337,6 +365,7 @@ export default function Skladiste() {
 
   return (
     <Layout naslov={t('skl.naslov')}>
+      {tabovi}
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
       <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
