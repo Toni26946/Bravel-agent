@@ -10,6 +10,13 @@ router = APIRouter(prefix="/flota", tags=["flota"])
 _samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 
 
+@router.get("/health")
+def health() -> dict:
+    """Javni, minimalni status GPS nadzora (bez vozila/korisnika) — za brzu
+    provjeru je li Flota živa, bez prijave."""
+    return flota.health()
+
+
 @router.get("/status")
 def status(_: Korisnik = Depends(_samo_voditelj)) -> dict:
     """Trenutno stanje GPS nadzora: zadnji dohvat, broj pozicija, aktivni nalozi."""
