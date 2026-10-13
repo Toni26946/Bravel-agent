@@ -6,18 +6,25 @@ import { useT } from '../i18n'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
-// Zbroj stavki: Σ(količina × cijena) za stavke koje imaju cijenu. null = nijedna nema cijenu.
+// Iznos retka = količina × cijena (null ako nema cijene).
+function redIznos(s) {
+  const c = parseFloat(s.cijena); const k = parseFloat(s.kolicina)
+  if (isNaN(c)) return null
+  return c * (isNaN(k) ? 1 : k)
+}
+// Zbroj svih redaka (null ako nijedan nema cijenu).
 function zbrojStavki(stavke) {
   let s = 0; let ima = false
   for (const st of (stavke || [])) {
-    const c = parseFloat(st.cijena); const k = parseFloat(st.kolicina)
-    if (!isNaN(c)) { s += c * (isNaN(k) ? 1 : k); ima = true }
+    const r = redIznos(st)
+    if (r != null) { s += r; ima = true }
   }
   return ima ? s : null
 }
 const eur = (n) => (n == null ? '' : n.toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
 // Broj s hrvatskim decimalnim zarezom (bez prisilnih decimala): 2 → "2", 1.5 → "1,5"
 const broj = (n) => (n == null || n === '' || isNaN(Number(n)) ? (n ?? '') : Number(n).toLocaleString('hr-HR'))
+const datumHR = (d) => (d ? d.split('-').reverse().join('.') + '.' : '')
 
 function praznaPrimka() {
   return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
@@ -29,6 +36,7 @@ export default function Skladiste() {
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
   const [nova, setNova] = useState(null)       // objekt forme ili null (zatvoreno)
+  const [detalj, setDetalj] = useState(null)   // otvorena primka (pregled) ili null
   const [dodajem, setDodajem] = useState(false)   // učitavanje stranice
   const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
@@ -37,7 +45,7 @@ export default function Skladiste() {
   const ucitaj = () => api.primke().then(setLista).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
 
-  const zapocni = () => { setGreska(''); setPoruka(''); setNova(praznaPrimka()) }
+  const zapocni = () => { setGreska(''); setPoruka(''); setDetalj(null); setNova(praznaPrimka()) }
   const odustani = () => { setNova(null); setCitam(false); setDodajem(false) }
 
   const dodajStranicu = async (e) => {
@@ -124,19 +132,85 @@ export default function Skladiste() {
   const obrisi = async (p) => {
     if (!window.confirm(t('skl.potvrdiBrisanje'))) return
     setGreska('')
-    try { await api.obrisiPrimku(p.id); ucitaj() } catch (err) { setGreska(err.message) }
+    try { await api.obrisiPrimku(p.id); setDetalj(null); ucitaj() } catch (err) { setGreska(err.message) }
   }
+
+  // Tablica stavki (s iznosom po retku) — koristi se u pregledu primke.
+  const tablicaStavki = (stavke) => (
+    <table className="skl-tablica">
+      <thead>
+        <tr>
+          <th>{t('skl.artiklKratko')}</th>
+          <th className="num">{t('skl.kolicina')}</th>
+          <th>{t('skl.jedinica')}</th>
+          <th className="num">{t('skl.cijena')}</th>
+          <th className="num">{t('skl.iznos')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {stavke.map((s, i) => (
+          <tr key={i}>
+            <td>{s.artikl}</td>
+            <td className="num">{broj(s.kolicina)}</td>
+            <td>{s.jedinica}</td>
+            <td className="num">{s.cijena != null ? eur(s.cijena) : ''}</td>
+            <td className="num">{redIznos(s) != null ? eur(redIznos(s)) : ''}</td>
+          </tr>
+        ))}
+      </tbody>
+      {zbrojStavki(stavke) != null && (
+        <tfoot>
+          <tr>
+            <td colSpan={4} style={{ fontWeight: 700 }}>{t('skl.ukupno')}</td>
+            <td className="num" style={{ fontWeight: 700 }}>{eur(zbrojStavki(stavke))}</td>
+          </tr>
+        </tfoot>
+      )}
+    </table>
+  )
 
   if (lista === null) return <Layout naslov={t('skl.naslov')}><Spinner /></Layout>
 
-  return (
-    <Layout naslov={t('skl.naslov')}>
-      {greska && <div className="greska">{greska}</div>}
-      {poruka && <div className="uspjeh">{poruka}</div>}
+  // --- Pregled jedne primke ---
+  if (detalj) {
+    const str = (detalj.fotografije && detalj.fotografije.length ? detalj.fotografije : (detalj.foto_putanja ? [detalj.foto_putanja] : []))
+    return (
+      <Layout naslov={t('skl.naslov')} nazad={() => setDetalj(null)}>
+        {greska && <div className="greska">{greska}</div>}
+        <div className="karta">
+          <div className="naslov-red">
+            <h3>{detalj.dobavljac || t('skl.bezDobavljaca')}</h3>
+            {detalj.datum && <span className="meta">{datumHR(detalj.datum)}</span>}
+          </div>
+          <p className="meta">
+            {detalj.broj_otpremnice ? `${t('skl.broj')}: ${detalj.broj_otpremnice}` : ''}
+            {detalj.kreirao ? `${detalj.broj_otpremnice ? ' · ' : ''}${detalj.kreirao.ime}` : ''}
+          </p>
+          {detalj.napomena && <p className="meta">{detalj.napomena}</p>}
+          {(detalj.stavke || []).length > 0 && tablicaStavki(detalj.stavke)}
+          {str.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+              {str.map((f, i) => (
+                <a key={i} href={medijUrl(f)} target="_blank" rel="noreferrer" className="meta">
+                  📷 {t('skl.stranica')} {i + 1}
+                </a>
+              ))}
+            </div>
+          )}
+          <div className="btn-red" style={{ marginTop: 10 }}>
+            <button className="btn sekund" onClick={() => setDetalj(null)}>‹ {t('skl.natrag')}</button>
+            <button className="btn sekund mali" onClick={() => obrisi(detalj)}>{t('skl.obrisi')}</button>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
 
-      {!nova ? (
-        <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
-      ) : (
+  // --- Forma (nova primka) ---
+  if (nova) {
+    return (
+      <Layout naslov={t('skl.naslov')} nazad={odustani}>
+        {greska && <div className="greska">{greska}</div>}
         <div className="karta">
           {/* Stranice otpremnice */}
           <input
@@ -205,6 +279,9 @@ export default function Skladiste() {
                 </div>
                 <button className="btn sekund mali" onClick={() => makniStavku(i)} title={t('skl.makni')}>✕</button>
               </div>
+              {redIznos(s) != null && (
+                <p className="meta" style={{ textAlign: 'right', margin: '4px 2px 0' }}>{t('skl.iznos')}: {eur(redIznos(s))}</p>
+              )}
             </div>
           ))}
           <button className="btn sekund mali" style={{ marginTop: 6 }} onClick={dodajStavku}>{t('skl.dodajStavku')}</button>
@@ -224,74 +301,39 @@ export default function Skladiste() {
             <button className="btn sekund" onClick={odustani} disabled={spremam}>{t('skl.odustani')}</button>
           </div>
         </div>
-      )}
+      </Layout>
+    )
+  }
 
-      {/* Popis primki */}
-      {!nova && (
-        <div style={{ marginTop: 14 }}>
-          {lista.length === 0 ? (
-            <p className="meta">{t('skl.nema')}</p>
-          ) : lista.map((p) => {
-            const str = (p.fotografije && p.fotografije.length ? p.fotografije : (p.foto_putanja ? [p.foto_putanja] : []))
-            return (
-              <div key={p.id} className="karta">
-                <div className="naslov-red">
-                  <h3>{p.dobavljac || t('skl.bezDobavljaca')}</h3>
-                  {p.datum && <span className="meta">{p.datum.split('-').reverse().join('.')}.</span>}
-                </div>
-                <p className="meta">
-                  {p.broj_otpremnice ? `${t('skl.broj')}: ${p.broj_otpremnice} · ` : ''}
-                  {t('skl.stavkiBr', { n: (p.stavke || []).length })}
-                  {str.length ? ` · ${t('skl.brStranica', { n: str.length })}` : ''}
-                  {p.kreirao ? ` · ${p.kreirao.ime}` : ''}
-                </p>
-                {(p.stavke || []).length > 0 && (
-                  <table className="skl-tablica">
-                    <thead>
-                      <tr>
-                        <th>{t('skl.artiklKratko')}</th>
-                        <th className="num">{t('skl.kolicina')}</th>
-                        <th>{t('skl.jedinica')}</th>
-                        <th className="num">{t('skl.cijena')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {p.stavke.map((s, i) => (
-                        <tr key={i}>
-                          <td>{s.artikl}</td>
-                          <td className="num">{broj(s.kolicina)}</td>
-                          <td>{s.jedinica}</td>
-                          <td className="num">{s.cijena != null ? eur(s.cijena) : ''}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    {zbrojStavki(p.stavke) != null && (
-                      <tfoot>
-                        <tr>
-                          <td colSpan={3} style={{ fontWeight: 700 }}>{t('skl.ukupno')}</td>
-                          <td className="num" style={{ fontWeight: 700 }}>{eur(zbrojStavki(p.stavke))}</td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                )}
-                {str.length > 0 && (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
-                    {str.map((f, i) => (
-                      <a key={i} href={medijUrl(f)} target="_blank" rel="noreferrer" className="meta">
-                        📷 {t('skl.stranica')} {i + 1}
-                      </a>
-                    ))}
-                  </div>
-                )}
-                <div className="btn-red" style={{ marginTop: 8 }}>
-                  <button className="btn sekund mali" onClick={() => obrisi(p)}>{t('skl.obrisi')}</button>
-                </div>
+  // --- Popis primki (kompaktno) ---
+  return (
+    <Layout naslov={t('skl.naslov')}>
+      {greska && <div className="greska">{greska}</div>}
+      {poruka && <div className="uspjeh">{poruka}</div>}
+      <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
+
+      <div style={{ marginTop: 14 }}>
+        {lista.length === 0 ? (
+          <p className="meta">{t('skl.nema')}</p>
+        ) : lista.map((p) => {
+          const str = (p.fotografije && p.fotografije.length ? p.fotografije : (p.foto_putanja ? [p.foto_putanja] : []))
+          const uk = zbrojStavki(p.stavke)
+          return (
+            <div key={p.id} className="karta skl-red" onClick={() => { setPoruka(''); setDetalj(p) }} style={{ cursor: 'pointer' }}>
+              <div className="naslov-red">
+                <h3>{p.dobavljac || t('skl.bezDobavljaca')}</h3>
+                <span className="meta">{datumHR(p.datum)} ›</span>
               </div>
-            )
-          })}
-        </div>
-      )}
+              <p className="meta" style={{ marginBottom: 0 }}>
+                {p.broj_otpremnice ? `${t('skl.broj')}: ${p.broj_otpremnice} · ` : ''}
+                {t('skl.stavkiBr', { n: (p.stavke || []).length })}
+                {str.length ? ` · ${t('skl.brStranica', { n: str.length })}` : ''}
+                {uk != null ? ` · ${eur(uk)}` : ''}
+              </p>
+            </div>
+          )
+        })}
+      </div>
     </Layout>
   )
 }

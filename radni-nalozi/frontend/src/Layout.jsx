@@ -107,7 +107,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
       <header className="topbar">
         <button className="nav-toggle" onClick={toggleNav} aria-label={t('nav.izbornik')} title={t('nav.izbornik')}>☰</button>
-        {nazad && <span className="nazad" onClick={() => nav(nazad === true ? -1 : nazad)}>‹</span>}
+        {nazad && <span className="nazad" onClick={() => (typeof nazad === 'function' ? nazad() : nav(nazad === true ? -1 : nazad))}>‹</span>}
         <h1>{naslov}</h1>
         {akcija}
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
