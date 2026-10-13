@@ -19,6 +19,15 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     return n
   })
   const zatvoriNaUsko = () => { if (typeof window !== 'undefined' && window.innerWidth < 760) setNavOtvoren(false) }
+  // Otvorene grupe (padajući podizbornici) — pamti se.
+  const [grupeOtvorene, setGrupeOtvorene] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('nav_grupe') || '{}') } catch (_) { return {} }
+  })
+  const toggleGrupa = (id) => setGrupeOtvorene((g) => {
+    const n = { ...g, [id]: !g[id] }
+    try { localStorage.setItem('nav_grupe', JSON.stringify(n)) } catch (_) { /* */ }
+    return n
+  })
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
   // (ondje je vlastiti "+" za novu prijavu) i na samoj stranici kreiranja.
   const prikaziPlus = (korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja')
@@ -26,6 +35,14 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     && lok.pathname !== '/nalozi/novi'
 
   const tabovi = []
+  const grupaVozila = (jeVoditelj) => ({
+    grupa: 'vozila', ikona: '🚙', txt: t('tab.vozila'),
+    djeca: [
+      { do: '/vozila', ikona: '📋', txt: t('tab.popisVozila') },
+      ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
+      { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
+    ],
+  })
   if (korisnik?.uloga === 'vozac') {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
@@ -33,7 +50,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
-    tabovi.push({ do: '/vozila', ikona: '🚙', txt: t('tab.vozila') })
+    tabovi.push(grupaVozila(true))
     tabovi.push({ do: '/spremne', ikona: '🟢', txt: t('tab.spremne') })
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
@@ -41,16 +58,14 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
-    tabovi.push({ do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
-    tabovi.push({ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') })
   }
   if (korisnik?.uloga === 'poslovodja') {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
-    tabovi.push({ do: '/vozila', ikona: '🚙', txt: t('tab.vozila') })
+    tabovi.push(grupaVozila(false))
     tabovi.push({ do: '/spremne', ikona: '🟢', txt: t('tab.spremne') })
     tabovi.push({ do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') })
     tabovi.push({ do: '/parkiranje', ikona: '🅿️', txt: t('tab.parkiranje') })
@@ -58,7 +73,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
-    tabovi.push({ do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
   if (korisnik?.uloga === 'radnik') {
@@ -77,12 +91,35 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
       </header>
       <nav className="tabbar">
-        {tabovi.map((t) => (
-          <NavLink key={t.do} to={t.do} onClick={zatvoriNaUsko} className={({ isActive }) => (isActive ? 'akt' : '')}>
-            <span className="ikona">{t.ikona}</span>
-            <span className="txt">{t.txt}</span>
-          </NavLink>
-        ))}
+        {tabovi.map((item) => {
+          if (!item.djeca) {
+            return (
+              <NavLink key={item.do} to={item.do} onClick={zatvoriNaUsko} className={({ isActive }) => (isActive ? 'akt' : '')}>
+                <span className="ikona">{item.ikona}</span>
+                <span className="txt">{item.txt}</span>
+              </NavLink>
+            )
+          }
+          const djetetAktivno = item.djeca.some((d) => lok.pathname === d.do || lok.pathname.startsWith(d.do + '/'))
+          const otvorena = grupeOtvorene[item.grupa] ?? djetetAktivno
+          return (
+            <div key={item.grupa} className={'nav-grupa' + (otvorena ? ' otv' : '')}>
+              <button type="button" className={'nav-grupa-glava' + (djetetAktivno ? ' akt' : '')}
+                onClick={() => toggleGrupa(item.grupa)} aria-expanded={otvorena}>
+                <span className="ikona">{item.ikona}</span>
+                <span className="txt">{item.txt}</span>
+                <span className="nav-strelica txt" aria-hidden="true">{otvorena ? '▾' : '▸'}</span>
+              </button>
+              {otvorena && item.djeca.map((d) => (
+                <NavLink key={d.do} to={d.do} onClick={zatvoriNaUsko}
+                  className={({ isActive }) => 'nav-dijete' + (isActive ? ' akt' : '')}>
+                  <span className="ikona">{d.ikona}</span>
+                  <span className="txt">{d.txt}</span>
+                </NavLink>
+              ))}
+            </div>
+          )
+        })}
       </nav>
       {navOtvoren && <div className="nav-backdrop" onClick={toggleNav} />}
       <main className="sadrzaj">{children}</main>
