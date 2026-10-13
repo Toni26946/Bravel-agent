@@ -15,7 +15,7 @@ from . import podsjetnici
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
-from .routers import auth, dijelovi, korisnici, nalozi, paznja, poslovodja, prijave, primke, push, stete, ucinak, vozaci, vozila, zaduzenja
+from .routers import auth, dijelovi, evidencija, korisnici, nalozi, paznja, poslovodja, prijave, primke, push, stete, ucinak, vozaci, vozila, zaduzenja
 from .routers.vozaci import seed_vozaci
 from .norme import seed_norme, uskladi_norme
 from .obracun_radione import auto_sync_pri_pokretanju
@@ -127,6 +127,7 @@ app.include_router(prijave.router, prefix="/api")
 app.include_router(nalozi.router, prefix="/api")
 app.include_router(stete.router, prefix="/api")
 app.include_router(primke.router, prefix="/api")
+app.include_router(evidencija.router, prefix="/api")
 app.include_router(dijelovi.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(zaduzenja.router, prefix="/api")

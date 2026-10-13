@@ -593,3 +593,30 @@ class Zadatak(Base):
     zaduzeni: Mapped["Korisnik | None"] = relationship()
     # Svi radnici dodijeljeni ovom zadatku.
     radnici: Mapped[list["Korisnik"]] = relationship(secondary=zadatak_radnici, order_by="Korisnik.ime")
+
+
+class EvidencijaRV(Base):
+    """Evidencija radnog vremena — jedan redak po radniku i danu.
+
+    Skladištar vodi za cijelu ekipu: upiše dolazak (od) i odlazak (do), a
+    aplikacija izračuna redovne i prekovremene sate; umjesto sati dan se može
+    označiti kodom (GO/BO/PD/OD). Teren se upisuje zasebno (sati na terenu).
+    """
+    __tablename__ = "evidencija_rv"
+    __table_args__ = (UniqueConstraint("korisnik_id", "datum", name="uq_evidrv_korisnik_datum"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    korisnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
+    datum: Mapped[date] = mapped_column(Date, index=True)
+    od: Mapped[str | None] = mapped_column(String(5), nullable=True)   # "HH:MM"
+    do: Mapped[str | None] = mapped_column(String(5), nullable=True)   # "HH:MM"
+    redovni: Mapped[float] = mapped_column(Float, default=0.0)
+    prekovremeni: Mapped[float] = mapped_column(Float, default=0.0)
+    teren: Mapped[float] = mapped_column(Float, default=0.0)
+    kod: Mapped[str | None] = mapped_column(String(4), nullable=True)  # GO | BO | PD | OD
+    napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
+    kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    korisnik: Mapped["Korisnik"] = relationship(foreign_keys=[korisnik_id])

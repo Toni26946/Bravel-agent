@@ -747,3 +747,36 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .steta-foto-dodaj:hover { border-color: var(--plava); color: var(--plava); }
 .steta-foto-dodaj .sfd-ik { font-size: 22px; line-height: 1; }
 .steta-foto-dodaj .sfd-txt { font-size: 11px; }
+
+/* --- Evidencija radnog vremena --- */
+.ev-alati { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.ev-mjesec { font-weight: 700; font-size: 16px; min-width: 150px; text-align: center; }
+.ev-legenda { color: var(--sivo); font-size: 12px; margin-left: auto; }
+.ev-tablica-wrap { overflow: auto; border: 1px solid var(--rub); border-radius: 10px; max-height: 72vh; }
+.ev-tablica { border-collapse: separate; border-spacing: 0; font-size: 12px; white-space: nowrap; }
+.ev-tablica th, .ev-tablica td { border-right: 1px solid var(--rub); border-bottom: 1px solid var(--rub); padding: 3px 5px; text-align: center; background: var(--karta); }
+.ev-tablica thead th { position: sticky; top: 0; z-index: 3; background: #eef2f8; font-weight: 600; }
+.ev-sticky { position: sticky; left: 0; z-index: 2; }
+.ev-tablica thead th.ev-sticky { z-index: 4; }
+.ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
+.ev-dan { min-width: 42px; }
+.ev-dan-br { font-weight: 700; }
+.ev-dan-dow { font-size: 10px; color: var(--sivo); text-transform: lowercase; }
+.ev-vikend { background: #f6f7fb; }
+.ev-tablica thead th.ev-vikend { background: #e7ebf3; }
+.ev-zbroj { font-variant-numeric: tabular-nums; color: #333; font-weight: 600; }
+.ev-cel { cursor: pointer; min-width: 42px; height: 34px; }
+.ev-cel:hover { outline: 2px solid var(--plava-svijetla); outline-offset: -2px; }
+.ev-radio .ev-sati { font-weight: 700; }
+.ev-radio .ev-pre { color: var(--narancasta); font-size: 10px; margin-left: 2px; }
+.ev-radio .ev-ter { color: var(--plava-svijetla); font-size: 10px; margin-left: 2px; }
+.ev-kod { font-weight: 800; }
+.ev-kod-GO { background: #e6f4ea; color: var(--zelena); }
+.ev-kod-BO { background: #fdecea; color: var(--crvena); }
+.ev-kod-PD { background: #e8f0fe; color: var(--plava); }
+.ev-kod-OD { background: #f1f1f1; color: var(--sivo); }
+.ev-modal { max-width: 420px; }
+.ev-vrijeme { display: flex; gap: 10px; }
+.ev-vrijeme > div { flex: 1; }
+.ev-modal-akcije { display: flex; gap: 8px; margin-top: 14px; }
+.ev-modal-akcije .btn { margin-top: 0; }
