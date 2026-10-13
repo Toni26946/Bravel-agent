@@ -72,24 +72,27 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
     tabovi.push(grupaVozila(true))
+    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
+    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
-    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
   }
   if (korisnik?.uloga === 'poslovodja') {
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
     tabovi.push(grupaVozila(false))
+    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
+    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
-    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
   }
   if (korisnik?.uloga === 'skladistar') {
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
+    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
   }
   if (korisnik?.uloga === 'radnik') {
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })

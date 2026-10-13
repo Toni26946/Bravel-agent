@@ -3,7 +3,6 @@ import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
-import SkladisteDashboard from './SkladisteDashboard'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
@@ -38,7 +37,6 @@ export default function Skladiste() {
   const [lista, setLista] = useState(null)
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
-  const [tab, setTab] = useState('primke')     // 'primke' | 'dashboard'
   const [nova, setNova] = useState(null)       // objekt forme ili null (zatvoreno)
   const [detalj, setDetalj] = useState(null)   // otvorena primka (pregled) ili null
   const [q, setQ] = useState('')               // pretraga po artiklu (i dobavljaču/broju)
@@ -194,23 +192,6 @@ export default function Skladiste() {
 
   if (lista === null) return <Layout naslov={t('skl.naslov')}><Spinner /></Layout>
 
-  const tabovi = (
-    <div className="chips" style={{ marginBottom: 10 }}>
-      <span className={`chip ${tab === 'primke' ? 'akt' : ''}`} onClick={() => setTab('primke')}>{t('skl.primkeTab')}</span>
-      <span className={`chip ${tab === 'dashboard' ? 'akt' : ''}`} onClick={() => setTab('dashboard')}>{t('skl.dashboard')}</span>
-    </div>
-  )
-
-  // --- Dashboard skladišta (dijelovi iz primki) ---
-  if (tab === 'dashboard' && !nova && !detalj) {
-    return (
-      <Layout naslov={t('skl.naslov')}>
-        {tabovi}
-        <SkladisteDashboard />
-      </Layout>
-    )
-  }
-
   // --- Pregled jedne primke ---
   if (detalj) {
     const str = (detalj.fotografije && detalj.fotografije.length ? detalj.fotografije : (detalj.foto_putanja ? [detalj.foto_putanja] : []))
@@ -365,7 +346,6 @@ export default function Skladiste() {
 
   return (
     <Layout naslov={t('skl.naslov')}>
-      {tabovi}
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
       <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
