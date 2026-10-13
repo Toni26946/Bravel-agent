@@ -5,14 +5,16 @@ pokazuje što bi tko zaradio po novom modelu, bez diranja stvarne plaće.
 """
 from __future__ import annotations
 
+import hmac
 from collections import defaultdict
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
+from ..auth import oauth2_scheme, trenutni_korisnik, zahtijevaj_ai_poslovodja, zahtijevaj_uloge
+from ..config import settings
 from ..database import get_db
 from ..models import Korisnik, NormaPosla, PovijestRada, Uloga
 from ..norme import (
@@ -40,6 +42,22 @@ router = APIRouter(prefix="/poslovodja", tags=["poslovodja"])
 _samo_vlasnik = zahtijevaj_ai_poslovodja()
 voditelj_ili_poslovodja = _samo_vlasnik
 samo_voditelj = _samo_vlasnik
+
+
+def vlasnik_ili_mozak(
+    x_mozak_kljuc: str | None = Header(default=None),
+    token: str | None = Depends(oauth2_scheme),
+    x_servis_kljuc: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> Korisnik | None:
+    """Samo za ČITANJE učinka: vlasnik (kao i inače) ILI Tonijev „Moj mozak" svojim ključem
+    (zaglavlje X-Mozak-Kljuc = fly secret MOZAK_KLJUC) — za tjedni pregled u jutarnjem izvještaju.
+    Ključ mozga ne otvara ništa drugo (norme, postavke, preračun ostaju samo vlasniku)."""
+    if x_mozak_kljuc is not None:
+        if settings.mozak_kljuc and hmac.compare_digest(x_mozak_kljuc, settings.mozak_kljuc):
+            return None
+        raise HTTPException(status_code=401, detail="Nevažeći ključ mozga")
+    return _samo_vlasnik(trenutni_korisnik(token, db, x_servis_kljuc))
 
 
 def _fnum(s, zadano=0.0) -> float:
@@ -130,7 +148,7 @@ def azuriraj_postavke(izmjene: PostavkeUpdate,
 # --- Učinak (shadow) ---------------------------------------------------------
 @router.get("/ucinak", response_model=UcinakOut)
 def ucinak(dana: int = Query(default=30, ge=1, le=365),
-           db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
+           db: Session = Depends(get_db), _: Korisnik | None = Depends(vlasnik_ili_mozak)):
     """Što bi tko zaradio po novom modelu u zadnjih N dana (iz povijesti rada).
 
     Za svaki zapis povijesti s poznatom kategorijom pribroji normu tom radniku;
