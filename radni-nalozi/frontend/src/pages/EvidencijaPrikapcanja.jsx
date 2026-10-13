@@ -189,17 +189,17 @@ function NovaPromjena({ trenutno, onGotovo }) {
         <div style={{ marginTop: 10 }}>
           {vozila === null ? <Spinner /> : (
             <>
-              <label style={{ marginTop: 0 }}>{t('spremne.prikolica')}</label>
-              <select className="pretraga-input" value={prikolicaGb} onChange={(e) => setPrikolicaGb(e.target.value)}>
-                <option value="">{t('prikapcanje.odaberiPrikolicu')}</option>
-                {prikolice.map((v) => (
-                  <option key={v.gb} value={v.gb}>{v.gb}{v.registracija ? ` · ${v.registracija}` : ''}</option>
-                ))}
-              </select>
-              <label style={{ marginTop: 8 }}>{t('spremne.kamion')}</label>
+              <label style={{ marginTop: 0 }}>{t('spremne.kamion')}</label>
               <select className="pretraga-input" value={kamionGb} onChange={(e) => setKamionGb(e.target.value)}>
                 <option value="">{t('prikapcanje.odaberiKamion')}</option>
                 {kamioni.map((v) => (
+                  <option key={v.gb} value={v.gb}>{v.gb}{v.registracija ? ` · ${v.registracija}` : ''}</option>
+                ))}
+              </select>
+              <label style={{ marginTop: 8 }}>{t('prikapcanje.prikljucno')}</label>
+              <select className="pretraga-input" value={prikolicaGb} onChange={(e) => setPrikolicaGb(e.target.value)}>
+                <option value="">{t('prikapcanje.odaberiPrikolicu')}</option>
+                {prikolice.map((v) => (
                   <option key={v.gb} value={v.gb}>{v.gb}{v.registracija ? ` · ${v.registracija}` : ''}</option>
                 ))}
               </select>
