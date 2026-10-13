@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..auth import trenutni_korisnik, zahtijevaj_uloge
+from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
 from ..models import (
     Korisnik,
@@ -29,7 +29,7 @@ from ..norme import KLJUC_EUR, get_postavka, norm_kat
 
 router = APIRouter(prefix="/ucinak", tags=["ucinak"])
 
-voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+voditelj_ili_poslovodja = zahtijevaj_ai_poslovodja()  # ljestvica je dio AI Poslovođe → samo vlasnik
 
 
 def _eur(db: Session) -> float:

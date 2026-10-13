@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     # kalibraciju €/norma-sat. App dohvaća stranicu i parsira mjesečne podatke.
     obracun_url: str = "https://bravel-obracun.surge.sh"
 
+    # AI Poslovođa — vidljiva SAMO ovom korisničkom imenu (dok nije spremno za sve).
+    # Prazno = fallback na voditelja (da se ne zaključa).
+    ai_poslovodja_user: str = "roko"
+    # Lozinka za seed račun vlasnika (fly secret ROKO_LOZINKA). Ako prazno — privremena.
+    roko_lozinka: str = ""
+    roko_ime: str = "Roko Jendriš"
+
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
     seed_admin_password: str = "bravel123"

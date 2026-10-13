@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer, model_serializer
 
 from .models import (
     Hitnost,
@@ -79,6 +79,17 @@ class KorisnikOut(ORM):
     odsutnost_vrsta: str | None = None   # 'godisnji' | 'bolovanje'
     odsutnost_od: date | None = None
     odsutnost_do: date | None = None
+
+    @computed_field
+    @property
+    def ai_poslovodja(self) -> bool:
+        """Vidi li ovaj korisnik AI Poslovođu (samo vlasnik; prazno = voditelj)."""
+        from .config import settings
+        ov = (settings.ai_poslovodja_user or "").strip().lower()
+        ime = (self.korisnicko_ime or "").strip().lower()
+        if ov:
+            return ime == ov
+        return self.uloga == Uloga.voditelj
 
 
 class OdsutnostUpdate(BaseModel):

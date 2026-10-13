@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import zahtijevaj_uloge
+from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, NormaPosla, PovijestRada, Uloga
 from ..norme import (
@@ -35,8 +35,11 @@ from ..schemas import (
 
 router = APIRouter(prefix="/poslovodja", tags=["poslovodja"])
 
-voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
-samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
+# AI Poslovođa je vidljiva/dostupna SAMO vlasniku (settings.ai_poslovodja_user).
+# Sve rute gate-amo na njega (prazno = fallback na voditelja).
+_samo_vlasnik = zahtijevaj_ai_poslovodja()
+voditelj_ili_poslovodja = _samo_vlasnik
+samo_voditelj = _samo_vlasnik
 
 
 def _fnum(s, zadano=0.0) -> float:
