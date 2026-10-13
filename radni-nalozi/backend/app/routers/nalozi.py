@@ -389,10 +389,12 @@ async def nezaduzena_vozila(
     „nezaduzeno" (mjerodavno). Svako je označeno ima li trenutno aktivan nalog u
     radionici (za poveznicu).
     """
+    # Priključna vozila = sve osim kamiona (prikolica, šlepa i ostalo vučeno).
+    # `!= "kamion"` u SQL-u izostavlja i neklasificirano (NULL), pa kamion ne upada.
     redovi = (
         db.query(RegistarVozila)
         .filter(RegistarVozila.status == StatusVozila.nezaduzeno,
-                RegistarVozila.kategorija == "prikolica")
+                RegistarVozila.kategorija != "kamion")
         .all()
     )
     redovi.sort(key=lambda r: (len(r.gb), r.gb))
