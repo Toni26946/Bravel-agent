@@ -6,6 +6,17 @@ import { useT } from '../i18n'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
+// Zbroj stavki: Σ(količina × cijena) za stavke koje imaju cijenu. null = nijedna nema cijenu.
+function zbrojStavki(stavke) {
+  let s = 0; let ima = false
+  for (const st of (stavke || [])) {
+    const c = parseFloat(st.cijena); const k = parseFloat(st.kolicina)
+    if (!isNaN(c)) { s += c * (isNaN(k) ? 1 : k); ima = true }
+  }
+  return ima ? s : null
+}
+const eur = (n) => (n == null ? '' : n.toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
+
 function praznaPrimka() {
   return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
 }
@@ -195,6 +206,11 @@ export default function Skladiste() {
             </div>
           ))}
           <button className="btn sekund mali" style={{ marginTop: 6 }} onClick={dodajStavku}>{t('skl.dodajStavku')}</button>
+          {zbrojStavki(nova.stavke) != null && (
+            <p style={{ textAlign: 'right', marginTop: 8, fontWeight: 700 }}>
+              {t('skl.ukupno')}: {eur(zbrojStavki(nova.stavke))}
+            </p>
+          )}
 
           <label style={{ marginTop: 10 }}>{t('skl.napomena')}</label>
           <textarea value={nova.napomena} onChange={(e) => postaviPolje('napomena', e.target.value)} />
@@ -247,6 +263,14 @@ export default function Skladiste() {
                         </tr>
                       ))}
                     </tbody>
+                    {zbrojStavki(p.stavke) != null && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3} style={{ fontWeight: 700 }}>{t('skl.ukupno')}</td>
+                          <td className="num" style={{ fontWeight: 700 }}>{eur(zbrojStavki(p.stavke))}</td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 )}
                 {str.length > 0 && (
