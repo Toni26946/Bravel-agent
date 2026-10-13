@@ -110,6 +110,7 @@ export const api = {
   postaviStatusVozila: (gb, b) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
   vratiNaMobilisis: (gb) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}`, { method: 'PATCH', body: { rucno: false } }),
   spremneSlepe: () => zahtjev('/vozila/spremne'),
+  paznja: () => zahtjev('/paznja'),
   zabiljeziPrikapcanje: (b) => zahtjev('/vozila/prikapcanje', { method: 'POST', body: b }),
   dnevnikPrikapcanja: (params = {}) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()

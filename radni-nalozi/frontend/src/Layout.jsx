@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
+import { api } from './api'
 import { useT } from './i18n'
 
 export default function Layout({ naslov, nazad, children, akcija }) {
@@ -28,6 +29,22 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     try { localStorage.setItem('nav_grupe', JSON.stringify(n)) } catch (_) { /* */ }
     return n
   })
+
+  // Pažnja voditelja: brojevi za crvene oznake na karticama (Spremne, Izašli, Prijave).
+  const [paznja, setPaznja] = useState({})
+  const voditeljski = korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja'
+  useEffect(() => {
+    if (!voditeljski) { setPaznja({}); return }
+    let ziv = true
+    const uc = () => api.paznja().then((p) => { if (ziv) setPaznja(p || {}) }).catch(() => {})
+    uc()
+    const id = setInterval(uc, 60000)
+    return () => { ziv = false; clearInterval(id) }
+  }, [voditeljski])
+  const paznjaZa = (putanja) => {
+    const m = { '/spremne': paznja.spremne, '/izasli': paznja.izasli, '/prijave': paznja.prijave }
+    return m[putanja] || 0
+  }
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
   // (ondje je vlastiti "+" za novu prijavu) i na samoj stranici kreiranja.
   const prikaziPlus = (korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja')
@@ -98,10 +115,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       <nav className="tabbar">
         {tabovi.map((item) => {
           if (!item.djeca) {
+            const n = paznjaZa(item.do)
             return (
-              <NavLink key={item.do} to={item.do} onClick={zatvoriNaUsko} className={({ isActive }) => (isActive ? 'akt' : '')}>
+              <NavLink key={item.do} to={item.do} onClick={zatvoriNaUsko}
+                className={({ isActive }) => (isActive ? 'akt' : '') + (n > 0 ? ' paznja' : '')}>
                 <span className="ikona">{item.ikona}</span>
                 <span className="txt">{item.txt}</span>
+                {n > 0 && <span className="nav-badge">{n}</span>}
               </NavLink>
             )
           }
