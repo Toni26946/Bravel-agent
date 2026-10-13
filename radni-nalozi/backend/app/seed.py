@@ -167,6 +167,36 @@ _BATCH_KORISNICI = [
 ]
 
 
+def osiguraj_roka(db: Session) -> None:
+    """Osiguraj voditeljski račun vlasnika AI Poslovođe (settings.ai_poslovodja_user).
+
+    Ako ne postoji — kreiraj ga (ime Roko Jendriš, uloga voditelj). Lozinka iz
+    fly secreta ROKO_LOZINKA; ako prazno, privremena koju vlasnik mijenja pri
+    prvoj prijavi. Postojeći račun samo osiguraj kao aktivan voditelj (ne diramo
+    lozinku)."""
+    uname = (settings.ai_poslovodja_user or "").strip()
+    if not uname:
+        return
+    post = db.query(Korisnik).filter(Korisnik.korisnicko_ime == uname).first()
+    if post:
+        promjena = False
+        if post.uloga != Uloga.voditelj:
+            post.uloga = Uloga.voditelj
+            promjena = True
+        if not post.aktivan:
+            post.aktivan = True
+            promjena = True
+        if promjena:
+            db.commit()
+        return
+    lozinka = settings.roko_lozinka or "bravel123"
+    db.add(Korisnik(
+        ime=settings.roko_ime, korisnicko_ime=uname,
+        lozinka_hash=hash_lozinka(lozinka), uloga=Uloga.voditelj, aktivan=True,
+    ))
+    db.commit()
+
+
 def osiguraj_dodatne_korisnike(db: Session) -> None:
     """Jednokratno kreira/ažurira ručno zadane račune (korisničko ime + lozinka).
 
