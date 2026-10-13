@@ -1,4 +1,4 @@
-"""Primke robe — skladištar fotografira otpremnicu dobavljača, AI izvuče stavke."""
+"""Primke robe — skladištar fotografira otpremnicu dobavljača (1+ stranica), AI izvuče stavke."""
 import os
 from datetime import datetime
 
@@ -10,13 +10,35 @@ from ..auth import zahtijevaj_uloge
 from ..config import settings
 from ..database import get_db
 from ..models import Korisnik, Primka, Uloga
-from ..schemas import OtpremnicaProcitana, PrimkaCreate, PrimkaOut, PrimkaStavka, PrimkaUpdate
+from ..schemas import (
+    OtpremnicaProcitana,
+    OtpremnicaZahtjev,
+    PrimkaCreate,
+    PrimkaOut,
+    PrimkaStavka,
+    PrimkaUpdate,
+    StranicaOtpremnice,
+)
 from ..storage import spremi_sliku
 
 router = APIRouter(prefix="/primke", tags=["primke"])
 
 # Skladište: skladištari unose primke; voditelj/poslovođa ih vide i uređuju.
 skladiste = zahtijevaj_uloge(Uloga.skladistar, Uloga.voditelj, Uloga.poslovodja)
+
+_MEDIJ = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+          ".webp": "image/webp", ".gif": "image/gif"}
+
+
+def _ucitaj_sliku(web_putanja: str) -> tuple[bytes, str] | None:
+    """Web putanja '/uploads/xxx.jpg' → (bajtovi, media_type) s diska, ili None."""
+    naziv = os.path.basename(web_putanja or "")
+    disk = os.path.join(settings.upload_dir, naziv)
+    if not naziv or not os.path.isfile(disk):
+        return None
+    ext = os.path.splitext(naziv)[1].lower()
+    with open(disk, "rb") as f:
+        return f.read(), _MEDIJ.get(ext, "image/jpeg")
 
 
 def _parse_datum(s):
@@ -50,21 +72,25 @@ def _stavke(sirove) -> list[PrimkaStavka]:
     return out
 
 
+@router.post("/stranica", response_model=StranicaOtpremnice)
+def stranica(slika: UploadFile = File(...), _: Korisnik = Depends(skladiste)):
+    """Spremi jednu stranicu otpremnice (bez AI-ja). Vrati web putanju."""
+    return StranicaOtpremnice(foto=spremi_sliku(slika))
+
+
 @router.post("/procitaj", response_model=OtpremnicaProcitana)
-def procitaj(slika: UploadFile = File(...), _: Korisnik = Depends(skladiste)):
-    """Spremi fotografiju otpremnice i (ako je AI dostupan) pročitaj dobavljača i stavke."""
-    putanja = spremi_sliku(slika)  # validira tip/veličinu + sprema na disk
+def procitaj(zahtjev: OtpremnicaZahtjev, _: Korisnik = Depends(skladiste)):
+    """AI pročita sve priložene stranice otpremnice (uzastopne stranice jednog dokumenta)."""
     if not ai_dostupan():
-        return OtpremnicaProcitana(foto=putanja, ai=False)
-    disk = os.path.join(settings.upload_dir, os.path.basename(putanja))
+        return OtpremnicaProcitana(ai=False)
+    slike = [s for s in (_ucitaj_sliku(p) for p in zahtjev.fotke) if s]
+    if not slike:
+        raise HTTPException(status_code=400, detail="Nema slika za čitanje.")
     try:
-        with open(disk, "rb") as f:
-            podaci_slike = f.read()
-        podaci = parsiraj_otpremnicu(podaci_slike, slika.content_type or "image/jpeg")
+        podaci = parsiraj_otpremnicu(slike)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"AI nije uspio pročitati otpremnicu: {e}")
     return OtpremnicaProcitana(
-        foto=putanja,
         dobavljac=(podaci.get("dobavljac") or None),
         broj_otpremnice=(podaci.get("broj_otpremnice") or None),
         datum=_parse_datum(podaci.get("datum")),
@@ -89,14 +115,18 @@ def dohvati(primka_id: int, _: Korisnik = Depends(skladiste), db: Session = Depe
 @router.post("", response_model=PrimkaOut, status_code=201)
 def kreiraj(podaci: PrimkaCreate, korisnik: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     stavke = [x.model_dump() for x in podaci.stavke if x.artikl.strip()]
-    if not (podaci.dobavljac or podaci.broj_otpremnice or stavke or podaci.foto):
+    fotografije = [f for f in (podaci.fotografije or []) if f]
+    if not fotografije and podaci.foto:            # kompatibilnost sa starim klijentom
+        fotografije = [podaci.foto]
+    if not (podaci.dobavljac or podaci.broj_otpremnice or stavke or fotografije):
         raise HTTPException(status_code=400, detail="Primka je prazna — dodaj barem dobavljača, broj otpremnice ili stavku.")
     p = Primka(
         dobavljac=(podaci.dobavljac or None),
         broj_otpremnice=(podaci.broj_otpremnice or None),
         datum=podaci.datum,
         napomena=(podaci.napomena or None),
-        foto_putanja=(podaci.foto or None),
+        foto_putanja=(fotografije[0] if fotografije else None),
+        fotografije=fotografije or None,
         stavke=stavke,
         kreirao_id=korisnik.id,
     )

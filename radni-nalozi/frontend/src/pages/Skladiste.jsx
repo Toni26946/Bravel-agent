@@ -7,7 +7,7 @@ import { useT } from '../i18n'
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
 function praznaPrimka() {
-  return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', foto: '', stavke: [] }
+  return { dobavljac: '', broj_otpremnice: '', datum: '', napomena: '', fotografije: [], stavke: [] }
 }
 
 export default function Skladiste() {
@@ -16,7 +16,8 @@ export default function Skladiste() {
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
   const [nova, setNova] = useState(null)       // objekt forme ili null (zatvoreno)
-  const [citam, setCitam] = useState(false)    // AI čita sliku
+  const [dodajem, setDodajem] = useState(false)   // učitavanje stranice
+  const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
   const fileRef = useRef(null)
 
@@ -24,32 +25,42 @@ export default function Skladiste() {
   useEffect(() => { ucitaj() }, [])
 
   const zapocni = () => { setGreska(''); setPoruka(''); setNova(praznaPrimka()) }
-  const odustani = () => { setNova(null); setCitam(false) }
+  const odustani = () => { setNova(null); setCitam(false); setDodajem(false) }
 
-  const slikaj = async (e) => {
+  const dodajStranicu = async (e) => {
     const file = e.target.files && e.target.files[0]
-    if (fileRef.current) fileRef.current.value = ''   // dopusti ponovni odabir iste slike
+    if (fileRef.current) fileRef.current.value = ''
     if (!file) return
-    setGreska(''); setCitam(true)
+    setGreska(''); setDodajem(true)
     try {
       const fd = new FormData()
       fd.append('slika', file)
-      const r = await api.procitajOtpremnicu(fd)
-      setNova((prev) => {
-        const baza = prev || praznaPrimka()
-        return {
-          dobavljac: r.dobavljac || baza.dobavljac || '',
-          broj_otpremnice: r.broj_otpremnice || baza.broj_otpremnice || '',
-          datum: r.datum || baza.datum || '',
-          napomena: baza.napomena || '',
-          foto: r.foto || baza.foto || '',
-          stavke: (r.stavke && r.stavke.length ? r.stavke : baza.stavke).map((s) => ({
-            artikl: s.artikl || '', kolicina: s.kolicina ?? 1,
-            jedinica: s.jedinica || 'kom', cijena: s.cijena ?? '',
-          })),
-        }
-      })
-      if (!r.ai) setPoruka(t('skl.aiNedostupan'))
+      const r = await api.uploadStranicaOtpremnice(fd)
+      setNova((p) => ({ ...p, fotografije: [...p.fotografije, r.foto] }))
+    } catch (err) {
+      setGreska(err.message)
+    } finally {
+      setDodajem(false)
+    }
+  }
+  const makniStranicu = (i) => setNova((p) => ({ ...p, fotografije: p.fotografije.filter((_, j) => j !== i) }))
+
+  const procitaj = async () => {
+    if (!nova.fotografije.length) { setGreska(t('skl.bezStranica')); return }
+    setGreska(''); setPoruka(''); setCitam(true)
+    try {
+      const r = await api.procitajOtpremnicu(nova.fotografije)
+      if (!r.ai) { setPoruka(t('skl.aiNedostupan')); return }
+      setNova((p) => ({
+        ...p,
+        dobavljac: r.dobavljac || p.dobavljac || '',
+        broj_otpremnice: r.broj_otpremnice || p.broj_otpremnice || '',
+        datum: r.datum || p.datum || '',
+        stavke: (r.stavke && r.stavke.length ? r.stavke : p.stavke).map((s) => ({
+          artikl: s.artikl || '', kolicina: s.kolicina ?? 1,
+          jedinica: s.jedinica || 'kom', cijena: s.cijena ?? '',
+        })),
+      }))
     } catch (err) {
       setGreska(err.message)
     } finally {
@@ -80,10 +91,10 @@ export default function Skladiste() {
       broj_otpremnice: nova.broj_otpremnice.trim() || null,
       datum: nova.datum || null,
       napomena: nova.napomena.trim() || null,
-      foto: nova.foto || null,
+      fotografije: nova.fotografije,
       stavke,
     }
-    if (!telo.dobavljac && !telo.broj_otpremnice && !stavke.length && !telo.foto) {
+    if (!telo.dobavljac && !telo.broj_otpremnice && !stavke.length && !nova.fotografije.length) {
       setGreska(t('skl.prazno')); return
     }
     setSpremam(true)
@@ -114,19 +125,36 @@ export default function Skladiste() {
         <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
       ) : (
         <div className="karta">
-          {/* Fotografija otpremnice → AI */}
+          {/* Stranice otpremnice */}
           <input
             ref={fileRef} type="file" accept="image/*" capture="environment"
-            onChange={slikaj} style={{ display: 'none' }}
+            onChange={dodajStranicu} style={{ display: 'none' }}
           />
-          <button className="btn sekund" onClick={() => fileRef.current && fileRef.current.click()} disabled={citam}>
-            {citam ? t('skl.citam') : (nova.foto ? t('skl.ponovoSlikaj') : t('skl.slikaj'))}
-          </button>
-          {citam && <p className="meta">{t('skl.citamHint')}</p>}
-          {nova.foto && (
-            <img src={medijUrl(nova.foto)} alt={t('skl.foto')}
-              style={{ maxWidth: '100%', borderRadius: 8, margin: '8px 0' }} />
+          <label style={{ marginTop: 0 }}>{t('skl.stranice')} ({nova.fotografije.length})</label>
+          <p className="meta" style={{ marginTop: 0 }}>{t('skl.straniceHint')}</p>
+          {nova.fotografije.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
+              {nova.fotografije.map((f, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <a href={medijUrl(f)} target="_blank" rel="noreferrer">
+                    <img src={medijUrl(f)} alt={`${t('skl.stranica')} ${i + 1}`}
+                      style={{ width: 84, height: 112, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--rub, #ccc)' }} />
+                  </a>
+                  <span style={{ position: 'absolute', bottom: 2, left: 4, fontSize: 11, background: 'rgba(0,0,0,.6)', color: '#fff', padding: '0 5px', borderRadius: 4 }}>{i + 1}</span>
+                  <button className="btn sekund mali" onClick={() => makniStranicu(i)} title={t('skl.makniStranicu')}
+                    style={{ position: 'absolute', top: -8, right: -8, width: 24, height: 24, padding: 0, borderRadius: '50%' }}>✕</button>
+                </div>
+              ))}
+            </div>
           )}
+          <div className="btn-red">
+            <button className="btn sekund" onClick={() => fileRef.current && fileRef.current.click()} disabled={dodajem || citam}>
+              {dodajem ? t('skl.dodajem') : t('skl.dodajStranicu')}
+            </button>
+            <button className="btn" onClick={procitaj} disabled={citam || dodajem || !nova.fotografije.length}>
+              {citam ? t('skl.citamVise', { n: nova.fotografije.length }) : t('skl.procitaj')}
+            </button>
+          </div>
 
           <label>{t('skl.dobavljac')}</label>
           <input value={nova.dobavljac} onChange={(e) => postaviPolje('dobavljac', e.target.value)} />
@@ -142,7 +170,7 @@ export default function Skladiste() {
             </div>
           </div>
 
-          <label>{t('skl.stavke')}</label>
+          <label>{t('skl.stavke')} ({nova.stavke.length})</label>
           {nova.stavke.map((s, i) => (
             <div key={i} className="karta" style={{ padding: 8, marginTop: 6 }}>
               <input placeholder={t('skl.artikl')} value={s.artikl}
@@ -172,7 +200,7 @@ export default function Skladiste() {
           <textarea value={nova.napomena} onChange={(e) => postaviPolje('napomena', e.target.value)} />
 
           <div className="btn-red" style={{ marginTop: 10 }}>
-            <button className="btn" onClick={spremi} disabled={spremam || citam}>
+            <button className="btn" onClick={spremi} disabled={spremam || citam || dodajem}>
               {spremam ? t('skl.spremam') : t('skl.spremi')}
             </button>
             <button className="btn sekund" onClick={odustani} disabled={spremam}>{t('skl.odustani')}</button>
@@ -185,39 +213,47 @@ export default function Skladiste() {
         <div style={{ marginTop: 14 }}>
           {lista.length === 0 ? (
             <p className="meta">{t('skl.nema')}</p>
-          ) : lista.map((p) => (
-            <div key={p.id} className="karta">
-              <div className="naslov-red">
-                <h3>{p.dobavljac || t('skl.bezDobavljaca')}</h3>
-                {p.datum && <span className="meta">{p.datum.split('-').reverse().join('.')}.</span>}
-              </div>
-              <p className="meta">
-                {p.broj_otpremnice ? `${t('skl.broj')}: ${p.broj_otpremnice} · ` : ''}
-                {t('skl.stavkiBr', { n: (p.stavke || []).length })}
-                {p.kreirao ? ` · ${p.kreirao.ime}` : ''}
-              </p>
-              {(p.stavke || []).length > 0 && (
-                <div className="dio-lista" style={{ marginTop: 6 }}>
-                  {p.stavke.map((s, i) => (
-                    <div key={i} className="steta-stavka">
-                      <span>{s.artikl}</span>
-                      <span className="c">
-                        {s.kolicina} {s.jedinica}{s.cijena != null ? ` · ${s.cijena} €` : ''}
-                      </span>
-                    </div>
-                  ))}
+          ) : lista.map((p) => {
+            const str = (p.fotografije && p.fotografije.length ? p.fotografije : (p.foto_putanja ? [p.foto_putanja] : []))
+            return (
+              <div key={p.id} className="karta">
+                <div className="naslov-red">
+                  <h3>{p.dobavljac || t('skl.bezDobavljaca')}</h3>
+                  {p.datum && <span className="meta">{p.datum.split('-').reverse().join('.')}.</span>}
                 </div>
-              )}
-              {p.foto_putanja && (
-                <a href={medijUrl(p.foto_putanja)} target="_blank" rel="noreferrer" className="meta" style={{ display: 'inline-block', marginTop: 6 }}>
-                  📷 {t('skl.foto')}
-                </a>
-              )}
-              <div className="btn-red" style={{ marginTop: 8 }}>
-                <button className="btn sekund mali" onClick={() => obrisi(p)}>{t('skl.obrisi')}</button>
+                <p className="meta">
+                  {p.broj_otpremnice ? `${t('skl.broj')}: ${p.broj_otpremnice} · ` : ''}
+                  {t('skl.stavkiBr', { n: (p.stavke || []).length })}
+                  {str.length ? ` · ${t('skl.brStranica', { n: str.length })}` : ''}
+                  {p.kreirao ? ` · ${p.kreirao.ime}` : ''}
+                </p>
+                {(p.stavke || []).length > 0 && (
+                  <div className="dio-lista" style={{ marginTop: 6 }}>
+                    {p.stavke.map((s, i) => (
+                      <div key={i} className="steta-stavka">
+                        <span>{s.artikl}</span>
+                        <span className="c">
+                          {s.kolicina} {s.jedinica}{s.cijena != null ? ` · ${s.cijena} €` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {str.length > 0 && (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+                    {str.map((f, i) => (
+                      <a key={i} href={medijUrl(f)} target="_blank" rel="noreferrer" className="meta">
+                        📷 {t('skl.stranica')} {i + 1}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <div className="btn-red" style={{ marginTop: 8 }}>
+                  <button className="btn sekund mali" onClick={() => obrisi(p)}>{t('skl.obrisi')}</button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </Layout>

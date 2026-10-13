@@ -400,7 +400,8 @@ class Primka(Base):
     broj_otpremnice: Mapped[str | None] = mapped_column(String(100), nullable=True)
     datum: Mapped[date | None] = mapped_column(Date, nullable=True)   # datum otpremnice
     napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
-    foto_putanja: Mapped[str | None] = mapped_column(String(300), nullable=True)  # slika otpremnice
+    foto_putanja: Mapped[str | None] = mapped_column(String(300), nullable=True)  # prva stranica (naslovna)
+    fotografije: Mapped[list | None] = mapped_column(JSON, nullable=True)  # sve stranice otpremnice [web putanje]
     stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)  # [{artikl, kolicina, jedinica, cijena}]
     kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)

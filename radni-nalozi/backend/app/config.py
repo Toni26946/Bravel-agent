@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # AI glasovni unos (Claude) — opcionalno; ako prazno, endpoint vraća 503
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-haiku-4-5-20251001"
+    # Čitanje otpremnica (vizualno, gust dokument) — jači model za točnost; pada na anthropic_model.
+    anthropic_vision_model: str = "claude-sonnet-4-5-20250929"
 
     # Web Push (VAPID) — opcionalno; ako prazno, push se ne šalje
     vapid_public_key: str = ""

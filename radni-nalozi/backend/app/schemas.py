@@ -514,14 +514,23 @@ class PrimkaStavka(BaseModel):
     cijena: float | None = None
 
 
+class StranicaOtpremnice(BaseModel):
+    """Odgovor na upload jedne stranice otpremnice."""
+    foto: str
+
+
+class OtpremnicaZahtjev(BaseModel):
+    """Zahtjev za AI čitanje: putanje već uploadanih stranica otpremnice."""
+    fotke: list[str] = []
+
+
 class OtpremnicaProcitana(BaseModel):
-    """Rezultat AI čitanja fotografije otpremnice (prijedlog za uređivanje)."""
-    foto: str | None = None
+    """Rezultat AI čitanja otpremnice (prijedlog za uređivanje)."""
     dobavljac: str | None = None
     broj_otpremnice: str | None = None
     datum: date | None = None
     stavke: list[PrimkaStavka] = []
-    ai: bool = False  # je li AI stvarno obradio sliku (False = samo spremljena slika)
+    ai: bool = False  # je li AI stvarno obradio slike (False = AI nije dostupan)
 
 
 class PrimkaCreate(BaseModel):
@@ -529,7 +538,8 @@ class PrimkaCreate(BaseModel):
     broj_otpremnice: str | None = None
     datum: date | None = None
     napomena: str | None = None
-    foto: str | None = None
+    foto: str | None = None               # zastarjelo: prva stranica (kompatibilnost)
+    fotografije: list[str] = []           # sve stranice otpremnice
     stavke: list[PrimkaStavka] = []
 
 
@@ -548,6 +558,7 @@ class PrimkaOut(ORM):
     datum: date | None = None
     napomena: str | None = None
     foto_putanja: str | None = None
+    fotografije: list[str] | None = None
     stavke: list[PrimkaStavka] | None = None
     kreirao: KorisnikOut | None = None
     kreiran: datetime
