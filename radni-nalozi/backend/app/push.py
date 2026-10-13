@@ -47,7 +47,15 @@ def obavijesti_korisnika(db: Session, korisnik_id: int, naslov: str, tijelo: str
         _posalji(k.push_subscription, naslov, tijelo, url)
 
 
-def obavijesti_ulogu(db: Session, uloga: Uloga, naslov: str, tijelo: str, url: str = "/") -> None:
-    for k in db.query(Korisnik).filter(Korisnik.uloga == uloga, Korisnik.aktivan.is_(True)).all():
-        if k.push_subscription:
-            _posalji(k.push_subscription, naslov, tijelo, url)
+def obavijesti_ulogu(db: Session, uloga, naslov: str, tijelo: str, url: str = "/") -> None:
+    """Pošalji push svim aktivnim korisnicima zadane uloge (ili više uloga).
+
+    `uloga` može biti jedna Uloga ili lista/skup uloga. Svakom korisniku šalje
+    se najviše jednom, čak i ako se pojavi u više uloga."""
+    uloge = list(uloga) if isinstance(uloga, (list, tuple, set)) else [uloga]
+    poslani: set[int] = set()
+    for u in uloge:
+        for k in db.query(Korisnik).filter(Korisnik.uloga == u, Korisnik.aktivan.is_(True)).all():
+            if k.push_subscription and k.id not in poslani:
+                _posalji(k.push_subscription, naslov, tijelo, url)
+                poslani.add(k.id)

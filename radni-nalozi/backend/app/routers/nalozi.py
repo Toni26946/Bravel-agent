@@ -347,7 +347,38 @@ def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
     )
 
 
-@router.get("/nezaduzena")
+@router.post("/izasli/obavijesti")
+def posalji_izasli_obavijest(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
+):
+    """Ručno pošalji push podsjetnik (voditeljima i poslovođama) za kamione koji
+    su izašli iz radione, a nalog je još u radu. Koristi se kad treba odmah
+    podsjetiti, neovisno o automatskoj GPS obavijesti."""
+    izasli = (
+        db.query(Nalog)
+        .filter(Nalog.status == StatusNaloga.u_radu, Nalog.izvan_radione_javljeno.is_(True))
+        .order_by(Nalog.azuriran.desc())
+        .all()
+    )
+    if not izasli:
+        return {"poslano": False, "broj": 0}
+    gbovi = [n.vozilo.gb for n in izasli if n.vozilo and n.vozilo.gb]
+    if len(izasli) == 1:
+        n = izasli[0]
+        gb = n.vozilo.gb if n.vozilo else "?"
+        obavijesti_ulogu(
+            db, [Uloga.voditelj, Uloga.poslovodja], "Vozilo izvan radione — nalog nije završen",
+            f"{gb}: nalog je još u radu, a vozilo je izvan radione.",
+            url=f"/nalozi/{n.id}",
+        )
+    else:
+        popis = ", ".join(gbovi[:8]) + ("…" if len(gbovi) > 8 else "")
+        obavijesti_ulogu(
+            db, [Uloga.voditelj, Uloga.poslovodja], "Vozila izvan radione — nalozi nisu završeni",
+            f"{len(izasli)} vozila izvan radione s otvorenim nalogom: {popis}",
+            url="/izasli",
+        )
+    return {"poslano": True, "broj": len(izasli)}
 async def nezaduzena_vozila(
     korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)
 ):
