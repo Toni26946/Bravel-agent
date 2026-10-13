@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_serializer
 
 from .models import (
     Hitnost,
@@ -17,6 +17,18 @@ from .models import (
 
 class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer(mode="wrap")
+    def _oznaci_utc(self, handler):
+        """Datumi iz baze su spremljeni u UTC-u, ali SQLite ih vraća bez vremenske
+        zone (naivne). Pri serijalizaciji ih označimo UTC-om, da ih preglednik
+        prikaže u ispravnoj lokalnoj zoni (inače su pomaknuti za offset)."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for ime, vrijednost in self.__dict__.items():
+                if isinstance(vrijednost, datetime) and vrijednost.tzinfo is None and ime in data:
+                    data[ime] = vrijednost.replace(tzinfo=timezone.utc).isoformat()
+        return data
 
 
 # --- Auth --------------------------------------------------------------------
