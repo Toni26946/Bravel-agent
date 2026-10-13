@@ -55,6 +55,16 @@ export default function IzasliIzRadione() {
             <div className="izasli-info" onClick={() => nav(`/nalozi/${n.id}`)}>
               <div className="izasli-gb">🚚 {n.vozilo?.gb}</div>
               <div className="meta">{n.broj}{n.vozilo?.registracija ? ` · ${n.vozilo.registracija}` : ''}</div>
+              {(n.mjesto || n.lat != null) && (
+                n.lat != null && n.lon != null ? (
+                  <a className="meta izasli-lok" href={`https://www.google.com/maps?q=${n.lat},${n.lon}`}
+                    target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                    📍 {n.mjesto || t('izasli.lokacija')}{n.udaljenost_m != null ? ` · ${(n.udaljenost_m / 1000).toFixed(1)} km` : ''}
+                  </a>
+                ) : (
+                  <div className="meta izasli-lok">📍 {n.mjesto}</div>
+                )
+              )}
             </div>
             <button className="btn mali izasli-btn" disabled={radiId === n.id} onClick={() => zavrsi(n.id)}>
               {radiId === n.id ? '…' : `✓ ${t('izasli.zavrsi')}`}

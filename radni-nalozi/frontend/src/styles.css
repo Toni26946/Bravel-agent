@@ -45,6 +45,13 @@ a { color: inherit; text-decoration: none; }
 .topbar h1 { font-size: 17px; margin: 0; flex: 1; font-weight: 600; }
 .topbar .nazad { font-size: 22px; line-height: 1; padding: 4px; margin: -4px; cursor: pointer; }
 .topbar .uloga { font-size: 12px; opacity: .85; background: rgba(255,255,255,.16); padding: 3px 8px; border-radius: 20px; }
+.topbar-profil {
+  display: inline-flex; align-items: center; gap: 6px; color: #fff; text-decoration: none;
+  background: rgba(255,255,255,.16); padding: 5px 10px; border-radius: 20px; font-size: 13px; white-space: nowrap;
+}
+.topbar-profil:hover, .topbar-profil.akt { background: rgba(255,255,255,.3); }
+.topbar-profil .tp-ikona { font-size: 16px; line-height: 1; }
+@media (max-width: 520px) { .topbar-profil .tp-txt { display: none; } }
 .nav-toggle { background: none; border: 0; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; margin-left: -4px; }
 .sadrzaj { grid-area: main; overflow-y: auto; padding: 16px; padding-bottom: 88px; }
 
@@ -432,6 +439,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .izasli-red { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .izasli-info { cursor: pointer; min-width: 0; }
 .izasli-gb { font-weight: 800; font-size: 16px; }
+.izasli-lok { color: var(--plava, #2563eb); text-decoration: none; display: inline-block; margin-top: 2px; }
 .izasli-btn { flex: none; white-space: nowrap; }
 
 /* Mikrofon (diktiranje) */

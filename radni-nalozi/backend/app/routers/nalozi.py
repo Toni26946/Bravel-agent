@@ -334,17 +334,30 @@ def nadzor(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depend
     )
 
 
-@router.get("/izasli", response_model=list[NalogListItem])
-def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
-    """Kamioni koji su napustili radionu (GPS), a nalog je još u radu."""
+@router.get("/izasli")
+async def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    """Kamioni koji su napustili radionu (GPS), a nalog je još u radu — s nazivom
+    lokacije na kojoj se vozilo trenutno nalazi (po GPS-u)."""
     if korisnik.uloga == Uloga.vozac:
         raise HTTPException(status_code=403, detail="Vozači nemaju pristup")
-    return (
+    nalozi = (
         db.query(Nalog)
         .filter(Nalog.status == StatusNaloga.u_radu, Nalog.izvan_radione_javljeno.is_(True))
         .order_by(Nalog.azuriran.desc())
         .all()
     )
+    out = []
+    for n in nalozi:
+        gb = n.vozilo.gb if n.vozilo else None
+        lok = await flota.lokacija_vozila(gb)
+        out.append({
+            "id": n.id,
+            "broj": n.broj,
+            "vozilo": ({"gb": gb, "registracija": n.vozilo.registracija} if n.vozilo else None),
+            "lat": lok["lat"], "lon": lok["lon"],
+            "udaljenost_m": lok["udaljenost_m"], "mjesto": lok["mjesto"],
+        })
+    return out
 
 
 @router.post("/izasli/obavijesti")
