@@ -123,6 +123,7 @@ a { color: inherit; text-decoration: none; }
 .slobodni-chip:hover { filter: brightness(0.97); }
 .slobodni-chip.go { background: #fff3e0; color: #b8600a; border-color: #f2cd9b; }   /* godišnji */
 .slobodni-chip.bo { background: #fdecec; color: #c0392b; border-color: #f2b8b3; }   /* bolovanje */
+.slobodni-chip.od { background: #eceff1; color: #546e7a; border-color: #cfd8dc; }   /* odsutan */
 .chip-wrap { position: relative; display: inline-block; }
 .chip-menu { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 190px; background: #fff; border: 1px solid var(--rub); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 6px; }
 .cm-opt { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: inherit; }
