@@ -789,4 +789,49 @@ class PushSubscription(BaseModel):
     subscription: dict
 
 
+# --- Evidencija radnog vremena ----------------------------------------------
+class EvidencijaUnos(BaseModel):
+    korisnik_id: int
+    datum: date
+    od: str | None = None
+    do: str | None = None
+    teren: float | None = None
+    kod: str | None = None            # GO | BO | PD | OD | "" (prazno = makni)
+    napomena: str | None = None
+
+
+class EvidencijaDan(BaseModel):
+    datum: date
+    od: str | None = None
+    do: str | None = None
+    redovni: float = 0
+    prekovremeni: float = 0
+    teren: float = 0
+    kod: str | None = None
+    napomena: str | None = None
+
+
+class EvidencijaRadnik(BaseModel):
+    korisnik_id: int
+    ime: str
+    uloga: str
+    # Zbirne vrijednosti za mjesec
+    redovno: float = 0
+    prekovremeni: float = 0
+    teren: float = 0
+    radni_dani: int = 0
+    go: int = 0
+    bo: int = 0
+    pd: int = 0
+    ukupno_redovnih: float = 0
+    dani: dict[str, EvidencijaDan] = {}   # ključ = "YYYY-MM-DD"
+
+
+class EvidencijaMjesec(BaseModel):
+    godina: int
+    mjesec: int
+    dana_u_mjesecu: int
+    radnici: list[EvidencijaRadnik] = []
+
+
 Token.model_rebuild()
