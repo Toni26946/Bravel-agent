@@ -44,6 +44,9 @@ export default function NezaduzenaVozila() {
                     ? ` · ${p.broj} (${t('status.' + p.status)})`
                     : ` · ${t('nezaduzena.nijeURadionici')}`}
                 </div>
+                <div className="meta nz-lokacija">
+                  📍 {p.lokacija ? p.lokacija : <span className="nz-nema-lok">{t('nezaduzena.nemaLokacije')}</span>}
+                </div>
               </div>
             </div>
           ))}

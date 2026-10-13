@@ -75,6 +75,8 @@ a { color: inherit; text-decoration: none; }
 .tabbar .nav-strelica { margin-left: auto; font-size: 11px; opacity: .65; }
 .app.nav-open .tabbar a.nav-dijete { padding-left: 24px; }
 .tabbar a.nav-dijete .ikona { font-size: 19px; }
+.nz-lokacija { margin-top: 2px; }
+.nz-nema-lok { opacity: .7; font-style: italic; }
 .nav-backdrop { display: none; }
 
 /* Na užem ekranu (mobitel): nema stalnog raila — sadržaj dobije punu širinu,

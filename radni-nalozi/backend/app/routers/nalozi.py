@@ -406,6 +406,7 @@ async def nezaduzena_vozila(
         stavke.append({
             "gb": r.gb, "tip": r.tip, "reg": r.registracija,
             "napomena": r.napomena,
+            "lokacija": r.lokacija,
             "nalog_id": n.id if n else None,
             "broj": n.broj if n else None,
             "status": n.status.value if n else None,
