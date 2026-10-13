@@ -177,8 +177,37 @@ SUSTAV_OTPREMNICA = (
     "a NE ukupna vrijednost retka (Vrijednost). Ako su cijene u kunama (kn), preračunaj nije potrebno — uzmi stupac u EUR (€). Ako cijene nema → null.\n"
     "- Preskoči zaglavlje, podnožje, poreze, zbrojeve i dostavne napomene — samo artikle iz tablice.\n"
     "- Prepiši TOČNO ono što piše; NE izmišljaj artikle, šifre ni brojeve. Ako je redak nečitak, radije ga izostavi nego pogodi.\n"
+    "- U NAZIVIMA ne koristi znak dvostrukog navodnika (\") — za cole/inče napiši \"col\" ili izostavi taj znak; "
+    "inače razbiješ JSON. Vrati STROGO ISPRAVAN, KOMPAKTAN JSON (bez nepotrebnih razmaka i novih redova).\n"
     "- Ako na slikama nema prepoznatljive otpremnice, vrati prazne vrijednosti (stavke: [])."
 )
+
+
+def _izvuci_json_otpremnica(sirovo: str) -> dict:
+    """Kao _izvuci_json, ali spašava odrezan/nepotpun JSON (dugačke otpremnice).
+
+    Ako cijeli JSON ne prođe, pokuša zatvoriti polje `stavke` na zadnjoj cijeloj stavci
+    (stavke su zadnje polje), pa vrati barem ono što je pročitano."""
+    try:
+        return _izvuci_json(sirovo)
+    except Exception:
+        t = sirovo.strip()
+        if t.startswith("```"):
+            t = t.strip("`")
+            if t.lstrip().lower().startswith("json"):
+                t = t.lstrip()[4:]
+        i = t.find("{")
+        if i < 0:
+            raise
+        t = t[i:]
+        poz = t.rfind("}")           # zadnji zatvoreni objekt (stavka)
+        if poz > 0:
+            for zavrsetak in ("]}", "}"):
+                try:
+                    return json.loads(t[:poz + 1] + zavrsetak)
+                except Exception:
+                    continue
+        raise
 
 
 def parsiraj_otpremnicu(slike: list[tuple[bytes, str]]) -> dict:
@@ -209,12 +238,12 @@ def parsiraj_otpremnicu(slike: list[tuple[bytes, str]]) -> dict:
     for model in modeli:
         try:
             poruka = client.messages.create(
-                model=model, max_tokens=4000, temperature=0,
+                model=model, max_tokens=8000, temperature=0,
                 system=SUSTAV_OTPREMNICA,
                 messages=[{"role": "user", "content": sadrzaj}],
             )
             sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
-            return _izvuci_json(sirovo)
+            return _izvuci_json_otpremnica(sirovo)
         except Exception as e:  # noqa: BLE001 — probaj sljedeći model
             log.warning("Čitanje otpremnice modelom %s nije uspjelo: %s", model, e)
             zadnja_greska = e
