@@ -689,3 +689,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .skl-tablica thead th { font-weight: 700; color: var(--meta, #6b7280); border-bottom: 2px solid var(--rub, #d1d5db); white-space: nowrap; }
 .skl-tablica .num { text-align: right; white-space: nowrap; }
 .skl-tablica tbody tr:last-child td { border-bottom: none; }
+.skl-tablica tfoot td { border-top: 2px solid var(--rub, #d1d5db); }
+/* Kompaktni red popisa primki (klik → pregled) */
+.skl-red { transition: background .12s; }
+.skl-red:hover { background: var(--svijetla, #f3f4f6); }
+.skl-red:active { background: var(--rub, #e5e7eb); }
