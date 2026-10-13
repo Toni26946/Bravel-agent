@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../Layout'
-import { api } from '../api'
+import { api, medijUrl } from '../api'
 import { MikrofonGumb, Prazno, Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import GlasovnaSteta from '../GlasovnaSteta'
@@ -118,6 +118,8 @@ export default function Steta() {
             )}
             {s.obrazlozenje && <p className="meta" style={{ marginTop: 8, fontStyle: 'italic' }}>🤖 {s.obrazlozenje}</p>}
 
+            <StetaFotke s={s} onPromjena={ucitaj} t={t} />
+
             <div className="naslov-red" style={{ marginTop: 12, alignItems: 'center' }}>
               <span className="meta">{s.kreirao?.ime} · {datum(s.kreiran)}</span>
               <div className="btn-red" style={{ margin: 0 }}>
@@ -133,6 +135,52 @@ export default function Steta() {
 }
 
 // --- Forma: nova / uređivanje štete -----------------------------------------
+function StetaFotke({ s, onPromjena, t }) {
+  const fileRef = useRef(null)
+  const [radi, setRadi] = useState(false)
+  const fotke = s.fotografije || []
+
+  const dodaj = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setRadi(true)
+    try {
+      for (const f of files) {
+        const fd = new FormData()
+        fd.append('slika', f)
+        await api.dodajStetaFoto(s.id, fd)
+      }
+      onPromjena()
+    } catch (_) { /* tiho */ } finally {
+      setRadi(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+  const makni = async (fid) => {
+    if (!window.confirm(t('steta.obrisiFoto'))) return
+    try { await api.obrisiStetaFoto(s.id, fid); onPromjena() } catch (_) { /* tiho */ }
+  }
+
+  return (
+    <div className="steta-fotke">
+      <div className="steta-fotke-red">
+        {fotke.map((f) => (
+          <a key={f.id} href={medijUrl(f.putanja)} target="_blank" rel="noopener noreferrer" className="steta-foto">
+            <img src={medijUrl(f.putanja)} alt="" loading="lazy" />
+            <span className="steta-foto-x" title={t('common.obrisi')} onClick={(e) => { e.preventDefault(); makni(f.id) }}>×</span>
+          </a>
+        ))}
+        <button type="button" className="steta-foto-dodaj" disabled={radi} onClick={() => fileRef.current?.click()}>
+          <span className="sfd-ik">{radi ? '…' : '📷'}</span>
+          <span className="sfd-txt">{t('steta.dodajFoto')}</span>
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple
+        style={{ display: 'none' }} onChange={dodaj} />
+    </div>
+  )
+}
+
 function StetaForma({ pocetna, vozila, vozaci, naSpremljeno, naOdustani, naGresku }) {
   const { t } = useT()
   const uredi = !!pocetna

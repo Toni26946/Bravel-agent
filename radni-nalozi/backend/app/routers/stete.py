@@ -1,12 +1,14 @@
 """Šteta — evidencija oštećenja koja su napravili vozači + AI procjena troška."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..ai import ai_dostupan, parsiraj_stetu_govor, procijeni_stetu
 from ..auth import zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, Steta, Uloga, Vozilo
+from ..models import Fotografija, Korisnik, Steta, Uloga, Vozilo
+from ..storage import spremi_sliku
 from ..schemas import (
+    FotografijaOut,
     StetaCreate,
     StetaGlasovniOdgovor,
     StetaGlasovniZahtjev,
@@ -132,4 +134,33 @@ def obrisi(steta_id: int, _: Korisnik = Depends(samo_voditelj), db: Session = De
     if not s:
         raise HTTPException(status_code=404, detail="Šteta ne postoji")
     db.delete(s)
+    db.commit()
+
+
+# --- Fotografije štete (evidencija) ------------------------------------------
+@router.post("/{steta_id}/fotografije", response_model=FotografijaOut, status_code=201)
+def dodaj_foto(
+    steta_id: int, slika: UploadFile = File(...),
+    korisnik: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+):
+    s = db.get(Steta, steta_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Šteta ne postoji")
+    putanja = spremi_sliku(slika)
+    f = Fotografija(steta_id=steta_id, putanja=putanja, postavio_id=korisnik.id)
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    return f
+
+
+@router.delete("/{steta_id}/fotografije/{foto_id}", status_code=204)
+def obrisi_foto(
+    steta_id: int, foto_id: int,
+    _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+):
+    f = db.get(Fotografija, foto_id)
+    if not f or f.steta_id != steta_id:
+        raise HTTPException(status_code=404, detail="Fotografija ne postoji")
+    db.delete(f)
     db.commit()

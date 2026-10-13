@@ -193,6 +193,8 @@ export const api = {
   kreirajStetu: (b) => zahtjev('/stete', { method: 'POST', body: b }),
   azurirajStetu: (id, b) => zahtjev(`/stete/${id}`, { method: 'PATCH', body: b }),
   obrisiStetu: (id) => zahtjev(`/stete/${id}`, { method: 'DELETE' }),
+  dodajStetaFoto: (id, fd) => zahtjev(`/stete/${id}/fotografije`, { method: 'POST', form: fd }),
+  obrisiStetaFoto: (id, fid) => zahtjev(`/stete/${id}/fotografije/${fid}`, { method: 'DELETE' }),
 
   // Primke robe (otpremnice dobavljača — skladište)
   primke: () => zahtjev('/primke'),
