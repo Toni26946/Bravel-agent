@@ -209,6 +209,13 @@ export const api = {
     if (!res.ok) throw new Error(`Izvoz nije uspio (${res.status})`)
     return res.blob()
   },
+  preuzmiPrimkuExcel: async (id) => {
+    const res = await fetch(BASE + `/api/primke/${id}/izvoz.xlsx`, {
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+    })
+    if (!res.ok) throw new Error(`Izvoz nije uspio (${res.status})`)
+    return res.blob()
+  },
 
   // Flota OS (GPS) dijagnostika
   flotaStatus: () => zahtjev('/flota/status'),
