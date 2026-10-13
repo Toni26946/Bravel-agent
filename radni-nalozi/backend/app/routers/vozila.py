@@ -25,6 +25,7 @@ from ..models import (
     Vozilo,
     VrstaDogadaja,
     ZamjenaDijela,
+    je_prikljucno_vozilo,
 )
 from ..schemas import (
     DogadajCreate,
@@ -597,7 +598,7 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     for gb in gbs:
         r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
             RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
-        if not r or r.kategorija != "prikolica":
+        if not r or not je_prikljucno_vozilo(r.kategorija):
             continue
         # Preskoči šlepe koje su trenutno zadužene (prikačene) na kamion.
         if r.gb in prikacene or (r.gb.lstrip("0") or r.gb) in prikacene:

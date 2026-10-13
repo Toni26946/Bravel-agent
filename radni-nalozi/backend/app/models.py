@@ -82,6 +82,13 @@ class StatusVozila(str, enum.Enum):
     spremno = "spremno"          # popravljena, ispravna, spremna za kamion (uz lokaciju parkinga)
 
 
+def je_prikljucno_vozilo(kategorija: str | None) -> bool:
+    """Priključno vozilo = prikolica, šlepa i sve ostalo vučeno — dakle sve osim
+    kamiona. Neklasificirano (None/prazno) se NE smatra priključnim (izbjegavamo
+    lažne unose). Isto pravilo koristi i SQL filtar `kategorija != "kamion"`."""
+    return bool(kategorija) and kategorija != "kamion"
+
+
 # ---------------------------------------------------------------------------
 # Poveznica nalog <-> radnik (dodjele)
 # ---------------------------------------------------------------------------

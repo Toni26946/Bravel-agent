@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from .database import SessionLocal
-from .models import Nalog, RegistarVozila, StatusNaloga, StatusVozila, Uloga
+from .models import Nalog, RegistarVozila, StatusNaloga, StatusVozila, Uloga, je_prikljucno_vozilo
 from .push import obavijesti_korisnika, obavijesti_ulogu
 
 log = logging.getLogger("spremnost")
@@ -65,7 +65,7 @@ async def obradi_spremnost() -> None:
         for gb, n in gb_nalog.items():
             r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
                 RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
-            if not r or r.kategorija != "prikolica" or _rijeseno(r):
+            if not r or not je_prikljucno_vozilo(r.kategorija) or _rijeseno(r):
                 continue
             if r.podsjetnik_zadnji is None or r.podsjetnik_zadnji < danas:
                 _javi(db, gb, n.voditelj_id, prvi=(r.podsjetnik_zadnji is None))
