@@ -67,10 +67,11 @@ class Settings(BaseSettings):
 
     # AI Poslovođa — vidljiva SAMO ovom korisničkom imenu (dok nije spremno za sve).
     # Prazno = fallback na voditelja (da se ne zaključa).
-    ai_poslovodja_user: str = "roko"
-    # Lozinka za seed račun vlasnika (fly secret ROKO_LOZINKA). Ako prazno — privremena.
-    roko_lozinka: str = ""
-    roko_ime: str = "Roko Jendriš"
+    ai_poslovodja_user: str = "toni"
+    # Lozinka za seed račun vlasnika (fly secret VLASNIK_LOZINKA) — samo ako račun
+    # treba tek kreirati. Ako prazno — privremena. Postojeći račun se ne dira.
+    vlasnik_lozinka: str = ""
+    vlasnik_ime: str = "Toni"
 
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
