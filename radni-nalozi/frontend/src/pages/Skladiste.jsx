@@ -192,7 +192,10 @@ export default function Skladiste() {
     return (
       <Layout naslov={t('skl.naslov')} nazad={() => setDetalj(null)}>
         {greska && <div className="greska">{greska}</div>}
-        <button className="btn sekund" onClick={() => setDetalj(null)}>‹ {t('skl.natrag')}</button>
+        <div className="btn-red">
+          <button className="btn sekund" onClick={() => setDetalj(null)}>‹ {t('skl.natrag')}</button>
+          <button className="btn sekund" onClick={() => izvozJedne(detalj)}>{t('skl.izvoz')}</button>
+        </div>
         <div className="karta" style={{ marginTop: 10 }}>
           <div className="naslov-red">
             <h3>{detalj.dobavljac || t('skl.bezDobavljaca')}</h3>
@@ -214,7 +217,6 @@ export default function Skladiste() {
             </div>
           )}
           <div className="btn-red" style={{ marginTop: 10 }}>
-            <button className="btn sekund" onClick={() => izvozJedne(detalj)}>{t('skl.izvoz')}</button>
             <button className="btn sekund mali" onClick={() => obrisi(detalj)}>{t('skl.obrisi')}</button>
           </div>
         </div>
