@@ -106,18 +106,36 @@ export default function SkladisteDashboard() {
     <Layout naslov={t('skl.dashNaslov')}>
       {greska && <div className="greska">{greska}</div>}
 
-      <label style={{ marginTop: 0 }}>{t('skl.razdoblje')}</label>
-      <select value={razdoblje} onChange={(e) => odaberiRazdoblje(e.target.value)}>
-        <option value="7">{t('skl.r7')}</option>
-        <option value="14">{t('skl.r14')}</option>
-        <option value="30">{t('skl.r30')}</option>
-        <option value="mjesec">{t('skl.rMjesec')}</option>
-        <option value="tjedan">{t('skl.rTjedan')}</option>
-        <option value="prilagodjeno">{t('skl.rPrilagodjeno')}</option>
-      </select>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 180px' }}>
+          <label style={{ marginTop: 0 }}>{t('skl.razdoblje')}</label>
+          <select style={{ width: '100%' }} value={razdoblje} onChange={(e) => odaberiRazdoblje(e.target.value)}>
+            <option value="7">{t('skl.r7')}</option>
+            <option value="14">{t('skl.r14')}</option>
+            <option value="30">{t('skl.r30')}</option>
+            <option value="mjesec">{t('skl.rMjesec')}</option>
+            <option value="tjedan">{t('skl.rTjedan')}</option>
+            <option value="prilagodjeno">{t('skl.rPrilagodjeno')}</option>
+          </select>
+        </div>
+        <div style={{ flex: '1 1 180px' }}>
+          <label style={{ marginTop: 0 }}>{t('skl.sortiraj')}</label>
+          <select style={{ width: '100%' }} value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="dana">{t('skl.sNajstariji')}</option>
+            <option value="naziv">{t('skl.sNaziv')}</option>
+            <option value="iznos">{t('skl.sIznos')}</option>
+            <option value="preostalo">{t('skl.sPreostalo')}</option>
+            <option value="dobavljac">{t('skl.sDobavljac')}</option>
+          </select>
+        </div>
+        <label className="pos-toggle" style={{ flex: '1 1 220px', marginTop: 0, paddingBottom: 8 }}>
+          <input type="checkbox" checked={samoStari} onChange={(e) => setSamoStari(e.target.checked)} />
+          {t('skl.stari6')}
+        </label>
+      </div>
 
       {razdoblje === 'prilagodjeno' && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
           <div style={{ flex: '1 1 130px' }}>
             <label style={{ marginTop: 0 }}>{t('skl.od')}</label>
             <input type="date" value={od} onChange={(e) => setOd(e.target.value)} />
@@ -128,19 +146,6 @@ export default function SkladisteDashboard() {
           </div>
         </div>
       )}
-      <label className="pos-toggle" style={{ marginTop: 8 }}>
-        <input type="checkbox" checked={samoStari} onChange={(e) => setSamoStari(e.target.checked)} />
-        {t('skl.stari6')}
-      </label>
-
-      <label style={{ marginTop: 8 }}>{t('skl.sortiraj')}</label>
-      <select value={sort} onChange={(e) => setSort(e.target.value)}>
-        <option value="dana">{t('skl.sNajstariji')}</option>
-        <option value="naziv">{t('skl.sNaziv')}</option>
-        <option value="iznos">{t('skl.sIznos')}</option>
-        <option value="preostalo">{t('skl.sPreostalo')}</option>
-        <option value="dobavljac">{t('skl.sDobavljac')}</option>
-      </select>
 
       <p className="meta" style={{ marginTop: 8 }}>{t('skl.dijelova', { n: vidljivi.length })}</p>
 
