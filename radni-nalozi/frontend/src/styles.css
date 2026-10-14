@@ -759,24 +759,29 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-sticky { position: sticky; left: 0; z-index: 2; }
 .ev-tablica thead th.ev-sticky { z-index: 4; }
 .ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
-.ev-dan { min-width: 42px; }
+.ev-dan { min-width: 96px; }
 .ev-dan-br { font-weight: 700; }
 .ev-dan-dow { font-size: 10px; color: var(--sivo); text-transform: lowercase; }
 .ev-vikend { background: #f6f7fb; }
 .ev-tablica thead th.ev-vikend { background: #e7ebf3; }
 .ev-zbroj { font-variant-numeric: tabular-nums; color: #333; font-weight: 600; }
-.ev-cel { cursor: pointer; min-width: 42px; height: 34px; }
-.ev-cel:hover { outline: 2px solid var(--plava-svijetla); outline-offset: -2px; }
-.ev-radio .ev-sati { font-weight: 700; }
-.ev-radio .ev-pre { color: var(--narancasta); font-size: 10px; margin-left: 2px; }
-.ev-radio .ev-ter { color: var(--plava-svijetla); font-size: 10px; margin-left: 2px; }
+
+/* Ćelija s inline unosom (OD/DO + kod/teren) */
+.ev-cel { min-width: 96px; padding: 2px 3px; vertical-align: top; }
+.ev-cel.ev-radi { opacity: .6; }
+.ev-red1, .ev-red2 { display: flex; gap: 3px; }
+.ev-red2 { margin-top: 2px; }
+.ev-in { width: 100%; min-width: 0; font-size: 11px; padding: 2px 3px; height: 22px; border: 1px solid var(--rub);
+  border-radius: 5px; text-align: center; font-family: inherit; background: #fff; color: var(--tekst); }
+.ev-in:focus { outline: none; border-color: var(--plava-svijetla); box-shadow: 0 0 0 2px rgba(25,118,210,.15); }
+.ev-in:disabled { background: transparent; border-color: transparent; color: var(--sivo); }
+.ev-kodsel { flex: 0 0 42px; padding: 2px 1px; }
+.ev-teren { flex: 1 1 auto; }
+.ev-calc { font-size: 10px; font-weight: 700; color: #333; margin-top: 1px; }
+.ev-calc .ev-pre { color: var(--narancasta); margin-left: 2px; font-weight: 600; }
 .ev-kod { font-weight: 800; }
-.ev-kod-GO { background: #e6f4ea; color: var(--zelena); }
-.ev-kod-BO { background: #fdecea; color: var(--crvena); }
-.ev-kod-PD { background: #e8f0fe; color: var(--plava); }
-.ev-kod-OD { background: #f1f1f1; color: var(--sivo); }
-.ev-modal { max-width: 420px; }
-.ev-vrijeme { display: flex; gap: 10px; }
-.ev-vrijeme > div { flex: 1; }
-.ev-modal-akcije { display: flex; gap: 8px; margin-top: 14px; }
-.ev-modal-akcije .btn { margin-top: 0; }
+.ev-kod-GO { background: #e6f4ea; }
+.ev-kod-BO { background: #fdecea; }
+.ev-kod-PD { background: #e8f0fe; }
+.ev-kod-OD { background: #f1f1f1; }
+.ev-kod .ev-kodsel { font-weight: 800; }
