@@ -10,10 +10,11 @@ const iso = (d) => d.toISOString().slice(0, 10)
 const danasISO = () => iso(new Date())
 const prijeDana = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d) }
 
-// Preseti razdoblja → {od, do}. 'prilagodjeno' = ručni Od/Do.
+// Preseti razdoblja → {od, do}. 'sve' = bez filtra, 'prilagodjeno' = ručni Od/Do.
 function rasponZa(kljuc) {
   const d = new Date()
   const danas = iso(d)
+  if (kljuc === 'sve') return { od: '', do: '' }
   if (kljuc === '7') return { od: prijeDana(7), do: danas }
   if (kljuc === '14') return { od: prijeDana(14), do: danas }
   if (kljuc === '30') return { od: prijeDana(30), do: danas }
@@ -29,9 +30,9 @@ export default function SkladisteDashboard() {
   const [primke, setPrimke] = useState(null)
   const [narucitelji, setNarucitelji] = useState([])
   const [greska, setGreska] = useState('')
-  const [razdoblje, setRazdoblje] = useState('30')
-  const [od, setOd] = useState(() => prijeDana(30))
-  const [doDat, setDoDat] = useState(() => danasISO())
+  const [razdoblje, setRazdoblje] = useState('sve')   // zadano: prikaži sve (inače se stare primke sakriju)
+  const [od, setOd] = useState('')
+  const [doDat, setDoDat] = useState('')
   const [samoStari, setSamoStari] = useState(false)
   const [sort, setSort] = useState('dana')   // dana | naziv | iznos | preostalo | dobavljac
   const [unos, setUnos] = useState({})   // { "pid:idx": {gb, kol} }
@@ -121,6 +122,7 @@ export default function SkladisteDashboard() {
         <div style={{ flex: '1 1 180px' }}>
           <label style={{ marginTop: 0 }}>{t('skl.razdoblje')}</label>
           <select style={{ width: '100%' }} value={razdoblje} onChange={(e) => odaberiRazdoblje(e.target.value)}>
+            <option value="sve">{t('skl.rSve')}</option>
             <option value="7">{t('skl.r7')}</option>
             <option value="14">{t('skl.r14')}</option>
             <option value="30">{t('skl.r30')}</option>
