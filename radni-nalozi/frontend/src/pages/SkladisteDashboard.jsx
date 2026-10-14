@@ -97,9 +97,20 @@ export default function SkladisteDashboard() {
     setGreska('')
     try { await api.obrisiRazduzenje(x.pid, x.idx, ri); ucitaj() } catch (e) { setGreska(e.message) }
   }
-  const postaviNarucio = async (x, id) => {
+  const postaviNarucio = async (x, idRaw) => {
+    const id = idRaw ? parseInt(idRaw, 10) : null
     setGreska('')
-    try { await api.urediStavku(x.pid, x.idx, { narucio_id: id ? parseInt(id, 10) : null }); ucitaj() } catch (e) { setGreska(e.message) }
+    // Optimistički: odmah prikaži odabir i zadrži ga (bez ponovnog učitavanja
+    // cijele liste — to je uzrokovalo treptaj/„vraćanje" na „Naručio…").
+    setPrimke((prev) => (prev || []).map((p) => (
+      p.id !== x.pid ? p : { ...p, stavke: (p.stavke || []).map((s, i) => (i === x.idx ? { ...s, narucio_id: id } : s)) }
+    )))
+    try {
+      await api.urediStavku(x.pid, x.idx, { narucio_id: id })
+    } catch (e) {
+      setGreska(e.message)
+      ucitaj()   // na grešci vrati stvarno stanje
+    }
   }
 
   return (
