@@ -35,6 +35,17 @@ a { color: inherit; text-decoration: none; }
   grid-template-areas: "top top" "side main";
 }
 .app.nav-open { grid-template-columns: 216px 1fr; }
+/* Hover-otvaranje izbornika (kao Flota OS) — samo uz miš i širi ekran.
+   Rail se raširi PREKO sadržaja (sadržaj se ne pomiče), uz glatku animaciju. */
+@media (hover: hover) and (min-width: 761px) {
+  .app { position: relative; }
+  .tabbar { transition: width .14s ease; }
+  .app.nav-open.nav-hover { grid-template-columns: 60px 1fr; }
+  .app.nav-open.nav-hover .tabbar {
+    position: relative; width: 216px; z-index: 40;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, .14);
+  }
+}
 .topbar {
   grid-area: top; position: sticky; top: 0; z-index: 30;
   background: var(--plava); color: #fff;
