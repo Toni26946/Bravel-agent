@@ -12,8 +12,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   // Lijevi izbornik: skupljen (samo ikone) ili raširen (ikone + tekst). Pamti se.
   const [navOtvoren, setNavOtvoren] = useState(() => {
     try { const v = localStorage.getItem('nav_otvoren'); if (v !== null) return v === '1' } catch (_) { /* */ }
-    return typeof window !== 'undefined' && window.innerWidth >= 860
+    return false   // desktop: zadano skupljeno; otvara se prelaskom miša (hover)
   })
+  // Hover-otvaranje (kao u Flota OS-u): miš preko izbornika → raširi; odmakom → skupi.
+  const [navHover, setNavHover] = useState(false)
   const toggleNav = () => setNavOtvoren((o) => {
     const n = !o
     try { localStorage.setItem('nav_otvoren', n ? '1' : '0') } catch (_) { /* */ }
@@ -107,7 +109,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   }
 
   return (
-    <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
+    <div className={'app' + ((navOtvoren || navHover) ? ' nav-open' : '') + ((navHover && !navOtvoren) ? ' nav-hover' : '')}>
       <header className="topbar">
         <button className="nav-toggle" onClick={toggleNav} aria-label={t('nav.izbornik')} title={t('nav.izbornik')}>☰</button>
         {nazad && <span className="nazad" onClick={() => (typeof nazad === 'function' ? nazad() : nav(nazad === true ? -1 : nazad))}>‹</span>}
@@ -122,7 +124,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
           </NavLink>
         )}
       </header>
-      <nav className="tabbar">
+      <nav className="tabbar" onMouseEnter={() => setNavHover(true)} onMouseLeave={() => setNavHover(false)}>
         {tabovi.map((item) => {
           if (!item.djeca) {
             const n = paznjaZa(item.do)
