@@ -28,7 +28,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-logo">
-        <span className="b">B</span>
+        <img src="/bravel-logo.png" alt="Bravel" className="login-logo-img" />
         <h1>{t('app.title')}</h1>
         <p>{t('app.subtitle')}</p>
       </div>
