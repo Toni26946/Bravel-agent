@@ -34,17 +34,20 @@ a { color: inherit; text-decoration: none; }
   grid-template-rows: auto 1fr;
   grid-template-areas: "top top" "side main";
 }
-.app.nav-open { grid-template-columns: 216px 1fr; }
-/* Hover-otvaranje izbornika (kao Flota OS) — samo uz miš i širi ekran.
-   Rail se raširi PREKO sadržaja (sadržaj se ne pomiče), uz glatku animaciju. */
+/* Desktop: izbornik je uvijek rail (ikone); prelaskom miša se raširi PREKO
+   sadržaja (Flota stil) — sadržaj se ne pomiče. Odmakom miša se skupi. */
 @media (hover: hover) and (min-width: 761px) {
   .app { position: relative; }
   .tabbar { transition: width .14s ease; }
-  .app.nav-open.nav-hover { grid-template-columns: 60px 1fr; }
-  .app.nav-open.nav-hover .tabbar {
+  .app.nav-hover .tabbar {
     position: relative; width: 216px; z-index: 40;
     box-shadow: 2px 0 12px rgba(0, 0, 0, .14);
   }
+  .app.nav-hover .tabbar .txt { display: inline; }
+  .app.nav-hover .tabbar .nav-strelica { display: inline-flex; }
+  .app.nav-hover .tabbar .nav-grupa.otv { background: rgba(37, 99, 235, .06); border-radius: 10px; padding-bottom: 2px; }
+  .app.nav-hover .tabbar .nav-grupa-glava { background: #eef1f5; }
+  .app.nav-hover .tabbar a.nav-dijete { padding-left: 24px; }
 }
 .topbar {
   grid-area: top; position: sticky; top: 0; z-index: 30;
@@ -64,6 +67,9 @@ a { color: inherit; text-decoration: none; }
 .topbar-profil .tp-ikona { font-size: 16px; line-height: 1; }
 @media (max-width: 520px) { .topbar-profil .tp-txt { display: none; } }
 .nav-toggle { background: none; border: 0; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; margin-left: -4px; }
+/* Bravel logo u zaglavlju — bijeli (crni wordmark preko filtera) na plavoj traci. */
+.topbar-logo { height: 20px; width: auto; flex: none; filter: brightness(0) invert(1); opacity: .95; }
+@media (max-width: 600px) { .topbar-logo { display: none; } }
 .sadrzaj { grid-area: main; overflow-y: auto; padding: 16px; padding-bottom: 88px; }
 
 /* Rail izbornik */
@@ -87,25 +93,25 @@ a { color: inherit; text-decoration: none; }
   text-align: center; flex: none;
 }
 /* Skupljen izbornik (samo ikone): badge kao kutna točka na ikoni */
-.app:not(.nav-open) .tabbar a, .app:not(.nav-open) .tabbar .nav-grupa-glava { position: relative; }
-.app:not(.nav-open) .tabbar a .nav-badge,
-.app:not(.nav-open) .tabbar .nav-grupa-glava .nav-badge {
+.app:not(.nav-hover):not(.nav-mob) .tabbar a, .app:not(.nav-hover):not(.nav-mob) .tabbar .nav-grupa-glava { position: relative; }
+.app:not(.nav-hover):not(.nav-mob) .tabbar a .nav-badge,
+.app:not(.nav-hover):not(.nav-mob) .tabbar .nav-grupa-glava .nav-badge {
   position: absolute; top: 3px; right: 3px; margin: 0;
   min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px;
 }
 .tabbar .ikona { font-size: 22px; line-height: 1; flex: none; width: 26px; text-align: center; }
 .tabbar .txt { display: none; }
-.app.nav-open .tabbar .txt { display: inline; }
+.app.nav-mob .tabbar .txt { display: inline; }
 /* Padajuća grupa u izborniku (npr. Vozila → Popis, Spremna/Slobodna, Servisi) */
 .tabbar .nav-grupa { display: flex; flex-direction: column; gap: 2px; }
-.app.nav-open .tabbar .nav-grupa.otv { background: rgba(37,99,235,.06); border-radius: 10px; padding-bottom: 2px; }
+.app.nav-mob .tabbar .nav-grupa.otv { background: rgba(37,99,235,.06); border-radius: 10px; padding-bottom: 2px; }
 .tabbar .nav-grupa-glava {
   display: flex; flex-direction: row; align-items: center; gap: 12px;
   padding: 11px 8px; border-radius: 10px; color: var(--sivo);
   font-size: 14px; white-space: nowrap; text-align: left;
   background: none; border: none; cursor: pointer; width: 100%; font-family: inherit;
 }
-.app.nav-open .tabbar .nav-grupa-glava { background: #eef1f5; }
+.app.nav-mob .tabbar .nav-grupa-glava { background: #eef1f5; }
 .tabbar .nav-grupa-glava:hover { background: #e6eaf0; }
 .tabbar .nav-grupa-glava.akt { color: var(--plava); font-weight: 600; }
 .tabbar .nav-grupa-glava.paznja { color: #c0392b; font-weight: 600; box-shadow: inset 3px 0 0 #c0392b; }
@@ -114,8 +120,8 @@ a { color: inherit; text-decoration: none; }
   width: 20px; height: 20px; border-radius: 6px; background: rgba(37,99,235,.14);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.app:not(.nav-open) .tabbar .nav-strelica { display: none; }
-.app.nav-open .tabbar a.nav-dijete { padding-left: 24px; }
+.app:not(.nav-hover):not(.nav-mob) .tabbar .nav-strelica { display: none; }
+.app.nav-mob .tabbar a.nav-dijete { padding-left: 24px; }
 .tabbar a.nav-dijete .ikona { font-size: 19px; }
 .nz-lokacija { margin-top: 2px; }
 .nz-nema-lok { opacity: .7; font-style: italic; }
@@ -126,13 +132,13 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-areas: "top" "main"; }
   .tabbar { display: none; }
-  .app.nav-open { grid-template-columns: 1fr; }
-  .app.nav-open .tabbar {
+  .app.nav-mob { grid-template-columns: 1fr; }
+  .app.nav-mob .tabbar {
     display: flex;
     position: fixed; top: 0; left: 0; height: 100%; width: 216px; z-index: 40;
     box-shadow: 0 8px 30px rgba(0,0,0,.25); padding-top: calc(max(env(safe-area-inset-top), 12px) + 8px);
   }
-  .app.nav-open .tabbar .txt { display: inline; }
+  .app.nav-mob .tabbar .txt { display: inline; }
   .nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 35; }
 }
 
@@ -553,6 +559,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .login-wrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px; max-width: 420px; margin: 0 auto; }
 .login-logo { text-align: center; margin-bottom: 28px; }
 .login-logo .b { width: 76px; height: 76px; border-radius: 20px; background: var(--plava); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 800; box-shadow: 0 6px 20px rgba(13,71,161,.35); }
+.login-logo-img { width: 220px; max-width: 72%; height: auto; display: block; margin: 0 auto; }
 .login-logo h1 { font-size: 22px; margin: 14px 0 2px; }
 .login-logo p { color: var(--sivo); margin: 0; font-size: 14px; }
 

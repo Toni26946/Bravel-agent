@@ -109,9 +109,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   }
 
   return (
-    <div className={'app' + ((navOtvoren || navHover) ? ' nav-open' : '') + ((navHover && !navOtvoren) ? ' nav-hover' : '')}>
+    <div className={'app' + (navHover ? ' nav-hover' : '') + (navOtvoren ? ' nav-mob' : '')}>
       <header className="topbar">
         <button className="nav-toggle" onClick={toggleNav} aria-label={t('nav.izbornik')} title={t('nav.izbornik')}>☰</button>
+        <img src="/bravel-logo.png" alt="Bravel" className="topbar-logo" />
         {nazad && <span className="nazad" onClick={() => (typeof nazad === 'function' ? nazad() : nav(nazad === true ? -1 : nazad))}>‹</span>}
         <h1>{naslov}</h1>
         {akcija}
