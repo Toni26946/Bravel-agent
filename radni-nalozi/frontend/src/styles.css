@@ -732,6 +732,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .sdr-razd { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; }
 .sdr-chip { font-size: 11.5px; background: var(--svijetla, #eef2f7); border-radius: 12px; padding: 1px 4px 1px 8px; display: inline-flex; align-items: center; gap: 2px; }
 .sdr-chip-x { border: none; background: transparent; cursor: pointer; color: var(--meta, #6b7280); font-size: 13px; line-height: 1; padding: 0 2px; }
+.sdr-narchip { padding: 1px 8px; color: var(--plava, #0d47a1); font-weight: 600; background: var(--svijetla, #eef2f7); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .skl-dio-red.gotov { background: rgba(22,163,74,.12); }
   :root:not([data-theme="light"]) .skl-dio-red.kasni { background: rgba(220,38,38,.12); }

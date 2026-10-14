@@ -194,18 +194,18 @@ export default function SkladisteDashboard() {
                 <option value="">{t('skl.narucio')}…</option>
                 {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
               </select>
-              {narIme && <span className="sdr-narime" title={t('skl.narucio')}>👤 {narIme}</span>}
             </div>
             {!x.gotov && (
               <button className="btn mali sdr-btn" onClick={() => razduzi(x)}>{t('skl.razduzi')}</button>
             )}
-            {x.razd.length > 0 && (
+            {(x.razd.length > 0 || narIme) && (
               <div className="sdr-razd">
                 {x.razd.map((r, ri) => (
                   <span key={ri} className="sdr-chip">{t('skl.gb')} {r.gb}: {broj(r.kolicina)}
                     <button className="sdr-chip-x" onClick={() => makniRazd(x, ri)} title="✕">✕</button>
                   </span>
                 ))}
+                {narIme && <span className="sdr-chip sdr-narchip" title={t('skl.narucio')}>👤 {narIme}</span>}
               </div>
             )}
           </div>
