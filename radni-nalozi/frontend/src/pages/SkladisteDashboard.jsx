@@ -167,6 +167,7 @@ export default function SkladisteDashboard() {
       ) : vidljivi.map((x) => {
         const cls = x.gotov ? ' gotov' : (x.dana > 6 ? ' kasni' : '')
         const u = unos[kljuc(x)] || {}
+        const narIme = narucitelji.find((n) => n.id === x.narucioId)?.ime
         return (
           <div key={kljuc(x)} className={'skl-dio-red' + cls}>
             <div className="sdr-glava">
@@ -180,11 +181,14 @@ export default function SkladisteDashboard() {
                 {x.brojOtp ? ` · ${x.brojOtp}` : ''}
               </span>
             </div>
-            <select className="sdr-nar" value={x.narucioId || ''} title={t('skl.narucio')}
-              onChange={(e) => postaviNarucio(x, e.target.value)}>
-              <option value="">{t('skl.narucio')}…</option>
-              {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
-            </select>
+            <div className="sdr-narwrap">
+              <select className="sdr-nar" value={x.narucioId || ''} title={t('skl.narucio')}
+                onChange={(e) => postaviNarucio(x, e.target.value)}>
+                <option value="">{t('skl.narucio')}…</option>
+                {narucitelji.map((n) => <option key={n.id} value={n.id}>{n.ime}</option>)}
+              </select>
+              {narIme && <span className="sdr-narime" title={t('skl.narucio')}>👤 {narIme}</span>}
+            </div>
             {!x.gotov && (
               <>
                 <input className="sdr-gb" value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
