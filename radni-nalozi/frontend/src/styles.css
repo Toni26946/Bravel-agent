@@ -721,7 +721,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .sdr-naziv { display: block; font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sdr-meta { font-size: 11.5px; color: var(--meta, #6b7280); }
 .skl-dio-red select, .skl-dio-red input { margin: 0; height: 32px; }
-.sdr-nar { width: 112px; }
+.sdr-nar { width: 170px; max-width: 48vw; }
 .sdr-gb { width: 64px; }
 .sdr-kol { width: 52px; }
 .sdr-btn { height: 32px; padding: 0 12px; }
