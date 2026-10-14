@@ -85,7 +85,7 @@ export default function SkladisteDashboard() {
   const razduzi = async (x) => {
     const u = unos[kljuc(x)] || {}
     const gb = (u.gb || '').trim()
-    const kol = parseFloat(u.kol)
+    const kol = parseFloat(String(u.kol || '').replace(',', '.'))
     if (!gb || !kol) { setGreska(t('skl.unesiGbKol')); return }
     setGreska('')
     try {
@@ -184,8 +184,8 @@ export default function SkladisteDashboard() {
             {!x.gotov && (
               <>
                 <input className="sdr-gb" value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
-                <input className="sdr-kol" type="number" step="any" value={u.kol || ''}
-                  onChange={(e) => setU(x, 'kol', e.target.value)} placeholder={String(x.preostalo)} />
+                <input className="sdr-kol" type="text" inputMode="decimal" value={u.kol || ''}
+                  onChange={(e) => setU(x, 'kol', e.target.value.replace(/[^0-9.,]/g, ''))} placeholder={String(x.preostalo)} />
               </>
             )}
             <div className="sdr-narwrap">
