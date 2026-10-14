@@ -181,6 +181,13 @@ export default function SkladisteDashboard() {
                 {x.brojOtp ? ` · ${x.brojOtp}` : ''}
               </span>
             </div>
+            {!x.gotov && (
+              <>
+                <input className="sdr-gb" value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
+                <input className="sdr-kol" type="number" step="any" value={u.kol || ''}
+                  onChange={(e) => setU(x, 'kol', e.target.value)} placeholder={String(x.preostalo)} />
+              </>
+            )}
             <div className="sdr-narwrap">
               <select className="sdr-nar" value={x.narucioId || ''} title={t('skl.narucio')}
                 onChange={(e) => postaviNarucio(x, e.target.value)}>
@@ -190,12 +197,7 @@ export default function SkladisteDashboard() {
               {narIme && <span className="sdr-narime" title={t('skl.narucio')}>👤 {narIme}</span>}
             </div>
             {!x.gotov && (
-              <>
-                <input className="sdr-gb" value={u.gb || ''} onChange={(e) => setU(x, 'gb', e.target.value)} placeholder={t('skl.gb')} />
-                <input className="sdr-kol" type="number" step="any" value={u.kol || ''}
-                  onChange={(e) => setU(x, 'kol', e.target.value)} placeholder={String(x.preostalo)} />
-                <button className="btn mali sdr-btn" onClick={() => razduzi(x)}>{t('skl.razduzi')}</button>
-              </>
+              <button className="btn mali sdr-btn" onClick={() => razduzi(x)}>{t('skl.razduzi')}</button>
             )}
             {x.razd.length > 0 && (
               <div className="sdr-razd">
