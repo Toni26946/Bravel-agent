@@ -13,7 +13,7 @@ primary_region = "ams"
   # Radiona (Vrbovec) — geokrug za Flota OS GPS nadzor. Koordinate nisu tajna.
   RADIONA_LAT = "45.874889"
   RADIONA_LON = "16.414278"
-  RADIONA_RADIUS_M = "300"
+  RADIONA_RADIUS_M = "2000"
 
 [http_service]
   internal_port = 8080
