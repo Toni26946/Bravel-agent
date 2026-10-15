@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 import { api } from './api'
@@ -9,6 +9,22 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   const { t } = useT()
   const nav = useNavigate()
   const lok = useLocation()
+  // Natrag: gumb u zaglavlju i hardverska/preglednicka tipka Back rade istu stvar.
+  const idiNazad = () => {
+    if (typeof nazad === 'function') nazad()
+    else if (nazad) nav(nazad === true ? -1 : nazad)
+  }
+  const nazadRef = useRef(idiNazad)
+  nazadRef.current = idiNazad
+  useEffect(() => {
+    if (!nazad) return
+    // Gurni "cuvar" u povijest pa prvi Back pokrene isto sto i gumb (ne izlazi iz appa).
+    window.history.pushState(null, '', window.location.href)
+    const naBack = () => nazadRef.current()
+    window.addEventListener('popstate', naBack)
+    return () => window.removeEventListener('popstate', naBack)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Lijevi izbornik: skupljen (samo ikone) ili raširen (ikone + tekst). Pamti se.
   const [navOtvoren, setNavOtvoren] = useState(() => {
     try { const v = localStorage.getItem('nav_otvoren'); if (v !== null) return v === '1' } catch (_) { /* */ }
@@ -111,7 +127,12 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       <header className="topbar">
         <button className="nav-toggle" onClick={toggleNav} aria-label={t('nav.izbornik')} title={t('nav.izbornik')}>☰</button>
         <img src="/bravel-logo.png" alt="Bravel" className="topbar-logo" />
-        {nazad && <span className="nazad" onClick={() => (typeof nazad === 'function' ? nazad() : nav(nazad === true ? -1 : nazad))}>‹</span>}
+        {nazad && (
+          <button type="button" className="nazad" onClick={idiNazad} aria-label={t('nav.natrag')}>
+            <span className="nazad-ikona" aria-hidden="true">‹</span>
+            <span className="nazad-txt">{t('nav.natrag')}</span>
+          </button>
+        )}
         <h1>{naslov}</h1>
         {akcija}
         {!akcija && korisnik && <span className="uloga">{t('uloga.' + korisnik.uloga)}</span>}
