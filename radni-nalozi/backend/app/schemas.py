@@ -171,6 +171,15 @@ class RegistarVozilaOut(ORM):
     mobilisis_status: str | None = None
     lokacija: str | None = None
     spreman_od: date | None = None
+    # Matični podaci (ručni unos / uvoz)
+    vrsta: str | None = None
+    vozilo: str | None = None
+    prva_registracija: str | None = None
+    firma: str | None = None
+    iznos_registracije: str | None = None
+    norma: str | None = None
+    broj_sasije: str | None = None
+    opis: str | None = None
     azuriran: datetime | None = None
     # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
     nalog_id: int | None = None
@@ -232,6 +241,27 @@ class RegistarStatusUpdate(BaseModel):
     napomena: str | None = None
     lokacija: str | None = None
     rucno: bool = True
+
+
+class RegistarPodaciUpdate(BaseModel):
+    """Uređivanje matičnih podataka o vozilu (ne dira status). Samo poslana polja."""
+    registracija: str | None = None
+    vrsta: str | None = None
+    vozilo: str | None = None
+    tip: str | None = None
+    kategorija: str | None = None
+    prva_registracija: str | None = None
+    firma: str | None = None
+    iznos_registracije: str | None = None
+    norma: str | None = None
+    broj_sasije: str | None = None
+    opis: str | None = None
+
+
+class RegistarUvozRezultat(BaseModel):
+    dodano: int
+    azurirano: int
+    ukupno: int
 
 
 # --- Fotografija -------------------------------------------------------------

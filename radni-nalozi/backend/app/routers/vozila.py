@@ -33,7 +33,9 @@ from ..schemas import (
     ParkingCreate,
     ParkingOut,
     PovijestRadaOut,
+    RegistarPodaciUpdate,
     RegistarStatusUpdate,
+    RegistarUvozRezultat,
     RegistarVozilaOut,
     ServisKmUvozStavka,
     ServisUpdate,
@@ -48,6 +50,9 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/vozila", tags=["vozila"])
+
+# Za normalizaciju zaglavlja pri uvozu (bez kvačica).
+_ASCII = str.maketrans({"č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d"})
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.radnik)
@@ -579,6 +584,135 @@ def registar_status(
     db.commit()
     db.refresh(r)
     return RegistarVozilaOut.model_validate(r)
+
+
+# --- Matični podaci o vozilu (uređivanje + skupni uvoz) ----------------------
+_PODACI_POLJA = (
+    "registracija", "vrsta", "vozilo", "tip", "kategorija",
+    "prva_registracija", "firma", "iznos_registracije", "norma",
+    "broj_sasije", "opis",
+)
+
+
+@router.patch("/registar/{gb}/podaci", response_model=RegistarVozilaOut)
+def registar_podaci(
+    gb: str, podaci: RegistarPodaciUpdate,
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Uredi matične podatke vozila (vrsta, broj šasije, norma, opis…). Ne dira status.
+    Napomena: registracija/tip/kategorija se za vozila iz Flote mogu prepisati
+    pri idućoj sinkronizaciji; ostala polja (vrsta/šasija/opis…) su trajna."""
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        r = RegistarVozila(gb=gb)
+        db.add(r)
+    for polje, vrijednost in podaci.model_dump(exclude_unset=True).items():
+        if isinstance(vrijednost, str):
+            vrijednost = vrijednost.strip() or None
+        setattr(r, polje, vrijednost)
+    r.azurirao_id = korisnik.id
+    db.commit()
+    db.refresh(r)
+    return RegistarVozilaOut.model_validate(r)
+
+
+def _kategorija_iz_tipa(tip: str | None) -> str | None:
+    """Sheet 'TIP' (KAMION / PRIKLJUČNO VOZILO) → naša kategorija (kamion/prikolica)."""
+    t = (tip or "").strip().lower()
+    if not t:
+        return None
+    if "kamion" in t:
+        return "kamion"
+    if "priklj" in t or "prikolic" in t or "slep" in t or "šlep" in t or "poluprik" in t:
+        return "prikolica"
+    return None
+
+
+# Zaglavlje (bez kvačica, mala slova) → naše polje. Prvo pojavljivanje pobjeđuje.
+_UVOZ_ZAGLAVLJE = {
+    "gb": "gb", "garazni broj": "gb", "garažni broj": "gb",
+    "vozilo": "vozilo", "marka": "vozilo",
+    "reg oznaka": "registracija", "registracija": "registracija", "reg": "registracija",
+    "vrsta": "vrsta",
+    "prva registracija": "prva_registracija", "prva reg": "prva_registracija",
+    "tip": "tip",
+    "firma": "firma",
+    "iznos registracije": "iznos_registracije", "iznos": "iznos_registracije",
+    "norma": "norma",
+    "broj sasije": "broj_sasije", "broj šasije": "broj_sasije",
+    "sasija": "broj_sasije", "šasija": "broj_sasije",
+    "opis": "opis", "napomena": "opis",
+}
+# Zadani redoslijed stupaca (ako nema zaglavlja) — kao u "GARAŽNI BROJEVI".
+_UVOZ_REDOSLIJED = [
+    "gb", "vozilo", "registracija", "vrsta", "prva_registracija",
+    "tip", "firma", "iznos_registracije", "norma", "broj_sasije", "opis",
+]
+
+
+@router.post("/registar/uvoz", response_model=RegistarUvozRezultat)
+def registar_uvoz(
+    podaci: VoziloUvoz, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db),
+):
+    """Skupni uvoz/ažuriranje vozila iz zalijepljene tablice "GARAŽNI BROJEVI".
+
+    Stupci (tab/zarez/točka-zarez): GB, VOZILO, REG OZNAKA, VRSTA, PRVA REGISTRACIJA,
+    TIP, FIRMA, IZNOS REGISTRACIJE, NORMA, BROJ ŠASIJE (+ opcionalno OPIS). Ako prvi
+    redak sadrži nazive stupaca, mapiranje se radi po njima; inače po gornjem redoslijedu.
+    Postojeća vozila (po GB) se AŽURIRAJU (prazne vrijednosti ne brišu postojeće)."""
+    retci = [r for r in podaci.tekst.splitlines() if r.strip()]
+    if not retci:
+        return RegistarUvozRezultat(dodano=0, azurirano=0, ukupno=0)
+
+    mapa = dict(enumerate(_UVOZ_REDOSLIJED))  # pozicija → polje (zadano)
+    prvi = [c.strip() for c in re.split(r"[\t,;]", retci[0])]
+    ascii_prvi = [c.translate(_ASCII).lower() for c in prvi]
+    je_zaglavlje = any(_UVOZ_ZAGLAVLJE.get(c) == "gb" for c in ascii_prvi)
+    if je_zaglavlje:
+        mapa = {}
+        zauzeto = set()
+        for i, naziv in enumerate(ascii_prvi):
+            polje = _UVOZ_ZAGLAVLJE.get(naziv)
+            if polje and polje not in zauzeto:  # prvo pojavljivanje pobjeđuje
+                mapa[i] = polje
+                zauzeto.add(polje)
+        retci = retci[1:]
+
+    def _vrij(s: str | None) -> str | None:
+        s = (s or "").strip()
+        return None if s in ("", "0") else s
+
+    dodano = azurirano = ukupno = 0
+    for redak in retci:
+        celije = [c.strip() for c in re.split(r"[\t,;]", redak)]
+        vrijednosti: dict[str, str | None] = {}
+        for i, c in enumerate(celije):
+            polje = mapa.get(i)
+            if polje:
+                vrijednosti[polje] = _vrij(c)
+        gb = (vrijednosti.get("gb") or "").strip()
+        if not gb:
+            continue
+        ukupno += 1
+        r = db.get(RegistarVozila, gb)
+        nov = r is None
+        if nov:
+            r = RegistarVozila(gb=gb, status=StatusVozila.aktivno)
+            db.add(r)
+        for polje in _PODACI_POLJA:
+            if polje in vrijednosti and vrijednosti[polje]:
+                setattr(r, polje, vrijednosti[polje])
+        # kategorija iz TIP-a (za filtre) — samo ako je prazna
+        if not r.kategorija:
+            kat = _kategorija_iz_tipa(vrijednosti.get("tip"))
+            if kat:
+                r.kategorija = kat
+        if nov:
+            dodano += 1
+        else:
+            azurirano += 1
+    db.commit()
+    return RegistarUvozRezultat(dodano=dodano, azurirano=azurirano, ukupno=ukupno)
 
 
 def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
