@@ -46,7 +46,17 @@ a { color: inherit; text-decoration: none; }
   box-shadow: var(--sjena);
 }
 .topbar h1 { font-size: 17px; margin: 0; flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.topbar .nazad { font-size: 22px; line-height: 1; padding: 4px; margin: -4px; cursor: pointer; }
+.topbar .nazad {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  background: rgba(255,255,255,.18); color: #fff;
+  border: 1px solid rgba(255,255,255,.4); border-radius: 20px;
+  padding: 5px 12px 5px 9px; margin: 0; font-size: 14px; font-weight: 600;
+  line-height: 1; white-space: nowrap; cursor: pointer; font-family: inherit;
+}
+.topbar .nazad:hover { background: rgba(255,255,255,.32); }
+.topbar .nazad:active { transform: scale(.96); }
+.topbar .nazad-ikona { font-size: 20px; line-height: 1; margin-top: -1px; }
+@media (max-width: 400px) { .topbar .nazad-txt { display: none; } .topbar .nazad { padding: 6px 9px; } }
 .topbar .uloga { font-size: 12px; opacity: .85; background: rgba(255,255,255,.16); padding: 3px 8px; border-radius: 20px; }
 .topbar-profil {
   display: inline-flex; align-items: center; gap: 6px; color: #fff; text-decoration: none;
