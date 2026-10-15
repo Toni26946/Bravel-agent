@@ -196,6 +196,74 @@ def osiguraj_vlasnika(db: Session) -> None:
     db.commit()
 
 
+def uvezi_vozila_matica(db: Session) -> None:
+    """Jednokratni uvoz matičnih podataka o vozilima iz app/data/vozila_matica.tsv
+    (izvor: tablica "GARAŽNI BROJEVI"). Stupci po redoslijedu: GB, VOZILO, REG
+    OZNAKA, VRSTA, PRVA REGISTRACIJA, TIP, FIRMA, IZNOS REGISTRACIJE, NORMA, BROJ
+    ŠASIJE. Upsert po garažnom broju; PUNI SAMO PRAZNA polja (ne gazi postojeće /
+    Flotine / ručne izmjene). Idempotentno preko zastavice na trajnom volumenu."""
+    zastavica = Path(settings.upload_dir).parent / ".vozila_matica_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "vozila_matica.tsv"
+    if not put.exists():
+        return
+    try:
+        redci = [r for r in put.read_text(encoding="utf-8").splitlines() if r.strip()]
+    except OSError as e:  # noqa: BLE001
+        log.warning("Ne mogu učitati vozila_matica.tsv: %s", e)
+        return
+
+    def _v(x: str | None) -> str | None:
+        x = (x or "").strip()
+        return None if x in ("", "0") else x
+
+    def _kat(tip: str | None) -> str | None:
+        t = (tip or "").strip().lower()
+        if "kamion" in t:
+            return "kamion"
+        if any(k in t for k in ("priklj", "prikolic", "slep", "šlep", "poluprik")):
+            return "prikolica"
+        return None
+
+    dodano = azurirano = 0
+    for redak in redci:
+        c = redak.split("\t")
+        c += [""] * (10 - len(c))
+        gb = (c[0] or "").strip()
+        if not gb or gb == "0":
+            continue
+        vrij = {
+            "vozilo": _v(c[1]), "registracija": _v(c[2]), "vrsta": _v(c[3]),
+            "prva_registracija": _v(c[4]), "tip": _v(c[5]), "firma": _v(c[6]),
+            "iznos_registracije": _v(c[7]), "norma": _v(c[8]), "broj_sasije": _v(c[9]),
+        }
+        r = db.get(RegistarVozila, gb)
+        nov = r is None
+        if nov:
+            r = RegistarVozila(gb=gb, status=StatusVozila.aktivno)
+            db.add(r)
+        for polje, val in vrij.items():
+            if val and not getattr(r, polje, None):   # puni samo prazno
+                setattr(r, polje, val)
+        if not r.kategorija:
+            kat = _kat(vrij.get("tip"))
+            if kat:
+                r.kategorija = kat
+        dodano += 1 if nov else 0
+        azurirano += 0 if nov else 1
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Uvoz matičnih podataka vozila: dodano %d, ažurirano %d.", dodano, azurirano)
+
+
 def osiguraj_dodatne_korisnike(db: Session) -> None:
     """Jednokratno kreira/ažurira ručno zadane račune (korisničko ime + lozinka).
 
