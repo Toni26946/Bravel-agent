@@ -187,6 +187,13 @@ a { color: inherit; text-decoration: none; }
 .vz-red { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .vz-info { flex: 1; min-width: 0; cursor: default; }
 .vz-gb { font-weight: 800; font-size: 17px; }
+.vz-akcije { display: flex; align-items: center; gap: 6px; flex: none; }
+.vz-uredi { background: none; border: 1px solid var(--rub); border-radius: 8px; padding: 6px 8px; cursor: pointer; font-size: 15px; line-height: 1; }
+.vz-uredi:hover { background: #eef1f5; }
+.vz-uredi-form { margin: -6px 0 12px; border: 1px solid var(--rub); }
+.vz-polja { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.vz-polje { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--sivo); }
+.vz-polje input, .vz-polje textarea { font-size: 14px; }
 .vz-mob { font-size: 11.5px; opacity: .8; margin-top: 1px; }
 .vz-rucno { color: var(--plava); font-weight: 700; }
 .vz-uradu { color: var(--plava, #2563eb); font-weight: 600; }

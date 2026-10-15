@@ -196,6 +196,16 @@ class RegistarVozila(Base):
     kategorija: Mapped[str | None] = mapped_column(String(30), nullable=True)  # kamion/prikolica/…
     status: Mapped[StatusVozila] = mapped_column(Enum(StatusVozila), default=StatusVozila.aktivno, index=True)
     napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Matični podaci o vozilu (ručni unos / uvoz iz tablice "GARAŽNI BROJEVI";
+    # sinkronizacija iz Flote ih NE dira). "vrsta" = dizalica/tegljač/šlepa/prikolica.
+    vrsta: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    vozilo: Mapped[str | None] = mapped_column(String(80), nullable=True)       # marka/model (npr. VOLVO FH 460)
+    prva_registracija: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    firma: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    iznos_registracije: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    norma: Mapped[str | None] = mapped_column(String(20), nullable=True)        # EURO 5/6
+    broj_sasije: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    opis: Mapped[str | None] = mapped_column(Text, nullable=True)               # slobodna napomena/opis vozila
     azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     azurirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     # Zadnja sinkronizacija popisnih polja iz Flote (ne dira ručni status).
