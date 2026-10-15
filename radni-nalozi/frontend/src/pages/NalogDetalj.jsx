@@ -411,6 +411,20 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
                   {osnova > 0 && <> · ⏱ {trajanje(osnova)}</>}
                 </span>
               )}
+              {z.vremena && z.vremena.length > 0 && (
+                <div className="mj-radnici">
+                  {z.vremena.map((zr) => {
+                    const rad = !!zr.zapoceto
+                    const sek = (zr.utroseno_sek || 0) + (rad ? Math.max(0, (sada - msVremena(zr.zapoceto)) / 1000) : 0)
+                    if (sek <= 0 && !rad) return null
+                    return (
+                      <span key={zr.radnik_id} className={'mj-radnik' + (rad ? ' radi' : '')}>
+                        {rad ? '⏱' : ''} {zr.radnik?.ime || ''} · {trajanje(sek)}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </Fragment>
         )

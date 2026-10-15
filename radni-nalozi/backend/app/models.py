@@ -603,6 +603,28 @@ class Zadatak(Base):
     zaduzeni: Mapped["Korisnik | None"] = relationship()
     # Svi radnici dodijeljeni ovom zadatku.
     radnici: Mapped[list["Korisnik"]] = relationship(secondary=zadatak_radnici, order_by="Korisnik.ime")
+    # Izmjereno vrijeme po radniku (tko je koliko radio na ovom zadatku).
+    vremena: Mapped[list["ZadatakRadnikVrijeme"]] = relationship(
+        back_populates="zadatak", cascade="all, delete-orphan")
+
+
+class ZadatakRadnikVrijeme(Base):
+    """Izmjereno radno vrijeme po radniku na jednom zadatku (tko je koliko radio).
+
+    Mjerač radnika teče dok zadatak radi (Zadatak.zapoceto) i radnik je mu je
+    dodijeljen; kad radnik ode ili se zadatak zaustavi, proteklo se pribroji
+    `utroseno_sek`. Postojeći `Zadatak.utroseno_sek` (ukupno po zadatku) ostaje."""
+    __tablename__ = "zadatak_radnik_vrijeme"
+    __table_args__ = (UniqueConstraint("zadatak_id", "radnik_id", name="uq_zrv"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    zadatak_id: Mapped[int] = mapped_column(ForeignKey("zadaci.id", ondelete="CASCADE"), index=True)
+    radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"), index=True)
+    utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)
+    zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    zadatak: Mapped["Zadatak"] = relationship(back_populates="vremena")
+    radnik: Mapped["Korisnik"] = relationship()
 
 
 class EvidencijaRV(Base):

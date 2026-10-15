@@ -336,6 +336,22 @@ class PovijestOut(ORM):
 
 # --- Nalog -------------------------------------------------------------------
 # --- Operacije i zadaci ------------------------------------------------------
+class ZadatakRadnikVrijemeOut(ORM):
+    """Izmjereno vrijeme jednog radnika na zadatku (za prikaz 'tko je koliko radio')."""
+    radnik_id: int
+    radnik: KorisnikOut | None = None
+    utroseno_sek: int = 0
+    zapoceto: datetime | None = None   # ako je postavljeno → radnik trenutno mjeri
+
+    @field_serializer("zapoceto")
+    def _utc_iso(self, v: datetime | None):
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
+
 class ZadatakOut(ORM):
     id: int
     opis: str
@@ -345,6 +361,8 @@ class ZadatakOut(ORM):
     zapoceto: datetime | None = None
     zavrseno: datetime | None = None
     utroseno_sek: int = 0
+    # Razrada vremena po radniku (tko je koliko radio na ovom zadatku).
+    vremena: list[ZadatakRadnikVrijemeOut] = []
 
     # SQLite vraća naivne datume (spremljene u UTC-u); označi ih kao UTC da ih
     # preglednik ispravno protumači (inače se živo brojanje vremena pomakne za
