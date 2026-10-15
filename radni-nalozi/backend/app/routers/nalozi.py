@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
@@ -27,6 +27,7 @@ from ..models import (
     Uloga,
     Vozilo,
     Zadatak,
+    ZadatakRadnikVrijeme,
 )
 from ..ai import ai_dostupan, parsiraj
 from .. import flota
@@ -149,6 +150,7 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
         valjani.append(r)
     z.radnici = valjani
     if z.gotovo:
+        _uskladi_radnicke_mjerace(z)
         return
     if not valjani:
         _zaustavi_mjerac(z)
@@ -157,6 +159,7 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
     _odjavi_iz_drugih(db, z)
     if not z.zapoceto and dozvoli_start:
         z.zapoceto = datetime.now(timezone.utc)
+    _uskladi_radnicke_mjerace(z)
 
 
 # --- razdvajanje operacija po osovini ----------------------------------------
@@ -993,12 +996,50 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+def _uskladi_radnicke_mjerace(z: Zadatak) -> None:
+    """Uskladi per-radnik mjerače sa stanjem zadatka: svaki DODIJELJENI radnik
+    mjeri dok zadatak radi (z.zapoceto) i nije gotov; čim radnik ode ili se
+    zadatak zaustavi/završi, proteklo mu se pribroji. Tako se zna tko je koliko
+    radio — više radnika istovremeno znači da svaki broji SVOJE vrijeme."""
+    sess = object_session(z)
+    if sess is None:
+        return
+    if z.id is None:
+        sess.flush()  # treba nam id zadatka za vezane zapise
+    sad = datetime.now(timezone.utc)
+    radi = bool(z.zapoceto) and not z.gotovo
+    aktivni = {r.id for r in z.radnici}
+    zapisi = {zr.radnik_id: zr for zr in z.vremena}
+
+    def _stani(zr):
+        if zr.zapoceto:
+            zr.utroseno_sek = int(zr.utroseno_sek or 0) + max(
+                0, int((sad - _aware(zr.zapoceto)).total_seconds()))
+            zr.zapoceto = None
+
+    for rid in aktivni:
+        zr = zapisi.get(rid)
+        if zr is None:
+            zr = ZadatakRadnikVrijeme(radnik_id=rid)
+            z.vremena.append(zr)   # back_populates postavi zadatak_id
+            zapisi[rid] = zr
+        if radi and not zr.zapoceto:
+            zr.zapoceto = sad
+        elif not radi:
+            _stani(zr)
+    # radnici koji više nisu dodijeljeni → zaustavi (povijest ostaje)
+    for rid, zr in zapisi.items():
+        if rid not in aktivni:
+            _stani(zr)
+
+
 def _zaustavi_mjerac(z: Zadatak) -> None:
-    """Ako mjerač radi, pribroji proteklo vrijeme i zaustavi ga."""
+    """Ako mjerač radi, pribroji proteklo vrijeme i zaustavi ga (+ po radniku)."""
     if z.zapoceto:
         proteklo = (datetime.now(timezone.utc) - _aware(z.zapoceto)).total_seconds()
         z.utroseno_sek = int(z.utroseno_sek or 0) + max(0, int(proteklo))
         z.zapoceto = None
+    _uskladi_radnicke_mjerace(z)
 
 
 def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
@@ -1020,7 +1061,9 @@ def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
             continue
         d.radnici = [r for r in d.radnici if r.id not in rids]
         if not d.radnici:
-            _zaustavi_mjerac(d)
+            _zaustavi_mjerac(d)          # zaustavi zadatak (reconcilea i radnike)
+        else:
+            _uskladi_radnicke_mjerace(d)  # zadatak i dalje radi — zaustavi samo otišle radnike
 
 
 def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
@@ -1029,6 +1072,7 @@ def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
         return
     _odjavi_iz_drugih(db, z)
     z.zapoceto = datetime.now(timezone.utc)
+    _uskladi_radnicke_mjerace(z)
 
 
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)
