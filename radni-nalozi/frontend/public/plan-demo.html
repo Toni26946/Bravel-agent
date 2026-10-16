@@ -74,9 +74,10 @@
   .nhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .arrows{margin-left:auto;display:flex;gap:4px}
   .arrows button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;width:28px;height:26px;font-size:13px;line-height:1}
-  .op{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px dashed var(--line)}
-  .op .opn{font-weight:700;min-width:0}
-  .op .opk{color:var(--muted);font-size:11.5px}
+  .op{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed var(--line)}
+  .op .opn{font-weight:600;font-size:12px;line-height:1.3;min-width:120px;flex:1;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .op .opk{color:var(--muted);font-size:10.5px;font-weight:700}
   .op .right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .lane-hitno{border-color:var(--crveno)}
   .lane-hitno .rang{background:var(--crveno)}
