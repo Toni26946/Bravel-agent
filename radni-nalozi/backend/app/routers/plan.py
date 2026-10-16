@@ -7,6 +7,7 @@ potvrdu (push), mehaničareva potvrda početka (starta mjerač), prekid s razlog
 Sve je vidljivo/dostupno SAMO vlasniku; mehaničarske akcije (potvrdi/prekini)
 smije i dodijeljeni mehaničar.
 """
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -106,9 +107,30 @@ def _zad(db: Session, zid: int) -> Zadatak:
     return z
 
 
+# Tokeni koji opisuju POLOŽAJ, ne vrstu posla — izbacuju se pri grupiranju
+# kategorija (da "KOČNICE 3. OSOVINA" i "KOČNICE 1. OSOVINA" budu isto: "KOČNICE").
+_KAT_POLOZAJ = {
+    "OSOVINA", "OSOVINE", "OSOVINI", "LIJEVA", "DESNA", "LIJEVO", "DESNO",
+    "LIJEVE", "DESNE", "STRANA", "STRANE", "STRANI", "PREDNJA", "ZADNJA",
+    "PREDNJE", "ZADNJE", "PREDNJI", "ZADNJI", "GORE", "DOLJE", "GORNJA",
+    "DONJA", "UNUTARNJA", "VANJSKA", "PRVA", "DRUGA", "TRECA", "TREĆA",
+    "I", "II", "III", "IV", "V",
+}
+
+
+def _norm_kat(kat: str | None) -> str:
+    """Normalizira kategoriju za grupiranje po vrsti posla: velika slova,
+    bez brojeva i oznaka položaja (osovina/strana/lijeva…)."""
+    if not kat:
+        return ""
+    toks = re.split(r"[\s,./\-]+", kat.upper())
+    keep = [t for t in toks if t and not t.replace(".", "").isdigit() and t not in _KAT_POLOZAJ]
+    return " ".join(keep) or kat.upper().strip()
+
+
 def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, int]:
-    """Za svaku kategoriju posla vrati mehaničara (među aktivnima) koji je
-    dosad najviše puta ZAVRŠIO operaciju te kategorije — prijedlog po iskustvu."""
+    """Za svaku (normaliziranu) kategoriju posla vrati mehaničara među aktivnima
+    koji je dosad najviše puta ZAVRŠIO operaciju te vrste — prijedlog po iskustvu."""
     if not aktivni_ids:
         return {}
     rows = (
@@ -119,12 +141,14 @@ def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, i
         .group_by(Operacija.kategorija, Korisnik.id)
         .all()
     )
-    best: dict[str, tuple[int, int]] = {}   # kategorija -> (radnik_id, broj)
+    agg: dict[str, dict[int, int]] = {}   # norm-kategorija -> {radnik_id: broj}
     for kat, rid, c in rows:
-        cur = best.get(kat)
-        if cur is None or c > cur[1]:
-            best[kat] = (rid, c)
-    return {kat: v[0] for kat, v in best.items()}
+        nk = _norm_kat(kat)
+        if not nk:
+            continue
+        d = agg.setdefault(nk, {})
+        d[rid] = d.get(rid, 0) + c
+    return {nk: max(d, key=d.get) for nk, d in agg.items() if d}
 
 
 # --- GET /plan -------------------------------------------------------------
@@ -152,7 +176,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
-                    "preporukaId": preporuke.get(op.kategorija),
+                    "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
                     "status": _plan_status(z),
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
