@@ -161,7 +161,6 @@ def oznaci_neprijavljene_radnike(db: Session) -> None:
 _BATCH_KORISNICI = [
     ("Mario Azinović", {"mario", "azinovic"}, "mario.azinovic", "Mario7391", Uloga.voditelj),
     ("Davor Kobeščak", {"davor", "kobescak"}, "davor.kobescak", "Davor2648", Uloga.voditelj),
-    ("Velimir Jendriš", {"velimir", "jendris"}, "velimir.jendris", "Velimir5093", Uloga.voditelj),
     ("Dominik Bahal", {"dominik", "bahal"}, "dominik.bahal", "Dominik4157", Uloga.voditelj),
     ("Akshay", {"akshay"}, "akshay", "Akshay8264", Uloga.radnik),
 ]
@@ -459,6 +458,42 @@ def jednokratna_reaktivacija_roka(db: Session) -> None:
     if reaktivirano:
         db.commit()
         log.warning("Jednokratno reaktiviran račun Roko Jendriš (%d).", reaktivirano)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
+# Bivši zaposlenici / računi koje više ne vodimo kao radnike (deaktiviraj, ne briši).
+_BIVSI_TOKENI = [
+    {"roko", "jendris"},      # Roko Jendriš
+    {"velimir", "jendris"},   # Velimir Jendriš
+]
+
+
+def jednokratno_deaktiviraj_bivse(db: Session) -> None:
+    """Jednokratno deaktivira račune bivših zaposlenika (po tokenima imena/korisničkog).
+
+    Deaktivacija (aktivan=False) ih miče iz evidencije i ostalih popisa, ali račun
+    ostaje (reverzibilno — može se ručno reaktivirati). Guardano zastavicom da ne
+    poništi kasniju namjernu reaktivaciju.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".deaktiviraj_bivse_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    deaktivirano = 0
+    for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all():
+        tok = _tokeni(f"{k.ime} {k.korisnicko_ime}")
+        if any(trazeni <= tok for trazeni in _BIVSI_TOKENI):
+            k.aktivan = False
+            deaktivirano += 1
+    if deaktivirano:
+        db.commit()
+        log.info("Deaktivirano %d bivših računa (Roko/Velimir).", deaktivirano)
     try:
         zastavica.parent.mkdir(parents=True, exist_ok=True)
         zastavica.write_text("done", encoding="utf-8")

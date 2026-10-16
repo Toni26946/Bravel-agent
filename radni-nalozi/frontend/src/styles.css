@@ -809,6 +809,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-in:focus { outline: none; border-color: var(--plava-svijetla); box-shadow: 0 0 0 2px rgba(25,118,210,.15); }
 .ev-in:disabled { background: transparent; border-color: transparent; color: var(--sivo); }
 .ev-kodsel { flex: 0 0 42px; padding: 2px 1px; }
+.ev-kodsel-puni { flex: 1 1 auto; padding: 2px 1px; text-align: center; }
+.ev-calc .ev-ter { color: var(--plava); font-weight: 700; }
 .ev-teren { flex: 1 1 auto; }
 .ev-calc { font-size: 10px; font-weight: 700; color: #333; margin-top: 1px; }
 .ev-calc .ev-pre { color: var(--narancasta); margin-left: 2px; font-weight: 600; }

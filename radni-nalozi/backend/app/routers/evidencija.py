@@ -12,7 +12,7 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from ..auth import zahtijevaj_uloge
+from ..auth import SERVIS_KORISNIK, zahtijevaj_uloge
 from ..database import get_db
 from ..models import EvidencijaRV, Korisnik, Uloga
 from ..schemas import EvidencijaDan, EvidencijaMjesec, EvidencijaRadnik, EvidencijaUnos
@@ -22,16 +22,24 @@ router = APIRouter(prefix="/evidencija", tags=["evidencija"])
 # Evidenciju vode skladištari; voditelj/poslovođa je također vide i uređuju.
 evidencija_pristup = zahtijevaj_uloge(Uloga.skladistar, Uloga.voditelj, Uloga.poslovodja)
 
-KODOVI = {"GO", "BO", "PD", "OD"}
+KODOVI_ODSUTNOST = {"GO", "BO", "PD", "OD"}   # dan bez sati (odsutnost/odjava)
+KODOVI = KODOVI_ODSUTNOST | {"TER"}           # svi dopušteni kodovi (TER = teren)
 STANDARDNI_DAN = 8.0  # sati nakon kojih počinju prekovremeni
 PRAG_2H = 2.0         # dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
 
 
 def _radnici(db: Session) -> list[Korisnik]:
-    """Ekipa radione + skladišta (svi aktivni osim vozača), po imenu."""
+    """Ekipa radione + skladišta (svi aktivni osim vozača), po imenu.
+
+    Servisni (M2M) račun „Flota OS" se izostavlja — nije osoba koja evidentira sate.
+    """
     return (
         db.query(Korisnik)
-        .filter(Korisnik.aktivan.is_(True), Korisnik.uloga != Uloga.vozac)
+        .filter(
+            Korisnik.aktivan.is_(True),
+            Korisnik.uloga != Uloga.vozac,
+            Korisnik.korisnicko_ime != SERVIS_KORISNIK,
+        )
         .order_by(Korisnik.ime)
         .all()
     )
@@ -104,7 +112,7 @@ def dohvati_mjesec(
             r.redovno += z.redovni or 0
             r.prekovremeni += z.prekovremeni or 0
             r.teren += z.teren or 0
-            if (z.redovni or 0) > 0 or (z.prekovremeni or 0) > 0:
+            if (z.redovni or 0) > 0 or (z.prekovremeni or 0) > 0 or (z.teren or 0) > 0:
                 r.radni_dani += 1
             if (z.prekovremeni or 0) >= PRAG_2H:
                 r.prekovremeni_2h += 1
@@ -129,7 +137,7 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
         raise HTTPException(status_code=404, detail="Radnik ne postoji")
     kod = (podaci.kod or "").strip().upper() or None
     if kod and kod not in KODOVI:
-        raise HTTPException(status_code=400, detail="Nepoznat kod (GO/BO/PD/OD)")
+        raise HTTPException(status_code=400, detail="Nepoznat kod (TER/GO/BO/PD/OD)")
 
     z = (
         db.query(EvidencijaRV)
@@ -145,8 +153,18 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
 
     od = (podaci.od or "").strip() or None
     do = (podaci.do or "").strip() or None
-    teren = round(float(podaci.teren or 0), 2)
-    redovni, prekovremeni = _preracun(od, do, kod)
+    if kod == "TER":
+        # Teren: cijeli odrađeni raspon (od–do) broji se kao teren; bez redovnih/prekovremenih.
+        teren = _sati(od, do)
+        redovni, prekovremeni = 0.0, 0.0
+    elif kod in KODOVI_ODSUTNOST:
+        # Odsutnost/odjava: nema sati ni terena.
+        od = do = None
+        teren = 0.0
+        redovni, prekovremeni = 0.0, 0.0
+    else:
+        teren = 0.0
+        redovni, prekovremeni = _preracun(od, do, kod)
 
     if not z:
         z = EvidencijaRV(korisnik_id=podaci.korisnik_id, datum=podaci.datum, kreirao_id=korisnik.id)
@@ -199,8 +217,10 @@ def izvoz(
             dan = r.dani.get(kljuc)
             if dan is None:
                 red += ["", "", "", "", ""]
+            elif dan.kod == "TER":
+                red += [dan.od or "", dan.do or "", "", "", dan.teren or ""]
             elif dan.kod:
-                red += [dan.kod, "", "", "", dan.teren or ""]
+                red += [dan.kod, "", "", "", ""]
             else:
                 red += [dan.od or "", dan.do or "", dan.redovni or "", dan.prekovremeni or "", dan.teren or ""]
         ws.append(red)
