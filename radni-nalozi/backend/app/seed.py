@@ -469,11 +469,12 @@ def uvezi_evidenciju_iz_gs(db: Session) -> None:
     """Jednokratni uvoz povijesnih unosa evidencije radnog vremena iz
     app/data/evidencija_gs.json (izvezeno iz Google tablice, srpanj–listopad 2026).
 
-    Preskače dan ako već postoji redak za (korisnik, datum) — ne gazi ručne unose.
-    Teren dani su uvezeni kao 8 h (tablica je koristila od=0/do=24 kao oznaku).
-    Guardano zastavicom na trajnom volumenu.
+    v2: usklađeno sa sirovom tablicom — dani s odrađenim od/do broje se u redovno
+    (i kad su označeni GO/BO), teren dani = 8 h. Prije uvoza briše prethodni
+    automatski uvoz (kreirao_id IS NULL) za srpanj–listopad 2026, a ručne unose
+    (kreirao_id postavljen) ostavlja. Guardano zastavicom na trajnom volumenu.
     """
-    zastavica = Path(settings.upload_dir).parent / ".evidencija_gs_v1"
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_gs_v2"
     try:
         if zastavica.exists():
             return
@@ -487,6 +488,17 @@ def uvezi_evidenciju_iz_gs(db: Session) -> None:
     except (OSError, ValueError) as e:
         log.warning("Ne mogu učitati evidencija_gs.json: %s", e)
         return
+    # Ukloni prethodni automatski uvoz (bez autora) za uvozno razdoblje.
+    (
+        db.query(EvidencijaRV)
+        .filter(
+            EvidencijaRV.kreirao_id.is_(None),
+            EvidencijaRV.datum >= date(2026, 7, 1),
+            EvidencijaRV.datum <= date(2026, 10, 31),
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
     postoje = {(kid, dat) for kid, dat in db.query(EvidencijaRV.korisnik_id, EvidencijaRV.datum).all()}
     valjani = {kid for (kid,) in db.query(Korisnik.id).all()}
     dodano = 0
