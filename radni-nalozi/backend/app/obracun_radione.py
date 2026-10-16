@@ -160,7 +160,20 @@ def sinkroniziraj(db: Session, primijeni: bool = True) -> dict:
     html = dohvati_html()
     if not html:
         return {"ok": False, "razlog": "nedostupno", "stopa": 0.0, "poklopljeno": 0, "mjeseci": []}
-    mjeseci = parsiraj_mjesece(html)
+    return sinkroniziraj_podatke(db, parsiraj_mjesece(html), primijeni)
+
+
+def sinkroniziraj_podatke(db: Session, mjeseci: dict[str, list[dict]], primijeni: bool = True) -> dict:
+    """Isto kao `sinkroniziraj`, ali s već pripremljenim podacima {'YYYY-MM': [{ime, zarada}]}
+    — npr. kad ih pošalje Tonijev Claude iz živog Obračuna radione (claude.ai artifact),
+    koji ovaj server ne može sam dohvatiti. Pojedinačne plaće se NE spremaju, samo stopa."""
+    mjeseci = {
+        k: [{"ime": str(x.get("ime") or "").strip(), "zarada": float(x["zarada"])}
+            for x in (v or []) if isinstance(x, dict) and x.get("ime")
+            and isinstance(x.get("zarada"), (int, float)) and x["zarada"] > 0]
+        for k, v in (mjeseci or {}).items() if re.fullmatch(r"20\d\d-\d\d", str(k))
+    }
+    mjeseci = {k: v for k, v in mjeseci.items() if v}
     if not mjeseci:
         return {"ok": False, "razlog": "nema_podataka", "stopa": 0.0, "poklopljeno": 0, "mjeseci": []}
     rez = izracunaj_stopu(db, mjeseci)

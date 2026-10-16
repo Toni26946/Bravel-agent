@@ -114,6 +114,21 @@ def obracun_info(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_i
     return info(db)
 
 
+@router.post("/obracun-uvoz")
+def obracun_uvoz(podaci: dict, x_obracun_kljuc: str | None = Header(default=None),
+                 db: Session = Depends(get_db)):
+    """Stvarne plaće iz živog Obračuna radione (claude.ai artifact) → kalibracija €/norma-sat.
+
+    Šalje ih Tonijev Claude (server sam ne može dohvatiti privatni artifact). Body
+    {"mjeseci": {"YYYY-MM": [{"ime", "zarada"}]}}; zaglavlje X-Obracun-Kljuc = OBRACUN_KLJUC.
+    Pojedinačne plaće se NE spremaju — samo izvedena stopa (kao kod surge sinkronizacije)."""
+    if not settings.obracun_kljuc or not x_obracun_kljuc or \
+            not hmac.compare_digest(x_obracun_kljuc, settings.obracun_kljuc):
+        raise HTTPException(status_code=401, detail="Nevažeći ključ")
+    from ..obracun_radione import sinkroniziraj_podatke
+    return sinkroniziraj_podatke(db, (podaci or {}).get("mjeseci") or {}, primijeni=True)
+
+
 @router.post("/rekalibriraj")
 def rekalibriraj(db: Session = Depends(get_db), _: Korisnik = Depends(samo_voditelj)):
     """Dohvati obračun radione i (ako je valjano) postavi €/norma-sat."""
