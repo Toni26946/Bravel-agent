@@ -23,6 +23,7 @@ from .routers import flota as flota_router
 from .seed import (
     backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
+    jednokratno_deaktiviraj_bivse,
     migriraj_zaduzene_u_radnike,
     ocisti_mjerace_bez_radnika,
     osiguraj_kovacevica,
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
         jednokratna_reaktivacija_roka(db)
         osiguraj_dodatne_korisnike(db)
         osiguraj_vlasnika(db)
+        jednokratno_deaktiviraj_bivse(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
         backfill_povijest_gotovih(db)

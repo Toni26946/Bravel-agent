@@ -40,12 +40,13 @@ function minute(hhmm) {
 }
 // Lokalni izračun (isti kao na serveru) za trenutni prikaz.
 function izracun(od, doo, kod) {
-  if (kod) return { redovni: 0, prekovremeni: 0 }
   const a = minute(od), b0 = minute(doo)
-  if (a == null || b0 == null) return { redovni: 0, prekovremeni: 0 }
-  let b = b0; if (b < a) b += 24 * 60
-  const uk = Math.max(0, b - a) / 60
-  return { redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)) }
+  let uk = 0
+  if (a != null && b0 != null) { let b = b0; if (b < a) b += 24 * 60; uk = Math.max(0, b - a) / 60 }
+  if (kod === 'TER') return { redovni: 0, prekovremeni: 0, teren: r2(uk) }
+  if (kod) return { redovni: 0, prekovremeni: 0, teren: 0 }
+  if (a == null || b0 == null) return { redovni: 0, prekovremeni: 0, teren: 0 }
+  return { redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)), teren: 0 }
 }
 
 const PRAG_2H = 2   // dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
@@ -55,7 +56,7 @@ function zbroji(r) {
   for (const k in r.dani) {
     const d = r.dani[k]
     redovno += d.redovni || 0; prekovremeni += d.prekovremeni || 0; teren += d.teren || 0
-    if ((d.redovni || 0) > 0 || (d.prekovremeni || 0) > 0) radni_dani += 1
+    if ((d.redovni || 0) > 0 || (d.prekovremeni || 0) > 0 || (d.teren || 0) > 0) radni_dani += 1
     if ((d.prekovremeni || 0) >= PRAG_2H) prekovremeni_2h += 1
     if (d.kod === 'GO') go += 1; else if (d.kod === 'BO') bo += 1; else if (d.kod === 'PD') pd += 1
   }
@@ -187,18 +188,20 @@ function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
   const [od, setOd] = useState(dan?.od || '')
   const [doo, setDoo] = useState(dan?.do || '')
   const [kod, setKod] = useState(dan?.kod || '')
-  const [teren, setTeren] = useState(dan?.teren ? String(dan.teren) : '')
   const [radi, setRadi] = useState(false)
 
+  // Vrijeme (OD/DO) se upisuje za običan dan i za TEREN; za GO/BO/PD/OD se ne upisuje.
+  const vrijemeAktivno = (k) => !k || k === 'TER'
+
   const spremi = async (polja) => {
-    const stanje = { od, do: doo, kod, teren, ...polja }
-    const t = stanje.teren ? parseFloat(String(stanje.teren).replace(',', '.')) : 0
+    const stanje = { od, do: doo, kod, ...polja }
+    const cuvaj = vrijemeAktivno(stanje.kod)
     setRadi(true)
     try {
       const dn = await api.spremiEvidenciju({
         korisnik_id: korisnikId, datum,
-        od: stanje.kod ? '' : stanje.od, do: stanje.kod ? '' : stanje.do,
-        teren: t || 0, kod: stanje.kod || '',
+        od: cuvaj ? stanje.od : '', do: cuvaj ? stanje.do : '',
+        teren: 0, kod: stanje.kod || '',
       })
       onSpremljeno(korisnikId, datum, dn)
     } catch (e) { onGreska(e.message) } finally { setRadi(false) }
@@ -210,35 +213,32 @@ function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
     else { if (n === (dan?.do || '')) { setDoo(n); return } setDoo(n); spremi({ do: n }) }
   }
   const promijeniKod = (v) => { setKod(v); spremi({ kod: v }) }
-  const blurTeren = () => {
-    const cur = teren ? String(teren) : ''
-    const old = dan?.teren ? String(dan.teren) : ''
-    if (cur === old) return
-    spremi({ teren })
-  }
 
   const c = izracun(od, doo, kod)
+  const aktivno = vrijemeAktivno(kod)
   const cls = 'ev-cel' + (vikend ? ' ev-vikend' : '') + (kod ? ' ev-kod ev-kod-' + kod : '') + (radi ? ' ev-radi' : '')
 
   return (
     <td className={cls}>
       <div className="ev-red1">
-        <input className="ev-in" value={kod ? '' : od} disabled={!!kod} placeholder={kod ? kod : 'od'}
+        <input className="ev-in" value={aktivno ? od : ''} disabled={!aktivno} placeholder={aktivno ? 'od' : kod}
           onChange={(e) => setOd(e.target.value)} onBlur={(e) => blurVrijeme('od', e.target.value)} />
-        <input className="ev-in" value={kod ? '' : doo} disabled={!!kod} placeholder={kod ? '' : 'do'}
+        <input className="ev-in" value={aktivno ? doo : ''} disabled={!aktivno} placeholder={aktivno ? 'do' : ''}
           onChange={(e) => setDoo(e.target.value)} onBlur={(e) => blurVrijeme('do', e.target.value)} />
       </div>
       <div className="ev-red2">
-        <select className="ev-in ev-kodsel" value={kod} title={t('ev.kodPomoc')} onChange={(e) => promijeniKod(e.target.value)}>
+        <select className="ev-in ev-kodsel-puni" value={kod} title={t('ev.kodPomoc')} onChange={(e) => promijeniKod(e.target.value)}>
           <option value="">–</option>
+          <option value="TER">TER</option>
           <option value="GO">GO</option>
           <option value="BO">BO</option>
           <option value="PD">PD</option>
           <option value="OD">OD</option>
         </select>
-        <input className="ev-in ev-teren" value={teren} inputMode="decimal" placeholder={t('ev.terenPh')}
-          title={t('ev.terenPomoc')} onChange={(e) => setTeren(e.target.value)} onBlur={blurTeren} />
       </div>
+      {kod === 'TER' && c.teren > 0 && (
+        <div className="ev-calc"><span className="ev-ter">{fmt(c.teren)} ter</span></div>
+      )}
       {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
         <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}</div>
       )}
