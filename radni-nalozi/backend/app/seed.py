@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 from .auth import hash_lozinka
 from .config import settings
 from .models import (
-    Korisnik, Nalog, PovijestRada, RegistarVozila, StatusNaloga, StatusVozila,
-    Uloga, Vozilo, Zadatak,
+    EvidencijaRV, Korisnik, Nalog, PovijestRada, RegistarVozila, StatusNaloga,
+    StatusVozila, Uloga, Vozilo, Zadatak,
 )
 
 log = logging.getLogger("seed")
@@ -458,6 +458,61 @@ def jednokratna_reaktivacija_roka(db: Session) -> None:
     if reaktivirano:
         db.commit()
         log.warning("Jednokratno reaktiviran račun Roko Jendriš (%d).", reaktivirano)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def uvezi_evidenciju_iz_gs(db: Session) -> None:
+    """Jednokratni uvoz povijesnih unosa evidencije radnog vremena iz
+    app/data/evidencija_gs.json (izvezeno iz Google tablice, srpanj–listopad 2026).
+
+    Preskače dan ako već postoji redak za (korisnik, datum) — ne gazi ručne unose.
+    Teren dani su uvezeni kao 8 h (tablica je koristila od=0/do=24 kao oznaku).
+    Guardano zastavicom na trajnom volumenu.
+    """
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_gs_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "evidencija_gs.json"
+    if not put.exists():
+        return
+    try:
+        unosi = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Ne mogu učitati evidencija_gs.json: %s", e)
+        return
+    postoje = {(kid, dat) for kid, dat in db.query(EvidencijaRV.korisnik_id, EvidencijaRV.datum).all()}
+    valjani = {kid for (kid,) in db.query(Korisnik.id).all()}
+    dodano = 0
+    for e in unosi:
+        kid = e.get("kid")
+        if kid not in valjani:
+            continue
+        try:
+            dat = date(e["g"], e["m"], e["d"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if (kid, dat) in postoje:
+            continue
+        db.add(EvidencijaRV(
+            korisnik_id=kid, datum=dat,
+            od=e.get("od"), do=e.get("do"),
+            redovni=float(e.get("red", 0) or 0),
+            prekovremeni=float(e.get("pre", 0) or 0),
+            teren=float(e.get("ter", 0) or 0),
+            kod=e.get("kod"),
+        ))
+        postoje.add((kid, dat))
+        dodano += 1
+    if dodano:
+        db.commit()
+        log.info("Uvezeno %d unosa evidencije iz GS.", dodano)
     try:
         zastavica.parent.mkdir(parents=True, exist_ok=True)
         zastavica.write_text("done", encoding="utf-8")
