@@ -469,12 +469,14 @@ def uvezi_evidenciju_iz_gs(db: Session) -> None:
     """Jednokratni uvoz povijesnih unosa evidencije radnog vremena iz
     app/data/evidencija_gs.json (izvezeno iz Google tablice, srpanj–listopad 2026).
 
-    v2: usklađeno sa sirovom tablicom — dani s odrađenim od/do broje se u redovno
-    (i kad su označeni GO/BO), teren dani = 8 h. Prije uvoza briše prethodni
-    automatski uvoz (kreirao_id IS NULL) za srpanj–listopad 2026, a ručne unose
-    (kreirao_id postavljen) ostavlja. Guardano zastavicom na trajnom volumenu.
+    v3: dani s odrađenim od/do broje se u redovno (i kad su označeni GO/BO).
+    Teren se vodi neprekidno — svi sati od odlaska do povratka (puni dan = 24 h);
+    jednodnevni teren bez spavanja (≤24 h, do<24) ide u redovno, višednevni
+    (sa spavanjem) ostaje teren. Prije uvoza briše prethodni automatski uvoz
+    (kreirao_id IS NULL) za srpanj–listopad 2026, a ručne unose ostavlja.
+    Guardano zastavicom na trajnom volumenu.
     """
-    zastavica = Path(settings.upload_dir).parent / ".evidencija_gs_v2"
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_gs_v3"
     try:
         if zastavica.exists():
             return
