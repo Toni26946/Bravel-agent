@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja
 from ..database import get_db
-from ..models import Korisnik, Nalog, PlanDogadaj, StatusNaloga, Zadatak
+from ..models import Korisnik, Nalog, Operacija, PlanDogadaj, StatusNaloga, Zadatak
 from ..push import obavijesti_korisnika
 from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI
 
@@ -49,10 +49,10 @@ def _plan_status(z: Zadatak) -> str:
         return "plan"              # nema radnika → natrag u plan
     if z.zapoceto:
         return "radu"
-    if (z.utroseno_sek or 0) > 0:
-        return "pauza"             # započeto pa prekinuto (nije gotovo)
     if z.ceka_potvrdu:
-        return "ceka"              # poslano, čeka prvu potvrdu
+        return "ceka"              # poslano, čeka potvrdu (i nova i nastavak)
+    if (z.utroseno_sek or 0) > 0:
+        return "pauza"             # rađeno prije, nije poslano → treba poslati nastavak
     return "plan"                  # dodijeljen ali nije poslan
 
 
@@ -106,6 +106,27 @@ def _zad(db: Session, zid: int) -> Zadatak:
     return z
 
 
+def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, int]:
+    """Za svaku kategoriju posla vrati mehaničara (među aktivnima) koji je
+    dosad najviše puta ZAVRŠIO operaciju te kategorije — prijedlog po iskustvu."""
+    if not aktivni_ids:
+        return {}
+    rows = (
+        db.query(Operacija.kategorija, Korisnik.id, func.count(Zadatak.id).label("c"))
+        .join(Zadatak, Zadatak.operacija_id == Operacija.id)
+        .join(Zadatak.radnici)
+        .filter(Zadatak.gotovo.is_(True), Korisnik.id.in_(aktivni_ids))
+        .group_by(Operacija.kategorija, Korisnik.id)
+        .all()
+    )
+    best: dict[str, tuple[int, int]] = {}   # kategorija -> (radnik_id, broj)
+    for kat, rid, c in rows:
+        cur = best.get(kat)
+        if cur is None or c > cur[1]:
+            best[kat] = (rid, c)
+    return {kat: v[0] for kat, v in best.items()}
+
+
 # --- GET /plan -------------------------------------------------------------
 @router.get("")
 def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
@@ -116,6 +137,12 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         n.plan_rang if n.plan_rang is not None else 10 ** 9,
         n.id,
     ))
+    meh = (
+        db.query(Korisnik)
+        .filter(Korisnik.uloga.in_(_SERVISERI), Korisnik.aktivan.is_(True))
+        .order_by(Korisnik.ime).all()
+    )
+    preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
     out_nal = []
     for i, n in enumerate(nalozi):
         ops = []
@@ -125,6 +152,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
+                    "preporukaId": preporuke.get(op.kategorija),
                     "status": _plan_status(z),
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
@@ -141,11 +169,6 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             "usaoTs": _ms(n.kreiran),
             "ops": ops,
         })
-    meh = (
-        db.query(Korisnik)
-        .filter(Korisnik.uloga.in_(_SERVISERI), Korisnik.aktivan.is_(True))
-        .order_by(Korisnik.ime).all()
-    )
     danas = datetime.now(timezone.utc).date()
     promjene = (
         db.query(PlanDogadaj).filter(PlanDogadaj.datum == danas)
