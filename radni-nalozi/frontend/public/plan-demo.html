@@ -54,6 +54,7 @@
   .btn{border:0;border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;background:var(--plava);color:#fff}
   .btn.ghost{background:var(--plava-soft);color:var(--plava)}
   .btn.sm{padding:6px 10px;font-size:12px}
+  .btn.zvj{background:#fff7ed;color:#b45309;border:1px solid #fed7aa}
   .btn:disabled{opacity:.45;cursor:default}
   select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--card);color:var(--fg)}
   .gb{font-weight:800;font-size:15px}
@@ -297,9 +298,13 @@
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       h+='<div class="op"><span class="opn">'+esc(o.naziv)+' <span class="opk">· '+esc(o.kat)+'</span></span>'+
          '<span class="chip '+CH[o.status]+'">'+LBL[o.status]+'</span><span class="right">';
-      if(o.status==="plan"){
-        h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(o.mehId)+'</select>'+
-           '<button class="btn sm" onclick="PLAN.posalji('+o.id+')" '+(o.mehId?'':'disabled')+'>Pošalji na potvrdu</button>';
+      if(o.status==="plan" || o.status==="pauza"){
+        h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(o.mehId)+'</select>';
+        var prep=o.preporukaId;
+        if(prep && prep!==o.mehId && meh(prep).ime){
+          h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+'</button>';
+        }
+        h+='<button class="btn sm" onclick="PLAN.posalji('+o.id+')" '+(o.mehId?'':'disabled')+'>'+((o.akumSek||0)>0?'Pošalji — nastavak':'Pošalji na potvrdu')+'</button>';
       } else {
         h+='<span class="vozilo">👷 '+esc(meh(o.mehId).ime)+'</span>';
         if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
@@ -370,7 +375,7 @@
        '<span class="hint" style="margin:0">(za demo — inače svatko vidi samo svoje)</span></div>';
     h+='<div class="phone"><div class="ph-top">📱 <span class="who">'+esc(m.ime)+'</span><span class="mini">Bravel radiona</span></div><div class="ph-body">';
     cekaMe.forEach(function(x){
-      var pauza = x.o.status==="pauza";
+      var pauza = x.o.status==="pauza" || (x.o.akumSek||0)>0;  // nastavak ako ima nakupljenog vremena
       h+='<div class="notif"><div class="nt">'+(pauza?'⏸ NIJE GOTOVO — NASTAVI':'🔔 NOVA OPERACIJA — POTVRDI POČETAK')+(x.n.hitno?' <span class="chip htag" style="margin-left:4px">🔴 HITNO</span>':'')+'</div>'+
          '<div style="margin:6px 0 8px"><b>'+esc(x.o.naziv)+'</b><br><span class="vozilo">GB '+esc(x.n.gb)+' · '+esc(x.n.vozilo)+(pauza&&x.o.akumSek?' · dosad ⏱ '+trajanje(x.o.akumSek):'')+'</span></div>'+
          '<button class="btn" style="width:100%" onclick="PLAN.potvrdi('+x.o.id+')">'+(pauza?'▶️ Nastavi':'▶️ Potvrdi početak')+'</button></div>';
