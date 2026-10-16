@@ -7,7 +7,7 @@ export default function Plan() {
   return (
     <Layout naslov="Plan radione (pregled)">
       <p className="meta" style={{ marginTop: 0 }}>
-        Pregled toka plana radione — vidljivo samo tebi. Zasad demo (nije spojeno na stvarne naloge).
+        Plan radione — vidljivo samo tebi. Spojeno na stvarne naloge, operacije i mjerače vremena.
       </p>
       <iframe
         src="/plan-demo.html"
