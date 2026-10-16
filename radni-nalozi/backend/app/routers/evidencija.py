@@ -9,10 +9,11 @@ import calendar
 from datetime import date
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from ..auth import SERVIS_KORISNIK, zahtijevaj_uloge
+from ..config import settings
 from ..database import get_db
 from ..models import EvidencijaRV, Korisnik, Uloga
 from ..schemas import EvidencijaDan, EvidencijaMjesec, EvidencijaRadnik, EvidencijaUnos
@@ -233,3 +234,66 @@ def izvoz(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="evidencija-{godina}-{mjesec:02d}.xlsx"'},
     )
+
+
+def _servisna_ovlast(
+    x_servis_kljuc: str | None = Header(default=None),
+    kljuc: str | None = Query(default=None),
+) -> bool:
+    """M2M pristup servisnim ključem (header X-Servis-Kljuc ili ?kljuc=)."""
+    dani = (x_servis_kljuc or kljuc or "").strip()
+    if not settings.servis_kljuc or dani != settings.servis_kljuc:
+        raise HTTPException(status_code=401, detail="Nevažeći servisni ključ")
+    return True
+
+
+@router.get("/obracun")
+def za_obracun(
+    godina: int = Query(..., ge=2000, le=2100),
+    mjesec: int = Query(..., ge=1, le=12),
+    _: bool = Depends(_servisna_ovlast),
+    db: Session = Depends(get_db),
+):
+    """Servisni izvod evidencije za VANJSKI obračun (bravel-obracun).
+
+    Vraća SIROVE sate po radniku i danu (bez primijenjenih pravila plaće).
+    Obračun sam primjenjuje svoja pravila (subota ×1,5, teren satnice po
+    putovanju, bolovanje…). Pristup: servisni ključ u headeru X-Servis-Kljuc
+    ili query parametru ?kljuc=.
+    """
+    mj = dohvati_mjesec(godina, mjesec, None, db)
+    radnici = []
+    for r in mj.radnici:
+        dani = []
+        for d in sorted(r.dani.values(), key=lambda x: x.datum):
+            dani.append({
+                "datum": d.datum.isoformat(),
+                "dow": d.datum.weekday(),          # 0=pon … 5=sub, 6=ned
+                "subota": d.datum.weekday() == 5,
+                "od": d.od,
+                "do": d.do,
+                "redovni": round(d.redovni or 0, 2),
+                "prekovremeni": round(d.prekovremeni or 0, 2),
+                "teren": round(d.teren or 0, 2),
+                "kod": d.kod,                       # None | GO | BO | PD | OD | TER
+            })
+        radnici.append({
+            "korisnik_id": r.korisnik_id,
+            "ime": r.ime,
+            "zbroj": {
+                "redovno": r.redovno,
+                "prekovremeni": r.prekovremeni,
+                "teren": r.teren,
+                "radni_dani": r.radni_dani,
+                "prekovremeni_2h": r.prekovremeni_2h,
+                "go": r.go,
+                "bo": r.bo,
+            },
+            "dani": dani,
+        })
+    return {
+        "godina": godina,
+        "mjesec": mjesec,
+        "dana_u_mjesecu": mj.dana_u_mjesecu,
+        "radnici": radnici,
+    }
