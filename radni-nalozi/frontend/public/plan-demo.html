@@ -58,8 +58,8 @@
   .btn:disabled{opacity:.45;cursor:default}
   select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--card);color:var(--fg)}
   .gb{font-weight:800;font-size:15px}
-  /* Cijela kartica naloga vodi na nalog (osim klikova na kontrole). */
-  .card.nalog{cursor:pointer}
+  /* Samo zaglavlje (GB linija) vodi na nalog; operacije ostaju za rad. */
+  .nhead.gb-head{cursor:pointer}
   .dcard{cursor:pointer}
   .vozilo{color:var(--muted);font-weight:600;font-size:12.5px}
 
@@ -285,8 +285,8 @@
   // --- render: Poslovođa ---
   function nalogCard(n, rankTxt, idxObj, lane){
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+'</option>'; }); return s; };
-    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><div class="rang">'+rankTxt+'</div><div class="nbody">';
-    h+='<div class="nhead"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
+    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
+    h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
     // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
@@ -355,8 +355,8 @@
     if(ceka.length){
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
-        h+='<div class="card nalog dim" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><div class="rang">—</div><div class="nbody">'+
-           '<div class="nhead"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span> <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
+        h+='<div class="card nalog dim"><div class="rang">—</div><div class="nbody">'+
+           '<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span> <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
         n.ops.forEach(function(o){ h+='<div class="op"><span class="opn">'+esc(o.naziv)+'</span></div>'; });
         h+='</div></div>';
       });
