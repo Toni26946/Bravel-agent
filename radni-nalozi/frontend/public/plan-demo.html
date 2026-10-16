@@ -383,23 +383,36 @@
   }
 
   // --- render: Dashboard ---
+  // Dashboard broji NALOGE (vozila), ne operacije. Svaki nalog ide u točno
+  // jedan stupac prema svom ukupnom stanju.
+  function nalogStanje(n){
+    if(nalogZavrsen(n)) return "gotovo";                                   // sve operacije gotove
+    if(n.cekaDijelove) return "dijelovi";                                  // blokiran — čeka dio
+    var ops=n.ops;
+    if(ops.some(function(o){return o.status==="radu";})) return "radu";    // netko trenutno radi
+    if(ops.some(function(o){return o.status==="ceka";})) return "ceka";    // čeka potvrdu vlasnika
+    if(ops.some(function(o){return o.status==="pauza";})) return "pauza";  // stoji (nije gotovo)
+    if(nalogZapoceo(n)) return "pauza";                                    // započeo pa stoji
+    return "plan";                                                         // još nije počeo
+  }
   function renderDASH(){
-    var all=svabOps();
-    var by=function(s){return all.filter(function(x){return x.o.status===s;});};
-    var dc=function(x,live){
-      var t = x.o.status==="radu" ? '<span class="live tnum" data-start="'+x.o.id+'">⏱ '+trajanje(zivoSek(x.o))+'</span>'
-            : x.o.status==="gotovo" ? '<span class="tnum">⏱ '+trajanje(x.o.akumSek)+'</span>' : '';
-      return '<div class="dcard"'+(x.n.hitno?' style="border-color:var(--crveno)"':'')+'><div class="g">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+' <span class="vozilo">'+esc(x.n.vozilo)+'</span></div>'+
-             '<div class="o">'+esc(x.o.naziv)+'</div>'+
-             '<div class="m">'+(x.o.mehId?'👷 '+esc(meh(x.o.mehId).ime):'<span style="color:var(--s-plan)">bez radnika</span>')+(t?' · '+t:'')+(((x.o.status==="plan"||x.o.status==="ceka")&&!nalogZapoceo(x.n))?' · <span class="waitc2" data-wait="'+x.n.id+'">⏳ čeka '+cekanjeTxt(cekaSek(x.n))+'</span>':'')+'</div></div>';
+    var grupe={plan:[],ceka:[],radu:[],pauza:[],dijelovi:[],gotovo:[]};
+    nalozi.forEach(function(n){ grupe[nalogStanje(n)].push(n); });
+    var ndc=function(n){
+      var np=napredak(n), mehs={};
+      n.ops.forEach(function(o){ if(o.mehId) mehs[o.mehId]=1; });
+      var who=Object.keys(mehs).map(function(id){return esc(meh(parseInt(id,10)).ime);}).join(", ");
+      return '<div class="dcard"'+(n.hitno?' style="border-color:var(--crveno)"':'')+'><div class="g">'+(n.hitno?'🔴 ':'')+'GB '+esc(n.gb)+' <span class="vozilo">'+esc(n.vozilo)+'</span></div>'+
+             '<div class="o">'+np.done+'/'+np.tot+' operacija · '+np.pct+'%</div>'+
+             '<div class="m">'+(who?'👷 '+who:'<span style="color:var(--s-plan)">bez radnika</span>')+'</div></div>';
     };
-    var kol=function(s,dot){ var items=by(s); items.sort(function(a,b){return (b.n.hitno?1:0)-(a.n.hitno?1:0);}); return '<div class="kol"><h3><span class="dot" style="background:'+dot+'"></span>'+LBL[s]+' ('+items.length+')</h3>'+(items.map(function(x){return dc(x);}).join("")||'<div class="vozilo" style="padding:4px 2px">—</div>')+'</div>'; };
-    var aktMeh = {}; by("radu").forEach(function(x){aktMeh[x.o.mehId]=1;});
+    var kol=function(s,dot){ var items=grupe[s].slice(); items.sort(function(a,b){return (b.hitno?1:0)-(a.hitno?1:0);}); return '<div class="kol"><h3><span class="dot" style="background:'+dot+'"></span>'+LBL[s]+' ('+items.length+')</h3>'+(items.map(ndc).join("")||'<div class="vozilo" style="padding:4px 2px">—</div>')+'</div>'; };
+    var aktMeh={}; nalozi.forEach(function(n){ n.ops.forEach(function(o){ if(o.status==="radu"&&o.mehId) aktMeh[o.mehId]=1; }); });
     var h='';
     h+='<div class="kpis">'+
-       '<div class="kpi"><div class="n">'+(by("plan").length+by("ceka").length)+'</div><div class="l">Planirano</div></div>'+
-       '<div class="kpi"><div class="n radu">'+by("radu").length+'</div><div class="l">U tijeku</div></div>'+
-       '<div class="kpi"><div class="n">'+by("gotovo").length+'</div><div class="l">Gotovo danas</div></div>'+
+       '<div class="kpi"><div class="n">'+grupe.plan.length+'</div><div class="l">Planirano</div></div>'+
+       '<div class="kpi"><div class="n radu">'+grupe.radu.length+'</div><div class="l">U tijeku</div></div>'+
+       '<div class="kpi"><div class="n">'+grupe.gotovo.length+'</div><div class="l">Gotovo</div></div>'+
        '<div class="kpi"><div class="n">'+Object.keys(aktMeh).length+'/'+MEH.length+'</div><div class="l">Aktivni radnici</div></div>'+
        '<div class="kpi"><div class="n"'+(promjene>0?' style="color:var(--crveno)"':'')+'>'+promjene+'</div><div class="l">Promjena plana</div></div>'+
        '</div>';
