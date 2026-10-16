@@ -238,12 +238,18 @@ def izvoz(
 
 def _servisna_ovlast(
     x_servis_kljuc: str | None = Header(default=None),
+    x_obracun_kljuc: str | None = Header(default=None),
     kljuc: str | None = Query(default=None),
 ) -> bool:
-    """M2M pristup servisnim ključem (header X-Servis-Kljuc ili ?kljuc=)."""
-    dani = (x_servis_kljuc or kljuc or "").strip()
-    if not settings.servis_kljuc or dani != settings.servis_kljuc:
-        raise HTTPException(status_code=401, detail="Nevažeći servisni ključ")
+    """Pristup ključem (header X-Obracun-Kljuc / X-Servis-Kljuc ili ?kljuc=).
+
+    Prihvaća zaseban read-only OBRACUN_KLJUC (za vanjski obračun) ili opći
+    SERVIS_KLJUC (Flota OS M2M). Dovoljno je da se poklopi bilo koji postavljen.
+    """
+    dani = (x_obracun_kljuc or x_servis_kljuc or kljuc or "").strip()
+    valjani = {k for k in (settings.obracun_kljuc, settings.servis_kljuc) if k}
+    if not dani or dani not in valjani:
+        raise HTTPException(status_code=401, detail="Nevažeći ključ")
     return True
 
 
