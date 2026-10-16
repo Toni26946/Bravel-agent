@@ -11,6 +11,7 @@
   /* Layout: traka na vrhu + jedan od tri pogleda (Poslovođa / Mehaničar / Dashboard).
      Stanje je zajedničko — akcija u jednom pogledu odmah se vidi u drugom. */
   :root{
+    color-scheme:light;   /* uvijek svijetlo — da se slaže s ostatkom appa */
     --bg:#eef1f6; --card:#ffffff; --fg:#111826; --muted:#5b6678; --line:#dde3ec;
     --plava:#1e51c7; --plava-soft:#e7edfb;
     --crveno:#c0271f; --crveno-bg:#fdecea;
@@ -19,26 +20,6 @@
     --s-radu:#15803d; --s-radu-bg:#e4f5e8;
     --s-gotovo:#0369a1; --s-gotovo-bg:#e2f1fb;
     --font:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-  }
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-    --bg:#0e1420; --card:#161e2c; --fg:#eef2f8; --muted:#95a1b4; --line:#273246;
-    --plava:#6f9bff; --plava-soft:#1c2740;
-    --crveno:#ff6b61; --crveno-bg:#3a1a18;
-    --s-plan:#9aa6b8; --s-plan-bg:#222c3c;
-    --s-ceka:#f0b454; --s-ceka-bg:#3a2d12;
-    --s-radu:#5fd080; --s-radu-bg:#15321f;
-    --s-gotovo:#5cb6ef; --s-gotovo-bg:#13293a;
-    color-scheme:dark;
-  }}
-  :root[data-theme="dark"]{
-    --bg:#0e1420; --card:#161e2c; --fg:#eef2f8; --muted:#95a1b4; --line:#273246;
-    --plava:#6f9bff; --plava-soft:#1c2740;
-    --crveno:#ff6b61; --crveno-bg:#3a1a18;
-    --s-plan:#9aa6b8; --s-plan-bg:#222c3c;
-    --s-ceka:#f0b454; --s-ceka-bg:#3a2d12;
-    --s-radu:#5fd080; --s-radu-bg:#15321f;
-    --s-gotovo:#5cb6ef; --s-gotovo-bg:#13293a;
-    color-scheme:dark;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
