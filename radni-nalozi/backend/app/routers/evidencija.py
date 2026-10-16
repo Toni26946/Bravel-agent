@@ -268,8 +268,18 @@ def za_obracun(
     ili query parametru ?kljuc=.
     """
     mj = dohvati_mjesec(godina, mjesec, None, db)
+    # Isključi upravu (vlasnika) iz servisnog obračuna radione — nije na satnici.
+    # (Velimir Jendriš je već deaktiviran pa ionako ne ulazi; ostaje samo vlasnik.)
+    uprava_ids: set[int] = set()
+    vlasnik_uname = (settings.ai_poslovodja_user or "").strip()
+    if vlasnik_uname:
+        v = db.query(Korisnik.id).filter(Korisnik.korisnicko_ime == vlasnik_uname).first()
+        if v:
+            uprava_ids.add(v[0])
     radnici = []
     for r in mj.radnici:
+        if r.korisnik_id in uprava_ids:
+            continue
         dani = []
         for d in sorted(r.dani.values(), key=lambda x: x.datum):
             dani.append({
