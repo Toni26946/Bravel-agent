@@ -302,7 +302,7 @@
     n.ops.forEach(function(o){
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       h+='<div class="op"><span class="opn">'+esc(o.naziv)+' <span class="opk">· '+esc(o.kat)+'</span></span>'+
-         (((o.akumSek||0)>0 && o.mehId && (o.status==="plan"||o.status==="pauza"))?'<span class="opmeh">👷 '+esc(meh(o.mehId).ime)+'</span>':'')+
+         (((o.akumSek||0)>0 && o.radioIme && (o.status==="plan"||o.status==="pauza"))?'<span class="opmeh">👷 '+esc(o.radioIme)+'</span>':'')+
          '<span class="chip '+CH[o.status]+'">'+LBL[o.status]+'</span><span class="right">';
       if(o.status==="plan" || o.status==="pauza"){
         h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(o.mehId)+'</select>';

@@ -17,7 +17,10 @@ from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja
 from ..database import get_db
-from ..models import Korisnik, Nalog, Operacija, PlanDogadaj, StatusNaloga, Zadatak
+from ..models import (
+    Korisnik, Nalog, Operacija, PlanDogadaj, StatusNaloga, Zadatak,
+    ZadatakRadnikVrijeme,
+)
 from ..push import obavijesti_korisnika
 from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI
 
@@ -151,6 +154,25 @@ def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, i
     return {nk: max(d, key=d.get) for nk, d in agg.items() if d}
 
 
+def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, str]:
+    """Za svaki zadatak vrati IME radnika koji je na njemu nakupio najviše
+    vremena (iz ZadatakRadnikVrijeme) — tko je radio, i kad više nije dodijeljen."""
+    if not zad_ids:
+        return {}
+    rows = (
+        db.query(ZadatakRadnikVrijeme.zadatak_id, Korisnik.ime, ZadatakRadnikVrijeme.utroseno_sek)
+        .join(Korisnik, Korisnik.id == ZadatakRadnikVrijeme.radnik_id)
+        .filter(ZadatakRadnikVrijeme.zadatak_id.in_(zad_ids), ZadatakRadnikVrijeme.utroseno_sek > 0)
+        .all()
+    )
+    best: dict[int, tuple[str, int]] = {}   # zadatak_id -> (ime, sek)
+    for zid, ime, sek in rows:
+        cur = best.get(zid)
+        if cur is None or (sek or 0) > cur[1]:
+            best[zid] = (ime, sek or 0)
+    return {zid: v[0] for zid, v in best.items()}
+
+
 # --- GET /plan -------------------------------------------------------------
 @router.get("")
 def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
@@ -167,6 +189,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         .order_by(Korisnik.ime).all()
     )
     preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
+    zad_ids = [z.id for n in nalozi for op in n.operacije for z in op.zadaci]
+    radili = _radio_po_zadatku(db, zad_ids)   # tko je nakupio vrijeme na zadatku
     out_nal = []
     for i, n in enumerate(nalozi):
         ops = []
@@ -177,6 +201,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
                     "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
+                    "radioIme": radili.get(z.id),
                     "status": _plan_status(z),
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
