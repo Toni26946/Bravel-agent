@@ -473,7 +473,9 @@ def uvezi_sifre_iz_gs(db: Session) -> None:
     rad (krivo za obračun plaća). Šifra iz tablice je mjerodavna: dan postaje odsutnost
     (od/do i sati se brišu, kao kod ručnog upisa šifre); dan kojeg nema se doda.
     Radnik se traži po imenu (isti skup riječi bez dijakritika). Guardano zastavicom."""
-    zastavica = Path(settings.upload_dir).parent / ".evidencija_sifre_gs_v1"
+    # v2: kod istog imena prednost ima AKTIVNI korisnik (v1 je dio šifri upisao neaktivnim
+    # duplikatima, npr. stari radnički račun uz novi voditeljski).
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_sifre_gs_v2"
     try:
         if zastavica.exists():
             return
@@ -491,7 +493,10 @@ def uvezi_sifre_iz_gs(db: Session) -> None:
     def kljuc(ime: str) -> frozenset:
         return frozenset((ime or "").translate(_ASCII).upper().split())
 
-    po_imenu = {kljuc(k.ime): k.id for k in db.query(Korisnik).all() if k.ime}
+    po_imenu = {}
+    for k in sorted(db.query(Korisnik).all(), key=lambda k: bool(k.aktivan)):   # aktivni zadnji = pobjeđuju
+        if k.ime:
+            po_imenu[kljuc(k.ime)] = k.id
     upisano, nepoznati = 0, set()
     for mj, blok in podaci.items():
         try:
@@ -521,6 +526,11 @@ def uvezi_sifre_iz_gs(db: Session) -> None:
                 upisano += 1
     db.commit()
     log.info("Šifre izostanaka iz GS: upisano %d dana; bez korisnika: %d", upisano, len(nepoznati))
+    neaktivni = [k.ime for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(False)).all()
+                 if k.ime and kljuc(k.ime) in {kljuc(i) for b in podaci.values() for i in (b.get("radnici") or {})}
+                 and po_imenu.get(kljuc(k.ime)) == k.id]
+    if neaktivni:
+        log.warning("Šifre izostanaka upisane NEAKTIVNIM korisnicima (ne idu u obračun): %d", len(neaktivni))
     try:
         zastavica.parent.mkdir(parents=True, exist_ok=True)
         zastavica.write_text("done", encoding="utf-8")
