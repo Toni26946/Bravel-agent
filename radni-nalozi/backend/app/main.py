@@ -97,7 +97,10 @@ class SigurnosniZaglavlja(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         odgovor = await call_next(request)
         odgovor.headers.setdefault("X-Content-Type-Options", "nosniff")
-        odgovor.headers.setdefault("X-Frame-Options", "DENY")
+        # Plan radione se prikazuje u <iframe> unutar appa (isti origin) → SAMEORIGIN; inače DENY.
+        odgovor.headers["X-Frame-Options"] = (
+            "SAMEORIGIN" if request.url.path == "/plan-demo.html" else "DENY"
+        )
         odgovor.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         odgovor.headers.setdefault("Permissions-Policy", "geolocation=(), camera=(self), microphone=(self)")
         # HSTS — promet ide preko HTTPS-a (Fly force_https).
