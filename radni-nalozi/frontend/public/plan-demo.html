@@ -83,10 +83,14 @@
   .arrows{margin-left:auto;display:flex;gap:4px}
   .arrows button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;width:28px;height:26px;font-size:13px;line-height:1}
   .op{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed var(--line)}
-  .op .opn{font-weight:600;font-size:12px;line-height:1.3;min-width:120px;flex:1;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .op .opn{font-weight:600;font-size:12px;line-height:1.3;min-width:150px;flex:1;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .op .opk{color:var(--muted);font-size:10.5px;font-weight:700}
-  .op .right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .op .right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  /* Uže kontrole da opis operacije dobije više prostora */
+  .op .right select{max-width:108px;font-size:11px;padding:5px 6px}
+  .op .right .btn{font-size:11px;padding:5px 8px}
+  .op .right .zvj{max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .lane-hitno{border-color:var(--crveno)}
   .lane-hitno .rang{background:var(--crveno)}
   .hitno-head{color:var(--crveno)}
@@ -304,7 +308,7 @@
         if(prep && prep!==o.mehId && meh(prep).ime){
           h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+'</button>';
         }
-        h+='<button class="btn sm" onclick="PLAN.posalji('+o.id+')" '+(o.mehId?'':'disabled')+'>'+((o.akumSek||0)>0?'Pošalji — nastavak':'Pošalji na potvrdu')+'</button>';
+        h+='<button class="btn sm" title="'+((o.akumSek||0)>0?'Pošalji — nastavak (ima nakupljeno vrijeme)':'Pošalji na potvrdu')+'" onclick="PLAN.posalji('+o.id+')" '+(o.mehId?'':'disabled')+'>'+((o.akumSek||0)>0?'Pošalji ↻':'Pošalji')+'</button>';
       } else {
         h+='<span class="vozilo">👷 '+esc(meh(o.mehId).ime)+'</span>';
         if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
