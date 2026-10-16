@@ -465,6 +465,38 @@ def jednokratna_reaktivacija_roka(db: Session) -> None:
         pass
 
 
+def spoji_azinovica(db: Session) -> None:
+    """Jednokratno: dani evidencije s viška-računa „Mario Azinović" (ručno napravljen
+    03.09.2026., nikad korišten — dobio je samo 16 dana GO pri uvozu šifri iz GS)
+    prebace se na pravi račun `mario.azinovic`; višak-račun se deaktivira ako
+    nema drugih podataka. Guardano zastavicom."""
+    zastavica = Path(settings.upload_dir).parent / ".spoji_azinovica_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    pravi = db.query(Korisnik).filter(Korisnik.korisnicko_ime == "mario.azinovic").first()
+    visak = db.query(Korisnik).filter(Korisnik.korisnicko_ime == "Mario Azinović").first()
+    if pravi and visak and pravi.id != visak.id:
+        postoje = {d for (d,) in db.query(EvidencijaRV.datum).filter(EvidencijaRV.korisnik_id == pravi.id)}
+        preb = 0
+        for z in db.query(EvidencijaRV).filter(EvidencijaRV.korisnik_id == visak.id).all():
+            if z.datum in postoje:
+                db.delete(z)          # pravi račun već ima taj dan — ne dupliraj
+            else:
+                z.korisnik_id = pravi.id
+                preb += 1
+        visak.aktivan = False
+        db.commit()
+        log.info("Azinović: prebačeno %d dana evidencije na pravi račun, višak deaktiviran.", preb)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def uvezi_sifre_iz_gs(db: Session) -> None:
     """Jednokratno upiše šifre izostanaka (GO/BO/PD) iz Google tablice evidencije
     (app/data/evidencija_sifre_gs.json: {"2026-7": {"radnici": {"PREZIME IME": {"dan": "GO"}}}}).

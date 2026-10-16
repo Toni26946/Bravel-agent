@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Zaseban READ-ONLY ključ samo za /evidencija/obracun (vanjski obračun).
     # Ne dijeli ga s Flota OS M2M ključem — obračun je javna stranica.
     obracun_kljuc: str = ""              # OBRACUN_KLJUC — fly secret
+    # Korisnička imena koja NISU radnici radione (uprava, korisnici portala) — ne idu u
+    # evidenciju radnog vremena ni u izvoz za obračun. Zarezom odvojeno.
+    evidencija_bez: str = "toni,velimir.jendris"
     flota_email: str = ""                # alternativa: lokalni račun (12 h JWT)
     flota_lozinka: str = ""
     radiona_lat: float = 0.0
