@@ -237,8 +237,19 @@ function KartaNaloga({ n, sada, onClick }) {
   const { t } = useT()
   const foto = n.vozilo?.slika || (n.fotografije && n.fotografije[0]?.putanja)
   const aktivan = radiSe(n)
+  // Postotak dovršenosti: gotove / ukupno operacija (zadataka).
+  const zadaci = n.operacije.reduce((a, op) => a.concat(op.zadaci), [])
+  const uk = zadaci.length
+  const got = zadaci.filter((z) => z.gotovo).length
+  const pct = uk ? Math.round((got / uk) * 100) : 0
   return (
     <div className={'nad-karta' + (aktivan ? ' radi' : '')} onClick={onClick}>
+      {uk > 0 && (
+        <div className="nad-prog">
+          <div className="nad-prog-traka"><div className="nad-prog-ispuna" style={{ width: pct + '%' }} /></div>
+          <div className="nad-prog-lbl">{pct}% završeno · {got}/{uk} operacija</div>
+        </div>
+      )}
       <div className="nad-glava">
         <div className="nad-slika">
           {foto ? <img src={medijUrl(foto)} alt={n.vozilo?.gb} /> : <span className="nad-slika-ph">🚚</span>}

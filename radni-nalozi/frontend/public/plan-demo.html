@@ -296,7 +296,7 @@
     return h;
   }
   function renderPL(){
-    var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n);});
+    var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n) && n.rang!=null;});
     var _cmp=function(a,b){
       var ar=(a.rang==null), br=(b.rang==null);
       if(ar!==br) return ar?1:-1;                 // u planu (ručni redoslijed) ide prvo
@@ -324,12 +324,12 @@
       else h+='<div class="vozilo" style="padding:4px 0">Još nema promjena plana danas.</div>';
       h+='</div>';
     }
-    h+='<p class="hint">Poredano po <b>dovršenosti</b> (najviše dovršeni na vrhu). Dodijeli mehaničara i pošalji operaciju <b>na potvrdu</b>. Kamion koji baš gori označi s <b>🔴</b> — ide u traku HITNO (preskače red). Mjerač kreće tek kad mehaničar potvrdi početak.</p>';
     h+='<div class="sek-nas hitno-head">🔴 Hitno — preskače red</div>';
     if(hitni.length){ hitni.forEach(function(n){ h+=nalogCard(n,"🔴",null,"hit"); }); }
     else{ h+='<div class="card" style="color:var(--muted)">Nema hitnih. Označi kamion s 🔴 kad je stvarno hitno.</div>'; }
     h+='<div class="sek-nas">Plan za danas</div>';
-    norm.forEach(function(n,i){ h+=nalogCard(n,(i+1),{first:i===0,last:i===norm.length-1},"norm"); });
+    if(norm.length){ norm.forEach(function(n,i){ h+=nalogCard(n,(i+1),{first:i===0,last:i===norm.length-1},"norm"); }); }
+    else{ h+='<div class="card" style="color:var(--muted)">Plan je prazan. Klikni <b>➕ Napravi plan</b> i upiši garažne brojeve redom.</div>'; }
     if(ceka.length){
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
