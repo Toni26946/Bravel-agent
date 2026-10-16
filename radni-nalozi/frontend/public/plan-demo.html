@@ -377,7 +377,6 @@
     if(!cekaMe.length && !radu.length && !gotovo.length && !dij.length){
       h+='<div class="ph-prazno">Nema dodijeljenih operacija.<br><span class="vozilo">Poslovođa ti ih šalje iz plana.</span></div>';
     }
-    h+='<button class="btn ghost" style="margin-top:4px" onclick="PLAN.predlozi()">➕ Predloži operaciju poslovođi <span style="opacity:.7">(Faza 2)</span></button>';
     h+='</div></div>';
     return h;
   }
@@ -456,8 +455,7 @@
 
   // --- API za inline onclick ---
   window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan,
-    setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
-    predlozi:function(){ toast("Prijedlog mehaničara → stiže u Fazi 2"); } };
+    setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs
   document.getElementById("tabs").addEventListener("click",function(e){
