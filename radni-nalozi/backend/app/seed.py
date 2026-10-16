@@ -465,6 +465,69 @@ def jednokratna_reaktivacija_roka(db: Session) -> None:
         pass
 
 
+def uvezi_sifre_iz_gs(db: Session) -> None:
+    """Jednokratno upiše šifre izostanaka (GO/BO/PD) iz Google tablice evidencije
+    (app/data/evidencija_sifre_gs.json: {"2026-7": {"radnici": {"PREZIME IME": {"dan": "GO"}}}}).
+
+    Prvi uvoz iz GS prenio je samo sate, pa su godišnji/bolovanja ispadali kao redovni
+    rad (krivo za obračun plaća). Šifra iz tablice je mjerodavna: dan postaje odsutnost
+    (od/do i sati se brišu, kao kod ručnog upisa šifre); dan kojeg nema se doda.
+    Radnik se traži po imenu (isti skup riječi bez dijakritika). Guardano zastavicom."""
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_sifre_gs_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "evidencija_sifre_gs.json"
+    if not put.exists():
+        return
+    try:
+        podaci = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Ne mogu učitati evidencija_sifre_gs.json: %s", e)
+        return
+
+    def kljuc(ime: str) -> frozenset:
+        return frozenset((ime or "").translate(_ASCII).upper().split())
+
+    po_imenu = {kljuc(k.ime): k.id for k in db.query(Korisnik).all() if k.ime}
+    upisano, nepoznati = 0, set()
+    for mj, blok in podaci.items():
+        try:
+            g, m = (int(x) for x in mj.split("-"))
+        except ValueError:
+            continue
+        for ime, dani in (blok.get("radnici") or {}).items():
+            kid = po_imenu.get(kljuc(ime))
+            if not kid:
+                nepoznati.add(ime)
+                continue
+            for d, sifra in dani.items():
+                sifra = str(sifra).strip().upper()
+                if sifra not in ("GO", "BO", "PD"):
+                    continue
+                try:
+                    dat = date(g, m, int(d))
+                except ValueError:
+                    continue
+                z = db.query(EvidencijaRV).filter(EvidencijaRV.korisnik_id == kid,
+                                                  EvidencijaRV.datum == dat).first()
+                if not z:
+                    z = EvidencijaRV(korisnik_id=kid, datum=dat)
+                    db.add(z)
+                z.kod, z.od, z.do = sifra, None, None
+                z.redovni, z.prekovremeni, z.teren = 0.0, 0.0, 0.0
+                upisano += 1
+    db.commit()
+    log.info("Šifre izostanaka iz GS: upisano %d dana; bez korisnika: %d", upisano, len(nepoznati))
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def uvezi_evidenciju_iz_gs(db: Session) -> None:
     """Jednokratni uvoz povijesnih unosa evidencije radnog vremena iz
     app/data/evidencija_gs.json (izvezeno iz Google tablice, srpanj–listopad 2026).
