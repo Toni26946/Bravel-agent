@@ -29,21 +29,32 @@ STANDARDNI_DAN = 8.0  # sati nakon kojih počinju prekovremeni
 PRAG_2H = 2.0         # dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
 
 
+def _nisu_radnici() -> set[str]:
+    """Korisnička imena koja NISU radnici radione (uprava, korisnici portala) — ne
+    pojavljuju se u evidenciji ni u izvozu za obračun (settings.evidencija_bez)."""
+    return {u.strip().lower() for u in (settings.evidencija_bez or "").split(",") if u.strip()}
+
+
 def _radnici(db: Session) -> list[Korisnik]:
     """Ekipa radione + skladišta (svi aktivni osim vozača), po imenu.
 
     Servisni (M2M) račun „Flota OS" se izostavlja — nije osoba koja evidentira sate.
+    Izostavlja se i uprava / korisnici portala (settings.evidencija_bez, npr. Toni, Velimir).
     """
-    return (
-        db.query(Korisnik)
-        .filter(
-            Korisnik.aktivan.is_(True),
-            Korisnik.uloga != Uloga.vozac,
-            Korisnik.korisnicko_ime != SERVIS_KORISNIK,
+    bez = _nisu_radnici()
+    return [
+        k for k in (
+            db.query(Korisnik)
+            .filter(
+                Korisnik.aktivan.is_(True),
+                Korisnik.uloga != Uloga.vozac,
+                Korisnik.korisnicko_ime != SERVIS_KORISNIK,
+            )
+            .order_by(Korisnik.ime)
+            .all()
         )
-        .order_by(Korisnik.ime)
-        .all()
-    )
+        if (k.korisnicko_ime or "").strip().lower() not in bez
+    ]
 
 
 def _minute(hhmm: str | None) -> int | None:
