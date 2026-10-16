@@ -52,6 +52,12 @@ _STUPCI = [
     ("registar_vozila", "norma", "VARCHAR(20)"),
     ("registar_vozila", "broj_sasije", "VARCHAR(40)"),
     ("registar_vozila", "opis", "TEXT"),
+    # Plan radione
+    ("nalozi", "plan_rang", "INTEGER"),
+    ("nalozi", "plan_hitno", "BOOLEAN DEFAULT FALSE"),
+    ("zadaci", "ceka_potvrdu", "BOOLEAN DEFAULT FALSE"),
+    ("zadaci", "razlog_prekida", "VARCHAR(12)"),
+    ("zadaci", "prekid_vrijeme", "TIMESTAMP"),
 ]
 
 

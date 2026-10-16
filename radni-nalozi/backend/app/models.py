@@ -281,6 +281,9 @@ class Nalog(Base):
     parking_otvoreno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parking_rijeseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parking_lokacija: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Plan radione (pregled za vlasnika): ručni redoslijed i oznaka hitno.
+    plan_rang: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    plan_hitno: Mapped[bool] = mapped_column(Boolean, default=False)
 
     vozilo: Mapped["Vozilo"] = relationship()
     kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
@@ -597,6 +600,10 @@ class Zadatak(Base):
     zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je mjerač pokrenut (None = ne mjeri)
     zavrseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je označeno gotovo
     utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)  # ukupno izmjereno vrijeme (sekunde)
+    # Plan radione: čeka mehaničarevu potvrdu početka; razlog prekida; vrijeme prekida (za churn).
+    ceka_potvrdu: Mapped[bool] = mapped_column(Boolean, default=False)
+    razlog_prekida: Mapped[str | None] = mapped_column(String(12), nullable=True)  # 'nije' | 'dijelovi'
+    prekid_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")
@@ -625,6 +632,24 @@ class ZadatakRadnikVrijeme(Base):
 
     zadatak: Mapped["Zadatak"] = relationship(back_populates="vremena")
     radnik: Mapped["Korisnik"] = relationship()
+
+
+class PlanDogadaj(Base):
+    """Dnevnik promjena plana (churn) za Plan radione — tko, kad, što.
+
+    Bilježi se: radnik maknut s operacije, novi zadatak dok prethodni nije gotov,
+    prelazak na drugu operaciju bez završetka prethodne (unutar prozora)."""
+    __tablename__ = "plan_dogadaji"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    datum: Mapped[date] = mapped_column(Date, index=True, default=lambda: datetime.now(timezone.utc).date())
+    vrijeme: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    tip: Mapped[str] = mapped_column(String(24))
+    opis: Mapped[str] = mapped_column(Text)
+    nalog_id: Mapped[int | None] = mapped_column(ForeignKey("nalozi.id", ondelete="SET NULL"), nullable=True)
+    zadatak_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    radnik_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
 
 
 class EvidencijaRV(Base):

@@ -177,7 +177,7 @@
     <section id="v-pl" hidden></section>
     <section id="v-meh" hidden></section>
     <section id="v-dash" hidden></section>
-    <div class="foot">Prototip toka „jutarnji plan → potvrda početka na mobitelu → praćenje". Nije spojen na pravi sustav — podaci su primjer.</div>
+    <div class="foot">Plan radione — spojeno na stvarne naloge. Vidljivo samo vlasniku. Osvježava se automatski.</div>
   </div>
 </main>
 
@@ -195,46 +195,34 @@
 <script>
 (function(){
   "use strict";
-  var MEH = [
-    {id:1, ime:"Ankudy Midhun"},
-    {id:2, ime:"Antony Jeffin"},
-    {id:3, ime:"Baček Matija"},
-    {id:4, ime:"Kahlina Igor"},
-    {id:5, ime:"Azinović Mario"}
-  ];
-  function meh(id){ for(var i=0;i<MEH.length;i++) if(MEH[i].id===id) return MEH[i]; return null; }
-
-  var opSeq = 100;
-  function op(naziv,kat,mehId){ return {id:++opSeq, naziv:naziv, kat:kat, mehId:mehId||null, status:"plan", startTs:null, akumSek:0}; }
-
-  // Nalozi (kamioni) s operacijama — primjer jednog jutra
-  var nalozi = [
-    {id:1, gb:"142", vozilo:"MAN TGS 26.440", reg:"ZG8511FN", rang:1, cekaDijelove:false, ops:[
-      op("Zamjena prednjih kočnica","Kočnice",1),
-      op("Pregled ovjesa","Ovjes",null)
-    ]},
-    {id:2, gb:"193", vozilo:"DAF XF 460 FT", reg:"DBL580", rang:2, cekaDijelove:false, ops:[
-      op("Servis — ulje i filteri","Servis",3)
-    ]},
-    {id:3, gb:"21", vozilo:"MAN TGS 26.440", reg:"ZG5324KM", rang:3, cekaDijelove:false, hitno:true, ops:[
-      op("Popravak blatobrana","Blatobrani",4),
-      op("Elektrika — stop svjetlo","Elektrika",null)
-    ]},
-    {id:4, gb:"155", vozilo:"MAN TGS 6x4 BL", reg:"ZG6203FR", rang:4, cekaDijelove:true, ops:[
-      op("Zamjena mjenjača — čeka dio","Prijenos",5)
-    ]}
-  ];
-  var _ulaz={1:1565,2:85,3:40,4:180}; // minute od ulaska u red (za demo; GB142 >24h → prikaz u danima)
-  nalozi.forEach(function(n){ n.hitno = n.hitno===true; n.usaoTs = Date.now() - ((_ulaz[n.id]||30)*60000); });
-
-  var planZakljucan = false;
+  var MEH = [];           // mehaničari — iz API-ja
+  var nalozi = [];        // nalozi/operacije — iz API-ja
+  var promjeneLog = [];   // dnevnik promjena plana (churn) — iz API-ja
   var promjene = 0;
-  var promjeneLog = [];
   var logOtvoren = false;
-  var cekaChurn = {}; // mehId -> deadline (ms): "nije gotovo" pa na drugu u 10 min = promjena plana
-  var PROZOR_MIN = 5, KRAJ_H = 14, KRAJ_M = 45;
-  var prikazMeh = 1;      // koga gledamo u mobitel-pogledu
+  var planZakljucan = false;   // samo vizualno
+  var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
+  var MAX_HITNO = 3;
+
+  function meh(id){ for(var i=0;i<MEH.length;i++) if(MEH[i].id===id) return MEH[i]; return {ime:""}; }
+
+  // --- API (isti origin → token iz app localStorage) ---
+  function token(){ try { return localStorage.getItem("token"); } catch(_){ return null; } }
+  function api(path, method, body){
+    var h={"Content-Type":"application/json"}; var t=token(); if(t) h.Authorization="Bearer "+t;
+    return fetch("/api/plan"+path, { method:method||"GET", headers:h, body: body!==undefined?JSON.stringify(body):undefined })
+      .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.detail||("Greška "+r.status)); }); return r.json().catch(function(){return {};}); });
+  }
+  var _busy=false;
+  function ucitaj(){
+    return api("").then(function(d){
+      MEH=d.mehanicari||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
+      if(prikazMeh===null && MEH.length) prikazMeh=MEH[0].id;
+      render();
+    }).catch(function(e){ toast(e.message||"Greška pri učitavanju"); });
+  }
+  function act(p, body){ if(_busy) return; _busy=true; return api(p,"POST",body).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
 
   // --- pomoćno ---
   function svabOps(){ var a=[]; nalozi.forEach(function(n){ n.ops.forEach(function(o){ a.push({n:n,o:o}); }); }); return a; }
@@ -245,67 +233,38 @@
   function cekaSek(n){ return (Date.now()-n.usaoTs)/1000; }
   function napredak(n){ var tot=n.ops.length, done=n.ops.filter(function(o){return o.status==="gotovo";}).length; return {tot:tot,done:done,pct:tot?Math.round(done/tot*100):0}; }
   function cekanjeTxt(sek){ sek=Math.max(0,Math.floor(sek)); if(sek>=86400){ var d=Math.floor(sek/86400), h=Math.floor((sek%86400)/3600); return d+(d===1?" dan ":" dana ")+h+" h"; } return trajanje(sek); }
-  function poslijeSmjene(){ var d=new Date(); return d.getHours()>KRAJ_H || (d.getHours()===KRAJ_H && d.getMinutes()>=KRAJ_M); }
-  function promjenaPlana(tekst){ promjene++; promjeneLog.push({t:Date.now(), tekst:tekst}); }
   function vrijemeHM(ts){ var d=new Date(ts); var p=function(x){return(x<10?"0":"")+x;}; return p(d.getHours())+":"+p(d.getMinutes()); }
   function nalogZavrsen(n){ return n.ops.length>0 && n.ops.every(function(o){return o.status==="gotovo";}); }
   function brHitnih(){ return nalozi.filter(function(n){return n.hitno && !n.cekaDijelove;}).length; }
-  var MAX_HITNO=3;
   function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
   var CH = {plan:"c-plan",ceka:"c-ceka",radu:"c-radu",gotovo:"c-gotovo",dijelovi:"c-ceka",pauza:"c-ceka"};
   var LBL = {plan:"Planirano",ceka:"Čeka potvrdu",radu:"U tijeku",gotovo:"Gotovo",dijelovi:"⛔ Čeka dio",pauza:"⏸ Nije gotovo"};
 
-  // --- akcije ---
-  function imaNezavrseno(mehId, exclOp){ return svabOps().some(function(x){ return x.o.mehId===mehId && x.o.id!==exclOp && (x.o.status==="ceka"||x.o.status==="radu"); }); }
-  function posalji(opId){ var o=find(opId); if(!(o&&o.status==="plan"&&o.mehId)) return;
-    var wip=imaNezavrseno(o.mehId,opId); o.status="ceka";
-    if(wip){ var _nw=nalByOp(opId); promjenaPlana(meh(o.mehId).ime+" dobio novu dok prethodna nije gotova (GB "+(_nw?_nw.gb:"")+")"); toast("⚠️ "+meh(o.mehId).ime+" još nije završio prethodnu — poslano, promjena plana +1"); }
-    else toast("Poslano na potvrdu → "+meh(o.mehId).ime);
-    render(); }
-  function makniRadnika(opId){ var o=find(opId); if(!o) return; var ime=o.mehId?meh(o.mehId).ime:""; if(o.status==="radu"){ o.akumSek=zivoSek(o); o.startTs=null; } o.status="plan"; var _n=nalByOp(opId); o.mehId=null; promjenaPlana("Radnik maknut — "+ime+" (GB "+(_n?_n.gb:"")+")"); toast("↩︎ "+ime+" maknut s operacije — promjena plana +1"); render(); }
+  // --- akcije (zovu API pa osvježe) ---
+  function find(opId){ var all=svabOps(); for(var i=0;i<all.length;i++) if(all[i].o.id===opId) return all[i].o; return null; }
+  function nalById(id){ for(var i=0;i<nalozi.length;i++) if(nalozi[i].id===id) return nalozi[i]; return null; }
+  function posalji(opId){ act("/zadatak/"+opId+"/posalji"); }
+  function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
+  function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
+  function makniRadnika(opId){ act("/zadatak/"+opId+"/makni-radnika"); }
+  function dioStigao(opId){ act("/zadatak/"+opId+"/dio-stigao"); }
+  function hitno(nid){ var n=nalById(nid); if(!n||n.cekaDijelove) return;
+    if(!n.hitno && brHitnih()>=MAX_HITNO){ toast("⚠️ Najviše "+MAX_HITNO+" hitna vozila — prvo makni jedno"); return; }
+    api("/nalog/"+nid+"/hitno","PATCH",{hitno:!n.hitno}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); }); }
+  function pomakni(nid,dir){
+    var akt=nalozi.filter(function(n){return !n.cekaDijelove && !n.hitno;}).slice().sort(function(a,b){return a.rang-b.rang;});
+    var idx=-1; for(var i=0;i<akt.length;i++) if(akt[i].id===nid) idx=i;
+    var j=idx+dir; if(idx<0||j<0||j>=akt.length) return;
+    var tmp=akt[idx]; akt[idx]=akt[j]; akt[j]=tmp;
+    api("/redoslijed","PUT",{redoslijed: akt.map(function(n){return n.id;})}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); });
+  }
+  function zakljucaj(){ planZakljucan=!planZakljucan; toast(planZakljucan?"🔒 Plan dana zaključan":"Plan otključan"); render(); }
+  function toggleLog(){ logOtvoren=!logOtvoren; render(); }
+  // Prekid operacije (modal): gotovo / nije gotovo / nema dijelova
   var stopOp=null;
   function openStop(opId){ var o=find(opId); if(!o) return; stopOp=opId; var n=nalByOp(opId); document.getElementById("modal-sub").textContent=(n?"GB "+n.gb+" · ":"")+o.naziv; document.getElementById("modal").hidden=false; }
   function closeStop(){ stopOp=null; document.getElementById("modal").hidden=true; }
-  function chooseStop(r){ var o=find(stopOp); if(o){ o.akumSek=zivoSek(o); o.startTs=null;
-    if(r==="gotovo"){ o.status="gotovo"; toast("✅ Operacija gotova"); }
-    else if(r==="nije"){ o.status="pauza";
-      if(poslijeSmjene()){ toast("⏸ Nije gotovo — nakon "+KRAJ_H+":"+KRAJ_M+" (kraj smjene), ne broji se"); }
-      else { var mid=o.mehId; cekaChurn[mid]={t:Date.now()+PROZOR_MIN*60000, op:o.id};
-        setTimeout(function(){ if(cekaChurn[mid] && Date.now()>=cekaChurn[mid].t) delete cekaChurn[mid]; }, PROZOR_MIN*60000+500);
-        toast("⏸ Nije gotovo — ako u "+PROZOR_MIN+" min krene na DRUGU, broji se kao promjena plana"); }
-    }
-    else if(r==="dijelovi"){ o.status="dijelovi"; toast("⛔ Prekinuto — nema dijelova (javljeno)"); }
-  } closeStop(); render(); }
-  function dioStigao(opId){ var o=find(opId); if(o&&o.status==="dijelovi"){ o.status=(o.akumSek>0?"pauza":"ceka"); toast("📦 Dio stigao — vraćeno u rad"); render(); } }
-  function toggleLog(){ logOtvoren=!logOtvoren; render(); }
-  function potvrdi(opId){ var o=find(opId); if(!(o&&(o.status==="ceka"||o.status==="pauza"))) return;
-    // Jedan radnik = jedna aktivna operacija: pauziraj drugu koja mu trenutno radi.
-    var drugi=svabOps().filter(function(x){ return x.o.mehId===o.mehId && x.o.id!==opId && x.o.status==="radu"; });
-    drugi.forEach(function(x){ x.o.akumSek=zivoSek(x.o); x.o.startTs=null; x.o.status="pauza"; });
-    o.status="radu"; o.startTs=Date.now();
-    var cc=cekaChurn[o.mehId];
-    var churn = cc && Date.now()<cc.t && cc.op!==opId;   // broji samo ako je prešao na DRUGU operaciju
-    if(cc) delete cekaChurn[o.mehId];
-    if(churn){ var _nc=nalByOp(opId); promjenaPlana(meh(o.mehId).ime+" prešao na drugu bez završetka prethodne (GB "+(_nc?_nc.gb:"")+")"); toast("▶️ Prešao na drugu bez završetka prethodne → promjena plana +1"); }
-    else if(drugi.length) toast("Početak potvrđen — prethodna pauzirana (jedan radnik = jedna operacija)");
-    else toast("Početak potvrđen — mjerač teče");
-    render(); }
-  function zavrsi(opId){ var o=find(opId); if(o&&o.status==="radu"){ o.akumSek=zivoSek(o); o.startTs=null; o.status="gotovo"; toast("Operacija gotova"); render(); } }
-  function dodijeli(opId,mehId){ var o=find(opId); if(o){ o.mehId=mehId?parseInt(mehId,10):null; render(); } }
-  function find(opId){ var all=svabOps(); for(var i=0;i<all.length;i++) if(all[i].o.id===opId) return all[i].o; return null; }
-  function nalById(id){ for(var i=0;i<nalozi.length;i++) if(nalozi[i].id===id) return nalozi[i]; return null; }
-  function hitno(nid){ var n=nalById(nid); if(!n||n.cekaDijelove) return;
-    if(!n.hitno && brHitnih()>=MAX_HITNO){ toast("⚠️ Najviše "+MAX_HITNO+" hitna vozila — prvo makni jedno"); return; }
-    n.hitno=!n.hitno; if(planZakljucan) promjenaPlana(n.hitno?("Označeno HITNO — GB "+n.gb):("Maknut hitni — GB "+n.gb)); toast(n.hitno?"🔴 Označeno HITNO — GB "+n.gb:"Maknuto hitno — GB "+n.gb); render(); }
-  function pomakni(nid,dir){
-    var akt=nalozi.filter(function(n){return !n.cekaDijelove;}).sort(function(a,b){return a.rang-b.rang;});
-    var idx=akt.findIndex(function(n){return n.id===nid;});
-    var j=idx+dir; if(j<0||j>=akt.length) return;
-    var r=akt[idx].rang; akt[idx].rang=akt[j].rang; akt[j].rang=r;
-    if(planZakljucan){ promjenaPlana("Preslagivanje prioriteta — GB "+akt[idx].gb); toast("⚠️ Promjena zaključanog plana zabilježena"); }
-    render();
-  }
-  function zakljucaj(){ planZakljucan=!planZakljucan; toast(planZakljucan?"🔒 Plan dana zaključan":"Plan otključan"); render(); }
+  function chooseStop(r){ var id=stopOp; closeStop(); if(id) act("/zadatak/"+id+"/prekini", {razlog:r}); }
 
   // --- render: Poslovođa ---
   function nalogCard(n, rankTxt, idxObj, lane){
@@ -471,7 +430,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, potvrdi:potvrdi, zavrsi:zavrsi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog,
+  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     predlozi:function(){ toast("Prijedlog mehaničara → stiže u Fazi 2"); } };
 
@@ -489,7 +448,9 @@
   document.getElementById("datum").textContent = dani[d.getDay()]+" "+d.getDate()+"."+mj+"."+d.getFullYear()+".";
 
   render();
-  setInterval(tick,1000);
+  ucitaj();                        // početni dohvat stvarnih podataka
+  setInterval(tick,1000);          // živi mjerači
+  setInterval(function(){ if(!_busy) ucitaj(); }, 8000);  // osvježi iz baze (multi-user)
 })();
 </script>
 
