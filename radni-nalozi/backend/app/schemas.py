@@ -868,6 +868,7 @@ class EvidencijaRadnik(BaseModel):
     prekovremeni: float = 0
     teren: float = 0
     radni_dani: int = 0
+    prekovremeni_2h: int = 0   # broj dana s prekovremenim ≥ 2 h
     go: int = 0
     bo: int = 0
     pd: int = 0

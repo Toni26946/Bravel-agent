@@ -48,15 +48,18 @@ function izracun(od, doo, kod) {
   return { redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)) }
 }
 
+const PRAG_2H = 2   // dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
+
 function zbroji(r) {
-  let redovno = 0, prekovremeni = 0, teren = 0, radni_dani = 0, go = 0, bo = 0, pd = 0
+  let redovno = 0, prekovremeni = 0, teren = 0, radni_dani = 0, go = 0, bo = 0, pd = 0, prekovremeni_2h = 0
   for (const k in r.dani) {
     const d = r.dani[k]
     redovno += d.redovni || 0; prekovremeni += d.prekovremeni || 0; teren += d.teren || 0
     if ((d.redovni || 0) > 0 || (d.prekovremeni || 0) > 0) radni_dani += 1
+    if ((d.prekovremeni || 0) >= PRAG_2H) prekovremeni_2h += 1
     if (d.kod === 'GO') go += 1; else if (d.kod === 'BO') bo += 1; else if (d.kod === 'PD') pd += 1
   }
-  return { ...r, redovno: r2(redovno), prekovremeni: r2(prekovremeni), teren: r2(teren), radni_dani, go, bo, pd, ukupno_redovnih: r2(redovno) }
+  return { ...r, redovno: r2(redovno), prekovremeni: r2(prekovremeni), teren: r2(teren), radni_dani, prekovremeni_2h, go, bo, pd, ukupno_redovnih: r2(redovno) }
 }
 
 export default function EvidencijaRV() {
@@ -139,6 +142,7 @@ export default function EvidencijaRV() {
                   <th className="ev-sticky ev-ime">{t('ev.radnik')}</th>
                   <th title={t('ev.redovno')}>{t('ev.redovno')}</th>
                   <th title={t('ev.prekovremeni')}>{t('ev.prekShort')}</th>
+                  <th title={t('ev.prek2hPomoc')}>{t('ev.prek2h')}</th>
                   <th title={t('ev.teren')}>{t('ev.terenShort')}</th>
                   <th title={t('ev.radniDani')}>d</th>
                   <th>GO</th><th>BO</th><th>PD</th>
@@ -156,6 +160,7 @@ export default function EvidencijaRV() {
                     <td className="ev-sticky ev-ime" title={r.ime}>{r.ime}</td>
                     <td className="ev-zbroj">{fmt(r.redovno)}</td>
                     <td className="ev-zbroj">{fmt(r.prekovremeni)}</td>
+                    <td className="ev-zbroj">{r.prekovremeni_2h || ''}</td>
                     <td className="ev-zbroj">{fmt(r.teren)}</td>
                     <td className="ev-zbroj">{r.radni_dani || ''}</td>
                     <td className="ev-zbroj">{r.go || ''}</td>
@@ -178,6 +183,7 @@ export default function EvidencijaRV() {
 }
 
 function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
+  const { t } = useT()
   const [od, setOd] = useState(dan?.od || '')
   const [doo, setDoo] = useState(dan?.do || '')
   const [kod, setKod] = useState(dan?.kod || '')
@@ -223,15 +229,15 @@ function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
           onChange={(e) => setDoo(e.target.value)} onBlur={(e) => blurVrijeme('do', e.target.value)} />
       </div>
       <div className="ev-red2">
-        <select className="ev-in ev-kodsel" value={kod} onChange={(e) => promijeniKod(e.target.value)}>
+        <select className="ev-in ev-kodsel" value={kod} title={t('ev.kodPomoc')} onChange={(e) => promijeniKod(e.target.value)}>
           <option value="">–</option>
           <option value="GO">GO</option>
           <option value="BO">BO</option>
           <option value="PD">PD</option>
           <option value="OD">OD</option>
         </select>
-        <input className="ev-in ev-teren" value={teren} inputMode="decimal" placeholder="ter"
-          onChange={(e) => setTeren(e.target.value)} onBlur={blurTeren} />
+        <input className="ev-in ev-teren" value={teren} inputMode="decimal" placeholder={t('ev.terenPh')}
+          title={t('ev.terenPomoc')} onChange={(e) => setTeren(e.target.value)} onBlur={blurTeren} />
       </div>
       {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
         <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}</div>

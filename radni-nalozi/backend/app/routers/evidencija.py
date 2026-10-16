@@ -24,6 +24,7 @@ evidencija_pristup = zahtijevaj_uloge(Uloga.skladistar, Uloga.voditelj, Uloga.po
 
 KODOVI = {"GO", "BO", "PD", "OD"}
 STANDARDNI_DAN = 8.0  # sati nakon kojih počinju prekovremeni
+PRAG_2H = 2.0         # dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
 
 
 def _radnici(db: Session) -> list[Korisnik]:
@@ -105,6 +106,8 @@ def dohvati_mjesec(
             r.teren += z.teren or 0
             if (z.redovni or 0) > 0 or (z.prekovremeni or 0) > 0:
                 r.radni_dani += 1
+            if (z.prekovremeni or 0) >= PRAG_2H:
+                r.prekovremeni_2h += 1
             if z.kod == "GO":
                 r.go += 1
             elif z.kod == "BO":
@@ -176,7 +179,7 @@ def izvoz(
     ws = wb.active
     ws.title = f"{godina}-{mjesec:02d}"
 
-    zbirni = ["RB", "Radnik", "Redovno", "Prekovremeni", "Teren", "Radni dani", "GO", "BO", "PD", "Ukupno redovnih"]
+    zbirni = ["RB", "Radnik", "Redovno", "Prekovremeni", "2h+", "Teren", "Radni dani", "GO", "BO", "PD", "Ukupno redovnih"]
     po_danu = ["OD", "DO", "Redovni", "Prekovremeni", "Teren"]
     zaglavlje1 = list(zbirni) + []
     zaglavlje2 = [""] * len(zbirni)
@@ -190,7 +193,7 @@ def izvoz(
             c.font = c.font.copy(bold=True)
 
     for i, r in enumerate(podaci.radnici, start=1):
-        red = [i, r.ime, r.redovno, r.prekovremeni, r.teren, r.radni_dani, r.go, r.bo, r.pd, r.ukupno_redovnih]
+        red = [i, r.ime, r.redovno, r.prekovremeni, r.prekovremeni_2h, r.teren, r.radni_dani, r.go, r.bo, r.pd, r.ukupno_redovnih]
         for d in range(1, dana + 1):
             kljuc = date(godina, mjesec, d).isoformat()
             dan = r.dani.get(kljuc)
