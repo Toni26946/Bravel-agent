@@ -57,6 +57,8 @@
   .btn:disabled{opacity:.45;cursor:default}
   select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--card);color:var(--fg)}
   .gb{font-weight:800;font-size:15px}
+  .gb-link{color:var(--plava);cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+  .gb-link:hover{opacity:.8}
   .vozilo{color:var(--muted);font-weight:600;font-size:12.5px}
 
   /* --- Poslovođa --- */
@@ -265,11 +267,19 @@
   function closeStop(){ stopOp=null; document.getElementById("modal").hidden=true; }
   function chooseStop(r){ var id=stopOp; closeStop(); if(id) act("/zadatak/"+id+"/prekini", {razlog:r}); }
 
+  // Klik na garažni broj → otvori cijeli nalog u aplikaciji (preko roditeljskog okvira).
+  function otvoriNalog(id){
+    if(window.parent && window.parent!==window){
+      try{ window.parent.postMessage({tip:"plan-otvori-nalog", id:id}, location.origin); return; }catch(e){}
+    }
+    location.href="/nalozi/"+id;
+  }
+
   // --- render: Poslovođa ---
   function nalogCard(n, rankTxt, idxObj, lane){
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+'</option>'; }); return s; };
     var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
-    h+='<div class="nhead"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
+    h+='<div class="nhead"><span class="gb gb-link" onclick="PLAN.otvoriNalog('+n.id+')" title="Otvori cijeli nalog">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
     // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
@@ -335,7 +345,7 @@
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
         h+='<div class="card nalog dim"><div class="rang">—</div><div class="nbody">'+
-           '<div class="nhead"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span> <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
+           '<div class="nhead"><span class="gb gb-link" onclick="PLAN.otvoriNalog('+n.id+')" title="Otvori cijeli nalog">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span> <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
         n.ops.forEach(function(o){ h+='<div class="op"><span class="opn">'+esc(o.naziv)+'</span></div>'; });
         h+='</div></div>';
       });
@@ -401,7 +411,7 @@
       var np=napredak(n), mehs={};
       n.ops.forEach(function(o){ if(o.mehId) mehs[o.mehId]=1; });
       var who=Object.keys(mehs).map(function(id){return esc(meh(parseInt(id,10)).ime);}).join(", ");
-      return '<div class="dcard"'+(n.hitno?' style="border-color:var(--crveno)"':'')+'><div class="g">'+(n.hitno?'🔴 ':'')+'GB '+esc(n.gb)+' <span class="vozilo">'+esc(n.vozilo)+'</span></div>'+
+      return '<div class="dcard"'+(n.hitno?' style="border-color:var(--crveno)"':'')+'><div class="g">'+(n.hitno?'🔴 ':'')+'<span class="gb-link" onclick="PLAN.otvoriNalog('+n.id+')" title="Otvori cijeli nalog">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span></div>'+
              '<div class="o">'+np.done+'/'+np.tot+' operacija · '+np.pct+'%</div>'+
              '<div class="m">'+(who?'👷 '+who:'<span style="color:var(--s-plan)">bez radnika</span>')+'</div></div>';
     };
@@ -454,7 +464,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan,
+  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, otvoriNalog:otvoriNalog,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs
