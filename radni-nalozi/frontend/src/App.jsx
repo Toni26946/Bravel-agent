@@ -29,6 +29,7 @@ import VoziloDetalj from './pages/VoziloDetalj'
 import Skladiste from './pages/Skladiste'
 import SkladisteDashboard from './pages/SkladisteDashboard'
 import EvidencijaRV from './pages/EvidencijaRV'
+import Plan from './pages/Plan'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
@@ -85,6 +86,9 @@ export default function App() {
       {/* AI Poslovođa (norme, učinak, postavke): voditelj + poslovođa */}
       <Route path="/poslovodja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Poslovodja /></Zasticeno>} />
       <Route path="/moj-ucinak" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><MojUcinak /></Zasticeno>} />
+
+      {/* Plan radione (pregled) — SAMO vlasnik (ai_poslovodja = 'toni') */}
+      <Route path="/plan" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{korisnik?.ai_poslovodja ? <Plan /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

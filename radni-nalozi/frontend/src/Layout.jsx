@@ -94,6 +94,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
