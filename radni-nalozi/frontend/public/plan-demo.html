@@ -247,7 +247,12 @@
   function zakljucaj(){ planZakljucan=!planZakljucan; toast(planZakljucan?"🔒 Plan dana zaključan":"Plan otključan"); render(); }
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
   function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
-  function planMode(on){ _planMode=!!on; render(); if(on) setTimeout(_fokusGB,0); }
+  function planMode(on){
+    if(on){ _planMode=true;
+      api("/ocisti","POST").then(function(){ toast("Novi plan — upiši garažne brojeve redom"); return ucitaj(); })
+        .then(function(){ setTimeout(_fokusGB,0); }).catch(function(e){ toast(e.message||"Greška"); render(); });
+    } else { _planMode=false; render(); }
+  }
   function gbKey(ev,el){ if(ev.key==="Enter"){ ev.preventDefault(); dodajGB(el.value); } }
   function dodajGB(gb){ gb=(gb||"").trim(); if(!gb) return;
     api("/dodaj","POST",{gb:gb}).then(function(r){ toast("✅ GB "+(r&&r.gb||gb)+" dodan u plan"); return ucitaj(); })
