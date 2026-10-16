@@ -63,6 +63,9 @@
   .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
   .pl-top .brojac{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
   .brojac-btn{margin-left:auto;background:var(--plava-soft);color:var(--plava);border:0;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
+  .plan-maker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--plava-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
+  .plan-maker .pm-lbl{font-size:12.5px;font-weight:700;color:var(--plava)}
+  .plan-maker input{flex:1;min-width:120px;max-width:200px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;font-size:16px;font-weight:700;background:var(--card);color:var(--fg)}
   .log-pop{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px}
   .log-h{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
   .log-row{font-size:12.5px;padding:5px 0;border-top:1px dashed var(--line);display:flex;gap:10px}
@@ -182,6 +185,7 @@
   var promjeneLog = [];   // dnevnik promjena plana (churn) — iz API-ja
   var promjene = 0;
   var logOtvoren = false;
+  var _planMode = false;
   var planZakljucan = false;   // samo vizualno
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
@@ -242,6 +246,13 @@
   }
   function zakljucaj(){ planZakljucan=!planZakljucan; toast(planZakljucan?"🔒 Plan dana zaključan":"Plan otključan"); render(); }
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
+  function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
+  function planMode(on){ _planMode=!!on; render(); if(on) setTimeout(_fokusGB,0); }
+  function gbKey(ev,el){ if(ev.key==="Enter"){ ev.preventDefault(); dodajGB(el.value); } }
+  function dodajGB(gb){ gb=(gb||"").trim(); if(!gb) return;
+    api("/dodaj","POST",{gb:gb}).then(function(r){ toast("✅ GB "+(r&&r.gb||gb)+" dodan u plan"); return ucitaj(); })
+      .catch(function(e){ toast(e.message||"Greška"); }).then(_fokusGB); }
+  function ocistiPlan(){ api("/ocisti","POST").then(function(){ toast("Plan očišćen — kreni novi"); return ucitaj(); }).then(_fokusGB); }
   // Prekid operacije (modal): gotovo / nije gotovo / nema dijelova
   var stopOp=null;
   function openStop(opId){ var o=find(opId); if(!o) return; stopOp=opId; var n=nalByOp(opId); document.getElementById("modal-sub").textContent=(n?"GB "+n.gb+" · ":"")+o.naziv; document.getElementById("modal").hidden=false; }
@@ -281,15 +292,27 @@
   }
   function renderPL(){
     var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n);});
-    var _poDovrsenosti=function(a,b){ return napredak(b).pct - napredak(a).pct || a.rang-b.rang; };
-    var hitni=aktSvi.filter(function(n){return n.hitno;}).sort(_poDovrsenosti);
-    var norm=aktSvi.filter(function(n){return !n.hitno;}).sort(_poDovrsenosti);
+    var _cmp=function(a,b){
+      var ar=(a.rang==null), br=(b.rang==null);
+      if(ar!==br) return ar?1:-1;                 // u planu (ručni redoslijed) ide prvo
+      if(!ar) return a.rang-b.rang;               // po utipkanom redoslijedu
+      return napredak(b).pct - napredak(a).pct;   // ostali po dovršenosti
+    };
+    var hitni=aktSvi.filter(function(n){return n.hitno;}).sort(_cmp);
+    var norm=aktSvi.filter(function(n){return !n.hitno;}).sort(_cmp);
     var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
     var h='';
     h+='<div class="pl-top">'+
-         '<button class="btn '+(planZakljucan?'':'ghost')+' sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔒 Plan zaključan — otključaj':'🔒 Zaključaj plan')+'</button>'+
+         '<button class="btn sm" onclick="PLAN.planMode(true)">➕ Napravi plan</button>'+
+         '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔒 Otključaj':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
+    if(_planMode){
+      h+='<div class="plan-maker"><span class="pm-lbl">Upiši garažni broj + Enter (redom):</span>'+
+         '<input id="gb-unos" placeholder="npr. 97" autocomplete="off" onkeydown="PLAN.gbKey(event,this)">'+
+         '<button class="btn ghost sm" onclick="PLAN.ocistiPlan()">🗑 Očisti plan</button>'+
+         '<button class="btn ghost sm" onclick="PLAN.planMode(false)">Gotovo</button></div>';
+    }
     if(logOtvoren){
       h+='<div class="log-pop"><div class="log-h">Promjene plana danas ('+promjeneLog.length+')</div>';
       if(promjeneLog.length){ for(var li=promjeneLog.length-1; li>=0; li--){ h+='<div class="log-row"><span class="log-t">'+vrijemeHM(promjeneLog[li].t)+'</span><span>'+esc(promjeneLog[li].tekst)+'</span></div>'; } }
@@ -413,7 +436,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog,
+  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     predlozi:function(){ toast("Prijedlog mehaničara → stiže u Fazi 2"); } };
 
@@ -433,7 +456,7 @@
   render();
   ucitaj();                        // početni dohvat stvarnih podataka
   setInterval(tick,1000);          // živi mjerači
-  setInterval(function(){ if(!_busy) ucitaj(); }, 8000);  // osvježi iz baze (multi-user)
+  setInterval(function(){ if(!_busy && !_planMode) ucitaj(); }, 8000);  // osvježi iz baze (ne dok slažeš plan)
 })();
 </script>
 
