@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja
@@ -134,7 +135,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             "id": n.id, "gb": _gb(n),
             "vozilo": naziv or (n.naslov or ""),
             "reg": (voz.registracija if voz else "") or "",
-            "rang": n.plan_rang if n.plan_rang is not None else (i + 1),
+            "rang": n.plan_rang,
             "hitno": bool(n.plan_hitno),
             "cekaDijelove": n.status == StatusNaloga.ceka_dijelove,
             "usaoTs": _ms(n.kreiran),
@@ -180,6 +181,41 @@ def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
         n = db.get(Nalog, nid)
         if n:
             n.plan_rang = i
+    db.commit()
+    return {"ok": True}
+
+
+class DodajIn(BaseModel):
+    gb: str
+
+
+@router.post("/dodaj")
+def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Dodaj kamion (po garažnom broju) na KRAJ plana — za brzo slaganje plana
+    tipkanjem GB-ova. Vraća na koju je poziciju došao."""
+    gb = (p.gb or "").strip()
+    if not gb:
+        raise HTTPException(status_code=400, detail="Upiši garažni broj")
+    g = gb.lstrip("0") or gb
+    nalog = None
+    for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
+        ng = _gb(n)
+        if ng == gb or (ng.lstrip("0") or ng) == g:
+            nalog = n
+            break
+    if not nalog:
+        raise HTTPException(status_code=404, detail=f"Nema aktivnog naloga za GB {gb}")
+    maxr = db.query(func.max(Nalog.plan_rang)).filter(Nalog.status.in_(_AKTIVNI)).scalar()
+    nalog.plan_rang = (maxr if maxr is not None else -1) + 1
+    db.commit()
+    return {"ok": True, "gb": _gb(nalog), "rang": nalog.plan_rang}
+
+
+@router.post("/ocisti")
+def ocisti_plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Obriši ručni redoslijed (plan_rang) sa svih naloga — kreni novi plan."""
+    for n in db.query(Nalog).filter(Nalog.plan_rang.isnot(None)).all():
+        n.plan_rang = None
     db.commit()
     return {"ok": True}
 
