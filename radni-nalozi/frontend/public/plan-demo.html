@@ -254,7 +254,7 @@
     h+='<div class="nhead"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
-    if(lane==="norm"){ h+='<button onclick="PLAN.pomakni('+n.id+',-1)" '+(idxObj.first?'disabled':'')+'>↑</button><button onclick="PLAN.pomakni('+n.id+',1)" '+(idxObj.last?'disabled':'')+'>↓</button>'; }
+    // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
     h+='</span></div>';
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
@@ -280,8 +280,9 @@
   }
   function renderPL(){
     var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n);});
-    var hitni=aktSvi.filter(function(n){return n.hitno;}).sort(function(a,b){return a.rang-b.rang;});
-    var norm=aktSvi.filter(function(n){return !n.hitno;}).sort(function(a,b){return a.rang-b.rang;});
+    var _poDovrsenosti=function(a,b){ return napredak(b).pct - napredak(a).pct || a.rang-b.rang; };
+    var hitni=aktSvi.filter(function(n){return n.hitno;}).sort(_poDovrsenosti);
+    var norm=aktSvi.filter(function(n){return !n.hitno;}).sort(_poDovrsenosti);
     var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
     var h='';
     h+='<div class="pl-top">'+
@@ -294,7 +295,7 @@
       else h+='<div class="vozilo" style="padding:4px 0">Još nema promjena plana danas.</div>';
       h+='</div>';
     }
-    h+='<p class="hint">Posloži prioritete (↑/↓), dodijeli mehaničara i pošalji operaciju <b>na potvrdu</b>. Kamion koji baš gori označi s <b>🔴</b> — ide u traku HITNO (preskače red). Mjerač kreće tek kad mehaničar potvrdi početak.</p>';
+    h+='<p class="hint">Poredano po <b>dovršenosti</b> (najviše dovršeni na vrhu). Dodijeli mehaničara i pošalji operaciju <b>na potvrdu</b>. Kamion koji baš gori označi s <b>🔴</b> — ide u traku HITNO (preskače red). Mjerač kreće tek kad mehaničar potvrdi početak.</p>';
     h+='<div class="sek-nas hitno-head">🔴 Hitno — preskače red</div>';
     if(hitni.length){ hitni.forEach(function(n){ h+=nalogCard(n,"🔴",null,"hit"); }); }
     else{ h+='<div class="card" style="color:var(--muted)">Nema hitnih. Označi kamion s 🔴 kad je stvarno hitno.</div>'; }
