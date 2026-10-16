@@ -27,6 +27,7 @@ from .seed import (
     uvezi_evidenciju_iz_gs,
     uvezi_sifre_iz_gs,
     spoji_azinovica,
+    subote_bez_15,
     migriraj_zaduzene_u_radnike,
     ocisti_mjerace_bez_radnika,
     osiguraj_kovacevica,
@@ -66,6 +67,7 @@ async def lifespan(app: FastAPI):
         uvezi_evidenciju_iz_gs(db)
         uvezi_sifre_iz_gs(db)
         spoji_azinovica(db)
+        subote_bez_15(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
         backfill_povijest_gotovih(db)

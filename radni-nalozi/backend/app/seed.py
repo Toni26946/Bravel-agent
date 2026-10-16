@@ -465,6 +465,36 @@ def jednokratna_reaktivacija_roka(db: Session) -> None:
         pass
 
 
+def subote_bez_15(db: Session) -> None:
+    """Jednokratno: subote u radioni NE idu ×1,5 (Toni, 16.10.2026.). Uvoz iz GS je
+    subotama u bazu upisao sate ×1,5 (npr. 07–14 = 10,5 h), dok aplikacija po danu
+    računa obične sate — obračun je čitao krive brojeve. Za subote bez šifre s upisanim
+    od/do preračuna redovni/prekovremeni isto kao aplikacija (8 h redovno, ostatak
+    prekovremeni). Guardano zastavicom."""
+    from .routers.evidencija import _preracun
+    zastavica = Path(settings.upload_dir).parent / ".subote_bez_15_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    ispravljeno = 0
+    for z in db.query(EvidencijaRV).filter(EvidencijaRV.kod.is_(None)).all():
+        if z.datum.weekday() != 5 or not (z.od and z.do):
+            continue
+        red, pre = _preracun(z.od, z.do, None)
+        if abs((z.redovni or 0) - red) > 0.001 or abs((z.prekovremeni or 0) - pre) > 0.001:
+            z.redovni, z.prekovremeni = red, pre
+            ispravljeno += 1
+    db.commit()
+    log.info("Subote bez ×1,5: ispravljeno %d dana.", ispravljeno)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def spoji_azinovica(db: Session) -> None:
     """Jednokratno: dani evidencije s viška-računa „Mario Azinović" (ručno napravljen
     03.09.2026., nikad korišten — dobio je samo 16 dana GO pri uvozu šifri iz GS)
