@@ -333,6 +333,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
 .chip { padding: 7px 14px; border-radius: 20px; background: #fff; border: 1px solid var(--rub); font-size: 14px; white-space: nowrap; cursor: pointer; color: var(--sivo); }
 .chip.akt { background: var(--plava); color: #fff; border-color: var(--plava); }
+.chip-br { font-weight: 800; opacity: .7; }
+.chip.akt .chip-br { opacity: 1; }
+.chips-red { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.chips-red .chips { margin-bottom: 0; flex: 1; min-width: 0; }
+.samo-tgl { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--sivo); white-space: nowrap; cursor: pointer; user-select: none; flex: none; }
+.samo-tgl input { width: 16px; height: 16px; accent-color: var(--plava); cursor: pointer; margin: 0; }
 .stavka { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rub); }
 .stavka:last-child { border-bottom: none; }
 .stavka .x { color: var(--crvena); font-size: 20px; padding: 4px 8px; cursor: pointer; }

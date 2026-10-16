@@ -17,12 +17,17 @@ const FILTERI = [
   { k: 'zatvoren', lk: 'filter.zatvoreni' },
 ]
 
+// Životni ciklus naloga kao razine; „čeka dijelove" ide uz „u radu".
+const RAZINA = { otvoren: 1, u_radu: 2, ceka_dijelove: 2, gotov: 3, zatvoren: 4 }
+const RAZINA_FILTERA = { otvoren: 1, u_radu: 2, gotov: 3, zatvoren: 4 }
+
 export default function Nalozi() {
   const { korisnik } = useAuth()
   const { t } = useT()
   const nav = useNavigate()
   const [lista, setLista] = useState(null)
   const [filter, setFilter] = useState('')
+  const [samo, setSamo] = useState(false) // kvačica: samo odabrani status (bez nje = kumulativno)
   const [q, setQ] = useState('')
   const [greska, setGreska] = useState('')
   const [brisi, setBrisi] = useState(null) // nalog koji se potvrđuje za brisanje
@@ -31,13 +36,28 @@ export default function Nalozi() {
   const timerRef = useRef(null)
   const dugiRef = useRef(false)
 
+  // Dohvati SVE naloge jednom; filtriranje i brojači idu na klijentu.
   const ucitaj = () => {
     setLista(null)
-    api.nalozi(filter).then(setLista).catch((e) => setGreska(e.message))
+    api.nalozi('').then(setLista).catch((e) => setGreska(e.message))
   }
-  useEffect(() => { ucitaj() }, [filter])
+  useEffect(() => { ucitaj() }, [])
   // Tiho osvježavanje (bez spinnera) svakih 20 s i na povratak u aplikaciju.
-  useAutoOsvjezi(() => api.nalozi(filter).then(setLista).catch(() => {}))
+  useAutoOsvjezi(() => api.nalozi('').then(setLista).catch(() => {}))
+
+  // Broj naloga za pojedini čip (u_radu uključuje i „čeka dijelove").
+  const brojZa = (k) => {
+    if (!lista) return 0
+    if (k === '') return lista.length
+    return lista.filter((n) => RAZINA[n.status] === RAZINA_FILTERA[k]).length
+  }
+  // Prolazi li nalog kroz odabrani status-filter (kumulativno ili „samo").
+  const poStatusu = (n) => {
+    if (!filter) return true
+    const sel = RAZINA_FILTERA[filter]
+    const r = RAZINA[n.status]
+    return samo ? r === sel : r <= sel
+  }
 
   // Dugi pritisak (samo voditelj) → ponudi brisanje
   const start = (n) => {
@@ -69,12 +89,11 @@ export default function Nalozi() {
   const naslov = korisnik.uloga === 'radnik' ? t('nalozi.title.radnik') : t('nalozi.title.ostalo')
 
   const nq = _norm(q.trim())
-  const prikazana = !lista ? null : (nq
-    ? lista.filter((n) => _norm(
-        `${n.broj} ${n.naslov} ${n.vozilo?.gb || ''} ${n.vozilo?.registracija || ''} `
-        + `${n.vozilo?.marka || ''} ${n.vozilo?.model || ''} ${n.voditelj?.ime || ''} ${n.vozac?.ime || ''}`
-      ).includes(nq))
-    : lista)
+  const prikazana = !lista ? null : lista.filter((n) =>
+    poStatusu(n) && (!nq || _norm(
+      `${n.broj} ${n.naslov} ${n.vozilo?.gb || ''} ${n.vozilo?.registracija || ''} `
+      + `${n.vozilo?.marka || ''} ${n.vozilo?.model || ''} ${n.voditelj?.ime || ''} ${n.vozac?.ime || ''}`
+    ).includes(nq)))
 
   return (
     <Layout naslov={naslov}>
@@ -82,10 +101,18 @@ export default function Nalozi() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('nalozi.trazi')} />
         <MikrofonGumb naslov={t('nalozi.trazi')} onTekst={(tekst) => setQ(tekst)} />
       </div>
-      <div className="chips">
-        {FILTERI.map((f) => (
-          <span key={f.k} className={`chip ${filter === f.k ? 'akt' : ''}`} onClick={() => setFilter(f.k)}>{t(f.lk)}</span>
-        ))}
+      <div className="chips-red">
+        <div className="chips">
+          {FILTERI.map((f) => (
+            <span key={f.k} className={`chip ${filter === f.k ? 'akt' : ''}`} onClick={() => setFilter(f.k)}>
+              {t(f.lk)}{lista ? <b className="chip-br"> {brojZa(f.k)}</b> : null}
+            </span>
+          ))}
+        </div>
+        <label className="samo-tgl" title={t('filter.samoHint')}>
+          <input type="checkbox" checked={samo} onChange={(e) => setSamo(e.target.checked)} />
+          {t('filter.samo')}
+        </label>
       </div>
 
       {greska && <div className="greska">{greska}</div>}
@@ -97,7 +124,9 @@ export default function Nalozi() {
       ) : lista.length === 0 ? (
         <Prazno emo="🔧" tekst={t('nalozi.prazno')} />
       ) : prikazana.length === 0 ? (
-        <div className="karta"><p className="meta" style={{ margin: 0 }}>{t('sif.nemaRezultata', { q: q.trim() })}</p></div>
+        <div className="karta"><p className="meta" style={{ margin: 0 }}>
+          {q.trim() ? t('sif.nemaRezultata', { q: q.trim() }) : t('nalozi.prazno')}
+        </p></div>
       ) : (
         prikazana.map((n) => (
           <div
