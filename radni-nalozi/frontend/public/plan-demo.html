@@ -258,7 +258,7 @@
     h+='</span></div>';
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
-       '<div class="prog-lbl">'+_np.pct+'% završeno · '+_np.done+'/'+_np.tot+' op.</div>';
+       '<div class="prog-lbl">'+_np.pct+'% završeno · '+_np.done+'/'+_np.tot+' operacija</div>';
     n.ops.forEach(function(o){
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       h+='<div class="op"><span class="opn">'+esc(o.naziv)+' <span class="opk">· '+esc(o.kat)+'</span></span>'+
