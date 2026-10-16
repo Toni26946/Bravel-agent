@@ -1,22 +1,21 @@
 import Layout from '../Layout'
 
-// Pregled „Plan radione" — vidljivo SAMO vlasniku (ai_poslovodja). Zasad je ovo
-// samostalni prototip (mock podaci) ugrađen u app; sljedeći korak je spajanje na
-// stvarne naloge/operacije i push potvrde.
+// „Plan radione" — vidljivo SAMO vlasniku (ai_poslovodja). Spojeno na stvarne
+// naloge/operacije/mjerače. Iframe popunjava cijeli prostor sadržaja (bez rubova).
 export default function Plan() {
   return (
-    <Layout naslov="Plan radione (pregled)">
-      <p className="meta" style={{ marginTop: 0 }}>
-        Plan radione — vidljivo samo tebi. Spojeno na stvarne naloge, operacije i mjerače vremena.
-      </p>
-      <iframe
-        src="/plan-demo.html"
-        title="Plan radione"
-        style={{
-          width: '100%', height: 'calc(100dvh - 170px)', minHeight: 420,
-          border: '1px solid var(--rub)', borderRadius: 12, background: '#fff', display: 'block',
-        }}
-      />
+    <Layout naslov="Plan radione">
+      {/* Poništi padding .sadrzaj-a da iframe ide od ruba do ruba i pune visine. */}
+      <div style={{ margin: '-16px', marginBottom: 'calc(-88px - env(safe-area-inset-bottom, 0px))' }}>
+        <iframe
+          src="/plan-demo.html"
+          title="Plan radione"
+          style={{
+            width: '100%', height: 'calc(100dvh - 54px)', border: 0,
+            display: 'block', background: '#fff',
+          }}
+        />
+      </div>
     </Layout>
   )
 }
