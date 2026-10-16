@@ -51,7 +51,10 @@ class Settings(BaseSettings):
     flota_service_key: str = ""          # X-Service-Key (M2M) — fly secret
     # Servisni pristup U DRUGOM SMJERU: Flota OS piše u naš dnevnik prikapčanja
     # (zaglavlja X-Servis-Kljuc + X-Korisnik s imenom osobe koja je promjenu napravila).
-    servis_kljuc: str = ""               # SERVIS_KLJUC — fly secret
+    servis_kljuc: str = ""               # SERVIS_KLJUC — fly secret (Flota OS M2M)
+    # Zaseban READ-ONLY ključ samo za /evidencija/obracun (vanjski obračun).
+    # Ne dijeli ga s Flota OS M2M ključem — obračun je javna stranica.
+    obracun_kljuc: str = ""              # OBRACUN_KLJUC — fly secret
     flota_email: str = ""                # alternativa: lokalni račun (12 h JWT)
     flota_lozinka: str = ""
     radiona_lat: float = 0.0
