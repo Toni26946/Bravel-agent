@@ -26,6 +26,8 @@ _AKTIVNI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelov
 PROZOR_MIN = 5
 KRAJ_H, KRAJ_M = 14, 45
 MAX_HITNO = 3
+# Interni/pomoćni nalozi koji se NE prikazuju u planu (npr. "RADIONA").
+_SKRIVENI_GB = {"400"}
 
 
 # --- pomoćno ---------------------------------------------------------------
@@ -107,6 +109,7 @@ def _zad(db: Session, zid: int) -> Zadatak:
 @router.get("")
 def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     nalozi = db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all()
+    nalozi = [n for n in nalozi if _gb(n) not in _SKRIVENI_GB]   # bez internih (RADIONA)
     nalozi.sort(key=lambda n: (
         0 if n.plan_hitno else 1,
         n.plan_rang if n.plan_rang is not None else 10 ** 9,
