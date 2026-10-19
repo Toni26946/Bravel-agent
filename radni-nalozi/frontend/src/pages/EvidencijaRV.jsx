@@ -230,6 +230,8 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
   const promijeniKod = (v) => { setKod(v); spremi({ kod: v }) }
 
   const c = izracun(od, doo, kod)
+  // Teren bez od/do (npr. uvoz iz Google tablice: cijeli dan = 24 h) — prikaži spremljene sate.
+  const terenSati = kod === 'TER' ? (c.teren > 0 ? c.teren : (!od && !doo ? (dan?.teren || 0) : 0)) : 0
   const aktivno = vrijemeAktivno(kod)
   const cls = 'ev-cel' + (vikend ? ' ev-vikend' : '') + (kod ? ' ev-kod ev-kod-' + kod : '') + (radi ? ' ev-radi' : '')
 
@@ -251,8 +253,8 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
           <option value="OD">OD</option>
         </select>
       </div>
-      {kod === 'TER' && c.teren > 0 && (
-        <div className="ev-calc"><span className="ev-ter">{fmt(c.teren)} ter</span></div>
+      {terenSati > 0 && (
+        <div className="ev-calc"><span className="ev-ter">{fmt(terenSati)} ter</span></div>
       )}
       {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
         <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}
