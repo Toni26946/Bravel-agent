@@ -53,13 +53,14 @@ const PRAG_2H = 2   // dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sat
 const SUBOTA = 6    // dow: 6 = subota
 const FAKTOR_SUBOTA = 1.5
 
-// Obračunski sati za jedan dan u RADIONI (kod je prazan): subota ×1,5, ostali ×1.
-// Teren (TER) i izostanci (GO/BO/PD/OD) se ne broje — teren ostaje sirov.
+// Obračunski sati za jedan dan u RADIONI (kod je prazan): samo REDOVNI sati,
+// subota ×1,5, ostali ×1. Prekovremeni se NE uključuju (ostaju u svom stupcu),
+// teren (TER) i izostanci (GO/BO/PD/OD) također ne ulaze.
 function danObrSati(d, dow) {
   if (!d || d.kod) return 0
-  const radni = (d.redovni || 0) + (d.prekovremeni || 0)
-  if (radni <= 0) return 0
-  return dow === SUBOTA ? radni * FAKTOR_SUBOTA : radni
+  const red = d.redovni || 0
+  if (red <= 0) return 0
+  return dow === SUBOTA ? red * FAKTOR_SUBOTA : red
 }
 
 function zbroji(r) {
@@ -257,7 +258,7 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
       )}
       {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
         <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}
-          {subota && <span className="ev-obr" title="Subota ×1,5"> → {fmt((c.redovni + c.prekovremeni) * FAKTOR_SUBOTA)}</span>}
+          {subota && c.redovni > 0 && <span className="ev-obr" title="Subota ×1,5 (samo redovni)"> → {fmt(c.redovni * FAKTOR_SUBOTA)}</span>}
         </div>
       )}
     </td>
