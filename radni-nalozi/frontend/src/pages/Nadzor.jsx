@@ -186,7 +186,11 @@ export function GlavniIzbornik() {
           </div>
           {tekuci.map(({ n, op, z }) => (
             <div className="tr-red" key={z.id} onClick={() => nav(`/nalozi/${n.id}`)}>
-              <div className="tr-voz">{n.vozilo?.gb}</div>
+              <div className="tr-voz">{n.vozilo?.gb}
+                {[n.vozilo?.marka, n.vozilo?.model].filter(Boolean).length > 0 && (
+                  <span className="tr-voz-ime">{[n.vozilo?.marka, n.vozilo?.model].filter(Boolean).join(' ')}</span>
+                )}
+              </div>
               <div className="tr-radnik">{radniciZadatka(z).map((r) => r.ime).join(', ') || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
               <div className="tr-traj">{trajanjeDugo(sesija(z, sada))}</div>
