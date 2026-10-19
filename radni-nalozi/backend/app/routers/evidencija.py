@@ -192,6 +192,22 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
     )
 
 
+_SUBOTA = 5           # date.weekday(): ponedjeljak=0 … subota=5
+_FAKTOR_SUBOTA = 1.5
+
+
+def _obr_redovni(dan) -> float:
+    """Obračunski REDOVNI sati za jedan dan u radioni (bez koda): subota ×1,5.
+    Prekovremeni, teren i izostanci se ne broje ovdje. Isti prikaz kao u aplikaciji;
+    u bazi i /obracun ostaju sirovi sati."""
+    if dan is None or dan.kod:
+        return 0.0
+    red = dan.redovni or 0
+    if red <= 0:
+        return 0.0
+    return round(red * _FAKTOR_SUBOTA, 2) if dan.datum.weekday() == _SUBOTA else float(red)
+
+
 @router.get("/izvoz.xlsx")
 def izvoz(
     godina: int = Query(..., ge=2000, le=2100),
@@ -199,7 +215,8 @@ def izvoz(
     _: Korisnik = Depends(evidencija_pristup),
     db: Session = Depends(get_db),
 ):
-    """Mjesečni Excel: redak po radniku, zbirni stupci + po danu OD/DO/redovni/prekovremeni/teren."""
+    """Mjesečni Excel: redak po radniku, zbirni stupci + po danu OD/DO/redovni/prekovremeni/teren.
+    'Redovno' uključuje subotu ×1,5 (isto kao prikaz u aplikaciji)."""
     from openpyxl import Workbook
 
     podaci = dohvati_mjesec(godina, mjesec, _, db)  # ponovno iskoristi logiku dohvata
@@ -223,7 +240,8 @@ def izvoz(
             c.font = c.font.copy(bold=True)
 
     for i, r in enumerate(podaci.radnici, start=1):
-        red = [i, r.ime, r.redovno, r.prekovremeni, r.prekovremeni_2h, r.teren, r.radni_dani, r.go, r.bo, r.pd, r.ukupno_redovnih]
+        red_obr = round(sum(_obr_redovni(d) for d in r.dani.values()), 2)   # Redovno sa subotom ×1,5
+        red = [i, r.ime, red_obr, r.prekovremeni, r.prekovremeni_2h, r.teren, r.radni_dani, r.go, r.bo, r.pd, red_obr]
         for d in range(1, dana + 1):
             kljuc = date(godina, mjesec, d).isoformat()
             dan = r.dani.get(kljuc)
@@ -234,7 +252,7 @@ def izvoz(
             elif dan.kod:
                 red += [dan.kod, "", "", "", ""]
             else:
-                red += [dan.od or "", dan.do or "", dan.redovni or "", dan.prekovremeni or "", dan.teren or ""]
+                red += [dan.od or "", dan.do or "", _obr_redovni(dan) or "", dan.prekovremeni or "", dan.teren or ""]
         ws.append(red)
 
     ws.column_dimensions["B"].width = 28
