@@ -50,6 +50,17 @@ function izracun(od, doo, kod) {
 }
 
 const PRAG_2H = 2   // dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
+const SUBOTA = 6    // dow: 6 = subota
+const FAKTOR_SUBOTA = 1.5
+
+// Obračunski sati za jedan dan u RADIONI (kod je prazan): subota ×1,5, ostali ×1.
+// Teren (TER) i izostanci (GO/BO/PD/OD) se ne broje — teren ostaje sirov.
+function danObrSati(d, dow) {
+  if (!d || d.kod) return 0
+  const radni = (d.redovni || 0) + (d.prekovremeni || 0)
+  if (radni <= 0) return 0
+  return dow === SUBOTA ? radni * FAKTOR_SUBOTA : radni
+}
 
 function zbroji(r) {
   let redovno = 0, prekovremeni = 0, teren = 0, radni_dani = 0, go = 0, bo = 0, pd = 0, prekovremeni_2h = 0
@@ -85,6 +96,9 @@ export default function EvidencijaRV() {
       return { d, dow, vikend: dow === 0 || dow === 6, datum: iso(godina, mjesec, d) }
     })
   }, [podaci, godina, mjesec])
+
+  // Mjesečni obračunski sati radnika (radiona, subota ×1,5). Samo prikaz.
+  const obrSati = (r) => r2(dani.reduce((s, x) => s + danObrSati(r.dani[x.datum], x.dow), 0))
 
   const promijeniMjesec = (delta) => {
     let m = mjesec + delta, g = godina
@@ -145,6 +159,7 @@ export default function EvidencijaRV() {
                   <th title={t('ev.prekovremeni')}>{t('ev.prekShort')}</th>
                   <th title={t('ev.prek2hPomoc')}>{t('ev.prek2h')}</th>
                   <th title={t('ev.teren')}>{t('ev.terenShort')}</th>
+                  <th className="ev-obr-col" title={t('ev.obrPomoc')}>{t('ev.obr')}</th>
                   <th title={t('ev.radniDani')}>d</th>
                   <th>GO</th><th>BO</th><th>PD</th>
                   {dani.map((x) => (
@@ -163,13 +178,14 @@ export default function EvidencijaRV() {
                     <td className="ev-zbroj">{fmt(r.prekovremeni)}</td>
                     <td className="ev-zbroj">{r.prekovremeni_2h || ''}</td>
                     <td className="ev-zbroj">{fmt(r.teren)}</td>
+                    <td className="ev-zbroj ev-obr-col" title={t('ev.obrPomoc')}>{fmt(obrSati(r))}</td>
                     <td className="ev-zbroj">{r.radni_dani || ''}</td>
                     <td className="ev-zbroj">{r.go || ''}</td>
                     <td className="ev-zbroj">{r.bo || ''}</td>
                     <td className="ev-zbroj">{r.pd || ''}</td>
                     {dani.map((x) => (
                       <Celija key={x.d} korisnikId={r.korisnik_id} datum={x.datum}
-                        dan={r.dani[x.datum]} vikend={x.vikend}
+                        dan={r.dani[x.datum]} vikend={x.vikend} subota={x.dow === SUBOTA}
                         onSpremljeno={naSpremljeno} onGreska={setGreska} />
                     ))}
                   </tr>
@@ -183,7 +199,7 @@ export default function EvidencijaRV() {
   )
 }
 
-function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
+function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska }) {
   const { t } = useT()
   const [od, setOd] = useState(dan?.od || '')
   const [doo, setDoo] = useState(dan?.do || '')
@@ -240,7 +256,9 @@ function Celija({ korisnikId, datum, dan, vikend, onSpremljeno, onGreska }) {
         <div className="ev-calc"><span className="ev-ter">{fmt(c.teren)} ter</span></div>
       )}
       {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
-        <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}</div>
+        <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}
+          {subota && <span className="ev-obr" title="Subota ×1,5"> → {fmt((c.redovni + c.prekovremeni) * FAKTOR_SUBOTA)}</span>}
+        </div>
       )}
     </td>
   )

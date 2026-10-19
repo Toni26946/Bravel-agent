@@ -825,6 +825,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-teren { flex: 1 1 auto; }
 .ev-calc { font-size: 10px; font-weight: 700; color: #333; margin-top: 1px; }
 .ev-calc .ev-pre { color: var(--narancasta); margin-left: 2px; font-weight: 600; }
+.ev-calc .ev-obr { color: #7c3aed; font-weight: 800; white-space: nowrap; }
+.ev-obr-col { background: #f5f3ff; color: #6d28d9 !important; font-weight: 800 !important; }
 .ev-kod { font-weight: 800; }
 .ev-kod-GO { background: #e6f4ea; }
 .ev-kod-BO { background: #fdecea; }
