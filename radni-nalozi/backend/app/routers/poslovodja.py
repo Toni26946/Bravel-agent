@@ -120,10 +120,11 @@ def obracun_uvoz(podaci: dict, x_obracun_kljuc: str | None = Header(default=None
     """Stvarne plaće iz živog Obračuna radione (claude.ai artifact) → kalibracija €/norma-sat.
 
     Šalje ih Tonijev Claude (server sam ne može dohvatiti privatni artifact). Body
-    {"mjeseci": {"YYYY-MM": [{"ime", "zarada"}]}}; zaglavlje X-Obracun-Kljuc = OBRACUN_KLJUC.
+    {"mjeseci": {"YYYY-MM": [{"ime", "zarada"}]}}; zaglavlje X-Obracun-Kljuc = OBRACUN_UVOZ_KLJUC
+    (NE OBRACUN_KLJUC — taj je u pregledniku voditelja i smije samo čitati evidenciju).
     Pojedinačne plaće se NE spremaju — samo izvedena stopa (kao kod surge sinkronizacije)."""
-    if not settings.obracun_kljuc or not x_obracun_kljuc or \
-            not hmac.compare_digest(x_obracun_kljuc, settings.obracun_kljuc):
+    if not settings.obracun_uvoz_kljuc or not x_obracun_kljuc or \
+            not hmac.compare_digest(x_obracun_kljuc, settings.obracun_uvoz_kljuc):
         raise HTTPException(status_code=401, detail="Nevažeći ključ")
     from ..obracun_radione import sinkroniziraj_podatke
     return sinkroniziraj_podatke(db, (podaci or {}).get("mjeseci") or {}, primijeni=True)

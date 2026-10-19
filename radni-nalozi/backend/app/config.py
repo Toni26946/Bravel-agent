@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Zaseban READ-ONLY ključ samo za /evidencija/obracun (vanjski obračun).
     # Ne dijeli ga s Flota OS M2M ključem — obračun je javna stranica.
     obracun_kljuc: str = ""              # OBRACUN_KLJUC — fly secret
+    # Zaseban ključ za UPIS (POST /poslovodja/obracun-uvoz) — samo Tonijeva lokalna skripta.
+    # OBRACUN_KLJUC je u pregledniku voditelja pa smije samo čitati. Prazno = uvoz zatvoren.
+    obracun_uvoz_kljuc: str = ""         # OBRACUN_UVOZ_KLJUC — fly secret
     # Korisnička imena koja NISU radnici radione (uprava, korisnici portala) — ne idu u
     # evidenciju radnog vremena ni u izvoz za obračun. Zarezom odvojeno.
     evidencija_bez: str = "toni,velimir.jendris"
