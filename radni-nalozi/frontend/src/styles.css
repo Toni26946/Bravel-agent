@@ -397,6 +397,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .tr-red .tr-nalog { font-weight: 700; color: var(--plava); font-variant-numeric: tabular-nums; }
 .tr-red .tr-op { font-weight: 700; color: var(--plava); }
 .tr-red .tr-voz { color: var(--tekst); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tr-red .tr-voz .tr-voz-ime { display: block; font-size: 10.5px; font-weight: 600; color: var(--sivo); line-height: 1.2; margin-top: 2px; word-break: break-word; }
 .tr-red .tr-traj { color: #2e7d32; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tr-red .tr-akcija { display: flex; align-items: center; }
 .tr-red .tr-akcija .btn { white-space: nowrap; }
