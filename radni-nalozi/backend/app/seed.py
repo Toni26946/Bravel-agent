@@ -495,6 +495,58 @@ def subote_bez_15(db: Session) -> None:
         pass
 
 
+def teren_vremena(db: Session) -> None:
+    """Jednokratno: terenski dani iz GS uvoza imaju samo sate (npr. 24) bez od/do, a
+    skladištar teren upisuje ručno kao vrijeme (Toni, 19.10.2026.). Upiši od/do koji daju
+    iste sate: puni dan 00:00–24:00; nepuni dan — ako je dan prije također teren, putovanje
+    traje od ponoći (00:00–hh:mm), inače počinje taj dan (hh:mm–24:00). Sati terena ostaju
+    isti. Usput vrati 01.09.2026. (krivo spremljen samo „od 00:00") na 00:00–24:00.
+    Guardano zastavicom."""
+    from datetime import timedelta
+    from .routers.evidencija import _sati
+    zastavica = Path(settings.upload_dir).parent / ".teren_vremena_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+
+    def hhmm(minute: int) -> str:
+        return f"{minute // 60:02d}:{minute % 60:02d}"
+
+    ter = db.query(EvidencijaRV).filter(EvidencijaRV.kod == "TER").all()
+    po_danu = {(z.korisnik_id, z.datum) for z in ter}
+    ispravljeno = 0
+    for z in ter:
+        if z.od or z.do:
+            continue
+        sati = z.teren or 0
+        if sati <= 0:
+            continue
+        m = min(24 * 60, int(round(sati * 60)))
+        if m >= 24 * 60:
+            z.od, z.do = "00:00", "24:00"
+        elif (z.korisnik_id, z.datum - timedelta(days=1)) in po_danu:
+            z.od, z.do = "00:00", hhmm(m)
+        else:
+            z.od, z.do = hhmm(24 * 60 - m), "24:00"
+        z.teren = _sati(z.od, z.do)
+        ispravljeno += 1
+    # 01.09.2026: spremljen samo „od 00:00" bez „do" (teren 0) — bio je puni dan.
+    for z in ter:
+        if z.datum.isoformat() == "2026-09-01" and z.od == "00:00" and not z.do and not (z.teren or 0):
+            z.do = "24:00"
+            z.teren = _sati(z.od, z.do)
+            ispravljeno += 1
+    db.commit()
+    log.info("Teren od/do: upisano vrijeme za %d dana.", ispravljeno)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def spoji_azinovica(db: Session) -> None:
     """Jednokratno: dani evidencije s viška-računa „Mario Azinović" (ručno napravljen
     03.09.2026., nikad korišten — dobio je samo 16 dana GO pri uvozu šifri iz GS)

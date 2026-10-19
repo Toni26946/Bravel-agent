@@ -16,7 +16,7 @@ const fmt = (n) => {
 const iso = (g, m, d) => `${g}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 const r2 = (n) => Math.round((n || 0) * 100) / 100
 
-// "8" → "08:00", "830" → "08:30", "8:5" → "08:05", "" → ""
+// "8" → "08:00", "830" → "08:30", "8:5" → "08:05", "24" → "24:00", "" → ""
 function normVrijeme(s) {
   const t = String(s || '').trim()
   if (!t) return ''
@@ -31,7 +31,8 @@ function normVrijeme(s) {
   }
   if (isNaN(h)) return ''
   if (isNaN(m)) m = 0
-  h = Math.min(23, Math.max(0, h)); m = Math.min(59, Math.max(0, m))
+  if (h >= 24) return '24:00'   // kraj dana (teren cijeli dan = 00:00–24:00)
+  h = Math.max(0, h); m = Math.min(59, Math.max(0, m))
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 function minute(hhmm) {
