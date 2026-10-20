@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { Spinner } from '../ui'
+import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
@@ -127,6 +127,9 @@ export default function Vozila() {
                   {[v.norma, v.prva_registracija && `1. reg. ${v.prva_registracija}`, v.broj_sasije && `šasija ${v.broj_sasije}`]
                     .filter(Boolean).join(' · ')}
                 </div>
+              )}
+              {v.km_trenutni != null && (
+                <div className="meta">🧭 {v.km_trenutni.toLocaleString('hr-HR')} km{v.km_azuriran ? ` · ${datum(v.km_azuriran)}` : ''}</div>
               )}
               {v.opis && <div className="meta">📝 {v.opis}</div>}
               {v.status === 'spremno' && v.lokacija && (
