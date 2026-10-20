@@ -169,6 +169,8 @@ class RegistarVozilaOut(ORM):
     napomena: str | None = None
     rucno: bool = False
     mobilisis_status: str | None = None
+    km_trenutni: int | None = None        # zadnji poznati brojčanik (iz Mobilisisa)
+    km_azuriran: date | None = None       # datum tog očitanja
     lokacija: str | None = None
     spreman_od: date | None = None
     # Matični podaci (ručni unos / uvoz)
