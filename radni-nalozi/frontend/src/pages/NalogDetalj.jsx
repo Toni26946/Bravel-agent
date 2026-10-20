@@ -334,30 +334,34 @@ function Operacije({ nalog, radnici, ucitaj, naGresku, jeVoditelj }) {
 function TekstUredivi({ vrijednost, editable, prikazKlasa, onSpremi }) {
   const [otvoren, setOtvoren] = useState(false)
   const [val, setVal] = useState(vrijednost)
-  const spremi = () => {
+  // stop: spriječi da klik (npr. unutar <label> zadatka) prebaci checkbox "gotovo".
+  const stop = (e) => { e.preventDefault(); e.stopPropagation() }
+  const spremi = (e) => {
+    if (e) stop(e)
     const v = (val || '').trim()
     if (v && v !== vrijednost) onSpremi(v)
     setOtvoren(false)
   }
   if (otvoren) {
     return (
-      <span className="tu-uredi">
+      <span className="tu-uredi" onClick={stop}>
         <input
           className="tu-input"
           value={val}
           autoFocus
+          onClick={stop}
           onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') spremi(); if (e.key === 'Escape') setOtvoren(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') spremi(e); if (e.key === 'Escape') { stop(e); setOtvoren(false) } }}
         />
         <span className="tu-ik ok" onClick={spremi}>✓</span>
-        <span className="tu-ik" onClick={() => { setVal(vrijednost); setOtvoren(false) }}>✕</span>
+        <span className="tu-ik" onClick={(e) => { stop(e); setVal(vrijednost); setOtvoren(false) }}>✕</span>
       </span>
     )
   }
   return (
     <>
       <span className={prikazKlasa}>{vrijednost}</span>
-      {editable && <span className="tu-ol" onClick={(e) => { e.preventDefault(); setVal(vrijednost); setOtvoren(true) }}>✏️</span>}
+      {editable && <span className="tu-ol" onClick={(e) => { stop(e); setVal(vrijednost); setOtvoren(true) }}>✏️</span>}
     </>
   )
 }
@@ -391,8 +395,13 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
                 checked={z.gotovo}
                 onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
               />
-              <span className={z.gotovo ? 'zad-gotov' : ''}>{z.opis}</span>
-              {jeVoditelj && <span className="x" onClick={() => wrap(api.obrisiZadatak(nalog.id, z.id))}>×</span>}
+              <TekstUredivi
+                vrijednost={z.opis}
+                editable={jeVoditelj}
+                prikazKlasa={z.gotovo ? 'zad-gotov' : ''}
+                onSpremi={(v) => wrap(api.azurirajZadatak(nalog.id, z.id, { opis: v }))}
+              />
+              {jeVoditelj && <span className="x" onClick={(e) => { e.preventDefault(); e.stopPropagation(); wrap(api.obrisiZadatak(nalog.id, z.id)) }}>×</span>}
             </label>
             <div className="op2-rad">
               <RadniciZadatka nalog={nalog} z={z} radnici={radnici} jeVoditelj={jeVoditelj} wrap={wrap} />
