@@ -259,6 +259,34 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     }
 
 
+# --- GET /plan/moje (radnik vidi SAMO svoje operacije) ---------------------
+@router.get("/moje")
+def moje(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    """Operacije dodijeljene PRIJAVLJENOM radniku — njegova radiona."""
+    nalozi = db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all()
+    out = []
+    for n in nalozi:
+        if _gb(n) in _SKRIVENI_GB:
+            continue
+        voz = n.vozilo
+        vn = " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x)
+        for op in n.operacije:
+            for z in op.zadaci:
+                if not any(r.id == korisnik.id for r in z.radnici):
+                    continue
+                out.append({
+                    "id": z.id, "nalogId": n.id, "gb": _gb(n),
+                    "vozilo": vn or (n.naslov or ""),
+                    "reg": (voz.registracija if voz else "") or "",
+                    "naziv": z.opis, "kat": op.kategorija,
+                    "status": _plan_status(z),
+                    "akumSek": int(z.utroseno_sek or 0),
+                    "startTs": _ms(z.zapoceto),
+                    "hitno": bool(n.plan_hitno),
+                })
+    return {"ops": out, "ime": korisnik.ime}
+
+
 # --- write: vlasnik --------------------------------------------------------
 class RedoslijedIn(BaseModel):
     redoslijed: list[int]
@@ -385,7 +413,7 @@ def posalji(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session =
              nalog_id=n.id, zadatak_id=z.id, radnik_id=m.id)
     z.ceka_potvrdu = True
     z.razlog_prekida = None
-    obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(n)}", "/plan")
+    obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(n)}", "/moja-radiona")
     db.commit()
     return {"ok": True}
 

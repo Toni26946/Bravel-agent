@@ -57,8 +57,21 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     const id = setInterval(uc, 60000)
     return () => { ziv = false; clearInterval(id) }
   }, [voditeljski])
+  // Radnik: badge "za potvrdu" na „Moja radiona".
+  const [mojeZaPotvrdu, setMojeZaPotvrdu] = useState(0)
+  const jeRadnik = korisnik?.uloga === 'radnik'
+  useEffect(() => {
+    if (!jeRadnik) { setMojeZaPotvrdu(0); return }
+    let ziv = true
+    const uc = () => api.planMoje().then((d) => {
+      if (ziv) setMojeZaPotvrdu((d.ops || []).filter((o) => o.status === 'ceka' || o.status === 'pauza').length)
+    }).catch(() => {})
+    uc()
+    const id = setInterval(uc, 30000)
+    return () => { ziv = false; clearInterval(id) }
+  }, [jeRadnik])
   const paznjaZa = (putanja) => {
-    const m = { '/spremne': paznja.spremne, '/izasli': paznja.izasli, '/prijave': paznja.prijave }
+    const m = { '/spremne': paznja.spremne, '/izasli': paznja.izasli, '/prijave': paznja.prijave, '/moja-radiona': mojeZaPotvrdu }
     return m[putanja] || 0
   }
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
@@ -116,6 +129,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
   }
   if (korisnik?.uloga === 'radnik') {
+    tabovi.push({ do: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona' })
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
