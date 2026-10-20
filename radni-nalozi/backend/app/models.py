@@ -652,6 +652,21 @@ class PlanDogadaj(Base):
     kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
 
 
+class PlanStanje(Base):
+    """Stanje Plana radione — zaključavanje jutarnjeg plana (jedan redak, id=1).
+
+    Zaključano vrijedi za određeni dan (datum). Dok je zaključano, backend
+    odbija promjene SASTAVA/REDOSLIJEDA plana (slaganje, dodaj, očisti, hitno);
+    dnevni rad (dodjela, slanje, štoperica) i dalje teče."""
+    __tablename__ = "plan_stanje"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    zakljucan: Mapped[bool] = mapped_column(default=False)
+    datum: Mapped[date | None] = mapped_column(Date, nullable=True)   # za koji dan vrijedi
+    zakljucao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id", ondelete="SET NULL"), nullable=True)
+    zakljucano: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class EvidencijaRV(Base):
     """Evidencija radnog vremena — jedan redak po radniku i danu.
 

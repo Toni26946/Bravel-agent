@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja
 from ..database import get_db
 from ..models import (
-    Korisnik, Nalog, Operacija, PlanDogadaj, StatusNaloga, Zadatak,
+    Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, StatusNaloga, Zadatak,
     ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
@@ -108,6 +108,29 @@ def _zad(db: Session, zid: int) -> Zadatak:
     if not z:
         raise HTTPException(status_code=404, detail="Zadatak ne postoji")
     return z
+
+
+# --- zaključavanje plana ---------------------------------------------------
+def _plan_stanje(db: Session) -> PlanStanje:
+    """Dohvati (ili stvori) jedini redak stanja plana."""
+    st = db.get(PlanStanje, 1)
+    if not st:
+        st = PlanStanje(id=1, zakljucan=False)
+        db.add(st)
+        db.flush()
+    return st
+
+
+def _zakljucan(db: Session) -> bool:
+    """Je li plan zaključan ZA DANAS (HR datum)."""
+    st = db.get(PlanStanje, 1)
+    return bool(st and st.zakljucan and st.datum == _hr_now().date())
+
+
+def _provjeri_otkljucan(db: Session) -> None:
+    """Odbij promjenu sastava/redoslijeda plana dok je zaključan."""
+    if _zakljucan(db):
+        raise HTTPException(status_code=409, detail="🔒 Plan je zaključan — prvo ga otključaj")
 
 
 # Tokeni koji opisuju POLOŽAJ, ne vrstu posla — izbacuju se pri grupiranju
@@ -223,10 +246,16 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         db.query(PlanDogadaj).filter(PlanDogadaj.datum == danas)
         .order_by(PlanDogadaj.vrijeme.desc()).all()
     )
+    st = db.get(PlanStanje, 1)
+    zakljucan = bool(st and st.zakljucan and st.datum == _hr_now().date())
+    zak = db.get(Korisnik, st.zakljucao_id) if (zakljucan and st.zakljucao_id) else None
     return {
         "mehanicari": [{"id": m.id, "ime": m.ime} for m in meh],
         "nalozi": out_nal,
         "promjene": [{"t": _ms(p.vrijeme), "tekst": p.opis} for p in promjene],
+        "zakljucan": zakljucan,
+        "zakljucaoIme": (zak.ime if zak else None),
+        "zakljucanoTs": (_ms(st.zakljucano) if zakljucan else None),
     }
 
 
@@ -249,6 +278,7 @@ class PrekiniIn(BaseModel):
 
 @router.put("/redoslijed")
 def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    _provjeri_otkljucan(db)
     for i, nid in enumerate(p.redoslijed):
         n = db.get(Nalog, nid)
         if n:
@@ -265,6 +295,7 @@ class DodajIn(BaseModel):
 def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Dodaj kamion (po garažnom broju) na KRAJ plana — za brzo slaganje plana
     tipkanjem GB-ova. Vraća na koju je poziciju došao."""
+    _provjeri_otkljucan(db)
     gb = (p.gb or "").strip()
     if not gb:
         raise HTTPException(status_code=400, detail="Upiši garažni broj")
@@ -286,6 +317,7 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
 @router.post("/ocisti")
 def ocisti_plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Obriši ručni redoslijed (plan_rang) sa svih naloga — kreni novi plan."""
+    _provjeri_otkljucan(db)
     for n in db.query(Nalog).filter(Nalog.plan_rang.isnot(None)).all():
         n.plan_rang = None
     db.commit()
@@ -294,6 +326,7 @@ def ocisti_plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_
 
 @router.patch("/nalog/{nid}/hitno")
 def hitno(nid: int, p: HitnoIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    _provjeri_otkljucan(db)
     n = db.get(Nalog, nid)
     if not n:
         raise HTTPException(status_code=404, detail="Nalog ne postoji")
@@ -304,6 +337,24 @@ def hitno(nid: int, p: HitnoIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
     n.plan_hitno = bool(p.hitno)
     db.commit()
     return {"ok": True}
+
+
+class ZakljucajIn(BaseModel):
+    zakljucan: bool
+
+
+@router.post("/zakljucaj")
+def zakljucaj(p: ZakljucajIn, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Zaključaj/otključaj plan za danas. Dok je zaključan, backend odbija
+    promjene sastava/redoslijeda; dnevni rad (dodjela/slanje/štoperica) teče."""
+    st = _plan_stanje(db)
+    st.zakljucan = bool(p.zakljucan)
+    if st.zakljucan:
+        st.datum = _hr_now().date()
+        st.zakljucao_id = korisnik.id
+        st.zakljucano = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True, "zakljucan": st.zakljucan}
 
 
 @router.post("/zadatak/{zid}/dodijeli")

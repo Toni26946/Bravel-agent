@@ -65,6 +65,7 @@
 
   /* --- Poslovođa --- */
   .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .zak-traka{background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;margin:0 0 10px;font-size:12.5px;font-weight:700}
   .pl-top .brojac{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
   .brojac-btn{margin-left:auto;background:var(--plava-soft);color:var(--plava);border:0;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
   .plan-maker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--plava-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
@@ -196,7 +197,8 @@
   var promjene = 0;
   var logOtvoren = false;
   var _planMode = false;
-  var planZakljucan = false;   // samo vizualno
+  var planZakljucan = false;   // stvarno stanje sa servera (zaključano za danas)
+  var zakljucaoIme = "", zakljucanoTs = null;
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
   var MAX_HITNO = 3;
@@ -214,6 +216,7 @@
   function ucitaj(){
     return api("").then(function(d){
       MEH=d.mehanicari||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
+      planZakljucan=!!d.zakljucan; zakljucaoIme=d.zakljucaoIme||""; zakljucanoTs=d.zakljucanoTs||null;
       if(prikazMeh===null && MEH.length) prikazMeh=MEH[0].id;
       render();
     }).catch(function(e){ toast(e.message||"Greška pri učitavanju"); });
@@ -254,7 +257,9 @@
     var tmp=akt[idx]; akt[idx]=akt[j]; akt[j]=tmp;
     api("/redoslijed","PUT",{redoslijed: akt.map(function(n){return n.id;})}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); });
   }
-  function zakljucaj(){ planZakljucan=!planZakljucan; toast(planZakljucan?"🔒 Plan dana zaključan":"Plan otključan"); render(); }
+  function zakljucaj(){ var novo=!planZakljucan; if(_busy) return; _busy=true;
+    api("/zakljucaj","POST",{zakljucan:novo}).then(function(){ toast(novo?"🔒 Plan zaključan":"Plan otključan"); return ucitaj(); })
+      .catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
   function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
   function planMode(on){
@@ -293,7 +298,8 @@
     var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
     h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
-    h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
+    if(!planZakljucan) h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
+    else if(n.hitno) h+='<span class="htog on" title="Hitno (plan zaključan)">🔴</span>';
     // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
     h+='</span></div>';
     var _np=napredak(n);
@@ -336,10 +342,13 @@
     var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
     var h='';
     h+='<div class="pl-top">'+
-         '<button class="btn sm" onclick="PLAN.planMode(true)">➕ Napravi plan</button>'+
-         '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔒 Otključaj':'🔒 Zaključaj plan')+'</button>'+
+         (planZakljucan?'':'<button class="btn sm" onclick="PLAN.planMode(true)">➕ Napravi plan</button>')+
+         '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
+    if(planZakljucan){
+      h+='<div class="zak-traka">🔒 Plan zaključan'+(zakljucaoIme?' · '+esc(zakljucaoIme):'')+(zakljucanoTs?' · '+vrijemeHM(zakljucanoTs):'')+' — sastav i redoslijed su zamrznuti. Dnevni rad (dodjela, slanje, štoperica) teče normalno.</div>';
+    }
     if(_planMode){
       h+='<div class="plan-maker"><span class="pm-lbl">Upiši garažni broj + Enter (redom):</span>'+
          '<input id="gb-unos" placeholder="npr. 97" autocomplete="off" onkeydown="PLAN.gbKey(event,this)">'+
