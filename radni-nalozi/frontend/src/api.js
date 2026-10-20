@@ -159,6 +159,11 @@ export const api = {
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/odjava`, { method: 'POST' }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
+  // Moja radiona (radnik vidi svoje operacije iz plana)
+  planMoje: () => zahtjev('/plan/moje'),
+  planPotvrdi: (zid) => zahtjev(`/plan/zadatak/${zid}/potvrdi`, { method: 'POST' }),
+  planPrekini: (zid, razlog) => zahtjev(`/plan/zadatak/${zid}/prekini`, { method: 'POST', body: { razlog } }),
+
   // Zaduženje kamiona i prikolice (primopredajni obrazac)
   zaduzenja: () => zahtjev('/zaduzenja'),
   zaduzenje: (id) => zahtjev(`/zaduzenja/${id}`),

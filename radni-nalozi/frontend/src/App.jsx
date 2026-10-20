@@ -30,6 +30,7 @@ import Skladiste from './pages/Skladiste'
 import SkladisteDashboard from './pages/SkladisteDashboard'
 import EvidencijaRV from './pages/EvidencijaRV'
 import Plan from './pages/Plan'
+import MojaRadiona from './pages/MojaRadiona'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
@@ -106,6 +107,7 @@ export default function App() {
       {/* Šifrarnik: voditelj */}
       <Route path="/sifrarnik" element={<Zasticeno uloge={['voditelj']}><Sifrarnik /></Zasticeno>} />
       <Route path="/radnici" element={<Zasticeno uloge={['voditelj']}><Sifrarnik pocetniTab="korisnici" /></Zasticeno>} />
+      <Route path="/moja-radiona" element={<Zasticeno uloge={['radnik', 'voditelj', 'poslovodja']}><MojaRadiona /></Zasticeno>} />
 
       <Route path="/profil" element={<Zasticeno><Profil /></Zasticeno>} />
 
