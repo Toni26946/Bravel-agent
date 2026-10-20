@@ -105,6 +105,7 @@ export default function App() {
 
       {/* Šifrarnik: voditelj */}
       <Route path="/sifrarnik" element={<Zasticeno uloge={['voditelj']}><Sifrarnik /></Zasticeno>} />
+      <Route path="/radnici" element={<Zasticeno uloge={['voditelj']}><Sifrarnik pocetniTab="korisnici" /></Zasticeno>} />
 
       <Route path="/profil" element={<Zasticeno><Profil /></Zasticeno>} />
 

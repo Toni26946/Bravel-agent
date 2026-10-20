@@ -18,9 +18,9 @@ function _slug(ime) {
 // uloge koje voditelj može dodijeliti u šifrarniku
 const ULOGE = ['voditelj', 'poslovodja', 'radnik', 'skladistar', 'vozac']
 
-export default function Sifrarnik() {
+export default function Sifrarnik({ pocetniTab = 'vozila' }) {
   const { t } = useT()
-  const [tab, setTab] = useState('vozila')
+  const [tab, setTab] = useState(pocetniTab)
   return (
     <Layout naslov={t('sif.title')}>
       <div className="chips">
