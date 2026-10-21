@@ -81,6 +81,7 @@ def kreiraj(podaci: KorisnikCreate, _: Korisnik = Depends(samo_voditelj), db: Se
         lozinka_hash=hash_lozinka(podaci.lozinka or _ZADANA_LOZINKA),
         uloga=podaci.uloga,
         telefon=podaci.telefon,
+        funkcija=(podaci.funkcija or None),
         prijavljuje_se=True if podaci.prijavljuje_se is None else podaci.prijavljuje_se,
     )
     db.add(k)
@@ -154,6 +155,8 @@ def azuriraj(
         k.uloga = podaci.uloga
     if podaci.telefon is not None:
         k.telefon = podaci.telefon
+    if podaci.funkcija is not None:
+        k.funkcija = (podaci.funkcija or None)
     if podaci.aktivan is not None:
         k.aktivan = podaci.aktivan
     if podaci.prijavljuje_se is not None:

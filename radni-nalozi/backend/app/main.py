@@ -24,6 +24,7 @@ from .seed import (
     backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
     jednokratno_deaktiviraj_bivse,
+    osiguraj_mihaela_i_zvonimira,
     uvezi_evidenciju_iz_gs,
     uvezi_evidenciju_novo_gs,
     uvezi_sifre_iz_gs,
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI):
         jednokratno_deaktiviraj_bivse(db)
         uvezi_evidenciju_iz_gs(db)
         uvezi_sifre_iz_gs(db)
+        osiguraj_mihaela_i_zvonimira(db)
         uvezi_evidenciju_novo_gs(db)
         spoji_azinovica(db)
         subote_bez_15(db)

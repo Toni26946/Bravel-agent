@@ -43,6 +43,7 @@ _STUPCI = [
     ("primke", "fotografije", "JSON"),
     ("fotografije", "steta_id", "INTEGER"),
     ("korisnici", "narucitelj", "BOOLEAN DEFAULT FALSE"),
+    ("korisnici", "funkcija", "VARCHAR(60)"),
     # Matični podaci o vozilu (ručni unos / uvoz iz "GARAŽNI BROJEVI")
     ("registar_vozila", "vrsta", "VARCHAR(40)"),
     ("registar_vozila", "vozilo", "VARCHAR(80)"),

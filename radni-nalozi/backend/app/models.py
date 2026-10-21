@@ -117,6 +117,9 @@ class Korisnik(Base):
     lozinka_hash: Mapped[str] = mapped_column(String(255))
     uloga: Mapped[Uloga] = mapped_column(Enum(Uloga), index=True)
     telefon: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Slobodan naziv funkcije uz ime (npr. "vozač u radioni") — samo za prikaz;
+    # ne mijenja ulogu ni ponašanje (radnik i dalje ide u evidenciju).
+    funkcija: Mapped[str | None] = mapped_column(String(60), nullable=True)
     aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
     # Prijavljuje li se radnik na operacije (serviser=True). Skladištar/uprava i sl.
     # koji ne rade na nalozima → False (ne pojavljuje se u prijavama/dodjelama).

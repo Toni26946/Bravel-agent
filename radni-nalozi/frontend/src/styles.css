@@ -803,6 +803,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-sticky { position: sticky; left: 0; z-index: 2; }
 .ev-tablica thead th.ev-sticky { z-index: 4; }
 .ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
+.ev-funkcija { display: block; font-weight: 400; font-size: .72em; color: var(--muted, #888); line-height: 1.1; }
 .ev-dan { min-width: 96px; }
 .ev-dan-br { font-weight: 700; }
 .ev-dan-dow { font-size: 10px; color: var(--sivo); text-transform: lowercase; }

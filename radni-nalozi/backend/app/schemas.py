@@ -49,6 +49,7 @@ class KorisnikBase(BaseModel):
     korisnicko_ime: str
     uloga: Uloga
     telefon: str | None = None
+    funkcija: str | None = None   # slobodan naziv uz ime, npr. "vozač u radioni"
 
 
 class KorisnikCreate(KorisnikBase):
@@ -63,6 +64,7 @@ class KorisnikUpdate(BaseModel):
     ime: str | None = None
     uloga: Uloga | None = None
     telefon: str | None = None
+    funkcija: str | None = None
     aktivan: bool | None = None
     prijavljuje_se: bool | None = None
     narucitelj: bool | None = None
@@ -75,6 +77,7 @@ class KorisnikOut(ORM):
     korisnicko_ime: str
     uloga: Uloga
     telefon: str | None = None
+    funkcija: str | None = None
     aktivan: bool
     prijavljuje_se: bool = True
     narucitelj: bool = False
@@ -865,6 +868,7 @@ class EvidencijaRadnik(BaseModel):
     korisnik_id: int
     ime: str
     uloga: str
+    funkcija: str | None = None   # npr. "vozač u radioni"
     # Zbirne vrijednosti za mjesec
     redovno: float = 0
     prekovremeni: float = 0

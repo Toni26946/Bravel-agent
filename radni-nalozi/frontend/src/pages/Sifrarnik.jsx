@@ -87,6 +87,12 @@ function Korisnici() {
     try { await api.azurirajKorisnika(k.id, { uloga: nova }); ucitaj() }
     catch (e) { setGreska(e.message) }
   }
+  const urediFunkciju = async (k) => {
+    const nova = window.prompt(t('sif.funkcijaUpit'), k.funkcija || '')
+    if (nova === null) return
+    try { await api.azurirajKorisnika(k.id, { funkcija: nova.trim() }); ucitaj() }
+    catch (e) { setGreska(e.message) }
+  }
 
   if (lista === null) return <Spinner />
   return (
@@ -161,7 +167,7 @@ function Korisnici() {
             <h3 style={{ opacity: k.aktivan ? 1 : 0.5 }}>{k.ime}</h3>
             <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
           </div>
-          <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}</p>
+          <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}{k.funkcija ? ` · ${k.funkcija}` : ''}</p>
           <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {t('sif.uloga')}:
             <select value={k.uloga} onChange={(e) => prebaciUlogu(k, e.target.value)} style={{ width: 'auto', margin: 0 }}>
@@ -184,6 +190,9 @@ function Korisnici() {
             )}
             <button className={'btn mali ' + (k.narucitelj ? '' : 'sekund')} onClick={() => prebaciNarucitelja(k)}>
               {k.narucitelj ? t('sif.jeNarucitelj') : t('sif.nijeNarucitelj')}
+            </button>
+            <button className="btn sekund mali" onClick={() => urediFunkciju(k)}>
+              {k.funkcija ? t('sif.urediFunkciju') : t('sif.dodajFunkciju')}
             </button>
           </div>
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />

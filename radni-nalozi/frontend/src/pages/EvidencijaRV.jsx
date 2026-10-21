@@ -174,7 +174,10 @@ export default function EvidencijaRV() {
               <tbody>
                 {podaci.radnici.map((r) => (
                   <tr key={r.korisnik_id}>
-                    <td className="ev-sticky ev-ime" title={r.ime}>{r.ime}</td>
+                    <td className="ev-sticky ev-ime" title={r.funkcija ? `${r.ime} — ${r.funkcija}` : r.ime}>
+                      {r.ime}
+                      {r.funkcija && <span className="ev-funkcija">{r.funkcija}</span>}
+                    </td>
                     <td className="ev-zbroj" title={t('ev.obrPomoc')}>{fmt(obrSati(r))}</td>
                     <td className="ev-zbroj">{fmt(r.prekovremeni)}</td>
                     <td className="ev-zbroj">{r.prekovremeni_2h || ''}</td>
