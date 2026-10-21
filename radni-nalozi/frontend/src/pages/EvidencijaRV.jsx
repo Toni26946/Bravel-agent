@@ -45,7 +45,7 @@ function izracun(od, doo, kod) {
   let uk = 0
   if (a != null && b0 != null) { let b = b0; if (b < a) b += 24 * 60; uk = Math.max(0, b - a) / 60 }
   if (kod === 'TER') return { redovni: 0, prekovremeni: 0, teren: r2(uk) }
-  if (kod) return { redovni: 0, prekovremeni: 0, teren: 0 }
+  if (kod === 'OD') return { redovni: 0, prekovremeni: 0, teren: 0 }
   if (a == null || b0 == null) return { redovni: 0, prekovremeni: 0, teren: 0 }
   return { redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)), teren: 0 }
 }
@@ -207,7 +207,8 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
   const [radi, setRadi] = useState(false)
 
   // Vrijeme (OD/DO) se upisuje za običan dan i za TEREN; za GO/BO/PD/OD se ne upisuje.
-  const vrijemeAktivno = (k) => !k || k === 'TER'
+  // OD/DO se upisuje za sve osim OD (odjava). GO/BO/PD sada zadržavaju sate.
+  const vrijemeAktivno = (k) => k !== 'OD'
 
   const spremi = async (polja) => {
     const stanje = { od, do: doo, kod, ...polja }
@@ -257,7 +258,7 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
       {terenSati > 0 && (
         <div className="ev-calc"><span className="ev-ter">{fmt(terenSati)} ter</span></div>
       )}
-      {!kod && (c.redovni > 0 || c.prekovremeni > 0) && (
+      {kod !== 'TER' && kod !== 'OD' && (c.redovni > 0 || c.prekovremeni > 0) && (
         <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}
           {subota && c.redovni > 0 && <span className="ev-obr" title="Subota ×1,5 (samo redovni)"> → {fmt(c.redovni * FAKTOR_SUBOTA)}</span>}
         </div>
