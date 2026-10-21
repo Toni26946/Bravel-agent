@@ -113,7 +113,7 @@ def dohvati_mjesec(
 
     radnici_out: list[EvidencijaRadnik] = []
     for k in _radnici(db):
-        r = EvidencijaRadnik(korisnik_id=k.id, ime=k.ime, uloga=k.uloga.value)
+        r = EvidencijaRadnik(korisnik_id=k.id, ime=k.ime, uloga=k.uloga.value, funkcija=k.funkcija)
         for z in po_radniku.get(k.id, []):
             kljuc = z.datum.isoformat()
             r.dani[kljuc] = EvidencijaDan(

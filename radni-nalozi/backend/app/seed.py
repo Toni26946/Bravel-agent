@@ -381,6 +381,50 @@ def osiguraj_kovacevica(db: Session) -> None:
     log.info("Dario Kovačević osiguran kao aktivan serviser.")
 
 
+def osiguraj_mihaela_i_zvonimira(db: Session) -> None:
+    """Jednokratno: dodaj radnike koji su u evidenciji radione, ali ih u app-u
+    nije bilo (pa im se sati nisu uvezli). Mihael Ščawčar = mehaničar; Azinović
+    Zvonimir = vozač u radioni (uloga ostaje 'radnik' da ide u evidenciju, a
+    „vozač u radioni" je samo oznaka funkcije uz ime). Guardano zastavicom."""
+    zastavica = Path(settings.upload_dir).parent / ".mihael_zvonimir_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    plan = [
+        ("Mihael Ščawčar", {"mihael", "scawcar"}, "mihael.scawcar", None),
+        ("Azinović Zvonimir", {"azinovic", "zvonimir"}, "zvonimir.azinovic", "vozač u radioni"),
+    ]
+    svi = db.query(Korisnik).all()
+    zauzeta = {k.korisnicko_ime for k in svi}
+    for ime, tset, kor, funkcija in plan:
+        postoji = next((k for k in svi if tset <= _tokeni(k.ime)), None)
+        if postoji:
+            postoji.aktivan = True
+            postoji.uloga = Uloga.radnik
+            if funkcija and not postoji.funkcija:
+                postoji.funkcija = funkcija
+        else:
+            ime_kor, i = kor, 1
+            while ime_kor in zauzeta:
+                i += 1
+                ime_kor = f"{kor}{i}"
+            zauzeta.add(ime_kor)
+            db.add(Korisnik(
+                ime=ime, korisnicko_ime=ime_kor,
+                lozinka_hash=hash_lozinka("radnik123"),
+                uloga=Uloga.radnik, aktivan=True, funkcija=funkcija,
+            ))
+    db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    log.info("Osigurani Mihael Ščawčar (mehaničar) i Azinović Zvonimir (vozač u radioni).")
+
+
 def obavijesti_osvjezi(db: Session) -> None:
     """Jednokratno: pošalji svim korisnicima push da osvježe aplikaciju (nova verzija).
 
@@ -734,7 +778,7 @@ def uvezi_evidenciju_novo_gs(db: Session) -> None:
 
     Podaci: app/data/evidencija_novo_gs.json — [{ime,g,m,d,od,do,red,pre,ter,kod}].
     """
-    zastavica = Path(settings.upload_dir).parent / ".evidencija_novo_gs_v1"
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_novo_gs_v2"
     try:
         if zastavica.exists():
             return
