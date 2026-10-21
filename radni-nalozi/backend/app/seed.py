@@ -721,6 +721,101 @@ def uvezi_evidenciju_iz_gs(db: Session) -> None:
         pass
 
 
+def uvezi_evidenciju_novo_gs(db: Session) -> None:
+    """Jednokratni PUNI uvoz evidencije radnog vremena iz nove Google tablice
+    „EVIDENCIJA RADNOG VREMENA NOVO" (srpanj–listopad 2026).
+
+    Tablica je mjerodavna: prepisuje te mjesece u cijelosti (briše SVE postojeće
+    unose u rasponu koji tablica pokriva — i automatske i ručne — pa upisuje nove).
+    Za razliku od starog uvoza, GO/BO dani ZADRŽAVAJU odrađene sate (za obračun se
+    plaćaju kao redovni; kod služi samo kao oznaka), teren ima upisan od/do, a subote
+    su obični sati (bez ×1,5). Radnik se traži po imenu (isti skup riječi bez
+    dijakritika; prednost ima aktivan korisnik). Guardano zastavicom na volumenu.
+
+    Podaci: app/data/evidencija_novo_gs.json — [{ime,g,m,d,od,do,red,pre,ter,kod}].
+    """
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_novo_gs_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "evidencija_novo_gs.json"
+    if not put.exists():
+        return
+    try:
+        unosi = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Ne mogu učitati evidencija_novo_gs.json: %s", e)
+        return
+    if not unosi:
+        return
+
+    def kljuc(ime: str) -> frozenset:
+        return frozenset((ime or "").translate(_ASCII).upper().split())
+
+    # Ime -> id; aktivni korisnici pobjeđuju kod istog imena (isti red kao kod šifri).
+    po_imenu = {}
+    for k in sorted(db.query(Korisnik).all(), key=lambda k: bool(k.aktivan)):
+        if k.ime:
+            po_imenu[kljuc(k.ime)] = k.id
+
+    # Raspon koji tablica pokriva (ne dira dane izvan njega, npr. tekuće unose).
+    datumi = []
+    for e in unosi:
+        try:
+            datumi.append(date(e["g"], e["m"], e["d"]))
+        except (KeyError, ValueError, TypeError):
+            pass
+    if not datumi:
+        return
+    d_od, d_do = min(datumi), max(datumi)
+
+    # Prepiši u cijelosti: obriši sve postojeće unose u rasponu, pa upiši nove.
+    (
+        db.query(EvidencijaRV)
+        .filter(EvidencijaRV.datum >= d_od, EvidencijaRV.datum <= d_do)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+
+    dodano = 0
+    vidjeno = set()           # (kid, datum) — spriječi duple retke
+    nepoznati = set()
+    for e in unosi:
+        kid = po_imenu.get(kljuc(e.get("ime", "")))
+        if not kid:
+            nepoznati.add(e.get("ime"))
+            continue
+        try:
+            dat = date(e["g"], e["m"], e["d"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if (kid, dat) in vidjeno:
+            continue
+        db.add(EvidencijaRV(
+            korisnik_id=kid, datum=dat,
+            od=e.get("od"), do=e.get("do"),
+            redovni=float(e.get("red", 0) or 0),
+            prekovremeni=float(e.get("pre", 0) or 0),
+            teren=float(e.get("ter", 0) or 0),
+            kod=e.get("kod"),
+        ))
+        vidjeno.add((kid, dat))
+        dodano += 1
+    db.commit()
+    log.info(
+        "Novi uvoz evidencije iz GS: %s–%s, upisano %d dana; bez korisnika: %d%s",
+        d_od.isoformat(), d_do.isoformat(), dodano, len(nepoznati),
+        (" (" + ", ".join(sorted(x for x in nepoznati if x)) + ")") if nepoznati else "",
+    )
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 # Bivši zaposlenici / računi koje više ne vodimo kao radnike (deaktiviraj, ne briši).
 _BIVSI_TOKENI = [
     {"roko", "jendris"},      # Roko Jendriš
