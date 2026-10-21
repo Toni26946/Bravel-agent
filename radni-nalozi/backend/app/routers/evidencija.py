@@ -169,14 +169,16 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
         # Teren: cijeli odrađeni raspon (od–do) broji se kao teren; bez redovnih/prekovremenih.
         teren = _sati(od, do)
         redovni, prekovremeni = 0.0, 0.0
-    elif kod in KODOVI_ODSUTNOST:
-        # Odsutnost/odjava: nema sati ni terena.
+    elif kod == "OD":
+        # Odjava: nema sati ni terena.
         od = do = None
         teren = 0.0
         redovni, prekovremeni = 0.0, 0.0
     else:
+        # Prazan kod ILI GO/BO/PD → zadrži odrađene sate. GO/BO/PD se i dalje
+        # plaćaju (isto kao redovni), a oznaka služi evidenciji izostanka uz sate.
         teren = 0.0
-        redovni, prekovremeni = _preracun(od, do, kod)
+        redovni, prekovremeni = _preracun(od, do, None)
 
     if not z:
         z = EvidencijaRV(korisnik_id=podaci.korisnik_id, datum=podaci.datum, kreirao_id=korisnik.id)
