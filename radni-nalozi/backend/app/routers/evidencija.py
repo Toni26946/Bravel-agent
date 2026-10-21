@@ -293,10 +293,12 @@ def za_obracun(
 ):
     """Servisni izvod evidencije za VANJSKI obračun (bravel-obracun).
 
-    Vraća SIROVE sate po radniku i danu (bez primijenjenih pravila plaće).
-    Obračun sam primjenjuje svoja pravila (subota ×1,5, teren satnice po
-    putovanju, bolovanje…). Pristup: servisni ključ u headeru X-Servis-Kljuc
-    ili query parametru ?kljuc=.
+    Vraća i sirove sate (po danu) i GOTOVE obračunske zbrojeve po radniku:
+    `redovno_obr` je redovni rad sa subotom ×1,5 (isto što app prikazuje u
+    stupcu „Redovno") — obračun ga uzima 1:1 i ne računa subote ponovno. GO/BO/PD
+    se vode kao dani (obračun ih dodaje kao plaćenih 8 h; BO na 70 %). Teren se i
+    dalje vodi po danu (satnica ovisi o duljini putovanja). Pristup: servisni
+    ključ u headeru X-Servis-Kljuc ili query parametru ?kljuc=.
     """
     mj = dohvati_mjesec(godina, mjesec, None, db)
     # Isključi upravu (vlasnika) iz servisnog obračuna radione — nije na satnici.
@@ -328,13 +330,15 @@ def za_obracun(
             "korisnik_id": r.korisnik_id,
             "ime": r.ime,
             "zbroj": {
-                "redovno": r.redovno,
+                "redovno": r.redovno,                 # sirovi redovni sati (bez ×1,5)
+                "redovno_obr": round(sum(_obr_redovni(d) for d in r.dani.values()), 2),  # s subotom ×1,5 (isto kao app "Redovno")
                 "prekovremeni": r.prekovremeni,
                 "teren": r.teren,
                 "radni_dani": r.radni_dani,
                 "prekovremeni_2h": r.prekovremeni_2h,
                 "go": r.go,
                 "bo": r.bo,
+                "pd": r.pd,
             },
             "dani": dani,
         })
