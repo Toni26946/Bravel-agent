@@ -383,7 +383,7 @@ def osiguraj_kovacevica(db: Session) -> None:
 
 def osiguraj_mihaela_i_zvonimira(db: Session) -> None:
     """Jednokratno: dodaj radnike koji su u evidenciji radione, ali ih u app-u
-    nije bilo (pa im se sati nisu uvezli). Mihael Ščawčar = mehaničar; Azinović
+    nije bilo (pa im se sati nisu uvezli). Mihael Ščanćar = mehaničar; Azinović
     Zvonimir = vozač u radioni (uloga ostaje 'radnik' da ide u evidenciju, a
     „vozač u radioni" je samo oznaka funkcije uz ime). Guardano zastavicom."""
     zastavica = Path(settings.upload_dir).parent / ".mihael_zvonimir_v1"
@@ -393,7 +393,7 @@ def osiguraj_mihaela_i_zvonimira(db: Session) -> None:
     except OSError:
         pass
     plan = [
-        ("Mihael Ščawčar", {"mihael", "scawcar"}, "mihael.scawcar", None),
+        ("Mihael Ščanćar", {"mihael", "scancar"}, "mihael.scancar", None),
         ("Azinović Zvonimir", {"azinovic", "zvonimir"}, "zvonimir.azinovic", "vozač u radioni"),
     ]
     svi = db.query(Korisnik).all()
@@ -422,7 +422,35 @@ def osiguraj_mihaela_i_zvonimira(db: Session) -> None:
         zastavica.write_text("done", encoding="utf-8")
     except OSError:
         pass
-    log.info("Osigurani Mihael Ščawčar (mehaničar) i Azinović Zvonimir (vozač u radioni).")
+    log.info("Osigurani Mihael Ščanćar (mehaničar) i Azinović Zvonimir (vozač u radioni).")
+
+
+def ukloni_duplikat_mihael(db: Session) -> None:
+    """Jednokratno: ukloni pogrešno kreiran duplikat 'Mihael Ščawčar' (iz tipfelera
+    u tablici) ako postoji ispravan zapis 'Mihael Ščanćar'. Evidencija duplikata se
+    briše kaskadno; ponovni uvoz (v3) je svejedno upisuje na ispravan zapis. Guardano."""
+    zastavica = Path(settings.upload_dir).parent / ".mihael_dup_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    svi = db.query(Korisnik).all()
+    ispravan = next((k for k in svi if {"mihael", "scancar"} <= _tokeni(k.ime)), None)
+    uklonjeno = 0
+    if ispravan:
+        for k in svi:
+            if k.id != ispravan.id and {"mihael", "scawcar"} <= _tokeni(k.ime):
+                db.delete(k)
+                uklonjeno += 1
+        db.commit()
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+    if uklonjeno:
+        log.info("Uklonjen duplikat 'Mihael Ščawčar' (%d); zadržan 'Mihael Ščanćar'.", uklonjeno)
 
 
 def obavijesti_osvjezi(db: Session) -> None:
@@ -778,7 +806,7 @@ def uvezi_evidenciju_novo_gs(db: Session) -> None:
 
     Podaci: app/data/evidencija_novo_gs.json — [{ime,g,m,d,od,do,red,pre,ter,kod}].
     """
-    zastavica = Path(settings.upload_dir).parent / ".evidencija_novo_gs_v2"
+    zastavica = Path(settings.upload_dir).parent / ".evidencija_novo_gs_v3"
     try:
         if zastavica.exists():
             return
