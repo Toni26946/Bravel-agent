@@ -804,6 +804,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-tablica thead th.ev-sticky { z-index: 4; }
 .ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
 .ev-funkcija { display: block; font-weight: 400; font-size: .72em; color: var(--muted, #888); line-height: 1.1; }
+.uzim { margin-top: 18px; }
+.uzim .uzim-ukupno { font-weight: 700; }
+.uzim-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+.uzim-form select, .uzim-form input { margin: 0; width: auto; flex: 1 1 160px; min-width: 120px; }
+.uzim-form .uzim-iznos { flex: 0 1 110px; text-align: right; }
+.uzim-tablica { width: 100%; border-collapse: collapse; }
+.uzim-tablica th, .uzim-tablica td { padding: 7px 8px; border-bottom: 1px solid var(--rub); text-align: left; }
+.uzim-tablica .uzim-iznos { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ev-dan { min-width: 96px; }
 .ev-dan-br { font-weight: 700; }
 .ev-dan-dow { font-size: 10px; color: var(--sivo); text-transform: lowercase; }

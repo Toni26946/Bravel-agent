@@ -695,3 +695,21 @@ class EvidencijaRV(Base):
     azuriran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     korisnik: Mapped["Korisnik"] = relationship(foreign_keys=[korisnik_id])
+
+
+class PrivatnoUzimanje(Base):
+    """Privatno uzimanje radnika u mjesecu (predujam, privatni trošak…) — iznos u
+    EUR koji se odbija od plaće. Vodi se na stranici „Radno vrijeme", a obračun ga
+    automatski uzima kao odbitak za taj mjesec."""
+    __tablename__ = "privatna_uzimanja"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    korisnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
+    godina: Mapped[int] = mapped_column(Integer, index=True)
+    mjesec: Mapped[int] = mapped_column(Integer, index=True)
+    opis: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    iznos: Mapped[float] = mapped_column(Float, default=0.0)
+    kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    korisnik: Mapped["Korisnik"] = relationship(foreign_keys=[korisnik_id])

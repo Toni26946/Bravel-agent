@@ -198,7 +198,81 @@ export default function EvidencijaRV() {
           </div>
         )
       )}
+
+      {podaci?.radnici?.length > 0 && (
+        <Uzimanja godina={godina} mjesec={mjesec} radnici={podaci.radnici} onGreska={setGreska} />
+      )}
     </Layout>
+  )
+}
+
+function Uzimanja({ godina, mjesec, radnici, onGreska }) {
+  const { t } = useT()
+  const [lista, setLista] = useState(null)
+  const [kid, setKid] = useState('')
+  const [opis, setOpis] = useState('')
+  const [iznos, setIznos] = useState('')
+  const [radi, setRadi] = useState(false)
+
+  const ucitaj = () => {
+    api.uzimanjaPopis(godina, mjesec).then(setLista).catch((e) => { onGreska(e.message); setLista([]) })
+  }
+  useEffect(ucitaj, [godina, mjesec])
+
+  const dodaj = async () => {
+    const i = parseFloat(String(iznos).replace(',', '.'))
+    if (!kid || !(i > 0)) return
+    setRadi(true)
+    try {
+      await api.uzimanjeDodaj({ korisnik_id: Number(kid), godina, mjesec, opis: opis.trim(), iznos: i })
+      setOpis(''); setIznos('')
+      ucitaj()
+    } catch (e) { onGreska(e.message) } finally { setRadi(false) }
+  }
+
+  const obrisi = async (id) => {
+    try { await api.uzimanjeObrisi(id); ucitaj() } catch (e) { onGreska(e.message) }
+  }
+
+  const ukupno = (lista || []).reduce((s, x) => s + (x.iznos || 0), 0)
+  const eur = (v) => (v || 0).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+  return (
+    <div className="karta uzim">
+      <div className="naslov-red">
+        <h3>{t('uzim.naslov')}</h3>
+        {(lista?.length > 0) && <span className="uzim-ukupno">{t('uzim.ukupno')}: {eur(ukupno)}</span>}
+      </div>
+      <p className="meta">{t('uzim.opis')}</p>
+
+      <div className="uzim-form">
+        <select value={kid} onChange={(e) => setKid(e.target.value)}>
+          <option value="">{t('uzim.radnik')}</option>
+          {radnici.map((r) => <option key={r.korisnik_id} value={r.korisnik_id}>{r.ime}</option>)}
+        </select>
+        <input value={opis} onChange={(e) => setOpis(e.target.value)} placeholder={t('uzim.opisPolje')} />
+        <input value={iznos} onChange={(e) => setIznos(e.target.value)} inputMode="decimal" placeholder={t('uzim.iznos')} className="uzim-iznos" />
+        <button className="btn mali" onClick={dodaj} disabled={radi || !kid || !iznos}>{t('uzim.dodaj')}</button>
+      </div>
+
+      {lista === null ? <Spinner /> : (
+        lista.length === 0 ? <p className="meta">{t('uzim.nema')}</p> : (
+          <table className="uzim-tablica">
+            <thead><tr><th>{t('ev.radnik')}</th><th>{t('uzim.opisPolje')}</th><th className="uzim-iznos">{t('uzim.iznos')}</th><th></th></tr></thead>
+            <tbody>
+              {lista.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.ime}</td>
+                  <td>{u.opis || '—'}</td>
+                  <td className="uzim-iznos">{eur(u.iznos)}</td>
+                  <td><button className="btn sekund mali" onClick={() => obrisi(u.id)} aria-label={t('uzim.obrisi')}>✕</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      )}
+    </div>
   )
 }
 

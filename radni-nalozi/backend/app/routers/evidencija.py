@@ -15,8 +15,11 @@ from sqlalchemy.orm import Session
 from ..auth import SERVIS_KORISNIK, zahtijevaj_uloge
 from ..config import settings
 from ..database import get_db
-from ..models import EvidencijaRV, Korisnik, Uloga
-from ..schemas import EvidencijaDan, EvidencijaMjesec, EvidencijaRadnik, EvidencijaUnos
+from ..models import EvidencijaRV, Korisnik, PrivatnoUzimanje, Uloga
+from ..schemas import (
+    EvidencijaDan, EvidencijaMjesec, EvidencijaRadnik, EvidencijaUnos,
+    PrivatnoUzimanjeCreate, PrivatnoUzimanjeOut,
+)
 
 router = APIRouter(prefix="/evidencija", tags=["evidencija"])
 
@@ -309,6 +312,14 @@ def za_obracun(
         v = db.query(Korisnik.id).filter(Korisnik.korisnicko_ime == vlasnik_uname).first()
         if v:
             uprava_ids.add(v[0])
+    # Privatna uzimanja (odbitak od plaće) za mjesec — po radniku.
+    uzimanja_po_radniku: dict[int, list[PrivatnoUzimanje]] = {}
+    for u in (
+        db.query(PrivatnoUzimanje)
+        .filter(PrivatnoUzimanje.godina == godina, PrivatnoUzimanje.mjesec == mjesec)
+        .all()
+    ):
+        uzimanja_po_radniku.setdefault(u.korisnik_id, []).append(u)
     radnici = []
     for r in mj.radnici:
         if r.korisnik_id in uprava_ids:
@@ -326,6 +337,7 @@ def za_obracun(
                 "teren": round(d.teren or 0, 2),
                 "kod": d.kod,                       # None | GO | BO | PD | OD | TER
             })
+        uz = uzimanja_po_radniku.get(r.korisnik_id, [])
         radnici.append({
             "korisnik_id": r.korisnik_id,
             "ime": r.ime,
@@ -339,7 +351,9 @@ def za_obracun(
                 "go": r.go,
                 "bo": r.bo,
                 "pd": r.pd,
+                "uzimanja": round(sum(x.iznos or 0 for x in uz), 2),   # privatna uzimanja (odbitak), EUR
             },
+            "uzimanja": [{"opis": x.opis, "iznos": round(x.iznos or 0, 2)} for x in uz],
             "dani": dani,
         })
     return {
@@ -348,3 +362,61 @@ def za_obracun(
         "dana_u_mjesecu": mj.dana_u_mjesecu,
         "radnici": radnici,
     }
+
+
+# --- Privatna uzimanja (odbitak od plaće) ------------------------------------
+
+def _uzimanje_out(u: PrivatnoUzimanje) -> PrivatnoUzimanjeOut:
+    return PrivatnoUzimanjeOut(
+        id=u.id, korisnik_id=u.korisnik_id,
+        ime=(u.korisnik.ime if u.korisnik else None),
+        godina=u.godina, mjesec=u.mjesec, opis=u.opis, iznos=u.iznos,
+    )
+
+
+@router.get("/uzimanja", response_model=list[PrivatnoUzimanjeOut])
+def uzimanja_popis(
+    godina: int = Query(..., ge=2000, le=2100),
+    mjesec: int = Query(..., ge=1, le=12),
+    _: Korisnik = Depends(evidencija_pristup),
+    db: Session = Depends(get_db),
+):
+    stavke = (
+        db.query(PrivatnoUzimanje)
+        .filter(PrivatnoUzimanje.godina == godina, PrivatnoUzimanje.mjesec == mjesec)
+        .order_by(PrivatnoUzimanje.kreiran)
+        .all()
+    )
+    return [_uzimanje_out(u) for u in stavke]
+
+
+@router.post("/uzimanja", response_model=PrivatnoUzimanjeOut, status_code=201)
+def uzimanje_dodaj(
+    podaci: PrivatnoUzimanjeCreate,
+    korisnik: Korisnik = Depends(evidencija_pristup),
+    db: Session = Depends(get_db),
+):
+    if not db.get(Korisnik, podaci.korisnik_id):
+        raise HTTPException(status_code=404, detail="Radnik ne postoji")
+    u = PrivatnoUzimanje(
+        korisnik_id=podaci.korisnik_id, godina=podaci.godina, mjesec=podaci.mjesec,
+        opis=(podaci.opis or "").strip() or None, iznos=float(podaci.iznos or 0),
+        kreirao_id=korisnik.id,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return _uzimanje_out(u)
+
+
+@router.delete("/uzimanja/{uzimanje_id}", status_code=204)
+def uzimanje_obrisi(
+    uzimanje_id: int,
+    _: Korisnik = Depends(evidencija_pristup),
+    db: Session = Depends(get_db),
+):
+    u = db.get(PrivatnoUzimanje, uzimanje_id)
+    if u:
+        db.delete(u)
+        db.commit()
+    return Response(status_code=204)
