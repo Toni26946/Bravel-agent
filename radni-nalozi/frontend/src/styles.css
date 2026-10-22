@@ -578,6 +578,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 @media (min-width: 860px) { .shema-canvas { height: 460px; } }
 
 .login-wrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px; max-width: 420px; margin: 0 auto; }
+.login-lang { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 10px; color: var(--sivo); font-size: 14px; }
+.login-lang select { width: auto; margin: 0; padding: 6px 10px; }
 .login-logo { text-align: center; margin-bottom: 28px; }
 .login-logo .b { width: 76px; height: 76px; border-radius: 20px; background: var(--plava); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 800; box-shadow: 0 6px 20px rgba(13,71,161,.35); }
 .login-logo-img { width: 220px; max-width: 72%; height: auto; display: block; margin: 0 auto; }
