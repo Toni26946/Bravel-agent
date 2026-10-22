@@ -806,6 +806,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-tablica thead th.ev-sticky { z-index: 4; }
 .ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
 .ev-funkcija { display: block; font-weight: 400; font-size: .72em; color: var(--muted, #888); line-height: 1.1; }
+.portal-filter { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-weight: 600; cursor: pointer; }
+.portal-filter input { width: auto; margin: 0; }
 .moduli-ed { margin-top: 8px; }
 .moduli-panel { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--rub); border-radius: 10px; background: var(--karta, #fff); }
 .moduli-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
