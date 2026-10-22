@@ -49,7 +49,7 @@ def _ord_tokeni(ime: str) -> set[str]:
 
 
 # Redoslijed prikaza radnika u evidenciji (Tonijev popis). Po jednom razlikovnom
-# tokenu imena/prezimena. Radnici kojih nema ovdje idu na kraj (abecedno).
+# tokenu imena/prezimena. Radnici kojih nema ovdje idu PRVI (abecedno), pa popis.
 _REDOSLIJED = [
     "svecnjak", "kahlina", "bacek", "poslon", "kuzmic", "hasan", "pavliukh", "baranov",
     "borovyk", "liushnenko", "serniak", "elson", "konathukatiil", "ankudy",
@@ -59,11 +59,12 @@ _REDOSLIJED = [
 
 
 def _red_kljuc(k: Korisnik):
+    # Radnici kojih NEMA na popisu idu prvi (abecedno), pa onda popis redom.
     t = _ord_tokeni(k.ime)
     for i, tok in enumerate(_REDOSLIJED):
         if tok in t:
-            return (0, i, "")
-    return (1, 0, (k.ime or "").lower())
+            return (1, i, "")
+    return (0, 0, (k.ime or "").lower())
 
 
 def _radnici(db: Session) -> list[Korisnik]:
@@ -71,7 +72,7 @@ def _radnici(db: Session) -> list[Korisnik]:
 
     Servisni (M2M) račun „Flota OS" se izostavlja — nije osoba koja evidentira sate.
     Izostavlja se i uprava / korisnici portala (settings.evidencija_bez, npr. Toni, Velimir).
-    Poredak je po _REDOSLIJED; nepoznati radnici idu na kraj (abecedno).
+    Poredak: radnici izvan _REDOSLIJED prvi (abecedno), pa _REDOSLIJED redom.
     """
     bez = _nisu_radnici()
     lista = [
