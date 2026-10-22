@@ -157,6 +157,8 @@ def azuriraj(
         k.telefon = podaci.telefon
     if podaci.funkcija is not None:
         k.funkcija = (podaci.funkcija or None)
+    if "moduli" in podaci.model_fields_set:
+        k.moduli = (podaci.moduli or None)   # [] → None (ništa skriveno)
     if podaci.aktivan is not None:
         k.aktivan = podaci.aktivan
     if podaci.prijavljuje_se is not None:

@@ -143,6 +143,12 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
   }
 
+  // Po korisniku sakriveni moduli (deny-lista). Profil se nikad ne skriva.
+  const skriveniModuli = new Set(korisnik?.moduli || [])
+  const vidljiviTabovi = skriveniModuli.size
+    ? tabovi.filter((x) => x.do === '/profil' || !(x.do && skriveniModuli.has(x.do)))
+    : tabovi
+
   return (
     <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
       <header className="topbar">
@@ -166,7 +172,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         )}
       </header>
       <nav className="tabbar">
-        {tabovi.map((item) => {
+        {vidljiviTabovi.map((item) => {
           if (!item.djeca) {
             const n = paznjaZa(item.do)
             return (

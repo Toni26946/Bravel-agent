@@ -65,6 +65,7 @@ class KorisnikUpdate(BaseModel):
     uloga: Uloga | None = None
     telefon: str | None = None
     funkcija: str | None = None
+    moduli: list[str] | None = None
     aktivan: bool | None = None
     prijavljuje_se: bool | None = None
     narucitelj: bool | None = None
@@ -78,6 +79,7 @@ class KorisnikOut(ORM):
     uloga: Uloga
     telefon: str | None = None
     funkcija: str | None = None
+    moduli: list[str] | None = None
     aktivan: bool
     prijavljuje_se: bool = True
     narucitelj: bool = False
