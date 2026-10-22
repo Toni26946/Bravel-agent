@@ -808,6 +808,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-funkcija { display: block; font-weight: 400; font-size: .72em; color: var(--muted, #888); line-height: 1.1; }
 .portal-filter { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-weight: 600; cursor: pointer; }
 .portal-filter input { width: auto; margin: 0; }
+.karta.kk { padding: 8px 12px; margin-bottom: 8px; }
+.kk-glava { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 3px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.kk-ime { font-weight: 700; }
+.kk-un { color: var(--sivo); font-size: 12px; }
+.kk-spacer { flex: 1; }
+.kk-chev { color: var(--sivo); font-size: 13px; }
+.kk-funk { margin: 1px 0 0; font-size: 12px; }
+.kk-tijelo { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rub); }
 .moduli-ed { margin-top: 8px; }
 .moduli-panel { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--rub); border-radius: 10px; background: var(--karta, #fff); }
 .moduli-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }

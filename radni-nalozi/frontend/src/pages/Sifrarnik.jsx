@@ -168,12 +168,29 @@ function Korisnici() {
         {t('sif.samoPortal')}
       </label>
       {lista.filter((k) => !samoPortal || ['voditelj', 'poslovodja', 'skladistar'].includes(k.uloga)).map((k) => (
-        <div key={k.id} className="karta">
-          <div className="naslov-red">
-            <h3 style={{ opacity: k.aktivan ? 1 : 0.5 }}>{k.ime}</h3>
-            <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
-          </div>
-          <p className="meta">@{k.korisnicko_ime}{k.telefon ? ` · ${k.telefon}` : ''}{k.funkcija ? ` · ${k.funkcija}` : ''}</p>
+        <KorisnikKartica key={k.id} k={k} ULOGE={ULOGE}
+          prebaciAktivan={prebaciAktivan} prebaciUlogu={prebaciUlogu} prebaciPrijavu={prebaciPrijavu}
+          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} setGreska={setGreska} />
+      ))}
+    </>
+  )
+}
+
+function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, setGreska }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  return (
+    <div className={'karta kk' + (k.aktivan ? '' : ' kk-neaktivan')}>
+      <button type="button" className="kk-glava" onClick={() => setOtvoren((o) => !o)}>
+        <span className="kk-ime" style={{ opacity: k.aktivan ? 1 : 0.5 }}>{k.ime}</span>
+        <span className="kk-un">@{k.korisnicko_ime}</span>
+        <span className="kk-spacer" />
+        <Bedz vrsta="srednji" tekst={t('uloga.' + k.uloga)} />
+        <span className="kk-chev">{otvoren ? '▴' : '▾'}</span>
+      </button>
+      {k.funkcija && <p className="meta kk-funk">{k.funkcija}</p>}
+      {otvoren && (
+        <div className="kk-tijelo">
           <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {t('sif.uloga')}:
             <select value={k.uloga} onChange={(e) => prebaciUlogu(k, e.target.value)} style={{ width: 'auto', margin: 0 }}>
@@ -181,9 +198,7 @@ function Korisnici() {
             </select>
           </p>
           {k.uloga === 'radnik' && (
-            <p className="meta">
-              {t('sif.vrsta')}: <strong>{k.prijavljuje_se === false ? t('sif.nePrijavljuje') : t('sif.serviser')}</strong>
-            </p>
+            <p className="meta">{t('sif.vrsta')}: <strong>{k.prijavljuje_se === false ? t('sif.nePrijavljuje') : t('sif.serviser')}</strong></p>
           )}
           <div className="btn-red">
             <button className="btn sekund mali" onClick={() => prebaciAktivan(k)}>
@@ -204,8 +219,8 @@ function Korisnici() {
           <ModuliEditor k={k} naGresku={setGreska} />
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
         </div>
-      ))}
-    </>
+      )}
+    </div>
   )
 }
 
