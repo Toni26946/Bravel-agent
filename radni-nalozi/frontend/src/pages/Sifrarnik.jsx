@@ -4,7 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
-import { moduliZaUlogu } from '../moduli'
+import { MODULI, MODULI_ULOGA } from '../moduli'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
 function _norm(s) {
@@ -41,6 +41,7 @@ function Korisnici() {
   const [otvori, setOtvori] = useState(false)
   const [f, setF] = useState({ ime: '', telefon: '' })
   const [noviRezultat, setNoviRezultat] = useState(null)  // prikaz generiranih pristupnih podataka
+  const [samoPortal, setSamoPortal] = useState(false)     // filter: samo korisnici portala
 
   // uvoz radnika
   const [uvozOtvori, setUvozOtvori] = useState(false)
@@ -162,7 +163,11 @@ function Korisnici() {
           </div>
         </form>
       )}
-      {lista.map((k) => (
+      <label className="portal-filter">
+        <input type="checkbox" checked={samoPortal} onChange={(e) => setSamoPortal(e.target.checked)} />
+        {t('sif.samoPortal')}
+      </label>
+      {lista.filter((k) => !samoPortal || ['voditelj', 'poslovodja', 'skladistar'].includes(k.uloga)).map((k) => (
         <div key={k.id} className="karta">
           <div className="naslov-red">
             <h3 style={{ opacity: k.aktivan ? 1 : 0.5 }}>{k.ime}</h3>
@@ -207,19 +212,22 @@ function Korisnici() {
 function ModuliEditor({ k, naGresku }) {
   const { t } = useT()
   const [otvori, setOtvori] = useState(false)
-  const [skriveni, setSkriveni] = useState(() => new Set(k.moduli || []))
+  // Početno vidljivi: ako je postavljena allow-lista → ona; inače zadano po ulozi.
+  const pocetno = () => Array.isArray(k.moduli)
+    ? new Set(k.moduli)
+    : new Set((MODULI_ULOGA[k.uloga] || []))
+  const [vidljivi, setVidljivi] = useState(pocetno)
   const [radi, setRadi] = useState(false)
   const [ok, setOk] = useState(false)
-  const moduli = moduliZaUlogu(k.uloga)
-  if (!moduli.length) return null
-  const toggle = (key) => setSkriveni((s) => {
+  const toggle = (key) => setVidljivi((s) => {
     const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n
   })
   const spremi = async () => {
     setRadi(true); setOk(false)
     try {
-      await api.azurirajKorisnika(k.id, { moduli: [...skriveni] })
-      k.moduli = [...skriveni]
+      const lista = MODULI.filter((m) => vidljivi.has(m.key)).map((m) => m.key)
+      await api.azurirajKorisnika(k.id, { moduli: lista })
+      k.moduli = lista
       setOk(true); setTimeout(() => setOk(false), 1500)
     } catch (e) { naGresku(e.message) } finally { setRadi(false) }
   }
@@ -229,9 +237,9 @@ function ModuliEditor({ k, naGresku }) {
       {otvori && (
         <div className="moduli-panel">
           <p className="meta">{t('mod.pomoc')}</p>
-          {moduli.map((m) => (
+          {MODULI.map((m) => (
             <label key={m.key} className="moduli-row">
-              <input type="checkbox" checked={!skriveni.has(m.key)} onChange={() => toggle(m.key)} />
+              <input type="checkbox" checked={vidljivi.has(m.key)} onChange={() => toggle(m.key)} />
               <span>{m.ikona} {m.literal ? m.txt : t(m.txt)}</span>
             </label>
           ))}

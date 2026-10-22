@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 import { api } from './api'
 import { useT } from './i18n'
+import { MODULI } from './moduli'
 
 export default function Layout({ naslov, nazad, children, akcija }) {
   const { korisnik } = useAuth()
@@ -143,11 +144,21 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
   }
 
-  // Po korisniku sakriveni moduli (deny-lista). Profil se nikad ne skriva.
-  const skriveniModuli = new Set(korisnik?.moduli || [])
-  const vidljiviTabovi = skriveniModuli.size
-    ? tabovi.filter((x) => x.do === '/profil' || !(x.do && skriveniModuli.has(x.do)))
-    : tabovi
+  // Moduli po korisniku (allow-lista, samo za kartice iz kataloga MODULI).
+  // Ako je postavljena: korisnik vidi TOČNO te kartice iz kataloga (može i dobiti
+  // i izgubiti). Posebne stavke (grupe, Profil, evidencija, AI…) ostaju po ulozi.
+  let vidljiviTabovi = tabovi
+  if (Array.isArray(korisnik?.moduli)) {
+    const kataloskiKljucevi = new Set(MODULI.map((m) => m.key))
+    const dopusteni = new Set(korisnik.moduli)
+    vidljiviTabovi = tabovi.filter((x) => !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
+    const prisutni = new Set(vidljiviTabovi.map((x) => x.do))
+    for (const m of MODULI) {
+      if (dopusteni.has(m.key) && !prisutni.has(m.key)) {
+        vidljiviTabovi.push({ do: m.key, ikona: m.ikona, txt: m.literal ? m.txt : t(m.txt) })
+      }
+    }
+  }
 
   return (
     <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
