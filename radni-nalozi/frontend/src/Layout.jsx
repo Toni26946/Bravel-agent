@@ -103,7 +103,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push(grupaVozila(true))
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
-    tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
@@ -118,7 +117,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push(grupaVozila(false))
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
-    tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
@@ -126,12 +124,19 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   if (korisnik?.uloga === 'skladistar') {
     tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
-    tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
   }
   if (korisnik?.uloga === 'radnik') {
     tabovi.push({ do: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona' })
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
+  }
+  // „Radno vrijeme" (evidencija) vidi samo Marina i Akshay — ne cijela uloga.
+  {
+    const un = (korisnik?.korisnicko_ime || '').toLowerCase()
+    const im = (korisnik?.ime || '').toLowerCase()
+    if (im.includes('akshay') || un === 'akshay' || (im.includes('marina') && im.includes('pejkov'))) {
+      tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
+    }
   }
   // Voditelju Profil ide gore desno (u zaglavlje), ostalima u izbornik.
   if (korisnik?.uloga !== 'voditelj') {
