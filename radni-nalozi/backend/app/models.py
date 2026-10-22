@@ -120,6 +120,9 @@ class Korisnik(Base):
     # Slobodan naziv funkcije uz ime (npr. "vozač u radioni") — samo za prikaz;
     # ne mijenja ulogu ni ponašanje (radnik i dalje ide u evidenciju).
     funkcija: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Sakriveni moduli (kartice izbornika) za ovog korisnika — popis putanja npr.
+    # ["/zaduzenja","/steta"]. Prazno/None = sve po ulozi. Samo skriva (ne daje više).
+    moduli: Mapped[list | None] = mapped_column(JSON, nullable=True)
     aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
     # Prijavljuje li se radnik na operacije (serviser=True). Skladištar/uprava i sl.
     # koji ne rade na nalozima → False (ne pojavljuje se u prijavama/dodjelama).

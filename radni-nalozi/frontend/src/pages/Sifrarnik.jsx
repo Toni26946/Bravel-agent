@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
+import { moduliZaUlogu } from '../moduli'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
 function _norm(s) {
@@ -195,10 +196,49 @@ function Korisnici() {
               {k.funkcija ? t('sif.urediFunkciju') : t('sif.dodajFunkciju')}
             </button>
           </div>
+          <ModuliEditor k={k} naGresku={setGreska} />
           <ResetLozinke korisnikId={k.id} naGresku={setGreska} />
         </div>
       ))}
     </>
+  )
+}
+
+function ModuliEditor({ k, naGresku }) {
+  const { t } = useT()
+  const [otvori, setOtvori] = useState(false)
+  const [skriveni, setSkriveni] = useState(() => new Set(k.moduli || []))
+  const [radi, setRadi] = useState(false)
+  const [ok, setOk] = useState(false)
+  const moduli = moduliZaUlogu(k.uloga)
+  if (!moduli.length) return null
+  const toggle = (key) => setSkriveni((s) => {
+    const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n
+  })
+  const spremi = async () => {
+    setRadi(true); setOk(false)
+    try {
+      await api.azurirajKorisnika(k.id, { moduli: [...skriveni] })
+      k.moduli = [...skriveni]
+      setOk(true); setTimeout(() => setOk(false), 1500)
+    } catch (e) { naGresku(e.message) } finally { setRadi(false) }
+  }
+  return (
+    <div className="moduli-ed">
+      <button className="btn sekund mali" onClick={() => setOtvori((o) => !o)}>{t('mod.uredi')}</button>
+      {otvori && (
+        <div className="moduli-panel">
+          <p className="meta">{t('mod.pomoc')}</p>
+          {moduli.map((m) => (
+            <label key={m.key} className="moduli-row">
+              <input type="checkbox" checked={!skriveni.has(m.key)} onChange={() => toggle(m.key)} />
+              <span>{m.ikona} {m.literal ? m.txt : t(m.txt)}</span>
+            </label>
+          ))}
+          <button className="btn mali" onClick={spremi} disabled={radi}>{ok ? t('mod.spremljeno') : t('mod.spremi')}</button>
+        </div>
+      )}
+    </div>
   )
 }
 
