@@ -804,7 +804,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-tablica thead th.ev-sticky { z-index: 4; }
 .ev-ime { text-align: left; min-width: 150px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; box-shadow: 1px 0 0 var(--rub); }
 .ev-funkcija { display: block; font-weight: 400; font-size: .72em; color: var(--muted, #888); line-height: 1.1; }
-.uzim { margin-top: 18px; }
+.ev-tabovi { display: inline-flex; gap: 4px; margin-left: 6px; }
+.ev-tab { border: 1px solid var(--rub); background: #eef2f7; color: var(--plava); border-radius: 8px; padding: 5px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.ev-tab.aktivno { background: var(--plava); color: #fff; border-color: var(--plava); }
+.uzim { margin-top: 8px; }
 .uzim .uzim-ukupno { font-weight: 700; }
 .uzim-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
 .uzim-form select, .uzim-form input { margin: 0; width: auto; flex: 1 1 160px; min-width: 120px; }
