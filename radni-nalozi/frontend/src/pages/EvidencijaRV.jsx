@@ -83,6 +83,7 @@ export default function EvidencijaRV() {
   const [mjesec, setMjesec] = useState(danas.getMonth() + 1)   // 1–12
   const [podaci, setPodaci] = useState(null)
   const [greska, setGreska] = useState('')
+  const [tab, setTab] = useState('sati')   // 'sati' | 'uzimanja'
 
   const ucitaj = () => {
     setPodaci(null)
@@ -147,11 +148,18 @@ export default function EvidencijaRV() {
         <button className="btn mali" onClick={() => promijeniMjesec(-1)} aria-label="Prethodni">‹</button>
         <span className="ev-mjesec">{MJESECI[mjesec - 1]} {godina}</span>
         <button className="btn mali" onClick={() => promijeniMjesec(1)} aria-label="Sljedeći">›</button>
-        <span className="ev-legenda">{t('ev.legenda')}</span>
+        <div className="ev-tabovi">
+          <button className={'ev-tab' + (tab === 'sati' ? ' aktivno' : '')} onClick={() => setTab('sati')}>{t('ev.tabSati')}</button>
+          <button className={'ev-tab' + (tab === 'uzimanja' ? ' aktivno' : '')} onClick={() => setTab('uzimanja')}>{t('uzim.naslov')}</button>
+        </div>
+        {tab === 'sati' && <span className="ev-legenda">{t('ev.legenda')}</span>}
       </div>
 
       {podaci === null ? <Spinner /> : (
         podaci.radnici.length === 0 ? <p className="meta">{t('ev.nemaRadnika')}</p> : (
+          tab === 'uzimanja' ? (
+            <Uzimanja godina={godina} mjesec={mjesec} radnici={podaci.radnici} onGreska={setGreska} />
+          ) : (
           <div className="ev-tablica-wrap">
             <table className="ev-tablica">
               <thead>
@@ -196,11 +204,8 @@ export default function EvidencijaRV() {
               </tbody>
             </table>
           </div>
+          )
         )
-      )}
-
-      {podaci?.radnici?.length > 0 && (
-        <Uzimanja godina={godina} mjesec={mjesec} radnici={podaci.radnici} onGreska={setGreska} />
       )}
     </Layout>
   )
