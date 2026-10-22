@@ -250,6 +250,9 @@ def _dohvati_ovlasten(db: Session, nalog_id: int, korisnik: Korisnik) -> Nalog:
     # Voditelj, poslovođa i radnik (mehaničar) rade na svim nalozima; vozač nema pristup.
     if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja, Uloga.radnik):
         return nalog
+    # Ostali (npr. skladištar) samo ako im je modul "/nalozi" izričito dodijeljen.
+    if "/nalozi" in (korisnik.moduli or []):
+        return nalog
     raise HTTPException(status_code=403, detail="Nemate ovlasti za ovaj nalog")
 
 
