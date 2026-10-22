@@ -233,6 +233,9 @@ export const api = {
   // Evidencija radnog vremena
   evidencijaMjesec: (godina, mjesec) => zahtjev(`/evidencija?godina=${godina}&mjesec=${mjesec}`),
   spremiEvidenciju: (b) => zahtjev('/evidencija', { method: 'PUT', body: b }),
+  uzimanjaPopis: (godina, mjesec) => zahtjev(`/evidencija/uzimanja?godina=${godina}&mjesec=${mjesec}`),
+  uzimanjeDodaj: (b) => zahtjev('/evidencija/uzimanja', { method: 'POST', body: b }),
+  uzimanjeObrisi: (id) => zahtjev(`/evidencija/uzimanja/${id}`, { method: 'DELETE' }),
   preuzmiEvidencijuExcel: async (godina, mjesec) => {
     const res = await fetch(BASE + `/api/evidencija/izvoz.xlsx?godina=${godina}&mjesec=${mjesec}`, {
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},

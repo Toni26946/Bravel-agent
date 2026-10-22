@@ -889,4 +889,22 @@ class EvidencijaMjesec(BaseModel):
     radnici: list[EvidencijaRadnik] = []
 
 
+class PrivatnoUzimanjeCreate(BaseModel):
+    korisnik_id: int
+    godina: int = Field(ge=2000, le=2100)
+    mjesec: int = Field(ge=1, le=12)
+    opis: str | None = None
+    iznos: float
+
+
+class PrivatnoUzimanjeOut(ORM):
+    id: int
+    korisnik_id: int
+    ime: str | None = None
+    godina: int
+    mjesec: int
+    opis: str | None = None
+    iznos: float
+
+
 Token.model_rebuild()
