@@ -38,14 +38,43 @@ def _nisu_radnici() -> set[str]:
     return {u.strip().lower() for u in (settings.evidencija_bez or "").split(",") if u.strip()}
 
 
+_ORD_ASCII = str.maketrans({
+    "č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d",
+    "Č": "c", "Ć": "c", "Š": "s", "Ž": "z", "Đ": "d",
+})
+
+
+def _ord_tokeni(ime: str) -> set[str]:
+    return set((ime or "").translate(_ORD_ASCII).lower().replace(".", " ").split())
+
+
+# Redoslijed prikaza radnika u evidenciji (Tonijev popis). Po jednom razlikovnom
+# tokenu imena/prezimena. Radnici kojih nema ovdje idu na kraj (abecedno).
+_REDOSLIJED = [
+    "svecnjak", "kahlina", "bacek", "kuzmic", "hasan", "pavliukh", "baranov",
+    "borovyk", "liushnenko", "serniak", "elson", "konathukatiil", "ankudy",
+    "antony", "gmitrovic", "balasko", "jambrac", "ronquillo", "kovacevic",
+    "bahal", "haver", "tsviathcok", "zvonimir", "tunjic", "scancar",
+]
+
+
+def _red_kljuc(k: Korisnik):
+    t = _ord_tokeni(k.ime)
+    for i, tok in enumerate(_REDOSLIJED):
+        if tok in t:
+            return (0, i, "")
+    return (1, 0, (k.ime or "").lower())
+
+
 def _radnici(db: Session) -> list[Korisnik]:
-    """Ekipa radione + skladišta (svi aktivni osim vozača), po imenu.
+    """Ekipa radione + skladišta (svi aktivni osim vozača), Tonijevim redoslijedom.
 
     Servisni (M2M) račun „Flota OS" se izostavlja — nije osoba koja evidentira sate.
     Izostavlja se i uprava / korisnici portala (settings.evidencija_bez, npr. Toni, Velimir).
+    Poredak je po _REDOSLIJED; nepoznati radnici idu na kraj (abecedno).
     """
     bez = _nisu_radnici()
-    return [
+    lista = [
         k for k in (
             db.query(Korisnik)
             .filter(
@@ -53,11 +82,11 @@ def _radnici(db: Session) -> list[Korisnik]:
                 Korisnik.uloga != Uloga.vozac,
                 Korisnik.korisnicko_ime != SERVIS_KORISNIK,
             )
-            .order_by(Korisnik.ime)
             .all()
         )
         if (k.korisnicko_ime or "").strip().lower() not in bez
     ]
+    return sorted(lista, key=_red_kljuc)
 
 
 def _minute(hhmm: str | None) -> int | None:
