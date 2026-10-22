@@ -51,7 +51,7 @@ def _ord_tokeni(ime: str) -> set[str]:
 # Redoslijed prikaza radnika u evidenciji (Tonijev popis). Po jednom razlikovnom
 # tokenu imena/prezimena. Radnici kojih nema ovdje idu na kraj (abecedno).
 _REDOSLIJED = [
-    "svecnjak", "kahlina", "bacek", "kuzmic", "hasan", "pavliukh", "baranov",
+    "svecnjak", "kahlina", "bacek", "poslon", "kuzmic", "hasan", "pavliukh", "baranov",
     "borovyk", "liushnenko", "serniak", "elson", "konathukatiil", "ankudy",
     "antony", "gmitrovic", "balasko", "jambrac", "ronquillo", "kovacevic",
     "bahal", "haver", "tsviathcok", "zvonimir", "tunjic", "scancar",
