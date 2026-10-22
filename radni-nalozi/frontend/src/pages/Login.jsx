@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
-import { useT } from '../i18n'
+import { useT, JEZICI } from '../i18n'
 import { omoguciPush } from '../push'
 
 export default function Login() {
-  const { t } = useT()
+  const { t, jezik, postaviJezik } = useT()
   const { prijava } = useAuth()
   const [ime, setIme] = useState('')
   const [lozinka, setLozinka] = useState('')
@@ -27,6 +27,11 @@ export default function Login() {
 
   return (
     <div className="login-wrap">
+      <div className="login-lang">
+        🌐 <select value={jezik} onChange={(e) => postaviJezik(e.target.value)} aria-label={t('profil.jezik')}>
+          {JEZICI.map((j) => <option key={j.code} value={j.code}>{j.naziv}</option>)}
+        </select>
+      </div>
       <div className="login-logo">
         <img src="/bravel-logo.png" alt="Bravel" className="login-logo-img" />
         <h1>{t('app.title')}</h1>
