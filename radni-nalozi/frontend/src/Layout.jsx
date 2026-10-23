@@ -5,6 +5,15 @@ import { api } from './api'
 import { useT } from './i18n'
 import { MODULI } from './moduli'
 
+// Jedinstven redoslijed kartica u izborniku — isti za SVE korisnike.
+const NAV_RED = [
+  '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
+  '/moja-radiona', '/moj-ucinak', '/prijave',
+  'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
+  '/zaduzenja', '/vozaci', '/radnici', '/poslovodja', '/plan', '/steta',
+  '/profil',
+]
+
 export default function Layout({ naslov, nazad, children, akcija }) {
   const { korisnik } = useAuth()
   const { t } = useT()
@@ -159,6 +168,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       }
     }
   }
+
+  // Jedinstven redoslijed kartica za SVE korisnike (bez obzira na ulogu/dodjelu).
+  const red = (x) => {
+    const i = NAV_RED.indexOf(x.do || ('grupa:' + x.grupa))
+    return i === -1 ? 999 : i
+  }
+  vidljiviTabovi = [...vidljiviTabovi].sort((a, b) => red(a) - red(b))
 
   return (
     <div className={'app' + (navOtvoren ? ' nav-open' : '')}>
