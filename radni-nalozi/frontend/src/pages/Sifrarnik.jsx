@@ -284,7 +284,8 @@ function ResetLozinke({ korisnikId, naGresku }) {
     if (nova.length < 8) { naGresku(t('sif.lozKratka')); return }
     setRadi(true)
     try {
-      await api.azurirajKorisnika(korisnikId, { lozinka: nova })
+      // Reset lozinke ujedno AKTIVIRA račun — inače prijava i dalje ne radi.
+      await api.azurirajKorisnika(korisnikId, { lozinka: nova, aktivan: true })
       setUspjeh(true)
     } catch (e) { naGresku(e.message) } finally { setRadi(false) }
   }
