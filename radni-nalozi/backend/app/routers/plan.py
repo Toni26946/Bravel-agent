@@ -22,7 +22,7 @@ from ..models import (
     ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
-from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI
+from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 _samo_vlasnik = zahtijevaj_ai_poslovodja()
@@ -472,6 +472,8 @@ def potvrdi(zid: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
     z.razlog_prekida = None
     z.prekid_vrijeme = None
     _pokreni_mjerac(db, z)
+    db.flush()
+    _auto_status_naloga(db, z.operacija.nalog, korisnik)  # nalog → u_radu + sync povijesti
     db.commit()
     return {"ok": True}
 
@@ -494,5 +496,9 @@ def prekini(zid: int, p: PrekiniIn, korisnik: Korisnik = Depends(trenutni_korisn
     else:  # 'nije' = pauza; pokreni prozor za churn (osim nakon kraja smjene)
         z.razlog_prekida = None
         z.prekid_vrijeme = None if _poslije_smjene() else datetime.now(timezone.utc)
+    db.flush()
+    # Uskladi status naloga i servisnu povijest (gotov zadatak → odmah u povijest_rada,
+    # da AI Poslovođa računa iz svježih podataka). Isti put kao regularni task-endpointi.
+    _auto_status_naloga(db, z.operacija.nalog, korisnik)
     db.commit()
     return {"ok": True}
