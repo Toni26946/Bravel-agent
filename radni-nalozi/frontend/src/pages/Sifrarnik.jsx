@@ -95,6 +95,12 @@ function Korisnici() {
     try { await api.azurirajKorisnika(k.id, { funkcija: nova.trim() }); ucitaj() }
     catch (e) { setGreska(e.message) }
   }
+  const urediTelefon = async (k) => {
+    const nova = window.prompt(t('sif.telefonUpit'), k.telefon || '')
+    if (nova === null) return
+    try { await api.azurirajKorisnika(k.id, { telefon: nova.trim() }); ucitaj() }
+    catch (e) { setGreska(e.message) }
+  }
 
   if (lista === null) return <Spinner />
   return (
@@ -170,13 +176,13 @@ function Korisnici() {
       {lista.filter((k) => !samoPortal || ['voditelj', 'poslovodja', 'skladistar'].includes(k.uloga)).map((k) => (
         <KorisnikKartica key={k.id} k={k} ULOGE={ULOGE}
           prebaciAktivan={prebaciAktivan} prebaciUlogu={prebaciUlogu} prebaciPrijavu={prebaciPrijavu}
-          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} setGreska={setGreska} />
+          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} urediTelefon={urediTelefon} setGreska={setGreska} />
       ))}
     </>
   )
 }
 
-function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, setGreska }) {
+function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, urediTelefon, setGreska }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   return (
@@ -214,6 +220,9 @@ function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijav
             </button>
             <button className="btn sekund mali" onClick={() => urediFunkciju(k)}>
               {k.funkcija ? t('sif.urediFunkciju') : t('sif.dodajFunkciju')}
+            </button>
+            <button className="btn sekund mali" onClick={() => urediTelefon(k)}>
+              {k.telefon ? `📱 ${k.telefon}` : t('sif.dodajTelefon')}
             </button>
           </div>
           <ModuliEditor k={k} naGresku={setGreska} />

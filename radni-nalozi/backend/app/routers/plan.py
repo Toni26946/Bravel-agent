@@ -330,7 +330,9 @@ def zastoji(dana: int = 14, korisnik: Korisnik = Depends(_samo_vlasnik), db: Ses
         if _gb(n) in _SKRIVENI_GB:
             continue
         zadaci = [z for op in n.operacije for z in op.zadaci]
-        vremena = [n.azuriran, n.kreiran]
+        # 'Zadnja aktivnost' = stvarni rad (start/kraj/pauza zadataka) + datum kreiranja.
+        # NE koristimo n.azuriran — sinkronizacije ga bumpaju pa bi sakrile zastoje.
+        vremena = [n.kreiran]
         for z in zadaci:
             vremena += [z.zavrseno, z.zapoceto, z.prekid_vrijeme]
         vremena = [_aware(t) for t in vremena if t]
