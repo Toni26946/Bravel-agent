@@ -10,7 +10,7 @@ const NAV_RED = [
   '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
-  '/zaduzenja', '/vozaci', '/radnici', '/poslovodja', '/plan', '/steta',
+  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/plan', '/steta',
   '/profil',
 ]
 
@@ -116,6 +116,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
+    tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
@@ -129,6 +130,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
     tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
+    tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
   if (korisnik?.uloga === 'skladistar') {

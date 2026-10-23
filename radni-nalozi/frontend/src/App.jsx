@@ -24,6 +24,7 @@ import Vozaci from './pages/Vozaci'
 import Poslovodja from './pages/Poslovodja'
 import MojUcinak from './pages/MojUcinak'
 import Steta from './pages/Steta'
+import PregledVozila from './pages/PregledVozila'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
 import Skladiste from './pages/Skladiste'
@@ -97,6 +98,7 @@ export default function App() {
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
+      <Route path="/pregledi" element={<Zasticeno uloge={['voditelj', 'poslovodja']} modul="/pregledi"><PregledVozila /></Zasticeno>} />
 
       {/* Skladište (primke otpremnica): skladištar + voditelj + poslovođa */}
       <Route path="/skladiste" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><Skladiste /></Zasticeno>} />
