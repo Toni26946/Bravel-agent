@@ -244,6 +244,7 @@ const HR = {
   'nalog.povijestDijelova': 'Povijest dijelova (kamion {gb})', 'nalog.povijestStatusa': 'Povijest statusa',
   'nalog.voditelj': 'Voditelj', 'nalog.vozac': 'Vozač', 'nalog.rok': 'Rok', 'nalog.kreirao': 'Kreirao',
   'nalog.servisDospio': 'SERVIS DOSPIO', 'nalog.servisUskoro': 'Servis uskoro', 'nalog.servis': 'Servis',
+  'nalog.pregledi': 'Pregledi', 'nalog.pregledDospio': 'PREGLED DOSPIO', 'nalog.pregledUskoro': 'Pregled uskoro',
   'nalog.jos': 'još', 'nalog.doServisa': 'do servisa',
   'nalog.spojeno': '🔗 Novi unos je spojen u ovaj postojeći nalog (kamion je već imao aktivan nalog).',
   // operacije/zadaci
@@ -595,6 +596,7 @@ const EN = {
   'nalog.povijestDijelova': 'Parts history (truck {gb})', 'nalog.povijestStatusa': 'Status history',
   'nalog.voditelj': 'Manager', 'nalog.vozac': 'Driver', 'nalog.rok': 'Due', 'nalog.kreirao': 'Created by',
   'nalog.servisDospio': 'SERVICE DUE', 'nalog.servisUskoro': 'Service soon', 'nalog.servis': 'Service',
+  'nalog.pregledi': 'Inspections', 'nalog.pregledDospio': 'INSPECTION DUE', 'nalog.pregledUskoro': 'Inspection soon',
   'nalog.jos': 'in', 'nalog.doServisa': 'to service',
   'nalog.spojeno': '🔗 The new entry was merged into this existing order (the truck already had an active order).',
   'op.operacija': 'Operation', 'op.radnik': 'Mechanic', 'op.nemaOperacija': 'No operations yet.',

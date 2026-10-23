@@ -484,6 +484,17 @@ def pregledi(korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depen
     return [RegistarVozilaOut.model_validate(r) for r in vozila]
 
 
+@router.get("/pregledi/vozilo/{gb}", response_model=RegistarVozilaOut | None)
+def pregledi_vozila(
+    gb: str, _: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    """Periodične provjere jednog vozila (za banner u radnom nalogu). None ako ne postoji."""
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        return None
+    return RegistarVozilaOut.model_validate(r)
+
+
 @router.patch("/pregledi/{gb}", response_model=RegistarVozilaOut)
 def pregledi_uredi(
     gb: str, podaci: PregledUpdate,

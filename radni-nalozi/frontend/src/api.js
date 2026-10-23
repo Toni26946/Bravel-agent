@@ -125,6 +125,7 @@ export const api = {
   servisVozila: (gb) => zahtjev(`/vozila/servisi/vozilo/${encodeURIComponent(gb)}`),
   servisiUredi: (gb, b) => zahtjev(`/vozila/servisi/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
   pregledi: () => zahtjev('/vozila/pregledi'),
+  pregledVozila: (gb) => zahtjev(`/vozila/pregledi/vozilo/${encodeURIComponent(gb)}`),
   urediPregled: (gb, b) => zahtjev(`/vozila/pregledi/${encodeURIComponent(gb)}`, { method: 'PATCH', body: b }),
   parkinzi: () => zahtjev('/vozila/parkinzi'),
   dodajParking: (naziv) => zahtjev('/vozila/parkinzi', { method: 'POST', body: { naziv } }),

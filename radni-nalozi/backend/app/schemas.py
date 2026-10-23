@@ -196,6 +196,7 @@ class RegistarVozilaOut(ORM):
     pp_datum: date | None = None
     pp_int: int | None = None
     registracija_istek: date | None = None
+    vozac: str | None = None
     # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
     nalog_id: int | None = None
     broj: str | None = None
@@ -247,6 +248,7 @@ class PregledUpdate(BaseModel):
     pp_datum: date | None = None
     pp_int: int | None = None
     registracija_istek: date | None = None
+    vozac: str | None = None
 
 
 class ServisKmUvozStavka(BaseModel):
