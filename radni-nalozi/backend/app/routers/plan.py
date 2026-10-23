@@ -315,6 +315,51 @@ def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
     return {"ok": True}
 
 
+@router.get("/zastoji")
+def zastoji(dana: int = 14, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Nalozi 'u radu' bez aktivnosti dulje od `dana` dana — za čišćenje podataka.
+
+    SAMO vlasnik. READ-ONLY: ništa se NE zatvara; vraća prijedlog
+    (zatvoriti / u_radu / nejasno) uz obrazloženje, da voditelj odluči.
+    'Zadnja aktivnost' = najnoviji od: start/kraj/pauza zadataka, azuriranje naloga.
+    """
+    sada = datetime.now(timezone.utc)
+    prag = sada - timedelta(days=max(0, dana))
+    out = []
+    for n in db.query(Nalog).filter(Nalog.status == StatusNaloga.u_radu).all():
+        if _gb(n) in _SKRIVENI_GB:
+            continue
+        zadaci = [z for op in n.operacije for z in op.zadaci]
+        vremena = [n.azuriran, n.kreiran]
+        for z in zadaci:
+            vremena += [z.zavrseno, z.zapoceto, z.prekid_vrijeme]
+        vremena = [_aware(t) for t in vremena if t]
+        zadnja = max(vremena) if vremena else _aware(n.kreiran)
+        if zadnja > prag:
+            continue  # bilo aktivnosti unutar praga — ne stoji
+        dana_od = int((sada - zadnja).total_seconds() // 86400)
+        ukupno = len(zadaci)
+        gotovih = sum(1 for z in zadaci if z.gotovo)
+        tece = any(z.zapoceto for z in zadaci)
+        if ukupno and gotovih == ukupno:
+            prijedlog, razlog = "zatvoriti", "svi zadaci gotovi, a nalog je još 'u radu'"
+        elif tece:
+            prijedlog, razlog = "u_radu", "mjerač trenutno radi"
+        elif gotovih > 0:
+            prijedlog, razlog = "nejasno", f"{gotovih}/{ukupno} zadataka gotovo, bez aktivnosti {dana_od} d"
+        else:
+            prijedlog, razlog = "nejasno", f"ništa započeto, bez aktivnosti {dana_od} d"
+        out.append({
+            "nalog_id": n.id, "broj": n.broj, "gb": _gb(n),
+            "vozilo": ((f"{n.vozilo.marka or ''} {n.vozilo.model or ''}".strip() or None) if n.vozilo else None),
+            "zadnja_aktivnost": zadnja.date().isoformat(),
+            "dana": dana_od, "zadaci": f"{gotovih}/{ukupno}",
+            "prijedlog": prijedlog, "razlog": razlog,
+        })
+    out.sort(key=lambda r: r["dana"], reverse=True)
+    return {"prag_dana": dana, "broj": len(out), "nalozi": out}
+
+
 class DodajIn(BaseModel):
     gb: str
 
