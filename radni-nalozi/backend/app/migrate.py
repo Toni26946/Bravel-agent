@@ -47,6 +47,7 @@ _STUPCI = [
     ("registar_vozila", "pp_datum", "DATE"),
     ("registar_vozila", "pp_int", "INTEGER"),
     ("registar_vozila", "registracija_istek", "DATE"),
+    ("registar_vozila", "vozac", "VARCHAR(120)"),
     ("primke", "fotografije", "JSON"),
     ("fotografije", "steta_id", "INTEGER"),
     ("korisnici", "narucitelj", "BOOLEAN DEFAULT FALSE"),

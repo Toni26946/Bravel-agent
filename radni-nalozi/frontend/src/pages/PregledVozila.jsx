@@ -3,49 +3,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
-
-// datum + N mjeseci → ISO (YYYY-MM-DD)
-function dodajMjesece(iso, mj) {
-  if (!iso || !mj) return null
-  const d = new Date(iso + 'T00:00:00')
-  if (isNaN(d)) return null
-  const dan = d.getDate()
-  d.setMonth(d.getMonth() + Number(mj))
-  if (d.getDate() < dan) d.setDate(0) // prelio mjesec → zadnji dan prethodnog
-  return d.toISOString().slice(0, 10)
-}
-function danaDo(iso) {
-  if (!iso) return null
-  const d = new Date(iso + 'T00:00:00')
-  if (isNaN(d)) return null
-  const danas = new Date(); danas.setHours(0, 0, 0, 0)
-  return Math.round((d - danas) / 86400000)
-}
-function hrDatum(iso) {
-  if (!iso) return ''
-  const d = new Date(iso + 'T00:00:00')
-  if (isNaN(d)) return iso
-  return d.toLocaleDateString('hr-HR')
-}
-function klasa(dana) {
-  if (dana == null) return 'pv-siva'
-  if (dana < 0) return 'pv-crvena'
-  if (dana <= 30) return 'pv-naranca'
-  return 'pv-zelena'
-}
-
-// Definicije provjera: datum-polje, interval-polje, zadani interval; registracija je samo datum isteka.
-const PROVJERE = [
-  { k: 'periodicki', dp: 'periodicki_datum', ip: 'periodicki_int', zad: 3 },
-  { k: 'taho', dp: 'taho_datum', ip: 'taho_int', zad: 24 },
-  { k: 'pp', dp: 'pp_datum', ip: 'pp_int', zad: 12 },
-  { k: 'reg', dp: 'registracija_istek', ip: null, zad: null },
-]
-
-function istekZa(v, p) {
-  if (p.k === 'reg') return v.registracija_istek || null
-  return dodajMjesece(v[p.dp], v[p.ip] || p.zad)
-}
+import { PROVJERE, danaDo, hrDatum, klasa, istekZa } from '../pregledi'
 
 export default function PregledVozila() {
   const { t } = useT()
@@ -54,6 +12,7 @@ export default function PregledVozila() {
   const [trazi, setTrazi] = useState('')
   const [samoIstek, setSamoIstek] = useState(false)
   const [sort, setSort] = useState({ col: null, dir: 1 })   // col: null=hitnost | 'broj' | k provjere
+  const [aktivna, setAktivna] = useState(null)              // "<gb>|<k>" ćelija koja se trenutno uređuje
 
   const ucitaj = () => api.pregledi().then(setLista).catch((e) => { setGreska(e.message); setLista([]) })
   useEffect(() => { ucitaj() }, [])
@@ -75,7 +34,7 @@ export default function PregledVozila() {
     if (!lista) return []
     const q = trazi.trim().toLowerCase()
     let r = lista.slice()
-    if (q) r = r.filter((v) => (`${v.vozilo || ''} ${v.gb} ${v.registracija || ''}`).toLowerCase().includes(q))
+    if (q) r = r.filter((v) => (`${v.vozilo || ''} ${v.gb} ${v.registracija || ''} ${v.vozac || ''}`).toLowerCase().includes(q))
     if (samoIstek) r = r.filter((v) => hitnost(v) <= 30)
     if (sort.col == null) {
       r.sort((a, b) => hitnost(a) - hitnost(b))
@@ -126,9 +85,16 @@ export default function PregledVozila() {
                 <td className="pv-vozilo">
                   <div className="pv-naziv">{v.gb}</div>
                   <div className="pv-meta">{[v.vozilo, v.registracija].filter(Boolean).join(' · ')}</div>
+                  {v.vozac && <div className="pv-vozac">🧑 {v.vozac}</div>}
                 </td>
                 {PROVJERE.map((p) => (
-                  <Celija key={p.k} v={v} p={p} onSpremi={spremiLokalno} onGreska={setGreska} />
+                  <Celija
+                    key={p.k} v={v} p={p}
+                    otvoren={aktivna === v.gb + '|' + p.k}
+                    onOtvori={() => setAktivna(v.gb + '|' + p.k)}
+                    onZatvori={() => setAktivna(null)}
+                    onSpremi={spremiLokalno} onGreska={setGreska}
+                  />
                 ))}
               </tr>
             ))}
@@ -139,12 +105,19 @@ export default function PregledVozila() {
   )
 }
 
-function Celija({ v, p, onSpremi, onGreska }) {
+function Celija({ v, p, otvoren, onOtvori, onZatvori, onSpremi, onGreska }) {
   const { t } = useT()
-  const [uredi, setUredi] = useState(false)
   const [datum, setDatum] = useState(v[p.dp] || '')
   const [inter, setInter] = useState(v[p.ip] != null ? v[p.ip] : (p.zad || ''))
   const [radi, setRadi] = useState(false)
+
+  // Kad se ćelija zatvori (npr. klikom na drugu), vrati polja na spremljene vrijednosti.
+  useEffect(() => {
+    if (!otvoren) {
+      setDatum(v[p.dp] || '')
+      setInter(v[p.ip] != null ? v[p.ip] : (p.zad || ''))
+    }
+  }, [otvoren, v, p])
 
   const istek = istekZa(v, p)
   const dana = danaDo(istek)
@@ -156,11 +129,11 @@ function Celija({ v, p, onSpremi, onGreska }) {
       if (p.ip) body[p.ip] = inter ? Number(inter) : null
       await api.urediPregled(v.gb, body)
       onSpremi(v.gb, body)
-      setUredi(false)
+      onZatvori()
     } catch (e) { onGreska(e.message) } finally { setRadi(false) }
   }
 
-  if (uredi) {
+  if (otvoren) {
     return (
       <td className="pv-cel pv-edit">
         <div className="pv-ed-row">
@@ -169,14 +142,14 @@ function Celija({ v, p, onSpremi, onGreska }) {
         </div>
         <div className="pv-btns">
           <button className="btn mali" onClick={spremi} disabled={radi}>{t('pv.spremi')}</button>
-          <button className="btn sekund mali" onClick={() => { setUredi(false); setDatum(v[p.dp] || ''); setInter(v[p.ip] != null ? v[p.ip] : (p.zad || '')) }}>✕</button>
+          <button className="btn sekund mali" onClick={onZatvori}>✕</button>
         </div>
       </td>
     )
   }
 
   return (
-    <td className={'pv-cel ' + klasa(dana)} onClick={() => setUredi(true)} title={t('pv.uredi')}>
+    <td className={'pv-cel ' + klasa(dana)} onClick={onOtvori} title={t('pv.uredi')}>
       {istek ? (
         <>
           <div className="pv-istek">{hrDatum(istek)}</div>

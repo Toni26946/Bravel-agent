@@ -312,6 +312,45 @@ def uvezi_preglede_iz_gs(db: Session) -> None:
         pass
 
 
+def uvezi_vozace_gb(db: Session) -> None:
+    """Jednokratni uvoz dodijeljenih vozača po garažnom broju iz app/data/vozaci_gb.json
+    (izvezeno iz GS „VOZACI DODJELJENI KAMIONIMA"). Postavlja RegistarVozila.vozac.
+    Guardano zastavicom na trajnom volumenu."""
+    zastavica = Path(settings.upload_dir).parent / ".vozaci_gb_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "vozaci_gb.json"
+    if not put.exists():
+        return
+    try:
+        mapa = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Ne mogu učitati vozaci_gb.json: %s", e)
+        return
+    dodano, bez = 0, 0
+    for gb, ime in mapa.items():
+        gb = str(gb).strip()
+        ime = (ime or "").strip()
+        if not gb or not ime:
+            continue
+        r = db.get(RegistarVozila, gb)
+        if r is None:
+            bez += 1
+            continue
+        r.vozac = ime
+        dodano += 1
+    db.commit()
+    log.info("Uvoz vozača po GB iz GS: ažurirano %d vozila; bez registra: %d.", dodano, bez)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def osiguraj_dodatne_korisnike(db: Session) -> None:
     """Jednokratno kreira/ažurira ručno zadane račune (korisničko ime + lozinka).
 

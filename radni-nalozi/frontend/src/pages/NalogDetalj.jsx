@@ -7,6 +7,7 @@ import { useT } from '../i18n'
 import {
   Bedz, KategorijaPicker, MikrofonGumb, Spinner, datum, datumVrijeme, useAutoOsvjezi, voziloLabel,
 } from '../ui'
+import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -41,6 +42,7 @@ export default function NalogDetalj() {
   const [uredi, setUredi] = useState(false)
   const [forma, setForma] = useState({ naslov: '', opis: '' })
   const [servis, setServis] = useState(null)
+  const [pregled, setPregled] = useState(null)   // periodične provjere vozila (registar)
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -54,6 +56,11 @@ export default function NalogDetalj() {
   useEffect(() => {
     if (!voziloGb) { setServis(null); return }
     api.servisVozila(voziloGb).then(setServis).catch(() => setServis(null))
+  }, [voziloGb])
+  // Periodične provjere (periodički/baždar taho/PP/registracija) — banner + ispis.
+  useEffect(() => {
+    if (!voziloGb) { setPregled(null); return }
+    api.pregledVozila(voziloGb).then(setPregled).catch(() => setPregled(null))
   }, [voziloGb])
 
   if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
@@ -80,6 +87,7 @@ export default function NalogDetalj() {
         <div className="uspjeh">{t('nalog.spojeno')}</div>
       )}
       <ServisBanner s={servis} />
+      <PreglediBanner v={pregled} />
       <div className="karta">
         <div className="naslov-red">
           {uredi
@@ -141,7 +149,7 @@ export default function NalogDetalj() {
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'} />
 
       {/* Ispis naloga (vidljivo samo pri printanju) */}
-      <NalogPrint n={n} servis={servis} />
+      <NalogPrint n={n} servis={servis} pregled={pregled} />
     </Layout>
   )
 }
@@ -211,8 +219,68 @@ function ServisPrint({ s }) {
   return <div className={klasa}><span>{naslov}:</span> {detalji}</div>
 }
 
+// --- Banner periodičnih provjera u nalogu ------------------------------------
+// Pokaže sve rokove (periodički/baždar taho/PP/registracija); ako je nešto
+// isteklo ili istječe ≤14 dana — jako se označi (kao servis).
+function stanjeRoka(dana) {
+  if (dana == null) return 'nepoznato'
+  if (dana < 0) return 'isteklo'
+  if (dana <= PRAG_USKORO) return 'uskoro'
+  return 'ok'
+}
+function PreglediBanner({ v }) {
+  const { t } = useT()
+  if (!v) return null
+  const rokovi = rokoviVozila(v).filter((r) => r.istek)
+  if (rokovi.length === 0) return null
+  const hitni = rokovi.filter((r) => r.dana != null && r.dana <= PRAG_USKORO)
+  const najgore = hitni.some((r) => r.dana < 0) ? 'isteklo' : hitni.length ? 'uskoro' : 'ok'
+
+  const redak = (r) => {
+    const st = stanjeRoka(r.dana)
+    const kada = r.dana < 0 ? t('pv.isteklo') : `${r.dana} ${t('pv.dana')}`
+    return (
+      <span key={r.k} className={'pvb-cip ' + st}>
+        {t(r.txt)}: <strong>{hrDatum(r.istek)}</strong> · {kada}
+      </span>
+    )
+  }
+
+  if (najgore === 'ok') {
+    // Ništa hitno — nenametljiva linija sa svim rokovima.
+    return (
+      <div className="pregledi-banner ok">
+        <span className="pvb-naslov">🗓️ {t('nalog.pregledi')}:</span>
+        <span className="pvb-cipovi">{rokovi.map(redak)}</span>
+      </div>
+    )
+  }
+  return (
+    <div className={'pregledi-banner ' + najgore}>
+      <div className="pvb-naslov">
+        {najgore === 'isteklo' ? '⚠️ ' : '🟡 '}
+        {najgore === 'isteklo' ? t('nalog.pregledDospio') : t('nalog.pregledUskoro')}
+      </div>
+      <div className="pvb-cipovi">{rokovi.map(redak)}</div>
+    </div>
+  )
+}
+
+// Redak periodičnih provjera za ispis (crno-bijelo; podebljano kad dospije/blizu).
+function PreglediPrint({ v }) {
+  const { t } = useT()
+  if (!v) return null
+  const rokovi = rokoviVozila(v).filter((r) => r.istek)
+  if (rokovi.length === 0) return null
+  const hitno = rokovi.some((r) => r.dana != null && r.dana <= PRAG_USKORO)
+  const isteklo = rokovi.some((r) => r.dana != null && r.dana < 0)
+  const detalji = rokovi.map((r) => `${t(r.txt)}: ${hrDatum(r.istek)}${r.dana < 0 ? ` (${t('pv.isteklo')})` : ''}`).join(' · ')
+  const klasa = 'np-servis' + (isteklo ? ' dospjelo' : hitno ? ' uskoro' : '')
+  return <div className={klasa}><span>{t('nalog.pregledi')}:</span> {detalji}</div>
+}
+
 // --- Ispis radnog naloga -----------------------------------------------------
-function NalogPrint({ n, servis }) {
+function NalogPrint({ n, servis, pregled }) {
   const v = n.vozilo || {}
   return (
     <div className="nalog-print">
@@ -242,6 +310,7 @@ function NalogPrint({ n, servis }) {
       </div>
 
       <ServisPrint s={servis} />
+      <PreglediPrint v={pregled} />
 
       {n.opis && (
         <div className="np-napomena"><span>Napomena:</span> {n.opis}</div>
