@@ -825,23 +825,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pv-brojilo { color: var(--sivo); font-weight: 700; }
 .pv-wrap { overflow-x: auto; }
 .pv-tablica { width: 100%; border-collapse: collapse; }
-.pv-tablica th, .pv-tablica td { border: 1px solid var(--rub); padding: 6px 8px; text-align: center; vertical-align: middle; }
+.pv-tablica th, .pv-tablica td { border: 1px solid var(--rub); padding: 2px 6px; text-align: center; vertical-align: middle; }
 .pv-tablica th { background: #eef2f7; color: var(--plava); font-size: 12px; position: sticky; top: 0; }
-.pv-vozilo { text-align: left !important; min-width: 150px; }
-.pv-naziv { font-weight: 700; }
-.pv-meta { color: var(--sivo); font-size: 12px; }
-.pv-cel { cursor: pointer; min-width: 100px; }
-.pv-istek { font-weight: 700; font-variant-numeric: tabular-nums; }
-.pv-dana { font-size: 12px; }
+.pv-th { cursor: pointer; user-select: none; white-space: nowrap; }
+.pv-th:hover { background: #e4ebf5; }
+.pv-vozilo { text-align: left !important; min-width: 120px; }
+.pv-naziv { font-weight: 800; font-size: 14px; line-height: 1.1; }
+.pv-meta { color: var(--sivo); font-size: 11px; line-height: 1.2; }
+.pv-cel { cursor: pointer; min-width: 86px; line-height: 1.15; }
+.pv-istek { font-weight: 700; font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pv-dana { font-size: 10.5px; }
 .pv-siva { background: #f6f7f9; color: var(--sivo); }
 .pv-zelena { background: rgba(22,163,74,.13); }
 .pv-naranca { background: rgba(245,158,11,.18); }
 .pv-crvena { background: rgba(220,38,38,.16); color: #b91c1c; font-weight: 700; }
 .pv-edit { background: #fff; }
-.pv-edit input { margin: 2px 0; }
-.pv-int { display: block; font-size: 11px; color: var(--sivo); }
-.pv-int input { width: 60px; }
-.pv-btns { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
+.pv-ed-row { display: flex; gap: 4px; justify-content: center; align-items: center; }
+.pv-ed-datum { margin: 0; padding: 2px 4px; font-size: 12px; width: auto; }
+.pv-ed-int { margin: 0; padding: 2px 4px; font-size: 12px; width: 46px; }
+.pv-btns { display: flex; gap: 4px; justify-content: center; margin-top: 3px; }
+.pv-btns .btn { padding: 3px 8px; font-size: 12px; }
 .moduli-panel { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--rub); border-radius: 10px; background: var(--karta, #fff); }
 .moduli-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
 .moduli-row input { width: auto; margin: 0; }
