@@ -263,6 +263,55 @@ def uvezi_vozila_matica(db: Session) -> None:
     log.info("Uvoz matičnih podataka vozila: dodano %d, ažurirano %d.", dodano, azurirano)
 
 
+def uvezi_preglede_iz_gs(db: Session) -> None:
+    """Jednokratni uvoz datuma periodičnih provjera (periodički/taho/PP/registracija)
+    iz app/data/pregledi_gs.json (izvezeno iz GS „PERIODIČKI/BAŽDAR TAHO/PP APARATI").
+    Mapira po garažnom broju na registar vozila; nepoznate GB-ove preskače.
+    Guardano zastavicom na trajnom volumenu."""
+    zastavica = Path(settings.upload_dir).parent / ".pregledi_gs_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    put = _DATA_DIR / "pregledi_gs.json"
+    if not put.exists():
+        return
+    try:
+        unosi = json.loads(put.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Ne mogu učitati pregledi_gs.json: %s", e)
+        return
+    _DATUMI = ("periodicki_datum", "taho_datum", "pp_datum", "registracija_istek")
+    _INTOVI = ("periodicki_int", "taho_int", "pp_int")
+    dodano, bez = 0, 0
+    for e in unosi:
+        gb = str(e.get("gb", "")).strip()
+        if not gb:
+            continue
+        r = db.get(RegistarVozila, gb)
+        if r is None:
+            bez += 1
+            continue
+        for polje in _DATUMI:
+            if e.get(polje):
+                try:
+                    setattr(r, polje, date.fromisoformat(e[polje]))
+                except (ValueError, TypeError):
+                    pass
+        for polje in _INTOVI:
+            if e.get(polje) is not None:
+                setattr(r, polje, int(e[polje]))
+        dodano += 1
+    db.commit()
+    log.info("Uvoz pregleda vozila iz GS: ažurirano %d vozila; bez registra: %d.", dodano, bez)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def osiguraj_dodatne_korisnike(db: Session) -> None:
     """Jednokratno kreira/ažurira ručno zadane račune (korisničko ime + lozinka).
 
