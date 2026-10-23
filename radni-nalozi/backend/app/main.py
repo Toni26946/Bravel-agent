@@ -33,6 +33,7 @@ from .seed import (
     spoji_azinovica,
     subote_bez_15,
     teren_vremena,
+    subote_x15_od_rujna,
     migriraj_zaduzene_u_radnike,
     ocisti_mjerace_bez_radnika,
     osiguraj_kovacevica,
@@ -80,6 +81,7 @@ async def lifespan(app: FastAPI):
         spoji_azinovica(db)
         subote_bez_15(db)
         teren_vremena(db)
+        subote_x15_od_rujna(db)
         preimenuj_naslove_naloga(db)
         ocisti_mjerace_bez_radnika(db)
         backfill_povijest_gotovih(db)

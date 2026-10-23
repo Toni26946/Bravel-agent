@@ -110,11 +110,22 @@ def _sati(od: str | None, do: str | None) -> float:
     return round(max(0, b - a) / 60.0, 2)
 
 
-def _preracun(od: str | None, do: str | None, kod: str | None) -> tuple[float, float]:
-    """Vrati (redovni, prekovremeni) sate; kod (odsutnost) poništava sate."""
+_SUBOTA = 5           # date.weekday(): ponedjeljak=0 … subota=5
+_FAKTOR_SUBOTA = 1.5
+
+
+def _preracun(od: str | None, do: str | None, kod: str | None,
+              datum: date | None = None) -> tuple[float, float]:
+    """Vrati (redovni, prekovremeni) sate; kod (odsutnost) poništava sate.
+
+    Subota u radioni (Toni, 22.10.2026.): nema prekovremenih — SVI sati su redovni ×1,5
+    (7 h → 10,5; 11 h → 16,5). Tako se i SPREMA u bazu (isto kao uvoz iz GS), pa ga
+    obračun i prikaz uzimaju 1:1 i nigdje se ne množi drugi put."""
     if kod:
         return 0.0, 0.0
     uk = _sati(od, do)
+    if datum is not None and datum.weekday() == _SUBOTA:
+        return round(uk * _FAKTOR_SUBOTA, 2), 0.0
     redovni = min(uk, STANDARDNI_DAN)
     prekovremeni = round(max(0.0, uk - STANDARDNI_DAN), 2)
     return round(redovni, 2), prekovremeni
@@ -211,7 +222,7 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
         # Prazan kod ILI GO/BO/PD → zadrži odrađene sate. GO/BO/PD se i dalje
         # plaćaju (isto kao redovni), a oznaka služi evidenciji izostanka uz sate.
         teren = 0.0
-        redovni, prekovremeni = _preracun(od, do, None)
+        redovni, prekovremeni = _preracun(od, do, None, podaci.datum)
 
     if not z:
         z = EvidencijaRV(korisnik_id=podaci.korisnik_id, datum=podaci.datum, kreirao_id=korisnik.id)
@@ -227,20 +238,12 @@ def upsert(podaci: EvidencijaUnos, korisnik: Korisnik = Depends(evidencija_prist
     )
 
 
-_SUBOTA = 5           # date.weekday(): ponedjeljak=0 … subota=5
-_FAKTOR_SUBOTA = 1.5
-
-
 def _obr_redovni(dan) -> float:
-    """Obračunski REDOVNI sati za jedan dan u radioni (bez koda): subota ×1,5.
-    Prekovremeni, teren i izostanci se ne broje ovdje. Isti prikaz kao u aplikaciji;
-    u bazi i /obracun ostaju sirovi sati."""
+    """Obračunski REDOVNI sati za jedan dan u radioni (bez koda). Subota je u bazi VEĆ
+    spremljena ×1,5 (_preracun), pa se ovdje više ne množi."""
     if dan is None or dan.kod:
         return 0.0
-    red = dan.redovni or 0
-    if red <= 0:
-        return 0.0
-    return round(red * _FAKTOR_SUBOTA, 2) if dan.datum.weekday() == _SUBOTA else float(red)
+    return float(dan.redovni or 0) if (dan.redovni or 0) > 0 else 0.0
 
 
 @router.get("/izvoz.xlsx")
@@ -372,8 +375,8 @@ def za_obracun(
             "korisnik_id": r.korisnik_id,
             "ime": r.ime,
             "zbroj": {
-                "redovno": r.redovno,                 # sirovi redovni sati (bez ×1,5)
-                "redovno_obr": round(sum(_obr_redovni(d) for d in r.dani.values()), 2),  # s subotom ×1,5 (isto kao app "Redovno")
+                "redovno": r.redovno,                 # redovni sati (subota već ×1,5)
+                "redovno_obr": round(sum(_obr_redovni(d) for d in r.dani.values()), 2),  # = redovno bez izostanaka (isto kao app "Redovno")
                 "prekovremeni": r.prekovremeni,
                 "teren": r.teren,
                 "radni_dani": r.radni_dani,

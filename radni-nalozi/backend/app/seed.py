@@ -679,6 +679,37 @@ def subote_bez_15(db: Session) -> None:
         pass
 
 
+def subote_x15_od_rujna(db: Session) -> None:
+    """Jednokratno (Toni, 24.10.2026.): subota u radioni = SVI sati redovni ×1,5, bez
+    prekovremenih — spremljeno u bazi, isto kao uvoz iz GS. Dio subota od 01.09.2026.
+    ostao je spremljen kao obični sati (8 + prekovremeni) pa ih obračun ne bi platio ×1,5.
+    Preračuna sve subote bez šifre s upisanim od/do od rujna nadalje. Isplaćeni mjeseci
+    (do kolovoza) se ne diraju. Guardano zastavicom."""
+    from .routers.evidencija import _preracun
+    zastavica = Path(settings.upload_dir).parent / ".subote_x15_od_rujna_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    ispravljeno = 0
+    for z in (db.query(EvidencijaRV)
+              .filter(EvidencijaRV.kod.is_(None), EvidencijaRV.datum >= date(2026, 9, 1)).all()):
+        if z.datum.weekday() != 5 or not (z.od and z.do):
+            continue
+        red, pre = _preracun(z.od, z.do, None, z.datum)
+        if abs((z.redovni or 0) - red) > 0.001 or abs((z.prekovremeni or 0) - pre) > 0.001:
+            z.redovni, z.prekovremeni = red, pre
+            ispravljeno += 1
+    db.commit()
+    log.info("Subote ×1,5 od rujna: ispravljeno %d dana.", ispravljeno)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def teren_vremena(db: Session) -> None:
     """Jednokratno: terenski dani iz GS uvoza imaju samo sate (npr. 24) bez od/do, a
     skladištar teren upisuje ručno kao vrijeme (Toni, 19.10.2026.). Upiši od/do koji daju
