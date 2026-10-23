@@ -478,7 +478,7 @@ def pregledi(korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depen
     """Popis vozila s periodičnim provjerama (periodički, baždar taho, PP, registracija)."""
     vozila = (
         db.query(RegistarVozila)
-        .filter(RegistarVozila.status != StatusVozila.prodan)
+        .filter(RegistarVozila.status != StatusVozila.prodano)
         .all()
     )
     return [RegistarVozilaOut.model_validate(r) for r in vozila]
