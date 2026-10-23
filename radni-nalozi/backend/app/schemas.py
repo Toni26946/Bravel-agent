@@ -188,6 +188,14 @@ class RegistarVozilaOut(ORM):
     broj_sasije: str | None = None
     opis: str | None = None
     azuriran: datetime | None = None
+    # Periodične provjere (kartica „Pregledi vozila").
+    periodicki_datum: date | None = None
+    periodicki_int: int | None = None
+    taho_datum: date | None = None
+    taho_int: int | None = None
+    pp_datum: date | None = None
+    pp_int: int | None = None
+    registracija_istek: date | None = None
     # Poveznica na aktivan nalog (ako je vozilo trenutno u radu) — puni router.
     nalog_id: int | None = None
     broj: str | None = None
@@ -229,6 +237,16 @@ class ServisUvozStavka(BaseModel):
 class ServisUpdate(BaseModel):
     servis_zadnji: date | None = None
     servis_prag_km: int | None = None
+
+
+class PregledUpdate(BaseModel):
+    periodicki_datum: date | None = None
+    periodicki_int: int | None = None
+    taho_datum: date | None = None
+    taho_int: int | None = None
+    pp_datum: date | None = None
+    pp_int: int | None = None
+    registracija_istek: date | None = None
 
 
 class ServisKmUvozStavka(BaseModel):

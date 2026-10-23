@@ -33,6 +33,7 @@ from ..schemas import (
     ParkingCreate,
     ParkingOut,
     PovijestRadaOut,
+    PregledUpdate,
     RegistarPodaciUpdate,
     RegistarStatusUpdate,
     RegistarUvozRezultat,
@@ -461,6 +462,43 @@ def servisi_uredi(
     r.azurirao_id = korisnik.id
     db.commit()
     return {"ok": True}
+
+
+def _pregledi_ovlast(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
+    """Pregledi vozila: voditelj/poslovođa, ili korisnik kojem je modul /pregledi dodijeljen."""
+    if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja):
+        return korisnik
+    if "/pregledi" in (korisnik.moduli or []):
+        return korisnik
+    raise HTTPException(status_code=403, detail="Nemate pristup pregledima vozila")
+
+
+@router.get("/pregledi", response_model=list[RegistarVozilaOut])
+def pregledi(korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depends(get_db)):
+    """Popis vozila s periodičnim provjerama (periodički, baždar taho, PP, registracija)."""
+    vozila = (
+        db.query(RegistarVozila)
+        .filter(RegistarVozila.status != StatusVozila.prodan)
+        .all()
+    )
+    return [RegistarVozilaOut.model_validate(r) for r in vozila]
+
+
+@router.patch("/pregledi/{gb}", response_model=RegistarVozilaOut)
+def pregledi_uredi(
+    gb: str, podaci: PregledUpdate,
+    korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depends(get_db),
+):
+    """Uredi datume/intervale periodičnih provjera za vozilo."""
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    for polje in podaci.model_fields_set:
+        setattr(r, polje, getattr(podaci, polje))
+    r.azurirao_id = korisnik.id
+    db.commit()
+    db.refresh(r)
+    return RegistarVozilaOut.model_validate(r)
 
 
 @router.get("/parkinzi", response_model=list[ParkingOut])

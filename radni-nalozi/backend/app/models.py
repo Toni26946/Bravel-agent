@@ -233,6 +233,15 @@ class RegistarVozila(Base):
     servis_km: Mapped[int | None] = mapped_column(Integer, nullable=True)      # km na datum servisa
     km_trenutni: Mapped[int | None] = mapped_column(Integer, nullable=True)    # zadnji poznati km
     km_azuriran: Mapped[date | None] = mapped_column(Date, nullable=True)      # datum zadnjeg km-a
+    # Periodične zakonske provjere po vozilu (kartica „Pregledi vozila"). Za svaku
+    # se vodi datum zadnje provjere + interval (mj.); idući rok = datum + interval.
+    periodicki_datum: Mapped[date | None] = mapped_column(Date, nullable=True)
+    periodicki_int: Mapped[int | None] = mapped_column(Integer, nullable=True)   # mj. (obično 3 ili 6)
+    taho_datum: Mapped[date | None] = mapped_column(Date, nullable=True)         # baždarenje tahografa
+    taho_int: Mapped[int | None] = mapped_column(Integer, nullable=True)         # mj. (obično 24)
+    pp_datum: Mapped[date | None] = mapped_column(Date, nullable=True)           # PP aparati
+    pp_int: Mapped[int | None] = mapped_column(Integer, nullable=True)           # mj. (obično 12)
+    registracija_istek: Mapped[date | None] = mapped_column(Date, nullable=True) # istek registracije
 
 
 # ---------------------------------------------------------------------------
