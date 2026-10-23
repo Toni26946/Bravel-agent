@@ -425,6 +425,30 @@ def osiguraj_mihaela_i_zvonimira(db: Session) -> None:
     log.info("Osigurani Mihael Ščanćar (mehaničar) i Azinović Zvonimir (vozač u radioni).")
 
 
+def osiguraj_pristup_zvonimir(db: Session) -> None:
+    """Jednokratno: Azinović Zvonimir dobije AKTIVAN račun i poznatu lozinku,
+    da pristupni podaci (zvonimir.azinovic / Zvonko2026) rade odmah, bez ručnog
+    resetiranja. Guardano zastavicom — ne gazi kasniju Tonijevu promjenu lozinke."""
+    zastavica = Path(settings.upload_dir).parent / ".zvonimir_pristup_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    k = next((x for x in db.query(Korisnik).all() if {"azinovic", "zvonimir"} <= _tokeni(x.ime)), None)
+    if k:
+        k.aktivan = True
+        k.uloga = Uloga.radnik
+        k.lozinka_hash = hash_lozinka("Zvonko2026")
+        db.commit()
+        log.info("Zvonimir Azinović: račun aktiviran i lozinka postavljena za pristup.")
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def ukloni_duplikat_mihael(db: Session) -> None:
     """Jednokratno: ukloni pogrešno kreiran duplikat 'Mihael Ščawčar' (iz tipfelera
     u tablici) ako postoji ispravan zapis 'Mihael Ščanćar'. Evidencija duplikata se
