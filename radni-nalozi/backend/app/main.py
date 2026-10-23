@@ -48,6 +48,7 @@ from .seed import (
     seed_radnici,
     uvezi_povijest_rada,
     uvezi_vozila_matica,
+    uvezi_preglede_iz_gs,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -86,6 +87,7 @@ async def lifespan(app: FastAPI):
         osiguraj_kovacevica(db)
         osiguraj_vozilo_483(db)
         uvezi_vozila_matica(db)
+        uvezi_preglede_iz_gs(db)
         obavijesti_osvjezi(db)
         seed_vozaci(db)
         seed_norme(db)
