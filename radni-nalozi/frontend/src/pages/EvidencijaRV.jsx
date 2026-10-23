@@ -39,29 +39,30 @@ function minute(hhmm) {
   if (!hhmm) return null
   const [h, m] = hhmm.split(':'); return parseInt(h, 10) * 60 + parseInt(m, 10)
 }
-// Lokalni izračun (isti kao na serveru) za trenutni prikaz.
-function izracun(od, doo, kod) {
-  const a = minute(od), b0 = minute(doo)
-  let uk = 0
-  if (a != null && b0 != null) { let b = b0; if (b < a) b += 24 * 60; uk = Math.max(0, b - a) / 60 }
-  if (kod === 'TER') return { redovni: 0, prekovremeni: 0, teren: r2(uk) }
-  if (kod === 'OD') return { redovni: 0, prekovremeni: 0, teren: 0 }
-  if (a == null || b0 == null) return { redovni: 0, prekovremeni: 0, teren: 0 }
-  return { redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)), teren: 0 }
-}
-
 const PRAG_2H = 2   // dan se broji u "2h+" ako je prekovremenih ≥ ovoliko sati
 const SUBOTA = 6    // dow: 6 = subota
 const FAKTOR_SUBOTA = 1.5
 
-// Obračunski sati za jedan dan u RADIONI (kod je prazan): samo REDOVNI sati,
-// subota ×1,5, ostali ×1. Prekovremeni se NE uključuju (ostaju u svom stupcu),
-// teren (TER) i izostanci (GO/BO/PD/OD) također ne ulaze.
-function danObrSati(d, dow) {
+// Lokalni izračun (isti kao na serveru) za trenutni prikaz. Subota u radioni:
+// nema prekovremenih, SVI sati su redovni ×1,5 (tako se i sprema u bazu).
+function izracun(od, doo, kod, subota) {
+  const a = minute(od), b0 = minute(doo)
+  let uk = 0
+  if (a != null && b0 != null) { let b = b0; if (b < a) b += 24 * 60; uk = Math.max(0, b - a) / 60 }
+  if (kod === 'TER') return { sati: r2(uk), redovni: 0, prekovremeni: 0, teren: r2(uk) }
+  if (kod === 'OD') return { sati: 0, redovni: 0, prekovremeni: 0, teren: 0 }
+  if (a == null || b0 == null) return { sati: 0, redovni: 0, prekovremeni: 0, teren: 0 }
+  if (subota) return { sati: r2(uk), redovni: r2(uk * FAKTOR_SUBOTA), prekovremeni: 0, teren: 0 }
+  return { sati: r2(uk), redovni: r2(Math.min(uk, 8)), prekovremeni: r2(Math.max(0, uk - 8)), teren: 0 }
+}
+
+// Obračunski sati za jedan dan u RADIONI (kod je prazan): samo REDOVNI sati.
+// Subota je u bazi VEĆ ×1,5, pa se ovdje ne množi ponovno. Prekovremeni,
+// teren (TER) i izostanci (GO/BO/PD/OD) ne ulaze.
+function danObrSati(d) {
   if (!d || d.kod) return 0
   const red = d.redovni || 0
-  if (red <= 0) return 0
-  return dow === SUBOTA ? red * FAKTOR_SUBOTA : red
+  return red > 0 ? red : 0
 }
 
 function zbroji(r) {
@@ -101,7 +102,7 @@ export default function EvidencijaRV() {
   }, [podaci, godina, mjesec])
 
   // Mjesečni obračunski sati radnika (radiona, subota ×1,5). Samo prikaz.
-  const obrSati = (r) => r2(dani.reduce((s, x) => s + danObrSati(r.dani[x.datum], x.dow), 0))
+  const obrSati = (r) => r2(dani.reduce((s, x) => s + danObrSati(r.dani[x.datum]), 0))
 
   const promijeniMjesec = (delta) => {
     let m = mjesec + delta, g = godina
@@ -313,7 +314,7 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
   }
   const promijeniKod = (v) => { setKod(v); spremi({ kod: v }) }
 
-  const c = izracun(od, doo, kod)
+  const c = izracun(od, doo, kod, subota)
   // Teren bez od/do (npr. uvoz iz Google tablice: cijeli dan = 24 h) — prikaži spremljene sate.
   const terenSati = kod === 'TER' ? (c.teren > 0 ? c.teren : (!od && !doo ? (dan?.teren || 0) : 0)) : 0
   const aktivno = vrijemeAktivno(kod)
@@ -341,9 +342,9 @@ function Celija({ korisnikId, datum, dan, vikend, subota, onSpremljeno, onGreska
         <div className="ev-calc"><span className="ev-ter">{fmt(terenSati)} ter</span></div>
       )}
       {kod !== 'TER' && kod !== 'OD' && (c.redovni > 0 || c.prekovremeni > 0) && (
-        <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}
-          {subota && c.redovni > 0 && <span className="ev-obr" title="Subota ×1,5 (samo redovni)"> → {fmt(c.redovni * FAKTOR_SUBOTA)}</span>}
-        </div>
+        subota
+          ? <div className="ev-calc">{fmt(c.sati)}<span className="ev-obr" title="Subota: svi sati redovni ×1,5"> → {fmt(c.redovni)}</span></div>
+          : <div className="ev-calc">{fmt(c.redovni)}{c.prekovremeni > 0 && <span className="ev-pre">+{fmt(c.prekovremeni)}</span>}</div>
       )}
     </td>
   )
