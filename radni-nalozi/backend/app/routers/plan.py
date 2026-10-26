@@ -177,23 +177,23 @@ def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, i
     return {nk: max(d, key=d.get) for nk, d in agg.items() if d}
 
 
-def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, str]:
-    """Za svaki zadatak vrati IME radnika koji je na njemu nakupio najviše
+def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, tuple[str, int]]:
+    """Za svaki zadatak vrati (IME, ID) radnika koji je na njemu nakupio najviše
     vremena (iz ZadatakRadnikVrijeme) — tko je radio, i kad više nije dodijeljen."""
     if not zad_ids:
         return {}
     rows = (
-        db.query(ZadatakRadnikVrijeme.zadatak_id, Korisnik.ime, ZadatakRadnikVrijeme.utroseno_sek)
+        db.query(ZadatakRadnikVrijeme.zadatak_id, Korisnik.ime, Korisnik.id, ZadatakRadnikVrijeme.utroseno_sek)
         .join(Korisnik, Korisnik.id == ZadatakRadnikVrijeme.radnik_id)
         .filter(ZadatakRadnikVrijeme.zadatak_id.in_(zad_ids), ZadatakRadnikVrijeme.utroseno_sek > 0)
         .all()
     )
-    best: dict[int, tuple[str, int]] = {}   # zadatak_id -> (ime, sek)
-    for zid, ime, sek in rows:
+    best: dict[int, tuple[str, int, int]] = {}   # zadatak_id -> (ime, radnik_id, sek)
+    for zid, ime, rid, sek in rows:
         cur = best.get(zid)
-        if cur is None or (sek or 0) > cur[1]:
-            best[zid] = (ime, sek or 0)
-    return {zid: v[0] for zid, v in best.items()}
+        if cur is None or (sek or 0) > cur[2]:
+            best[zid] = (ime, rid, sek or 0)
+    return {zid: (v[0], v[1]) for zid, v in best.items()}   # zadatak_id -> (ime, radnik_id)
 
 
 # --- GET /plan -------------------------------------------------------------
@@ -224,7 +224,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
                     "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
-                    "radioIme": radili.get(z.id),
+                    "radioIme": (radili.get(z.id) or (None, None))[0],
+                    "radioId": (radili.get(z.id) or (None, None))[1],
                     "status": _plan_status(z),
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
