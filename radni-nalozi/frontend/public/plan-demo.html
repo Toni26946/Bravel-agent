@@ -515,10 +515,20 @@
   var dani=["ned","pon","uto","sri","čet","pet","sub"]; var mj=d.getMonth()+1;
   document.getElementById("datum").textContent = dani[d.getDay()]+" "+d.getDate()+"."+mj+"."+d.getFullYear()+".";
 
+  // Ne osvježavaj (ne iscrtavaj ponovo) dok korisnik bira radnika — inače se
+  // padajući izbornik zatvori i klik na predloženog/radnika „propadne".
+  var _zadnjaInterakcija = 0;
+  document.addEventListener("pointerdown", function(){ _zadnjaInterakcija = Date.now(); }, true);
+  function korisnikBira(){
+    var a = document.activeElement;
+    if(a && (a.tagName==="SELECT" || a.tagName==="INPUT" || a.tagName==="OPTION")) return true;
+    return (Date.now() - _zadnjaInterakcija) < 4000;
+  }
+
   render();
   ucitaj();                        // početni dohvat stvarnih podataka
   setInterval(tick,1000);          // živi mjerači
-  setInterval(function(){ if(!_busy && !_planMode) ucitaj(); }, 8000);  // osvježi iz baze (ne dok slažeš plan)
+  setInterval(function(){ if(!_busy && !_planMode && !korisnikBira()) ucitaj(); }, 8000);  // osvježi iz baze (ne dok slažeš plan / biraš radnika)
 })();
 </script>
 
