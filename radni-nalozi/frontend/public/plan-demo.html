@@ -88,6 +88,8 @@
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .op .opk{color:var(--muted);font-size:10.5px;font-weight:700}
   .op .opmeh{font-size:11px;font-weight:700;color:var(--plava);white-space:nowrap}
+  .op .opmeh-btn{border:1px solid var(--line);background:var(--plava-soft);border-radius:999px;padding:3px 9px;cursor:pointer;font-family:inherit}
+  .op .opmeh-btn:hover{border-color:var(--plava)}
   .op .right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   /* Uže kontrole da opis operacije dobije više prostora */
   .op .right select{max-width:108px;font-size:11px;padding:5px 6px}
@@ -221,7 +223,7 @@
       z:!!d.zakljucan, p:(d.promjene||[]).length,
       m:(d.mehanicari||[]).map(function(x){return x.id;}),
       n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,
-          (n.ops||[]).map(function(o){return [o.id,o.status,o.mehId];})];})
+          (n.ops||[]).map(function(o){return [o.id,o.status,o.mehId,o.radioId];})];})
     });
   }
   function ucitaj(force){
@@ -330,7 +332,11 @@
     n.ops.forEach(function(o){
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       h+='<div class="op"><span class="opn">'+esc(o.naziv)+' <span class="opk">· '+esc(o.kat)+'</span></span>'+
-         (((o.akumSek||0)>0 && o.radioIme && (o.status==="plan"||o.status==="pauza"))?'<span class="opmeh">👷 '+esc(o.radioIme)+'</span>':'')+
+         (((o.akumSek||0)>0 && o.radioIme && (o.status==="plan"||o.status==="pauza"))
+            ? ((o.radioId && o.radioId!==o.mehId)
+               ? '<button class="opmeh opmeh-btn" onclick="PLAN.dodijeli('+o.id+','+o.radioId+')" title="Dodijeli ponovo — radio je na ovoj operaciji">👷 '+esc(o.radioIme)+'</button>'
+               : '<span class="opmeh">👷 '+esc(o.radioIme)+'</span>')
+            : '')+
          '<span class="chip '+CH[o.status]+'">'+LBL[o.status]+'</span><span class="right">';
       if(o.status==="plan" || o.status==="pauza"){
         h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(o.mehId)+'</select>';
