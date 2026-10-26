@@ -251,7 +251,7 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
-    _pokreni_mjerac(db, z)
+    _pokreni_mjerac(db, z, odjavi_druge=False)   # zadrži ostale zadatke u redu čekanja
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     provjeri_zalihu(db, link.radnik)   # krenuo iz pripreme → javi poslovođi ako je zaliha niska

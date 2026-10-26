@@ -83,6 +83,30 @@ def test_tok_pocinjem_gotovo():
     assert db.query(PovijestRada).count() == 1
 
 
+def test_pocinjem_ne_gubi_red_i_gotovo_vraca_sljedeci():
+    """Kad mehaničar ima više dodijeljenih zadataka: Počinjem na prvom NE smije
+    odjaviti radnika s ostalih (red čekanja), a Gotovo mora odmah vratiti sljedeći."""
+    db = _session()
+    meh = Korisnik(ime="Meh Q", korisnicko_ime="meh.q", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T2", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-Q", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op1 = Operacija(nalog_id=n.id, kategorija="A", redoslijed=1)
+    op2 = Operacija(nalog_id=n.id, kategorija="B", redoslijed=2); db.add_all([op1, op2]); db.flush()
+    z1 = Zadatak(operacija_id=op1.id, opis="PRVI", ceka_potvrdu=True); z1.radnici = [meh]
+    z2 = Zadatak(operacija_id=op2.id, opis="DRUGI"); z2.radnici = [meh]   # u redu
+    db.add_all([z1, z2])
+    db.add(MehanicarLink(radnik_id=meh.id, token="tq", aktivan=True)); db.commit()
+
+    z_pocinjem("tq", UredjajIn(uredjaj="A"), db=db)
+    db.refresh(z2)
+    assert [r.id for r in z2.radnici] == [meh.id], "Počinjem ne smije odjaviti radnika iz reda"
+
+    r = z_gotovo("tq", UredjajIn(uredjaj="A"), db=db)
+    assert r.get("nema") is not True
+    assert r.get("opis") == "DRUGI", "Gotovo mora odmah vratiti sljedeći zadatak iz reda"
+
+
 def test_ugaseni_link_ne_radi():
     db = _session()
     meh, z = _priprema(db)
