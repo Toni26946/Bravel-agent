@@ -469,6 +469,45 @@ def posalji(zid: int, request: Request, korisnik: Korisnik = Depends(_samo_vlasn
     return {"ok": True, "wa": wa}
 
 
+@router.post("/nalog/{nalog_id}/isplaniraj")
+def isplaniraj(nalog_id: int, request: Request,
+               korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """„Nalog isplaniran" — jedan gumb umjesto slanja po operaciji.
+    Za svakog mehaničara dodijeljenog na ovom nalogu pošalje JEDNU poveznicu
+    (njegov trenutni, prvi zadatak u redu), a ostale zadatke ostavi u redu
+    čekanja. Napredovanje kroz red ide preko mehaničareve stranice (Gotovo /
+    Nemam dijelova) — ista login-less poveznica se sama pomakne na sljedeći."""
+    n = db.get(Nalog, nalog_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    from .dispecer import _red, posalji_poveznicu
+    # Mehaničari dodijeljeni na nezavršenim operacijama ovog naloga (bez onih koji čekaju dijelove).
+    mehanicari: dict[int, Korisnik] = {}
+    for op in n.operacije:
+        for z in op.zadaci:
+            if z.gotovo or z.razlog_prekida == "dijelovi":
+                continue
+            for r in z.radnici:
+                mehanicari.setdefault(r.id, r)
+    poslano = 0
+    for m in mehanicari.values():
+        red = _red(db, m)
+        if not red:
+            continue
+        z = red[0][2]                 # trenutni (prvi) zadatak u redu
+        if not z.zapoceto:            # ne diraj ako već radi
+            z.ceka_potvrdu = True
+            z.razlog_prekida = None
+            z.prekid_vrijeme = None
+        nt = z.operacija.nalog
+        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", str(request.base_url))
+        if wa.get("poslano"):
+            poslano += 1
+    db.commit()
+    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano}
+
+
 @router.post("/zadatak/{zid}/makni-radnika")
 def makni_radnika(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     z = _zad(db, zid)
