@@ -138,6 +138,21 @@
   .dcard .m{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
   .live{font-weight:800;color:var(--s-radu)}
 
+  /* --- Radnici (red po mehaničaru) --- */
+  .rad-scroll{overflow-x:auto;padding-bottom:6px}
+  .rad-tbl{display:flex;flex-direction:column;gap:8px;min-width:min-content}
+  .rad-row{display:flex;align-items:stretch;gap:8px}
+  .rad-ime{flex:none;width:168px;position:sticky;left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-weight:800;font-size:12.5px;display:flex;align-items:center;gap:6px;z-index:2}
+  .rad-ime.malo{border-color:var(--s-ceka);color:var(--s-ceka);background:var(--s-ceka-bg)}
+  .rad-br{margin-left:auto;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
+  .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
+  .rad-cells{display:flex;gap:8px}
+  .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:7px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative}
+  .rad-cell.c-radu{border-color:var(--s-radu)}
+  .rad-cell .rc-poz{position:absolute;top:5px;right:8px;font-size:10px;font-weight:800;color:var(--muted)}
+  .rad-cell .rc-gb{font-weight:800;font-size:13px}
+  .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:20px 0 4px}
   .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
   .modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:9px;box-shadow:0 18px 50px rgba(0,0,0,.4)}
@@ -167,7 +182,7 @@
 <nav class="tabs" id="tabs">
   <button class="tab akt" data-v="pl">👷‍♂️ Poslovođa</button>
   <button class="tab" data-v="meh">📱 Mehaničar</button>
-  <button class="tab" data-v="dash">📊 Dashboard</button>
+  <button class="tab" data-v="dash">👷 Radnici</button>
 </nav>
 
 <main>
@@ -458,30 +473,68 @@
     if(nalogZapoceo(n)) return "pauza";                                    // započeo pa stoji
     return "plan";                                                         // još nije počeo
   }
+  // „Radnici" — mehaničari u redcima, njihovi zadaci po redu čekanja u stupcima.
+  function _faza(s){ return s==="radu"?0 : (s==="ceka"?1:2); }   // isti red kao dispečer
+  function redPoRadniku(){
+    var map={};
+    nalozi.forEach(function(n){
+      n.ops.forEach(function(o){
+        if(o.status==="gotovo" || o.status==="dijelovi") return;   // gotovo i "čeka dio" nisu u redu
+        if(!o.mehId) return;
+        (map[o.mehId]=map[o.mehId]||[]).push({n:n,o:o});
+      });
+    });
+    Object.keys(map).forEach(function(id){
+      map[id].sort(function(a,b){
+        var fa=_faza(a.o.status), fb=_faza(b.o.status); if(fa!==fb) return fa-fb;
+        var ra=(a.n.rang==null?9999:a.n.rang), rb=(b.n.rang==null?9999:b.n.rang); if(ra!==rb) return ra-rb;
+        return a.o.id-b.o.id;
+      });
+    });
+    return map;
+  }
   function renderDASH(){
-    var grupe={plan:[],ceka:[],radu:[],pauza:[],dijelovi:[],gotovo:[]};
-    nalozi.forEach(function(n){ grupe[nalogStanje(n)].push(n); });
-    var ndc=function(n){
-      var np=napredak(n), mehs={};
-      n.ops.forEach(function(o){ if(o.mehId) mehs[o.mehId]=1; });
-      var who=Object.keys(mehs).map(function(id){return esc(meh(parseInt(id,10)).ime);}).join(", ");
-      return '<div class="dcard" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"'+(n.hitno?' style="border-color:var(--crveno)"':'')+'><div class="g">'+(n.hitno?'🔴 ':'')+'GB '+esc(n.gb)+' <span class="vozilo">'+esc(n.vozilo)+'</span></div>'+
-             '<div class="o">'+np.done+'/'+np.tot+' operacija · '+np.pct+'%</div>'+
-             '<div class="m">'+(who?'👷 '+who:'<span style="color:var(--s-plan)">bez radnika</span>')+'</div></div>';
-    };
-    var kol=function(s,dot){ var items=grupe[s].slice(); items.sort(function(a,b){return (b.hitno?1:0)-(a.hitno?1:0);}); return '<div class="kol"><h3><span class="dot" style="background:'+dot+'"></span>'+LBL[s]+' ('+items.length+')</h3>'+(items.map(ndc).join("")||'<div class="vozilo" style="padding:4px 2px">—</div>')+'</div>'; };
-    var aktMeh={}; nalozi.forEach(function(n){ n.ops.forEach(function(o){ if(o.status==="radu"&&o.mehId) aktMeh[o.mehId]=1; }); });
+    var PRAG=2;
+    var map=redPoRadniku();
+    var saZad=[], slobodni=[];
+    MEH.forEach(function(m){ var l=map[m.id]||[]; if(l.length) saZad.push({m:m,lista:l}); else slobodni.push(m); });
+    saZad.sort(function(a,b){ return a.m.ime<b.m.ime?-1:(a.m.ime>b.m.ime?1:0); });
+    var ukupno=0, trebaDopunu=0;
+    saZad.forEach(function(r){
+      ukupno+=r.lista.length;
+      r.cekaju=r.lista.filter(function(x){return x.o.status==="plan"||x.o.status==="pauza";}).length;
+      if(r.cekaju<PRAG) trebaDopunu++;
+    });
     var h='';
     h+='<div class="kpis">'+
-       '<div class="kpi"><div class="n">'+grupe.plan.length+'</div><div class="l">Planirano</div></div>'+
-       '<div class="kpi"><div class="n radu">'+grupe.radu.length+'</div><div class="l">U tijeku</div></div>'+
-       '<div class="kpi"><div class="n">'+grupe.gotovo.length+'</div><div class="l">Gotovo</div></div>'+
-       '<div class="kpi"><div class="n">'+Object.keys(aktMeh).length+'/'+MEH.length+'</div><div class="l">Aktivni radnici</div></div>'+
-       '<div class="kpi"><div class="n"'+(promjene>0?' style="color:var(--crveno)"':'')+'>'+promjene+'</div><div class="l">Promjena plana</div></div>'+
+       '<div class="kpi"><div class="n">'+saZad.length+'</div><div class="l">Radnika sa zadacima</div></div>'+
+       '<div class="kpi"><div class="n">'+ukupno+'</div><div class="l">Zadataka u redu</div></div>'+
+       '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
+       '<div class="kpi"><div class="n">'+slobodni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<div class="kol-grid">'+
-       kol("plan","var(--s-plan)")+kol("ceka","var(--s-ceka)")+kol("radu","var(--s-radu)")+kol("pauza","var(--s-ceka)")+kol("dijelovi","var(--crveno)")+kol("gotovo","var(--s-gotovo)")+
-       '</div>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi.</p>';
+    if(!saZad.length){
+      h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
+    } else {
+      h+='<div class="rad-scroll"><div class="rad-tbl">';
+      saZad.forEach(function(r){
+        var malo=r.cekaju<PRAG;
+        h+='<div class="rad-row"><div class="rad-ime'+(malo?' malo':'')+'">'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells">';
+        r.lista.forEach(function(x,i){
+          h+='<div class="rad-cell '+CH[x.o.status]+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
+             '<span class="rc-poz">'+(i+1)+'</span>'+
+             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
+             '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
+             '<span class="chip '+CH[x.o.status]+'">'+LBL[x.o.status]+'</span></div>';
+        });
+        h+='</div></div>';
+      });
+      h+='</div></div>';
+    }
+    if(slobodni.length){
+      h+='<div class="sek-nas">Slobodni (bez zadataka)</div>'+
+         '<div class="card" style="color:var(--muted)">'+slobodni.map(function(m){return esc(m.ime);}).join(" · ")+'</div>';
+    }
     return h;
   }
 
