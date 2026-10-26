@@ -218,6 +218,9 @@ export const api = {
   urediStavku: (id, idx, b) => zahtjev(`/primke/${id}/stavka/${idx}`, { method: 'PATCH', body: b }),
   dodajRazduzenje: (id, idx, b) => zahtjev(`/primke/${id}/stavka/${idx}/razduzenje`, { method: 'POST', body: b }),
   obrisiRazduzenje: (id, idx, rid) => zahtjev(`/primke/${id}/stavka/${idx}/razduzenje/${rid}`, { method: 'DELETE' }),
+  // Dispečer dijelovi: operacije koje čekaju dijelove (po GB) + „dio stigao → vrati mehaničaru"
+  cekaDijelove: (gb) => zahtjev('/dispecer/ceka-dijelove' + (gb ? `?gb=${encodeURIComponent(gb)}` : '')),
+  dioStigao: (zadatakId) => zahtjev(`/dispecer/dio-stigao/${zadatakId}`, { method: 'POST' }),
   preuzmiPrimkeExcel: async () => {
     const res = await fetch(BASE + '/api/primke/izvoz.xlsx', {
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},

@@ -14,6 +14,7 @@ Slanje WhatsApp poruke je POSEBNO i gateano (vidi dispecer_slanje / whatsapp.py)
 ovdje se NIŠTA ne šalje; ovo je samo stranica + akcije.
 """
 import logging
+import re
 import secrets
 from datetime import datetime, timezone
 
@@ -23,10 +24,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import norme
-from ..auth import zahtijevaj_ai_poslovodja
+from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Uloga, Zadatak
-from ..push import obavijesti_ulogu
+from ..push import obavijesti_korisnika, obavijesti_ulogu
 from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zaustavi_mjerac
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
@@ -34,6 +35,13 @@ log = logging.getLogger("dispecer")
 router = APIRouter(prefix="/dispecer", tags=["dispecer"])
 page_router = APIRouter()
 _samo_vlasnik = zahtijevaj_ai_poslovodja()
+_skladiste = zahtijevaj_uloge(Uloga.skladistar, Uloga.voditelj, Uloga.poslovodja)
+
+
+def _izvuci_dio(opis: str | None) -> str | None:
+    """Izvuci naziv naručenog dijela iz opisa (upisao mehaničar: '[naručen dio: …]')."""
+    m = re.search(r"\[naručen dio:\s*(.*?)\]", opis or "")
+    return m.group(1).strip() if m else None
 
 
 def osiguraj_link(db: Session, radnik_id: int) -> MehanicarLink:
@@ -354,6 +362,54 @@ def ugasi_link(radnik_id: int, _: Korisnik = Depends(_samo_vlasnik), db: Session
         link.uredjaj = None
         db.commit()
     return {"ok": True}
+
+
+# --- dijelovi: skladištar vraća zadatak mehaničaru kad dio stigne ----------
+@router.get("/ceka-dijelove")
+def ceka_dijelove(gb: str | None = None, _: Korisnik = Depends(_skladiste), db: Session = Depends(get_db)):
+    """Operacije koje čekaju dijelove (za skladištarev prozorčić „Pridruži operaciji").
+    Filtrira se po GB-u (vozilu) — što skladištar razdužuje na primci."""
+    cilj = (gb or "").strip()
+    out = []
+    for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
+        g = _gb(n)
+        if cilj and g != cilj:
+            continue
+        voz = n.vozilo
+        vozilo = " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x)
+        for op in n.operacije:
+            for z in op.zadaci:
+                if z.razlog_prekida != "dijelovi":
+                    continue
+                out.append({
+                    "zadatak_id": z.id, "gb": g, "vozilo": vozilo or (n.naslov or ""),
+                    "opis": z.opis, "kategorija": op.kategorija,
+                    "mehanicar": (z.radnici[0].ime if z.radnici else None),
+                    "dio": _izvuci_dio(z.opis),
+                })
+    return out
+
+
+@router.post("/dio-stigao/{zadatak_id}")
+def dio_stigao(zadatak_id: int, request: Request,
+               _: Korisnik = Depends(_skladiste), db: Session = Depends(get_db)):
+    """Skladištar pridruži stigli dio ovoj operaciji → zadatak izlazi iz „čeka dijelove"
+    i vraća se ISTOM mehaničaru (na potvrdu) + ponovno mu ode poveznica (gated)."""
+    z = db.get(Zadatak, zadatak_id)
+    if not z:
+        raise HTTPException(status_code=404, detail="Zadatak ne postoji")
+    if z.razlog_prekida != "dijelovi":
+        raise HTTPException(status_code=409, detail="Zadatak nije u statusu 'čeka dijelove'")
+    z.razlog_prekida = None
+    z.ceka_potvrdu = True
+    n = z.operacija.nalog
+    m = z.radnici[0] if z.radnici else None
+    wa = None
+    if m:
+        obavijesti_korisnika(db, m.id, "Dio je stigao", f"{z.opis} · GB {_gb(n)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(n), z.opis or "", str(request.base_url))
+    db.commit()
+    return {"ok": True, "wa": wa}
 
 
 # --- login-less HTML stranica za mehaničara --------------------------------

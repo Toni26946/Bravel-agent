@@ -914,3 +914,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .ev-kod-PD { background: #e8f0fe; }
 .ev-kod-OD { background: #f1f1f1; }
 .ev-kod .ev-kodsel { font-weight: 800; }
+
+/* Prozorčić (modal) — npr. „Pridruži operaciji" kad dio stigne */
+.modal-pokrov { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+.modal-kutija { background: var(--pozadina2, #fff); border-radius: 14px; padding: 18px; max-width: 520px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,.25); }

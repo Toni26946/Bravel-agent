@@ -149,9 +149,36 @@ def test_slanje_ugaseno_ne_salje_ni_ne_stvara_token():
     assert db.query(MehanicarLink).count() == 0
 
 
+def test_dio_stigao_vraca_zadatak():
+    """Zadatak koji čeka dijelove → dio_stigao → izlazi iz 'čeka dijelove' i ide
+    mehaničaru na potvrdu (ceka_potvrdu)."""
+    import types
+    from app.routers.dispecer import ceka_dijelove, dio_stigao
+    db = _session()
+    meh = Korisnik(ime="Meh D", korisnicko_ime="meh.d", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T555", marka="MAN")
+    db.add_all([meh, voz]); db.flush()
+    nalog = Nalog(broj="RN-D-9", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(nalog); db.flush()
+    op = Operacija(nalog_id=nalog.id, kategorija="MOTOR"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="Zamjena [naručen dio: filter]", razlog_prekida="dijelovi")
+    z.radnici = [meh]
+    db.add(z); db.commit()
+
+    lista = ceka_dijelove(gb="T555", db=db)
+    assert len(lista) == 1 and lista[0]["zadatak_id"] == z.id
+    assert lista[0]["dio"] == "filter"
+
+    dio_stigao(z.id, types.SimpleNamespace(base_url="https://x/"), db=db)
+    db.refresh(z)
+    assert z.razlog_prekida is None
+    assert z.ceka_potvrdu is True
+
+
 if __name__ == "__main__":
     test_tok_pocinjem_gotovo()
     test_ugaseni_link_ne_radi()
     test_zaliha_javi_kad_niska_i_ne_javi_kad_dovoljna()
     test_slanje_ugaseno_ne_salje_ni_ne_stvara_token()
+    test_dio_stigao_vraca_zadatak()
     print("OK — dispečer testovi prošli")
