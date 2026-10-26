@@ -36,6 +36,7 @@ export default function SkladisteDashboard() {
   const [samoStari, setSamoStari] = useState(false)
   const [sort, setSort] = useState('dana')   // dana | naziv | iznos | preostalo | dobavljac
   const [unos, setUnos] = useState({})   // { "pid:idx": {gb, kol} }
+  const [pridruzi, setPridruzi] = useState(null)   // { gb, ops:[...] } — prozorčić „Pridruži operaciji"
 
   const odaberiRazdoblje = (kljuc) => {
     setRazdoblje(kljuc)
@@ -92,6 +93,17 @@ export default function SkladisteDashboard() {
       await api.dodajRazduzenje(x.pid, x.idx, { gb, kolicina: kol })
       setUnos((p) => ({ ...p, [kljuc(x)]: { gb: '', kol: '' } }))
       ucitaj()
+      // Dio je razdužen na GB — ima li taj GB operacija koje čekaju dijelove?
+      try {
+        const ops = await api.cekaDijelove(gb)
+        if (Array.isArray(ops) && ops.length) setPridruzi({ gb, ops })
+      } catch (_) { /* nije kritično */ }
+    } catch (e) { setGreska(e.message) }
+  }
+  const dioStigao = async (zadatakId) => {
+    try {
+      await api.dioStigao(zadatakId)
+      setPridruzi((p) => p ? { ...p, ops: p.ops.filter((o) => o.zadatak_id !== zadatakId) } : p)
     } catch (e) { setGreska(e.message) }
   }
   const makniRazd = async (x, ri) => {
@@ -117,6 +129,36 @@ export default function SkladisteDashboard() {
   return (
     <Layout naslov={t('skl.dashNaslov')}>
       {greska && <div className="greska">{greska}</div>}
+
+      {pridruzi && (
+        <div className="modal-pokrov" onClick={() => setPridruzi(null)}>
+          <div className="modal-kutija" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Dijelovi stigli — GB {pridruzi.gb}</h3>
+            {pridruzi.ops.length === 0 ? (
+              <p className="meta">Nema više operacija koje čekaju dijelove za ovaj GB.</p>
+            ) : (
+              <>
+                <p className="meta">Pridruži stigli dio operaciji — zadatak se vraća mehaničaru:</p>
+                {pridruzi.ops.map((o) => (
+                  <div key={o.zadatak_id} className="karta" style={{ marginBottom: 8 }}>
+                    <div><strong>{o.kategorija || ''}</strong> — {o.opis}</div>
+                    <div className="meta">
+                      {o.mehanicar ? `🧑‍🔧 ${o.mehanicar}` : 'bez mehaničara'}
+                      {o.dio ? ` · naručeno: ${o.dio}` : ''}
+                    </div>
+                    <div className="btn-red" style={{ marginTop: 6 }}>
+                      <button className="btn mali" onClick={() => dioStigao(o.zadatak_id)}>Dio stigao → vrati mehaničaru</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            <div className="btn-red" style={{ marginTop: 8 }}>
+              <button className="btn sekund mali" onClick={() => setPridruzi(null)}>Zatvori (ne pripada nijednoj)</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
         <div style={{ flex: '1 1 180px' }}>
