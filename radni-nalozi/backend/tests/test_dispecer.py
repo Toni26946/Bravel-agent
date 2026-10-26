@@ -32,7 +32,7 @@ from app.database import Base
 from app.models import (
     Korisnik, MehanicarLink, Nalog, Operacija, PovijestRada, StatusNaloga, Uloga, Vozilo, Zadatak,
 )
-from app.routers.dispecer import UredjajIn, z_gotovo, z_pocinjem, z_stanje
+from app.routers.dispecer import UredjajIn, posalji_poveznicu, z_gotovo, z_pocinjem, z_stanje
 
 
 def _session():
@@ -93,7 +93,19 @@ def test_ugaseni_link_ne_radi():
         z_stanje("tok123", UredjajIn(uredjaj="A"), db=db)
 
 
+def test_slanje_ugaseno_ne_salje_ni_ne_stvara_token():
+    """Sigurnosna garancija: dok je dispecer_wa_on False, posalji_poveznicu NE šalje
+    i NE stvara poveznicu (nijedan MehanicarLink)."""
+    db = _session()
+    meh = Korisnik(ime="Test Meh", korisnicko_ime="test.meh", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh); db.commit()
+    rez = posalji_poveznicu(db, meh, "T777", "Zamjena pločica", "https://x/")
+    assert rez["poslano"] is False
+    assert db.query(MehanicarLink).count() == 0
+
+
 if __name__ == "__main__":
     test_tok_pocinjem_gotovo()
     test_ugaseni_link_ne_radi()
+    test_slanje_ugaseno_ne_salje_ni_ne_stvara_token()
     print("OK — dispečer testovi prošli")

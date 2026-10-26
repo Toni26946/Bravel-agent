@@ -13,6 +13,7 @@ Sigurnost:
 Slanje WhatsApp poruke je POSEBNO i gateano (vidi dispecer_slanje / whatsapp.py) —
 ovdje se NIŠTA ne šalje; ovo je samo stranica + akcije.
 """
+import logging
 import secrets
 from datetime import datetime, timezone
 
@@ -29,9 +30,75 @@ from ..push import obavijesti_ulogu
 from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zaustavi_mjerac
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
+log = logging.getLogger("dispecer")
 router = APIRouter(prefix="/dispecer", tags=["dispecer"])
 page_router = APIRouter()
 _samo_vlasnik = zahtijevaj_ai_poslovodja()
+
+
+def osiguraj_link(db: Session, radnik_id: int) -> MehanicarLink:
+    """Dohvati aktivnu poveznicu mehaničara ili je stvori (bez diranja vezanog uređaja
+    ako već postoji aktivna). Koristi se pri slanju iz Plana."""
+    link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == radnik_id).first()
+    if link and link.aktivan:
+        return link
+    token = secrets.token_urlsafe(24)
+    if link:
+        link.token = token
+        link.aktivan = True
+        link.uredjaj = None
+        link.zadnje_koristeno = None
+        link.zadnji_uredjaj = None
+    else:
+        link = MehanicarLink(radnik_id=radnik_id, token=token, aktivan=True)
+        db.add(link)
+    db.flush()
+    return link
+
+
+def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_url: str) -> dict:
+    """Pošalji login-less poveznicu mehaničaru preko bravel-agenta (predložak
+    `poruka_dispecera`). GATED — ništa se ne šalje osim ako je izričito upaljeno:
+    - `dispecer_wa_on` mora biti True i bravel-agent URL/ključ postavljeni,
+    - ako je `dispecer_test_broj` postavljen → SVE ide samo na taj broj (test),
+    - inače mehaničarevo ime mora biti na `dispecer_wa_imena` allowlisti
+      (broj rješava bravel-agent iz svog imenika WHATSAPP_DRIVERS).
+    Nikad ne prekida tok dodjele — na grešci samo vrati {poslano:False}.
+    """
+    from ..config import settings
+    if not (settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc):
+        return {"poslano": False, "razlog": "slanje isključeno"}
+    link = osiguraj_link(db, radnik.id)
+    url = f"{base_url.rstrip('/')}/z/{link.token}"
+    # Meta pravilo: parametar predloška bez novih redova/tabova
+    poruka = " ".join(f"Novi zadatak: GB {gb}, {opis} {url}".split())[:900]
+    test = (settings.dispecer_test_broj or "").strip()
+    body = {"poruka": poruka}
+    if test:
+        body["vozac"] = "test"
+        body["broj"] = test
+    else:
+        dozvoljeni = {x.strip().lower() for x in (settings.dispecer_wa_imena or "").split(",") if x.strip()}
+        if (radnik.ime or "").strip().lower() not in dozvoljeni:
+            return {"poslano": False, "razlog": "mehaničar nije na allowlisti"}
+        body["vozac"] = radnik.ime
+    try:
+        import httpx
+        r = httpx.post(
+            f"{settings.bravel_agent_url.rstrip('/')}/api/vozac/nalog",
+            json=body, headers={"X-Api-Key": settings.bravel_agent_kljuc}, timeout=10,
+        )
+        ok = False
+        try:
+            ok = r.status_code < 300 and bool(r.json().get("ok"))
+        except Exception:
+            ok = False
+        if not ok:
+            log.warning("Dispečer slanje nije uspjelo (%s): %s", r.status_code, r.text[:200])
+        return {"poslano": ok}
+    except Exception as e:  # mreža/konfiguracija — ne ruši dodjelu
+        log.warning("Dispečer slanje iznimka: %s", e)
+        return {"poslano": False, "razlog": str(e)}
 
 
 # --- pomoćno ---------------------------------------------------------------

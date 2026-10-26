@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     # Zaglavlje X-Mozak-Kljuc; fly secret MOZAK_KLJUC. Prazno = mozak nema pristup.
     mozak_kljuc: str = ""
 
+    # Dispečer — slanje login-less poveznice zadatka mehaničaru preko bravel-agenta.
+    # SIGURNOST: slanje je ugašeno dok se izričito ne upali, i to samo odabranim brojevima.
+    dispecer_wa_on: bool = False          # glavni prekidač slanja poveznica mehaničarima
+    dispecer_test_broj: str = ""          # ako postavljeno → SVE poveznice idu na OVAJ broj (test)
+    dispecer_wa_imena: str = ""           # allowlista imena mehaničara koji smiju primati (zarez; prazno = nitko)
+    bravel_agent_url: str = ""            # baza bravel-agent web_api (npr. https://bravel-agent.fly.dev)
+    bravel_agent_kljuc: str = ""          # X-Api-Key za bravel-agent (fly secret)
+
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
     seed_admin_password: str = "bravel123"
