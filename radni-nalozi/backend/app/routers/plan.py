@@ -10,7 +10,7 @@ smije i dodijeljeni mehaničar.
 import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -442,7 +442,7 @@ def dodijeli(zid: int, p: DodijeliIn, _: Korisnik = Depends(_samo_vlasnik), db: 
 
 
 @router.post("/zadatak/{zid}/posalji")
-def posalji(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+def posalji(zid: int, request: Request, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     z = _zad(db, zid)
     m = _mehanicar(z)
     if not m:
@@ -461,8 +461,12 @@ def posalji(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session =
     z.ceka_potvrdu = True
     z.razlog_prekida = None
     obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(n)}", "/moja-radiona")
+    # Dispečer: pošalji login-less poveznicu mehaničaru na WhatsApp (GATED — ništa se
+    # ne šalje dok se izričito ne upali i samo odobrenim brojevima). Ne ruši dodjelu.
+    from .dispecer import posalji_poveznicu
+    wa = posalji_poveznicu(db, m, _gb(n), z.opis or "", str(request.base_url))
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "wa": wa}
 
 
 @router.post("/zadatak/{zid}/makni-radnika")
