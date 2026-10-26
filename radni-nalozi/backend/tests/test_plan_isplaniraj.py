@@ -62,6 +62,30 @@ def test_isplaniraj_salje_prvi_ostale_u_red():
     assert z1.gotovo is False and z2.gotovo is False
 
 
+def test_isplaniraj_preskace_onog_koji_vec_radi():
+    """Mehaničar čiji je prvi zadatak već započet (radi) se preskače — ne šalje
+    mu se ponovo i ne dira mu se stanje; red mu ide sam preko stranice."""
+    from datetime import datetime, timezone
+    db = _session()
+    meh = Korisnik(ime="Meh B", korisnicko_ime="meh.b", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh); db.flush()
+    voz = Vozilo(gb="T654", marka="MAN"); db.add(voz); db.flush()
+    n = Nalog(broj="RN-P-2", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="MOTOR", redoslijed=1); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="radi već", zapoceto=datetime.now(timezone.utc)); z.radnici = [meh]
+    db.add(z)
+    db.add(MehanicarLink(radnik_id=meh.id, token="tokB", aktivan=True))
+    db.commit()
+
+    req = types.SimpleNamespace(base_url="https://x/")
+    r = isplaniraj(n.id, req, korisnik=meh, db=db)
+    assert r["mehanicara"] == 1
+    assert r["vec_rade"] == 1         # preskočen jer već radi
+    assert r["poslano"] == 0
+
+
 if __name__ == "__main__":
     test_isplaniraj_salje_prvi_ostale_u_red()
-    print("OK — isplaniraj test prošao")
+    test_isplaniraj_preskace_onog_koji_vec_radi()
+    print("OK — isplaniraj testovi prošli")

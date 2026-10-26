@@ -490,22 +490,25 @@ def isplaniraj(nalog_id: int, request: Request,
             for r in z.radnici:
                 mehanicari.setdefault(r.id, r)
     poslano = 0
+    preskoceno_rade = 0
     for m in mehanicari.values():
         red = _red(db, m)
         if not red:
             continue
         z = red[0][2]                 # trenutni (prvi) zadatak u redu
-        if not z.zapoceto:            # ne diraj ako već radi
-            z.ceka_potvrdu = True
-            z.razlog_prekida = None
-            z.prekid_vrijeme = None
+        if z.zapoceto:                # već radi — ne diraj; red mu ide sam preko stranice
+            preskoceno_rade += 1
+            continue
+        z.ceka_potvrdu = True         # prvi ide na potvrdu/slanje, ostali ostaju u redu
+        z.razlog_prekida = None
+        z.prekid_vrijeme = None
         nt = z.operacija.nalog
         obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
         wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", str(request.base_url))
         if wa.get("poslano"):
             poslano += 1
     db.commit()
-    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano}
+    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
 
 
 @router.post("/zadatak/{zid}/makni-radnika")
