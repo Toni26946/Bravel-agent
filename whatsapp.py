@@ -16,6 +16,7 @@
 # ============================================================
 
 import os
+import re
 
 import requests
 
@@ -63,16 +64,31 @@ def _slanje_ukljuceno():
     return os.getenv("WHATSAPP_SLANJE_ON", "").strip() == "1"
 
 
+def _samo_brojke(s):
+    return re.sub(r"\D", "", str(s or "")).lstrip("0")
+
+
+def _dispecer_dozvoljen(to):
+    """Dispečer (radni-nalozi) smije slati SAMO brojevima s WHATSAPP_DISPECER_BROJEVI
+    allowliste — i kad je globalni WHATSAPP_SLANJE_ON ugašen. Tako vozači/podsjetnici
+    ostaju blokirani, a dispečerski linkovi idu samo odabranima (test/mehaničari)."""
+    dozvoljeni = {_samo_brojke(b) for b in os.getenv("WHATSAPP_DISPECER_BROJEVI", "").split(",") if b.strip()}
+    return bool(dozvoljeni) and _samo_brojke(to) in dozvoljeni
+
+
 def _post(path, payload):
     """POST na Graph; vrati (status_code, dict). Ne baca na HTTP grešci —
     tijelo greške je dio odgovora koji zovemo želi vidjeti."""
     # Blokiraj SVAKO slanje poruke (…/messages) dok slanje nije izrijekom uključeno.
+    # IZUZETAK: dispečerski linkovi smiju ići brojevima s WHATSAPP_DISPECER_BROJEVI
+    # allowliste i kad je globalno ugašeno (vozači/podsjetnici ostaju blokirani).
     # register i ostali ne-message pozivi prolaze (ne šalju ništa vozaču).
     if str(path).endswith("/messages") and not _slanje_ukljuceno():
-        print("[whatsapp] SLANJE BLOKIRANO (WHATSAPP_SLANJE_ON≠1) — poruka NIJE poslana",
-              flush=True)
-        return 0, {"blocked": True,
-                   "error": "WhatsApp slanje isključeno (WHATSAPP_SLANJE_ON≠1)"}
+        if not _dispecer_dozvoljen((payload or {}).get("to")):
+            print("[whatsapp] SLANJE BLOKIRANO (WHATSAPP_SLANJE_ON≠1) — poruka NIJE poslana",
+                  flush=True)
+            return 0, {"blocked": True,
+                       "error": "WhatsApp slanje isključeno (WHATSAPP_SLANJE_ON≠1)"}
     url = f"{GRAPH_BASE}/{path}"
     r = requests.post(url, headers=_headers(), json=payload, timeout=TIMEOUT)
     try:
