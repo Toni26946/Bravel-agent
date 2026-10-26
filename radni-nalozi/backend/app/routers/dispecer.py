@@ -465,10 +465,13 @@ function render(d){
    +(d.preostalo>0?'<div class="stanje">još '+d.preostalo+' u redu</div>':'')
    +'</div>'
    +'<div class="gumbi">'
-   +(radi?'':'<button class="b-poc" onclick="akc(\\'pocinjem\\')">Počinjem</button>')
-   +'<button class="b-got" onclick="akc(\\'gotovo\\')">Gotovo</button>'
-   +'<button class="b-dij" onclick="dijelovi()">Nemam dijelova</button>'
+   +(radi?'':'<button class="b-poc">Počinjem</button>')
+   +'<button class="b-got">Gotovo</button>'
+   +'<button class="b-dij">Nemam dijelova</button>'
    +'</div>';
+  var bp=document.querySelector('.b-poc'); if(bp) bp.onclick=function(){akc('pocinjem')};
+  var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
+  var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
 }
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
 async function akc(a){if(busy)return;busy=true;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
