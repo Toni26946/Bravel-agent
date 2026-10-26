@@ -243,6 +243,7 @@
   function find(opId){ var all=svabOps(); for(var i=0;i<all.length;i++) if(all[i].o.id===opId) return all[i].o; return null; }
   function nalById(id){ for(var i=0;i<nalozi.length;i++) if(nalozi[i].id===id) return nalozi[i]; return null; }
   function posalji(opId){ act("/zadatak/"+opId+"/posalji"); }
+  function isplaniraj(nid){ act("/nalog/"+nid+"/isplaniraj"); }
   function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
   function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
   function makniRadnika(opId){ act("/zadatak/"+opId+"/makni-radnika"); }
@@ -305,6 +306,14 @@
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
        '<div class="prog-lbl">'+_np.pct+'% završeno · '+_np.done+'/'+_np.tot+' operacija</div>';
+    // „Nalog isplaniran" — gumb gore na kartici. Aktivan tek kad su SVE operacije
+    // (koje treba poslati) dodijeljene; pošalje svakom mehaničaru prvi zadatak, ostale u red.
+    var saljive=n.ops.filter(function(o){return o.status==="plan"||o.status==="pauza";});
+    if(saljive.length){
+      var sviDod=saljive.every(function(o){return !!o.mehId;});
+      h+='<div style="margin:8px 0 2px"><button class="btn sm" onclick="PLAN.isplaniraj('+n.id+')" '+(sviDod?'':'disabled')+
+         ' title="'+(sviDod?'Pošalji plan mehaničarima (prvi zadatak odmah, ostali u red)':'Prvo dodijeli radnika na sve operacije')+'">📨 Nalog isplaniran — pošalji ('+saljive.length+')</button></div>';
+    }
     n.ops.forEach(function(o){
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       h+='<div class="op"><span class="opn">'+esc(o.naziv)+' <span class="opk">· '+esc(o.kat)+'</span></span>'+
@@ -316,7 +325,7 @@
         if(prep && prep!==o.mehId && meh(prep).ime){
           h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+'</button>';
         }
-        h+='<button class="btn sm" title="'+((o.akumSek||0)>0?'Pošalji — nastavak (ima nakupljeno vrijeme)':'Pošalji na potvrdu')+'" onclick="PLAN.posalji('+o.id+')" '+(o.mehId?'':'disabled')+'>'+((o.akumSek||0)>0?'Pošalji ↻':'Pošalji')+'</button>';
+        // (slanje po operaciji maknuto — ide skupno preko „Nalog isplaniran" gumba gore)
       } else {
         h+='<span class="vozilo">👷 '+esc(meh(o.mehId).ime)+'</span>';
         if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
@@ -490,7 +499,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, potvrdi:potvrdi, dodijeli:dodijeli, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs
