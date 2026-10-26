@@ -213,15 +213,28 @@
       .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.detail||("Greška "+r.status)); }); return r.json().catch(function(){return {};}); });
   }
   var _busy=false;
-  function ucitaj(){
+  // Potpis strukture plana — ako se ne promijeni, periodično osvježavanje NEĆE
+  // precrtavati popis (inače se izbornik/gumb sruši ispod prsta pa klik propadne).
+  var _lastSig=null;
+  function planSig(d){
+    return JSON.stringify({
+      z:!!d.zakljucan, p:(d.promjene||[]).length,
+      m:(d.mehanicari||[]).map(function(x){return x.id;}),
+      n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,
+          (n.ops||[]).map(function(o){return [o.id,o.status,o.mehId];})];})
+    });
+  }
+  function ucitaj(force){
     return api("").then(function(d){
       MEH=d.mehanicari||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
       planZakljucan=!!d.zakljucan; zakljucaoIme=d.zakljucaoIme||""; zakljucanoTs=d.zakljucanoTs||null;
       if(prikazMeh===null && MEH.length) prikazMeh=MEH[0].id;
-      render();
+      var s=planSig(d);
+      if(!force && s===_lastSig) return;   // ništa strukturno novo → ne precrtavaj
+      _lastSig=s; render();
     }).catch(function(e){ toast(e.message||"Greška pri učitavanju"); });
   }
-  function act(p, body){ if(_busy) return; _busy=true; return api(p,"POST",body).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
+  function act(p, body){ if(_busy) return; _busy=true; return api(p,"POST",body).then(function(){ return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
 
   // --- pomoćno ---
   function svabOps(){ var a=[]; nalozi.forEach(function(n){ n.ops.forEach(function(o){ a.push({n:n,o:o}); }); }); return a; }
