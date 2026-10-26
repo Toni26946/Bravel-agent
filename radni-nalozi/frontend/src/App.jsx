@@ -31,6 +31,7 @@ import Skladiste from './pages/Skladiste'
 import SkladisteDashboard from './pages/SkladisteDashboard'
 import EvidencijaRV from './pages/EvidencijaRV'
 import Plan from './pages/Plan'
+import DispecerLinkovi from './pages/DispecerLinkovi'
 import MojaRadiona from './pages/MojaRadiona'
 
 function pocetna(uloga) {
@@ -95,6 +96,8 @@ export default function App() {
 
       {/* Plan radione (pregled) — SAMO vlasnik (ai_poslovodja = 'toni') */}
       <Route path="/plan" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{korisnik?.ai_poslovodja ? <Plan /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
+      {/* Dispečer — login-less poveznice mehaničarima — SAMO vlasnik */}
+      <Route path="/dispecer" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{korisnik?.ai_poslovodja ? <DispecerLinkovi /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

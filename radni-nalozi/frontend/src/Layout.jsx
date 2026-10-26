@@ -10,7 +10,7 @@ const NAV_RED = [
   '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
-  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/plan', '/steta',
+  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/plan', '/dispecer', '/steta',
   '/profil',
 ]
 
@@ -119,6 +119,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/dispecer', ikona: '📨', txt: 'Dispečer' })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
