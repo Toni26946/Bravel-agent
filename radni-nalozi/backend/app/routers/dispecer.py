@@ -454,8 +454,7 @@ function render(d){
   const app=document.getElementById('app');
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
   if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
-  const c=d.cijena;let cij='';
-  if(c){cij='<div class="cijena">Cijena po normi: '+(c.eur!=null?(c.eur.toFixed(2)+' €'):(c.norma_min+' min norme'))+'</div>';}
+  let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
   app.innerHTML=
    '<div class="kart"><div class="gb">'+esc(d.gb)+'</div>'
