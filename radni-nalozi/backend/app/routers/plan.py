@@ -565,7 +565,7 @@ def potvrdi(zid: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
-    _pokreni_mjerac(db, z)
+    _pokreni_mjerac(db, z, odjavi_druge=False)   # zadrži ostale zadatke u redu čekanja
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, korisnik)  # nalog → u_radu + sync povijesti
     if m:

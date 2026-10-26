@@ -1069,11 +1069,35 @@ def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
             _uskladi_radnicke_mjerace(d)  # zadatak i dalje radi — zaustavi samo otišle radnike
 
 
-def _pokreni_mjerac(db: Session, z: Zadatak) -> None:
-    """Pokreni mjerač zadatka i odjavi radnike s drugih zadataka."""
+def _zaustavi_druge_mjerace(db: Session, z: Zadatak) -> None:
+    """Zaustavi SAMO pokrenute mjerače radnika ovog zadatka na DRUGIM zadacima,
+    ali IM ZADRŽI dodjelu (red čekanja ostaje). Radnik fizički radi jedno, no
+    zadaci koji ga čekaju ostaju dodijeljeni (dispečerov red)."""
+    rids = {r.id for r in z.radnici}
+    if not rids:
+        return
+    drugi = (
+        db.query(Zadatak)
+        .join(Zadatak.radnici)
+        .filter(Korisnik.id.in_(rids), Zadatak.id != z.id,
+                Zadatak.gotovo.is_(False), Zadatak.zapoceto.isnot(None))
+        .distinct()
+        .all()
+    )
+    for d in drugi:
+        _zaustavi_mjerac(d)   # akumulira vrijeme i zaustavi, ali zadrži radnike
+
+
+def _pokreni_mjerac(db: Session, z: Zadatak, odjavi_druge: bool = True) -> None:
+    """Pokreni mjerač zadatka. `odjavi_druge=True` (zadano, obična radiona) radnike
+    odjavi s drugih zadataka; `False` (dispečerov red) im zadrži dodjelu, samo
+    zaustavi njihove druge pokrenute mjerače."""
     if z.gotovo or z.zapoceto:
         return
-    _odjavi_iz_drugih(db, z)
+    if odjavi_druge:
+        _odjavi_iz_drugih(db, z)
+    else:
+        _zaustavi_druge_mjerace(db, z)
     z.zapoceto = datetime.now(timezone.utc)
     _uskladi_radnicke_mjerace(z)
 
