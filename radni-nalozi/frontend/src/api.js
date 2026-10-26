@@ -167,6 +167,11 @@ export const api = {
   planPotvrdi: (zid) => zahtjev(`/plan/zadatak/${zid}/potvrdi`, { method: 'POST' }),
   planPrekini: (zid, razlog) => zahtjev(`/plan/zadatak/${zid}/prekini`, { method: 'POST', body: { razlog } }),
 
+  // Dispečer — login-less poveznice mehaničarima (samo vlasnik)
+  dispecerLinkovi: () => zahtjev('/dispecer/linkovi'),
+  dispecerNapraviLink: (radnikId) => zahtjev(`/dispecer/link/${radnikId}`, { method: 'POST' }),
+  dispecerUgasi: (radnikId) => zahtjev(`/dispecer/ugasi/${radnikId}`, { method: 'POST' }),
+
   // Zaduženje kamiona i prikolice (primopredajni obrazac)
   zaduzenja: () => zahtjev('/zaduzenja'),
   zaduzenje: (id) => zahtjev(`/zaduzenja/${id}`),

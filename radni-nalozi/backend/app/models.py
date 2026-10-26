@@ -727,3 +727,27 @@ class PrivatnoUzimanje(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     korisnik: Mapped["Korisnik"] = relationship(foreign_keys=[korisnik_id])
+
+
+class MehanicarLink(Base):
+    """Login-less poveznica za mehaničara (dispečer zadataka preko WhatsAppa).
+
+    Jedan aktivan ključ po mehaničaru. Poveznica (/z/<token>) otvara stranicu
+    samo njegovih zadataka — bez prijave. Sigurnost:
+    - `token`: tajni nasumičan ključ (samo u poveznici),
+    - `uredjaj`: veže se na PRVI uređaj koji je otvori; drugi uređaj → odbijen,
+    - `aktivan`: voditelj jednim klikom gasi sve poveznice mehaničara,
+    - bilježi se zadnje korištenje (tko/kad/s kojeg uređaja) — revizija.
+    """
+    __tablename__ = "mehanicar_linkovi"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), unique=True, index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    uredjaj: Mapped[str | None] = mapped_column(String(80), nullable=True)   # fingerprint prvog uređaja
+    aktivan: Mapped[bool] = mapped_column(Boolean, default=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    zadnje_koristeno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    zadnji_uredjaj: Mapped[str | None] = mapped_column(String(80), nullable=True)  # zadnji viđeni (za reviziju)
+
+    radnik: Mapped["Korisnik"] = relationship(foreign_keys=[radnik_id])
