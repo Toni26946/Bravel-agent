@@ -40,6 +40,9 @@ _BIND_RETRIES = 6
 _BIND_RETRY_DELAY = 2.0  # sekundi izmedu pokusaja
 
 _API_KEY = os.getenv("FLOTA_OS_KEY", "").strip()
+# Zaseban ključ za radni-nalozi dispečer (da ne dijelimo FLOTA_OS_KEY s Flotom).
+# Oba ključa su ravnopravna na web_api endpointima.
+_DISPECER_KEY = os.getenv("DISPECER_KEY", "").strip()
 
 # WhatsApp webhook: verify token (proizvoljan niz koji odaberemo; isti se
 # upisuje u Meta App → WhatsApp → Configuration). _on_incoming je callback
@@ -80,12 +83,14 @@ def _now_iso():
 
 
 def _check_key(request):
-    """Vrati None ako je kljuc ispravan, inace gotov (error) odgovor."""
-    if not _API_KEY:
+    """Vrati None ako je kljuc ispravan, inace gotov (error) odgovor.
+    Prihvaca FLOTA_OS_KEY (Flota OS) ili DISPECER_KEY (radni-nalozi) — ravnopravni."""
+    valjani = [k for k in (_API_KEY, _DISPECER_KEY) if k]
+    if not valjani:
         # Bez konfiguriranog kljuca nikoga ne mozemo autenticirati -> odbij.
         return _json({"error": "Server nije konfiguriran (FLOTA_OS_KEY)."},
                      status=503)
-    if request.headers.get("X-Api-Key", "") != _API_KEY:
+    if request.headers.get("X-Api-Key", "") not in valjani:
         return _json({"error": "Neispravan ili nedostajući X-Api-Key."},
                      status=401)
     return None
