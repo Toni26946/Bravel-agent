@@ -525,6 +525,9 @@ def potvrdi(zid: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Sessi
     _pokreni_mjerac(db, z)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, korisnik)  # nalog → u_radu + sync povijesti
+    if m:
+        from .dispecer import provjeri_zalihu
+        provjeri_zalihu(db, m)   # krenuo iz pripreme → javi poslovođi ako je zaliha niska
     db.commit()
     return {"ok": True}
 

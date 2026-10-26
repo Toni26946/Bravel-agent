@@ -190,6 +190,22 @@ def _stanje(db: Session, radnik: Korisnik) -> dict:
     }
 
 
+def provjeri_zalihu(db: Session, radnik: Korisnik) -> None:
+    """Zaliha zadataka 'u pripremi' po mehaničaru: čim krene raditi zadatak iz
+    pripreme i ostane manje od `dispecer_zaliha` nezapočetih u redu → obavijest
+    poslovođi (voditelju) da dopuni. Zove se pri startu zadatka."""
+    from ..config import settings
+    prag = max(0, settings.dispecer_zaliha)
+    if prag <= 0:
+        return
+    cekaju = sum(1 for (_n, _op, z) in _red(db, radnik) if z.zapoceto is None)
+    if cekaju < prag:
+        obavijesti_ulogu(
+            db, Uloga.voditelj, "Dopuni zadatke",
+            f"{radnik.ime}: još {cekaju} u redu — dodijeli mu zadatke", url="/plan",
+        )
+
+
 # --- mehaničar: token akcije (BEZ prijave) ---------------------------------
 class UredjajIn(BaseModel):
     uredjaj: str
@@ -230,6 +246,7 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     _pokreni_mjerac(db, z)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    provjeri_zalihu(db, link.radnik)   # krenuo iz pripreme → javi poslovođi ako je zaliha niska
     db.commit()
     return _stanje(db, link.radnik)
 

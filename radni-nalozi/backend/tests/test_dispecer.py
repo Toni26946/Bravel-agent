@@ -93,6 +93,51 @@ def test_ugaseni_link_ne_radi():
         z_stanje("tok123", UredjajIn(uredjaj="A"), db=db)
 
 
+def _meh_sa_zadacima(db, broj_pripreme):
+    """Mehaničar s 1 započetim zadatkom + `broj_pripreme` nezapočetih (u pripremi)."""
+    from datetime import datetime, timezone
+    meh = Korisnik(ime="Meh Z", korisnicko_ime="meh.z", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T900", marka="MAN")
+    db.add_all([meh, voz]); db.flush()
+    nalog = Nalog(broj="RN-Z-1", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(nalog); db.flush()
+    op = Operacija(nalog_id=nalog.id, kategorija="MOTOR"); db.add(op); db.flush()
+    from datetime import datetime as _dt, timezone as _tz
+    z0 = Zadatak(operacija_id=op.id, opis="radni", zapoceto=_dt.now(_tz.utc)); z0.radnici = [meh]
+    db.add(z0)
+    for i in range(broj_pripreme):
+        zi = Zadatak(operacija_id=op.id, opis=f"priprema {i}"); zi.radnici = [meh]
+        db.add(zi)
+    db.commit()
+    return meh
+
+
+def test_zaliha_javi_kad_niska_i_ne_javi_kad_dovoljna():
+    import app.routers.dispecer as d
+    orig = d.obavijesti_ulogu
+    # niska zaliha (1 u pripremi, prag 2) → javi jednom
+    db = _session()
+    meh = _meh_sa_zadacima(db, 1)
+    pozivi = []
+    d.obavijesti_ulogu = lambda *a, **k: pozivi.append(1)
+    try:
+        d.provjeri_zalihu(db, meh)
+    finally:
+        d.obavijesti_ulogu = orig
+    assert len(pozivi) == 1, "niska zaliha mora javiti poslovođi"
+
+    # dovoljna zaliha (2 u pripremi, prag 2) → ne javi
+    db2 = _session()
+    meh2 = _meh_sa_zadacima(db2, 2)
+    pozivi2 = []
+    d.obavijesti_ulogu = lambda *a, **k: pozivi2.append(1)
+    try:
+        d.provjeri_zalihu(db2, meh2)
+    finally:
+        d.obavijesti_ulogu = orig
+    assert len(pozivi2) == 0, "dovoljna zaliha ne smije javljati"
+
+
 def test_slanje_ugaseno_ne_salje_ni_ne_stvara_token():
     """Sigurnosna garancija: dok je dispecer_wa_on False, posalji_poveznicu NE šalje
     i NE stvara poveznicu (nijedan MehanicarLink)."""
@@ -107,5 +152,6 @@ def test_slanje_ugaseno_ne_salje_ni_ne_stvara_token():
 if __name__ == "__main__":
     test_tok_pocinjem_gotovo()
     test_ugaseni_link_ne_radi()
+    test_zaliha_javi_kad_niska_i_ne_javi_kad_dovoljna()
     test_slanje_ugaseno_ne_salje_ni_ne_stvara_token()
     print("OK — dispečer testovi prošli")

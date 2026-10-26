@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     dispecer_wa_imena: str = ""           # allowlista imena mehaničara koji smiju primati (zarez; prazno = nitko)
     bravel_agent_url: str = ""            # baza bravel-agent web_api (npr. https://bravel-agent.fly.dev)
     bravel_agent_kljuc: str = ""          # X-Api-Key za bravel-agent (fly secret)
+    # Zaliha zadataka u pripremi po mehaničaru: čim krene raditi zadatak iz pripreme
+    # i ostane manje od ovoliko u redu → obavijest poslovođi da dopuni.
+    dispecer_zaliha: int = 2
 
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
