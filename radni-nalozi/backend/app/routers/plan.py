@@ -512,6 +512,44 @@ def isplaniraj(nalog_id: int, request: Request,
     return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
 
 
+class OcistiVrijemeIn(BaseModel):
+    zadaci: list[int]
+
+
+@router.post("/ocisti-vrijeme")
+def ocisti_vrijeme(p: OcistiVrijemeIn, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Vlasnik: poništi izmjereno vrijeme na navedenim zadacima (čišćenje testnih
+    tragova). Nulira utroseno_sek, makne per-radnik vremena (ZadatakRadnikVrijeme),
+    vrati zadatak u 'nije započeto / nije gotovo' i uskladi servisnu povijest.
+    Ne dira dodijeljene radnike ni druge zadatke."""
+    from ..models import ZadatakRadnikVrijeme
+    from .nalozi import _sync_povijest
+    nalozi_ids: set[int] = set()
+    ocisceno: list[int] = []
+    for zid in (p.zadaci or []):
+        z = db.get(Zadatak, zid)
+        if not z:
+            continue
+        z.utroseno_sek = 0
+        z.gotovo = False
+        z.zavrseno = None
+        z.zapoceto = None
+        z.prekid_vrijeme = None
+        z.ceka_potvrdu = False
+        db.query(ZadatakRadnikVrijeme).filter(
+            ZadatakRadnikVrijeme.zadatak_id == zid
+        ).delete(synchronize_session=False)
+        nalozi_ids.add(z.operacija.nalog_id)
+        ocisceno.append(zid)
+    db.flush()
+    for nid in nalozi_ids:
+        n = db.get(Nalog, nid)
+        if n:
+            _sync_povijest(db, n)
+    db.commit()
+    return {"ok": True, "ocisceno": ocisceno}
+
+
 @router.post("/zadatak/{zid}/makni-radnika")
 def makni_radnika(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     z = _zad(db, zid)
