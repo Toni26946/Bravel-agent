@@ -97,6 +97,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     && !lok.pathname.startsWith('/prijave')
     && lok.pathname !== '/nalozi/novi'
 
+  // Pristup Planu radione: vlasnik (ai_poslovodja) ILI kome je dodijeljen modul '/plan'.
+  const planPristup = !!(korisnik?.ai_poslovodja
+    || (Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/plan')))
+
   const tabovi = []
   const grupaVozila = (jeVoditelj) => ({
     grupa: 'vozila', ikona: '🚙', txt: t('tab.vozila'),
@@ -113,7 +117,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
-    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
@@ -129,7 +133,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
-    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
@@ -170,11 +174,11 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   if (Array.isArray(korisnik?.moduli)) {
     const kataloskiKljucevi = new Set(MODULI.map((m) => m.key))
     const dopusteni = new Set(korisnik.moduli)
-    vidljiviTabovi = tabovi.filter((x) => !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
+    // '/plan' je izuzet iz filtra — njegovu vidljivost odlučuje gornji push (planPristup).
+    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
     const prisutni = new Set(vidljiviTabovi.map((x) => x.do))
     for (const m of MODULI) {
-      // Plan radione je samo za vlasnika — nikad ga ne dodaj preko modula (inače se
-      // kartica pojavi na tuđem računu, a ruta/backend puštaju samo ai_poslovodju).
+      // '/plan' se dodaje gore preko planPristup (vlasnik ILI modul), ne ovdje.
       if (m.key === '/plan') continue
       if (dopusteni.has(m.key) && !prisutni.has(m.key)) {
         vidljiviTabovi.push({ do: m.key, ikona: m.ikona, txt: m.literal ? m.txt : t(m.txt) })

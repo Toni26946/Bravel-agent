@@ -125,3 +125,24 @@ def zahtijevaj_ai_poslovodja():
         raise HTTPException(status_code=403, detail="Nemate pristup AI Poslovođi")
 
     return _provjera
+
+
+def zahtijevaj_plan_pristup():
+    """Ovisnost: pristup Planu radione / dispečeru. Dopušteno vlasniku
+    (ai_poslovodja) ILI voditelju/poslovođi kojem je dodijeljen modul '/plan'
+    (preko Moduli). Tako vlasnik sam bira tko smije dispečirati."""
+    def _provjera(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
+        from .config import settings
+        ov = (settings.ai_poslovodja_user or "").strip().lower()
+        ime = (korisnik.korisnicko_ime or "").strip().lower()
+        if ov and ime == ov:
+            return korisnik
+        if not ov and korisnik.uloga == Uloga.voditelj:
+            return korisnik
+        if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja):
+            mod = korisnik.moduli if isinstance(korisnik.moduli, (list, tuple)) else []
+            if "/plan" in mod:
+                return korisnik
+        raise HTTPException(status_code=403, detail="Nemate pristup Planu radione")
+
+    return _provjera
