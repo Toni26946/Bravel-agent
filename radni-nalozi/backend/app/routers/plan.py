@@ -223,6 +223,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
+                    "mehovi": [{"id": r.id, "ime": r.ime} for r in z.radnici],
+                    "mehIds": [r.id for r in z.radnici],
                     "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],
