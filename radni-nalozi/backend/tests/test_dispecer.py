@@ -110,6 +110,59 @@ def test_pocinjem_ne_gubi_red_i_gotovo_vraca_sljedeci():
     assert r.get("opis") == "DRUGI", "Gotovo mora odmah vratiti sljedeći zadatak iz reda"
 
 
+def test_test_posalji_odbija_bez_test_broja():
+    """Sigurnost: probna poruka se NE šalje ako dispecer_test_broj nije postavljen
+    (da nikad ne ode pravom mehaničaru)."""
+    from app.config import settings as st
+    from app.routers.dispecer import test_posalji
+    db = _session()
+    _priprema(db)
+    staro = st.dispecer_test_broj
+    st.dispecer_test_broj = ""
+    try:
+        with ocekuj_http(400):
+            test_posalji(request=_REQ, db=db)
+    finally:
+        st.dispecer_test_broj = staro
+
+
+def test_test_posalji_salje_na_test_broj():
+    """S postavljenim test brojem probna poruka ide kroz posalji_poveznicu
+    (ne dira nijedan zadatak)."""
+    from app.config import settings as st
+    from app.routers.dispecer import test_posalji
+    db = _session()
+    _priprema(db)
+    staro = (st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc)
+    st.dispecer_test_broj = "385911111111"
+    st.dispecer_wa_on = True
+    st.bravel_agent_url = "https://agent.example"
+    st.bravel_agent_kljuc = "k"
+    pozvano = {}
+    import httpx as _httpx
+    orig_post = _httpx.post
+
+    def _fake_post(url, json=None, headers=None, timeout=None):
+        pozvano["to"] = (json or {}).get("broj")
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+            def json(self):
+                return {"ok": True}
+        return R()
+
+    _httpx.post = _fake_post
+    try:
+        rez = test_posalji(request=_REQ, db=db)
+        assert rez["ok"] is True
+        assert pozvano["to"] == "385911111111", "probna poruka mora ići na test broj"
+    finally:
+        _httpx.post = orig_post
+        st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc = staro
+
+
 def test_ugaseni_link_ne_radi():
     db = _session()
     meh, z = _priprema(db)
