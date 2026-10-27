@@ -106,6 +106,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
@@ -118,10 +119,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
-    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
+    if (korisnik.ai_poslovodja) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
     tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
