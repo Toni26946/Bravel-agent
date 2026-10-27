@@ -218,6 +218,7 @@
   var zakljucaoIme = "", zakljucanoTs = null;
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
+  var _brojMeh = {};           // mehId -> broj zadataka u redu (za prikaz u dropdownu)
   var MAX_HITNO = 3;
 
   function meh(id){ for(var i=0;i<MEH.length;i++) if(MEH[i].id===id) return MEH[i]; return {ime:""}; }
@@ -323,9 +324,18 @@
     otvoriNalog(id);
   }
 
+  // Broj zadataka u redu po mehaničaru (nezavršeni, ne "čeka dio") — za prikaz uz ime.
+  function brojUReduPoMeh(){
+    var c={};
+    nalozi.forEach(function(n){ n.ops.forEach(function(o){
+      if(o.mehId && o.status!=="gotovo" && o.status!=="dijelovi") c[o.mehId]=(c[o.mehId]||0)+1;
+    }); });
+    return c;
+  }
+
   // --- render: Poslovođa ---
   function nalogCard(n, rankTxt, idxObj, lane){
-    var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+'</option>'; }); return s; };
+    var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+' ('+bz+')</option>'; }); return s; };
     var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
     h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
@@ -357,7 +367,7 @@
         h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(o.mehId)+'</select>';
         var prep=o.preporukaId;
         if(prep && prep!==o.mehId && meh(prep).ime){
-          h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+'</button>';
+          h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+' ('+(_brojMeh[prep]||0)+')</button>';
         }
         // (slanje po operaciji maknuto — ide skupno preko „Nalog isplaniran" gumba gore)
       } else {
@@ -539,6 +549,7 @@
   }
 
   function render(){
+    _brojMeh = brojUReduPoMeh();
     document.getElementById("v-pl").innerHTML = renderPL();
     document.getElementById("v-meh").innerHTML = renderMEH();
     document.getElementById("v-dash").innerHTML = renderDASH();
