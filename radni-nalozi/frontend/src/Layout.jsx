@@ -7,10 +7,11 @@ import { MODULI } from './moduli'
 
 // Jedinstven redoslijed kartica u izborniku — isti za SVE korisnike.
 const NAV_RED = [
+  '/plan',
   '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
-  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/plan', '/steta',
+  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/steta',
   '/profil',
 ]
 
