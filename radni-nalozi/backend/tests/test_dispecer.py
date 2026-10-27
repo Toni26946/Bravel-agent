@@ -187,6 +187,31 @@ def test_nije_gotovo_pauzira_i_cuva_vrijeme():
     assert (z.utroseno_sek or 0) > 0, "utrošeno vrijeme mora biti spremljeno"
 
 
+def test_nije_gotovo_promjena_plana_vraca_sljedeci():
+    """Promjena plana tijekom dana: 'Nije gotovo' pauzira trenutni i prebaci na
+    sljedeći zadatak (ne staje), a pauzirani ostaje nedovršen s očuvanim vremenom."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    from app.routers.dispecer import z_nije_gotovo
+    db = _session()
+    meh = Korisnik(ime="Meh PP", korisnicko_ime="meh.pp", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TPP", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-PP", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op1 = Operacija(nalog_id=n.id, kategorija="A", redoslijed=1)
+    op2 = Operacija(nalog_id=n.id, kategorija="B", redoslijed=2); db.add_all([op1, op2]); db.flush()
+    z1 = Zadatak(operacija_id=op1.id, opis="TRENUTNI", zapoceto=_dt.now(_tz.utc) - _td(minutes=5))
+    z1.radnici = [meh]
+    z2 = Zadatak(operacija_id=op2.id, opis="SLJEDECI"); z2.radnici = [meh]
+    db.add_all([z1, z2])
+    db.add(MehanicarLink(radnik_id=meh.id, token="tpp", aktivan=True)); db.commit()
+
+    r = z_nije_gotovo("tpp", UredjajIn(uredjaj="A"), db=db)
+    assert r.get("opis") == "SLJEDECI", "nije-gotovo (promjena plana) mora prebaciti na sljedeći"
+    db.refresh(z1)
+    assert z1.gotovo is False and z1.zapoceto is None, "trenutni ostaje nedovršen i pauziran"
+    assert (z1.utroseno_sek or 0) > 0, "vrijeme trenutnog mora biti spremljeno"
+
+
 def _meh_s_pokrenutim(db, token="ts"):
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
     meh = Korisnik(ime="Meh S", korisnicko_ime="meh.s", lozinka_hash="x", uloga=Uloga.radnik)
