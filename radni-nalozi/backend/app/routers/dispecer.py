@@ -262,10 +262,11 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     return _stanje(db, link.radnik)
 
 
-def _posalji_sljedeci(db: Session, radnik: Korisnik, request: Request) -> None:
+def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
     """Nakon što mehaničar zatvori zadatak (Gotovo / Nemam dijelova), sljedeći iz
-    reda označi 'čeka potvrdu' i pošalji mu NOVU WhatsApp poveznicu (gated) — da
-    primijeti da je stigao novi zadatak, a ne da se samo tiho pojavi na stranici."""
+    reda označi 'čeka potvrdu' da se odmah pokaže na ISTOJ stranici (animacija
+    'Stigao novi zadatak'). NE šalje se nova WhatsApp poruka — dovoljan je prvi
+    link; mehaničar preko njega vidi kamo dalje."""
     red = _red(db, radnik)
     if not red:
         return
@@ -273,8 +274,6 @@ def _posalji_sljedeci(db: Session, radnik: Korisnik, request: Request) -> None:
     if not nz.zapoceto:              # već radi → ne diraj (nije u 'čeka potvrdu')
         nz.ceka_potvrdu = True
     db.commit()
-    nn = nz.operacija.nalog
-    posalji_poveznicu(db, radnik, _gb(nn), nz.opis or "", str(request.base_url))
 
 
 @router.post("/z/{token}/gotovo")
@@ -294,7 +293,7 @@ def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(g
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()
-    _posalji_sljedeci(db, link.radnik, request)   # sljedeći iz reda → nova WhatsApp poruka
+    _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
     return _stanje(db, link.radnik)   # sljedeći zadatak ili {nema:True}
 
 
@@ -319,7 +318,7 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()
-    _posalji_sljedeci(db, link.radnik, request)   # sljedeći iz reda → nova WhatsApp poruka
+    _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
     return _stanje(db, link.radnik)
 
 
