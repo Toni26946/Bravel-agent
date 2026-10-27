@@ -320,6 +320,27 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     return _stanje(db, link.radnik)
 
 
+@router.post("/z/{token}/nije-gotovo")
+def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
+    """Mehaničar prekida zadatak NEDOVRŠEN (kraj smjene / promjena plana). Zaustavi
+    mjerač i ostavi zadatak u pauzi (čuva utrošeno vrijeme, NIJE gotov) — poslovođa
+    ga vidi u planu i po potrebi preusmjeri. NE šalje sljedeći (mehaničar staje)."""
+    link = _ucitaj(db, token, p.uredjaj)
+    red = _red(db, link.radnik)
+    if not red:
+        db.commit()
+        return {"nema": True, "ime": link.radnik.ime}
+    z = red[0][2]
+    _zaustavi_mjerac(z)            # zabilježi vrijeme i zaustavi (ostaje u pauzi)
+    z.ceka_potvrdu = False
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+    db.flush()
+    _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    db.commit()
+    return {"parkirano": True, "ime": link.radnik.ime}
+
+
 # --- vlasnik: upravljanje poveznicama --------------------------------------
 def _url_za(request: Request, token: str) -> str:
     base = str(request.base_url).rstrip("/")
@@ -371,24 +392,29 @@ def napravi_link(radnik_id: int, request: Request,
 
 
 @router.post("/test-posalji")
-def test_posalji(request: Request,
-                 _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+def test_posalji(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Pošalji PROBNU dispečersku poruku — SAMO na `dispecer_test_broj` (vlasnik).
-    Ne dira nijedan zadatak. Odbija ako test broj nije postavljen (da probna
-    poruka nikad ne ode pravom mehaničaru). Vraća ishod slanja za dijagnostiku."""
+    Čisti tekst, BEZ poveznice i BEZ ijednog mehaničarevog reda — tako pritisak
+    na gumbe ne može dirnuti pravi zadatak. Odbija ako test broj nije postavljen."""
     from ..config import settings
-    if not (settings.dispecer_test_broj or "").strip():
+    broj = (settings.dispecer_test_broj or "").strip()
+    if not broj:
         raise HTTPException(status_code=400,
                             detail="dispecer_test_broj nije postavljen — probna poruka se ne šalje")
-    r = (db.query(Korisnik)
-           .filter(Korisnik.uloga == Uloga.radnik, Korisnik.aktivan.is_(True),
-                   Korisnik.prijavljuje_se.is_(True))
-           .order_by(Korisnik.ime).first())
-    if not r:
-        raise HTTPException(status_code=404, detail="Nema aktivnog mehaničara za probnu poveznicu")
-    rez = posalji_poveznicu(db, r, "TEST", "probna poruka dispečera", str(request.base_url))
-    db.commit()
-    return {"ok": bool(rez.get("poslano")), "detalji": rez}
+    if not (settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc):
+        return {"ok": False, "razlog": "slanje isključeno (dispecer_wa_on / url / ključ)"}
+    poruka = "✅ Probna poruka dispečera — veza radi. (test, bez zadatka)"
+    try:
+        import httpx
+        r = httpx.post(
+            f"{settings.bravel_agent_url.rstrip('/')}/api/vozac/nalog",
+            json={"poruka": poruka, "vozac": "test", "broj": broj},
+            headers={"X-Api-Key": settings.bravel_agent_kljuc}, timeout=10,
+        )
+        ok = r.status_code < 300 and bool(r.json().get("ok"))
+        return {"ok": ok, "broj": broj, "status": r.status_code}
+    except Exception as e:  # mreža/konfiguracija
+        return {"ok": False, "razlog": str(e)}
 
 
 @router.post("/ugasi/{radnik_id}")
@@ -468,8 +494,8 @@ _HTML = """<!doctype html>
 .cijena{margin-top:12px;font-size:15px;color:#0d47a1;font-weight:700}
 .gumbi{display:flex;flex-direction:column;gap:12px;margin-top:8px}
 button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;color:#fff;cursor:pointer}
-.b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00}
-.b-poc:disabled,.b-got:disabled,.b-dij:disabled{opacity:.5}
+.b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-nije{background:#5b6470}
+.b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-nije:disabled{opacity:.5}
 .info{text-align:center;color:#5b6470;padding:32px 16px;font-size:18px}
 .greska{background:#fdeaea;color:#b3261e;border:1px solid #e5534b;border-radius:12px;padding:16px;font-weight:700;text-align:center}
 .stanje{display:inline-block;margin-top:10px;font-size:13px;color:#5b6470}
@@ -492,6 +518,7 @@ function render(d){
   const app=document.getElementById('app');
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
   if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
+  if(d.parkirano){app.innerHTML='<div class="kart"><div class="info">Zabilježeno — zadatak <b>nije dovršen</b> (pauza).<br/>Vrijeme je spremljeno. Doviđenja!</div></div>';return;}
   let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
   app.innerHTML=
@@ -505,10 +532,12 @@ function render(d){
    +(radi?'':'<button class="b-poc">Počinjem</button>')
    +'<button class="b-got">Gotovo</button>'
    +'<button class="b-dij">Nemam dijelova</button>'
+   +'<button class="b-nije">Nije gotovo</button>'
    +'</div>';
   var bp=document.querySelector('.b-poc'); if(bp) bp.onclick=function(){akc('pocinjem')};
   var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
   var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
+  var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){if(confirm('Prekinuti zadatak kao NEDOVRŠEN? (kraj smjene / promjena plana)'))akc('nije-gotovo')};
 }
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
 async function akc(a){if(busy)return;busy=true;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
