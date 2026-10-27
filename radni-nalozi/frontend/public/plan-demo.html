@@ -34,8 +34,8 @@
     padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .brand{font-weight:800;font-size:16px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
   .brand .proto{font-size:10px;font-weight:700;background:rgba(255,255,255,.22);padding:2px 7px;border-radius:20px;letter-spacing:.06em}
-  .datum{font-size:12px;opacity:.9;margin-left:auto}
-  .tabs{display:flex;gap:6px;background:var(--plava);flex:none;padding:0 12px 10px;flex-wrap:wrap}
+  .datum{font-size:12px;opacity:.9;margin-left:auto;color:#fff}
+  .tabs{display:flex;align-items:center;gap:6px;background:var(--plava);flex:none;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 11px;flex-wrap:wrap}
   .tab{border:0;background:rgba(255,255,255,.16);color:#fff;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px}
   .tab.akt{background:#fff;color:var(--plava)}
 
@@ -175,14 +175,11 @@
 <body>
 
 
-<header>
-  <div class="brand">🔧 Bravel · Plan radione <span class="proto">PROTOTIP</span></div>
-  <div class="datum" id="datum"></div>
-</header>
 <nav class="tabs" id="tabs">
   <button class="tab akt" data-v="pl">👷‍♂️ Poslovođa</button>
   <button class="tab" data-v="meh">📱 Mehaničar</button>
   <button class="tab" data-v="dash">👷 Radnici</button>
+  <span class="datum" id="datum"></span>
 </nav>
 
 <main>
@@ -190,7 +187,7 @@
     <section id="v-pl" hidden></section>
     <section id="v-meh" hidden></section>
     <section id="v-dash" hidden></section>
-    <div class="foot">Plan radione — spojeno na stvarne naloge. Vidljivo samo vlasniku. Osvježava se automatski.</div>
+    <div class="foot">Vidljivo samo vlasniku · osvježava se automatski.</div>
   </div>
 </main>
 
@@ -440,7 +437,7 @@
     var selOpts=MEH.map(function(mm){return '<option value="'+mm.id+'"'+(mm.id===prikazMeh?' selected':'')+'>'+esc(mm.ime)+'</option>';}).join("");
     var h='';
     h+='<div class="phone-sel"><span class="vozilo">Prikaži kao:</span> <select onchange="PLAN.setMeh(this.value)">'+selOpts+'</select>'+
-       '<span class="hint" style="margin:0">(za demo — inače svatko vidi samo svoje)</span></div>';
+       '<span class="hint" style="margin:0">(pregled — svaki mehaničar na mobitelu vidi samo svoje)</span></div>';
     h+='<div class="phone"><div class="ph-top">📱 <span class="who">'+esc(m.ime)+'</span><span class="mini">Bravel radiona</span></div><div class="ph-body">';
     cekaMe.forEach(function(x){
       var pauza = x.o.status==="pauza" || (x.o.akumSek||0)>0;  // nastavak ako ima nakupljenog vremena
