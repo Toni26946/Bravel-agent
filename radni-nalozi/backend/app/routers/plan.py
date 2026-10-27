@@ -402,6 +402,20 @@ def ocisti_plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_
     return {"ok": True}
 
 
+@router.post("/nalog/{nid}/izbaci")
+def izbaci_iz_plana(nid: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Izbaci jedan nalog iz plana (makni mu plan_rang i oznaku hitno). Nalog i
+    njegovi zadaci OSTAJU — samo više nije u planu za danas."""
+    _provjeri_otkljucan(db)
+    n = db.get(Nalog, nid)
+    if not n:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    n.plan_rang = None
+    n.plan_hitno = False
+    db.commit()
+    return {"ok": True, "gb": _gb(n)}
+
+
 @router.patch("/nalog/{nid}/hitno")
 def hitno(nid: int, p: HitnoIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     _provjeri_otkljucan(db)
