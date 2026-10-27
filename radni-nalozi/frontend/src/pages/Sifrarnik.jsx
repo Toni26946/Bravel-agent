@@ -252,7 +252,7 @@ function ModuliEditor({ k, naGresku }) {
       {otvori && (
         <div className="moduli-panel">
           <p className="meta">{t('mod.pomoc')}</p>
-          {MODULI.map((m) => (
+          {MODULI.filter((m) => m.key !== '/plan' || k.ai_poslovodja).map((m) => (
             <label key={m.key} className="moduli-row">
               <input type="checkbox" checked={vidljivi.has(m.key)} onChange={() => toggle(m.key)} />
               <span>{m.ikona} {m.literal ? m.txt : t(m.txt)}</span>

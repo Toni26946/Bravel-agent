@@ -173,6 +173,9 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     vidljiviTabovi = tabovi.filter((x) => !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
     const prisutni = new Set(vidljiviTabovi.map((x) => x.do))
     for (const m of MODULI) {
+      // Plan radione je samo za vlasnika — nikad ga ne dodaj preko modula (inače se
+      // kartica pojavi na tuđem računu, a ruta/backend puštaju samo ai_poslovodju).
+      if (m.key === '/plan') continue
       if (dopusteni.has(m.key) && !prisutni.has(m.key)) {
         vidljiviTabovi.push({ do: m.key, ikona: m.ikona, txt: m.literal ? m.txt : t(m.txt) })
       }
