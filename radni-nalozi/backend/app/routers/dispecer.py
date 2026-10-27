@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from .. import norme
 from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Uloga, Zadatak
+from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
@@ -448,6 +448,71 @@ def test_posalji(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get
         return {"ok": False, "razlog": str(e)}
 
 
+# --- SIGURAN probni tok mehaničara (zaseban test mehaničar + test nalog) ----
+_TEST_MEH_KIME = "test.meh.tok"
+_TEST_GB = "TEST"
+_TEST_RN = "RN-TEST-TOK"
+
+
+def _test_mehanicar(db: Session) -> Korisnik:
+    meh = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _TEST_MEH_KIME).first()
+    if not meh:
+        meh = Korisnik(ime="🧪 TEST Mehaničar", korisnicko_ime=_TEST_MEH_KIME,
+                       lozinka_hash="x", uloga=Uloga.radnik, aktivan=True, prijavljuje_se=True)
+        db.add(meh); db.flush()
+    else:
+        meh.aktivan = True
+    return meh
+
+
+def _obrisi_test_nalog(db: Session) -> None:
+    for n in db.query(Nalog).filter(Nalog.broj == _TEST_RN).all():
+        db.delete(n)   # kaskadno briše operacije, zadatke, vremena
+    db.flush()
+
+
+@router.post("/test-tok")
+def test_tok(request: Request, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """SIGURAN probni tok: zaseban test mehaničar + test nalog (GB TEST) s 3 zadatka,
+    prvi na 'čeka potvrdu'. Pošalje poveznicu na dispecer_test_broj. NE dira prave
+    naloge. Ponovni poziv resetira probne zadatke. Vrati ishod slanja."""
+    from ..config import settings
+    if not (settings.dispecer_test_broj or "").strip():
+        raise HTTPException(status_code=400, detail="dispecer_test_broj nije postavljen — probni tok se ne šalje")
+    meh = _test_mehanicar(db)
+    voz = db.query(Vozilo).filter(Vozilo.gb == _TEST_GB).first()
+    if not voz:
+        voz = Vozilo(gb=_TEST_GB, marka="TEST"); db.add(voz); db.flush()
+    _obrisi_test_nalog(db)
+    n = Nalog(broj=_TEST_RN, vozilo_id=voz.id, naslov="PROBNI TOK",
+              kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    opisi = ["PROBNI 1 — zamjena pločica",
+             "PROBNI 2 — provjera kočnica",
+             "PROBNI 3 — ugradnja zračnog jastuka"]
+    for i, o in enumerate(opisi):
+        op = Operacija(nalog_id=n.id, kategorija="TEST", redoslijed=i + 1); db.add(op); db.flush()
+        z = Zadatak(operacija_id=op.id, opis=o, ceka_potvrdu=(i == 0)); z.radnici = [meh]; db.add(z)
+    db.commit()
+    rez = posalji_poveznicu(db, meh, _TEST_GB, opisi[0], str(request.base_url))
+    db.commit()
+    return {"ok": bool(rez.get("poslano")), "detalji": rez, "zadataka": len(opisi)}
+
+
+@router.post("/test-tok-stop")
+def test_tok_stop(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Počisti probni tok: obriši test nalog i deaktiviraj test mehaničara + poveznicu."""
+    _obrisi_test_nalog(db)
+    meh = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _TEST_MEH_KIME).first()
+    if meh:
+        meh.aktivan = False
+        link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == meh.id).first()
+        if link:
+            link.aktivan = False
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/ugasi/{radnik_id}")
 def ugasi_link(radnik_id: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Ugasi sve poveznice mehaničara (kill-switch) — poveznica prestaje raditi odmah."""
@@ -533,6 +598,14 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 .greska{background:#fdeaea;color:#b3261e;border:1px solid #e5534b;border-radius:12px;padding:16px;font-weight:700;text-align:center}
 .stanje{display:inline-block;margin-top:10px;font-size:13px;color:#5b6470}
 .radi{color:#1f7a39;font-weight:700}
+/* „Stigao novi zadatak" — jaka vizualna najava kad se promijeni zadatak */
+.novibanner{background:#1f7a39;color:#fff;border-radius:14px;padding:18px;margin-bottom:14px;
+  font-size:21px;font-weight:800;text-align:center;box-shadow:0 6px 18px rgba(31,122,57,.35);
+  animation:noviPulse 1s ease-in-out 3;transition:opacity .5s}
+@keyframes noviPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+.kart.novi{animation:noviUlaz .7s ease-out}
+@keyframes noviUlaz{0%{transform:translateY(16px) scale(.97);opacity:.15;box-shadow:0 0 0 5px #ffe08a}
+  55%{box-shadow:0 0 0 7px #ffcf4d}100%{transform:none;opacity:1;box-shadow:0 1px 3px rgba(0,0,0,.08)}}
 </style></head>
 <body>
 <div class="top">BRAVEL · radni zadatak</div>
@@ -546,7 +619,9 @@ async function api(akcija,extra){
   return {status:r.status,j};
 }
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-let busy=false;
+let busy=false, prevZid=null;
+function beep(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var a=new C();var o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.001,a.currentTime);g.gain.exponentialRampToValueAtTime(.4,a.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.5);o.start();o.stop(a.currentTime+.52);}catch(_){}}
+function najaviNovi(){try{if(navigator.vibrate)navigator.vibrate([220,110,220]);}catch(_){}beep();var b=document.getElementById('novibanner');if(b)setTimeout(function(){b.style.opacity='0';},3500);}
 function render(d){
   const app=document.getElementById('app');
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
@@ -556,7 +631,8 @@ function render(d){
   let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
   app.innerHTML=
-   '<div class="kart"><div class="gb">'+esc(d.gb)+'</div>'
+   (d._novi?'<div class="novibanner" id="novibanner">🆕 Stigao novi zadatak!</div>':'')
+   +'<div class="kart'+(d._novi?' novi':'')+'"><div class="gb">'+esc(d.gb)+'</div>'
    +'<div class="meta">'+esc([d.vozilo,d.reg].filter(Boolean).join(' · '))+'</div>'
    +'<div class="opis">'+esc(d.opis)+'</div>'+cij
    +(radi?'<div class="stanje radi">▶ mjerač radi</div>':'')
@@ -572,10 +648,11 @@ function render(d){
   var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
   var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
   var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){akc('nije-gotovo')};
+  if(d._novi) najaviNovi();
 }
-async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
-async function akc(a){if(busy)return;busy=true;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
-async function dijelovi(){if(busy)return;const naziv=prompt('Koji dio nedostaje? (upiši naziv)');if(naziv===null)return;busy=true;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
+async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function dijelovi(){if(busy)return;const naziv=prompt('Koji dio nedostaje? (upiši naziv)');if(naziv===null)return;busy=true;const prije=prevZid;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||'Greška')});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
 function krajPrompt(){
   const app=document.getElementById('app');
   app.innerHTML=
