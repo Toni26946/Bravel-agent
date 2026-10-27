@@ -505,7 +505,12 @@
     var map=redPoRadniku();
     var saZad=[], slobodni=[];
     MEH.forEach(function(m){ var l=map[m.id]||[]; if(l.length) saZad.push({m:m,lista:l}); else slobodni.push(m); });
-    saZad.sort(function(a,b){ return a.m.ime<b.m.ime?-1:(a.m.ime>b.m.ime?1:0); });
+    // Uvijek poredano: najmanje zadataka → najviše (tko ima manje je gore, za dopunu);
+    // isti broj → abecedno.
+    saZad.sort(function(a,b){
+      if(a.lista.length!==b.lista.length) return a.lista.length-b.lista.length;
+      return a.m.ime<b.m.ime?-1:(a.m.ime>b.m.ime?1:0);
+    });
     var ukupno=0, trebaDopunu=0;
     saZad.forEach(function(r){
       ukupno+=r.lista.length;
