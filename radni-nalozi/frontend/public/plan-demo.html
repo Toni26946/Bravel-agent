@@ -300,16 +300,16 @@
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
   function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
   function planMode(on){
-    if(on){ _planMode=true;
-      api("/ocisti","POST").then(function(){ toast("Novi plan — upiši garažne brojeve redom"); return ucitaj(); })
-        .then(function(){ setTimeout(_fokusGB,0); }).catch(function(e){ toast(e.message||"Greška"); render(); });
-    } else { _planMode=false; render(); }
+    // NE briše plan — samo otvori unos da se DODA vozilo u postojeći plan.
+    // (Brisanje cijelog plana je zaseban gumb „🗑 Očisti plan".)
+    _planMode=!!on; render(); if(on) setTimeout(_fokusGB,0);
   }
   function gbKey(ev,el){ if(ev.key==="Enter"){ ev.preventDefault(); dodajGB(el.value); } }
   function dodajGB(gb){ gb=(gb||"").trim(); if(!gb) return;
     api("/dodaj","POST",{gb:gb}).then(function(r){ toast("✅ GB "+(r&&r.gb||gb)+" dodan u plan"); return ucitaj(); })
       .catch(function(e){ toast(e.message||"Greška"); }).then(_fokusGB); }
   function ocistiPlan(){ api("/ocisti","POST").then(function(){ toast("Plan očišćen — kreni novi"); return ucitaj(); }).then(_fokusGB); }
+  function izbaci(nid){ if(_busy) return; _busy=true; api("/nalog/"+nid+"/izbaci","POST").then(function(r){ toast("Izbačeno iz plana"+(r&&r.gb?" · GB "+r.gb:"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   // Prekid operacije (modal): gotovo / nije gotovo / nema dijelova
   var stopOp=null;
   function openStop(opId){ var o=find(opId); if(!o) return; stopOp=opId; var n=nalByOp(opId); document.getElementById("modal-sub").textContent=(n?"GB "+n.gb+" · ":"")+o.naziv; document.getElementById("modal").hidden=false; }
@@ -348,6 +348,7 @@
     if(!planZakljucan) h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
     else if(n.hitno) h+='<span class="htog on" title="Hitno (plan zaključan)">🔴</span>';
     // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
+    if(!planZakljucan && !nalogZapoceo(n)) h+='<button class="xrem" onclick="PLAN.izbaci('+n.id+')" title="Izbaci iz plana">✕</button>';
     h+='</span></div>';
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
@@ -414,7 +415,7 @@
     var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
     var h='';
     h+='<div class="pl-top">'+
-         (planZakljucan?'':'<button class="btn sm" onclick="PLAN.planMode(true)">➕ Napravi plan</button>')+
+         (planZakljucan?'':'<button class="btn sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
@@ -438,7 +439,7 @@
     else{ h+='<div class="card" style="color:var(--muted)">Nema hitnih. Označi kamion s 🔴 kad je stvarno hitno.</div>'; }
     h+='<div class="sek-nas">Plan za danas</div>';
     if(norm.length){ norm.forEach(function(n,i){ h+=nalogCard(n,(i+1),{first:i===0,last:i===norm.length-1},"norm"); }); }
-    else{ h+='<div class="card" style="color:var(--muted)">Plan je prazan. Klikni <b>➕ Napravi plan</b> i upiši garažne brojeve redom.</div>'; }
+    else{ h+='<div class="card" style="color:var(--muted)">Plan je prazan. Klikni <b>➕ Dodaj vozilo</b> i upiši garažne brojeve redom.</div>'; }
     if(ceka.length){
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
@@ -606,7 +607,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs
