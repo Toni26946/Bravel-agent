@@ -3,6 +3,7 @@
 // Napomena: "/evidencija" (Radno vrijeme) se vodi posebno (samo Marina i Akshay),
 // pa nije u ovom katalogu.
 export const MODULI = [
+  { key: '/plan', ikona: '📋', txt: 'Plan radione', literal: true },
   { key: '/izbornik', ikona: '🗂️', txt: 'tab.izbornik' },
   { key: '/vozila-u-radu', ikona: '🚚', txt: 'tab.vozilaURadu' },
   { key: '/nalozi', ikona: '🔧', txt: 'tab.nalozi' },
@@ -21,8 +22,8 @@ export const MODULI = [
 
 // Koji moduli su relevantni (vidljivi po zadanom) za koju ulogu — za prikaz u uređivaču.
 export const MODULI_ULOGA = {
-  voditelj: ['/izbornik', '/vozila-u-radu', '/nalozi', '/izasli', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/steta'],
-  poslovodja: ['/izbornik', '/vozila-u-radu', '/nalozi', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/pregledi'],
+  voditelj: ['/plan', '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/steta'],
+  poslovodja: ['/plan', '/izbornik', '/vozila-u-radu', '/nalozi', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/pregledi'],
   skladistar: ['/skladiste', '/skladiste/dashboard'],
   radnik: ['/moja-radiona', '/moj-ucinak', '/nalozi'],
   vozac: ['/prijave'],
