@@ -46,7 +46,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     try { localStorage.setItem('nav_otvoren', n ? '1' : '0') } catch (_) { /* */ }
     return n
   })
-  const zatvoriNaUsko = () => { if (typeof window !== 'undefined' && window.innerWidth < 760) setNavOtvoren(false) }
+  // Klik na pravu karticu zatvori (skupi) izbornik — na svim širinama. Grupe
+  // (padajući podizbornici) ga NE zatvaraju (vidi toggleGrupa dolje).
+  const zatvoriNav = () => setNavOtvoren((o) => {
+    if (!o) return o
+    try { localStorage.setItem('nav_otvoren', '0') } catch (_) { /* */ }
+    return false
+  })
   // Otvorene grupe (padajući podizbornici) — pamti se.
   const [grupeOtvorene, setGrupeOtvorene] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav_grupe') || '{}') } catch (_) { return {} }
@@ -207,7 +213,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
           if (!item.djeca) {
             const n = paznjaZa(item.do)
             return (
-              <NavLink key={item.do} to={item.do} onClick={zatvoriNaUsko}
+              <NavLink key={item.do} to={item.do} onClick={zatvoriNav}
                 className={({ isActive }) => (isActive ? 'akt' : '') + (n > 0 ? ' paznja' : '')}>
                 <span className="ikona">{item.ikona}</span>
                 <span className="txt">{item.txt}</span>
@@ -231,7 +237,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
               {otvorena && item.djeca.map((d) => {
                 const dn = paznjaZa(d.do)
                 return (
-                  <NavLink key={d.do} to={d.do} onClick={zatvoriNaUsko}
+                  <NavLink key={d.do} to={d.do} onClick={zatvoriNav}
                     className={({ isActive }) => 'nav-dijete' + (isActive ? ' akt' : '') + (dn > 0 ? ' paznja' : '')}>
                     <span className="ikona">{d.ikona}</span>
                     <span className="txt">{d.txt}</span>
