@@ -121,7 +121,7 @@ def test_test_posalji_odbija_bez_test_broja():
     st.dispecer_test_broj = ""
     try:
         with ocekuj_http(400):
-            test_posalji(request=_REQ, db=db)
+            test_posalji(db=db)
     finally:
         st.dispecer_test_broj = staro
 
@@ -155,12 +155,36 @@ def test_test_posalji_salje_na_test_broj():
 
     _httpx.post = _fake_post
     try:
-        rez = test_posalji(request=_REQ, db=db)
+        rez = test_posalji(db=db)
         assert rez["ok"] is True
         assert pozvano["to"] == "385911111111", "probna poruka mora ići na test broj"
+        assert db.query(MehanicarLink).count() == 1, "test ne smije stvarati nove poveznice"
     finally:
         _httpx.post = orig_post
         st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc = staro
+
+
+def test_nije_gotovo_pauzira_i_cuva_vrijeme():
+    """„Nije gotovo" (kraj smjene / promjena plana): zaustavi mjerač, zadatak OSTAJE
+    nedovršen (pauza) s očuvanim vremenom — ne označava se gotovim."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    from app.routers.dispecer import z_nije_gotovo
+    db = _session()
+    meh = Korisnik(ime="Meh P", korisnicko_ime="meh.p", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TP", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-P", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="RADIM", zapoceto=_dt.now(_tz.utc) - _td(minutes=5))
+    z.radnici = [meh]; db.add(z)
+    db.add(MehanicarLink(radnik_id=meh.id, token="tp", aktivan=True)); db.commit()
+
+    r = z_nije_gotovo("tp", UredjajIn(uredjaj="A"), db=db)
+    assert r.get("parkirano") is True
+    db.refresh(z)
+    assert z.gotovo is False, "nije-gotovo NE smije označiti zadatak gotovim"
+    assert z.zapoceto is None, "mjerač mora biti zaustavljen"
+    assert (z.utroseno_sek or 0) > 0, "utrošeno vrijeme mora biti spremljeno"
 
 
 def test_ugaseni_link_ne_radi():
