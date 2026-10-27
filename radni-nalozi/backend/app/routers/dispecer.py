@@ -489,6 +489,16 @@ def test_tok(request: Request, _: Korisnik = Depends(_samo_vlasnik), db: Session
     if not (settings.dispecer_test_broj or "").strip():
         raise HTTPException(status_code=400, detail="dispecer_test_broj nije postavljen — probni tok se ne šalje")
     meh = _test_mehanicar(db)
+    # Svaki put izdaj SVJEŽU, nevezanu poveznicu — WhatsApp preglednik zna izgubiti
+    # uređaj među otvaranjima pa bi stara (vezana) poveznica bila odbijana.
+    link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == meh.id).first()
+    if link:
+        link.token = secrets.token_urlsafe(24)
+        link.uredjaj = None
+        link.aktivan = True
+        link.zadnje_koristeno = None
+        link.zadnji_uredjaj = None
+        db.flush()
     voz = db.query(Vozilo).filter(Vozilo.gb == _TEST_GB).first()
     if not voz:
         voz = Vozilo(gb=_TEST_GB, marka="TEST"); db.add(voz); db.flush()
