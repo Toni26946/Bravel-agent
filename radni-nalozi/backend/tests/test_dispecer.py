@@ -5,7 +5,10 @@ Gotovo završi zadatak (+ upis u povijest_rada) i vrati 'nema više zadataka'.
 """
 import os
 import sys
+import types
 from pathlib import Path
+
+_REQ = types.SimpleNamespace(base_url="https://x/")   # lažni Request za z_gotovo/z_dijelovi
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
@@ -76,7 +79,7 @@ def test_tok_pocinjem_gotovo():
     assert s2["stanje"] == "radu"
 
     # Gotovo → nema više zadataka + upis u povijest_rada
-    s3 = z_gotovo("tok123", UredjajIn(uredjaj="A"), db=db)
+    s3 = z_gotovo("tok123", UredjajIn(uredjaj="A"), request=_REQ, db=db)
     assert s3.get("nema") is True
     db.refresh(z)
     assert z.gotovo is True
@@ -102,7 +105,7 @@ def test_pocinjem_ne_gubi_red_i_gotovo_vraca_sljedeci():
     db.refresh(z2)
     assert [r.id for r in z2.radnici] == [meh.id], "Počinjem ne smije odjaviti radnika iz reda"
 
-    r = z_gotovo("tq", UredjajIn(uredjaj="A"), db=db)
+    r = z_gotovo("tq", UredjajIn(uredjaj="A"), request=_REQ, db=db)
     assert r.get("nema") is not True
     assert r.get("opis") == "DRUGI", "Gotovo mora odmah vratiti sljedeći zadatak iz reda"
 

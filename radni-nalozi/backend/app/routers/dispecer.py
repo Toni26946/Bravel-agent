@@ -259,8 +259,23 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     return _stanje(db, link.radnik)
 
 
+def _posalji_sljedeci(db: Session, radnik: Korisnik, request: Request) -> None:
+    """Nakon što mehaničar zatvori zadatak (Gotovo / Nemam dijelova), sljedeći iz
+    reda označi 'čeka potvrdu' i pošalji mu NOVU WhatsApp poveznicu (gated) — da
+    primijeti da je stigao novi zadatak, a ne da se samo tiho pojavi na stranici."""
+    red = _red(db, radnik)
+    if not red:
+        return
+    nz = red[0][2]
+    if not nz.zapoceto:              # već radi → ne diraj (nije u 'čeka potvrdu')
+        nz.ceka_potvrdu = True
+    db.commit()
+    nn = nz.operacija.nalog
+    posalji_poveznicu(db, radnik, _gb(nn), nz.opis or "", str(request.base_url))
+
+
 @router.post("/z/{token}/gotovo")
-def z_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
+def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(get_db)):
     link = _ucitaj(db, token, p.uredjaj)
     red = _red(db, link.radnik)
     if not red:
@@ -276,11 +291,12 @@ def z_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()
+    _posalji_sljedeci(db, link.radnik, request)   # sljedeći iz reda → nova WhatsApp poruka
     return _stanje(db, link.radnik)   # sljedeći zadatak ili {nema:True}
 
 
 @router.post("/z/{token}/dijelovi")
-def z_dijelovi(token: str, p: DijeloviIn, db: Session = Depends(get_db)):
+def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depends(get_db)):
     link = _ucitaj(db, token, p.uredjaj)
     red = _red(db, link.radnik)
     if not red:
@@ -300,6 +316,7 @@ def z_dijelovi(token: str, p: DijeloviIn, db: Session = Depends(get_db)):
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()
+    _posalji_sljedeci(db, link.radnik, request)   # sljedeći iz reda → nova WhatsApp poruka
     return _stanje(db, link.radnik)
 
 
