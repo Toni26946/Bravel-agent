@@ -68,6 +68,9 @@ _STUPCI = [
     ("zadaci", "ceka_potvrdu", "BOOLEAN DEFAULT FALSE"),
     ("zadaci", "razlog_prekida", "VARCHAR(12)"),
     ("zadaci", "prekid_vrijeme", "TIMESTAMP"),
+    # Kraj smjene (pitanje "gotov za danas / ostaješ dulje")
+    ("mehanicar_linkovi", "smjena_pitano", "TIMESTAMP"),
+    ("mehanicar_linkovi", "smjena_odgovor", "VARCHAR(10)"),
 ]
 
 

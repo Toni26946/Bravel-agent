@@ -28,7 +28,7 @@ from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Uloga, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
-from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zaustavi_mjerac
+from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
 log = logging.getLogger("dispecer")
@@ -64,22 +64,25 @@ def osiguraj_link(db: Session, radnik_id: int) -> MehanicarLink:
     return link
 
 
-def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_url: str) -> dict:
+def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_url: str,
+                      poruka_override: str | None = None, link_suffix: str = "") -> dict:
     """Pošalji login-less poveznicu mehaničaru preko bravel-agenta (predložak
     `poruka_dispecera`). GATED — ništa se ne šalje osim ako je izričito upaljeno:
     - `dispecer_wa_on` mora biti True i bravel-agent URL/ključ postavljeni,
     - ako je `dispecer_test_broj` postavljen → SVE ide samo na taj broj (test),
     - inače mehaničarevo ime mora biti na `dispecer_wa_imena` allowlisti
       (broj rješava bravel-agent iz svog imenika WHATSAPP_DRIVERS).
-    Nikad ne prekida tok dodjele — na grešci samo vrati {poslano:False}.
+    `poruka_override` (s {url}) i `link_suffix` (npr. "?kraj=1") za posebne poruke
+    (kraj smjene). Nikad ne prekida tok dodjele — na grešci vrati {poslano:False}.
     """
     from ..config import settings
     if not (settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc):
         return {"poslano": False, "razlog": "slanje isključeno"}
     link = osiguraj_link(db, radnik.id)
-    url = f"{base_url.rstrip('/')}/z/{link.token}"
+    url = f"{base_url.rstrip('/')}/z/{link.token}{link_suffix}"
     # Meta pravilo: parametar predloška bez novih redova/tabova
-    poruka = " ".join(f"Novi zadatak: GB {gb}, {opis} {url}".split())[:900]
+    sadrzaj = poruka_override.format(url=url) if poruka_override else f"Novi zadatak: GB {gb}, {opis} {url}"
+    poruka = " ".join(sadrzaj.split())[:900]
     test = (settings.dispecer_test_broj or "").strip()
     body = {"poruka": poruka}
     if test:
@@ -331,14 +334,42 @@ def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
         db.commit()
         return {"nema": True, "ime": link.radnik.ime}
     z = red[0][2]
-    _zaustavi_mjerac(z)            # zabilježi vrijeme i zaustavi (ostaje u pauzi)
-    z.ceka_potvrdu = False
-    z.razlog_prekida = None
-    z.prekid_vrijeme = None
+    _zatvori_kao_nije_gotovo(z)    # zabilježi vrijeme i zaustavi (ostaje u pauzi)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()
     return {"parkirano": True, "ime": link.radnik.ime}
+
+
+class SmjenaIn(BaseModel):
+    uredjaj: str
+    odgovor: str   # "ostajem" | "gotov"
+
+
+@router.post("/z/{token}/smjena")
+def z_smjena(token: str, p: SmjenaIn, db: Session = Depends(get_db)):
+    """Odgovor mehaničara na pitanje kraja smjene (link ?kraj=1):
+    - "ostajem": nastavlja raditi → zabilježi odgovor, ne dira zadatke;
+    - "gotov": gotov za danas → svi njegovi pokrenuti zadaci idu u 'Nije gotovo'
+      (pauza, čuvaju vrijeme). NE označava gotovim, NE šalje sljedeći."""
+    link = _ucitaj(db, token, p.uredjaj)
+    odgovor = (p.odgovor or "").strip().lower()
+    if odgovor not in ("ostajem", "gotov"):
+        raise HTTPException(status_code=400, detail="Nepoznat odgovor (ostajem/gotov)")
+    link.smjena_pitano = link.smjena_pitano or datetime.now(timezone.utc)
+    link.smjena_odgovor = odgovor
+    if odgovor == "ostajem":
+        db.commit()
+        return _stanje(db, link.radnik)
+    # "gotov za danas" → zatvori sve pokrenute (a i preostale u redu) kao nedovršene
+    zatvoreno = 0
+    for (_n, _op, z) in _red(db, link.radnik):
+        if z.zapoceto or (z.utroseno_sek or 0) > 0:
+            _zatvori_kao_nije_gotovo(z)
+            _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+            zatvoreno += 1
+    db.commit()
+    return {"parkirano": True, "gotov_za_danas": True, "ime": link.radnik.ime, "zatvoreno": zatvoreno}
 
 
 # --- vlasnik: upravljanje poveznicama --------------------------------------
@@ -495,7 +526,9 @@ _HTML = """<!doctype html>
 .gumbi{display:flex;flex-direction:column;gap:12px;margin-top:8px}
 button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;color:#fff;cursor:pointer}
 .b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-nije{background:#5b6470}
+.b-ostaje{background:#1f7a39} .b-kraj{background:#5b6470}
 .b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-nije:disabled{opacity:.5}
+.banner{background:#fff4d6;border:1px solid #f0c44c;color:#7a4e00;border-radius:12px;padding:16px;font-weight:700;text-align:center;font-size:17px;margin-bottom:4px}
 .info{text-align:center;color:#5b6470;padding:32px 16px;font-size:18px}
 .greska{background:#fdeaea;color:#b3261e;border:1px solid #e5534b;border-radius:12px;padding:16px;font-weight:700;text-align:center}
 .stanje{display:inline-block;margin-top:10px;font-size:13px;color:#5b6470}
@@ -518,6 +551,7 @@ function render(d){
   const app=document.getElementById('app');
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
   if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
+  if(d.gotov_za_danas){app.innerHTML='<div class="kart"><div class="info"><b>Gotov za danas.</b><br/>Vrijeme je spremljeno. Vidimo se sutra!</div></div>';return;}
   if(d.parkirano){app.innerHTML='<div class="kart"><div class="info">Zabilježeno — zadatak <b>nije dovršen</b> (pauza).<br/>Vrijeme je spremljeno. Doviđenja!</div></div>';return;}
   let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
@@ -542,7 +576,32 @@ function render(d){
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
 async function akc(a){if(busy)return;busy=true;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
 async function dijelovi(){if(busy)return;const naziv=prompt('Koji dio nedostaje? (upiši naziv)');if(naziv===null)return;busy=true;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
-ucitaj();
+function krajPrompt(){
+  const app=document.getElementById('app');
+  app.innerHTML=
+   '<div class="banner">Kraj radnog vremena.<br/>Jesi gotov za danas ili ostaješ dulje?</div>'
+   +'<div class="gumbi">'
+   +'<button class="b-ostaje">Ostajem dulje</button>'
+   +'<button class="b-kraj">Gotov za danas</button>'
+   +'</div>';
+  document.querySelector('.b-ostaje').onclick=function(){smjena('ostajem')};
+  document.querySelector('.b-kraj').onclick=function(){smjena('gotov')};
+}
+async function smjena(odg){
+  if(busy)return;
+  if(PROBA){
+    if(odg==='gotov'){render({gotov_za_danas:true});}
+    else{document.getElementById('app').innerHTML='<div class="kart"><div class="info"><b>Ostajem dulje.</b><br/>(proba) Nastavljaš s radom kao inače.</div></div>';}
+    return;
+  }
+  busy=true;const {status,j}=await api('smjena',{odgovor:odg});busy=false;
+  if(status===403){render({greska:j.detail});return;}
+  if(status>=400){render({greska:(j.detail||'Greška')});return;}
+  render(j);
+}
+const PARAMS=new URLSearchParams(location.search);
+const PROBA=PARAMS.get('proba')==='1';
+if(PARAMS.get('kraj')==='1'){ krajPrompt(); } else { ucitaj(); }
 </script>
 </body></html>"""
 

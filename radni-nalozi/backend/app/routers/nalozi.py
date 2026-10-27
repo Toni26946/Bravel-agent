@@ -1045,6 +1045,15 @@ def _zaustavi_mjerac(z: Zadatak) -> None:
     _uskladi_radnicke_mjerace(z)
 
 
+def _zatvori_kao_nije_gotovo(z: Zadatak) -> None:
+    """Zatvori zadatak kao NEDOVRŠEN: zaustavi mjerač (čuva utrošeno vrijeme) i
+    makni oznake čekanja/prekida — zadatak ostaje u pauzi (NIJE gotov)."""
+    _zaustavi_mjerac(z)
+    z.ceka_potvrdu = False
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+
+
 def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
     """Radnici ovog zadatka se odjavljuju sa svih DRUGIH zadataka (jedan radnik
     radi istovremeno na samo jednoj operaciji). Ako zadatak ostane bez ijednog

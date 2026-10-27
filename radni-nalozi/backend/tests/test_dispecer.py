@@ -187,6 +187,52 @@ def test_nije_gotovo_pauzira_i_cuva_vrijeme():
     assert (z.utroseno_sek or 0) > 0, "utrošeno vrijeme mora biti spremljeno"
 
 
+def _meh_s_pokrenutim(db, token="ts"):
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    meh = Korisnik(ime="Meh S", korisnicko_ime="meh.s", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TS", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-S", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="RADIM", zapoceto=_dt.now(_tz.utc) - _td(minutes=5))
+    z.radnici = [meh]; db.add(z)
+    db.add(MehanicarLink(radnik_id=meh.id, token=token, aktivan=True)); db.commit()
+    return meh, z
+
+
+def test_smjena_ostajem_ne_dira_zadatak():
+    from app.routers.dispecer import SmjenaIn, z_smjena
+    db = _session()
+    meh, z = _meh_s_pokrenutim(db)
+    r = z_smjena("ts", SmjenaIn(uredjaj="A", odgovor="ostajem"), db=db)
+    assert r.get("zadatak_id") == z.id, "ostajem → vraća trenutni zadatak"
+    db.refresh(z)
+    assert z.zapoceto is not None and z.gotovo is False, "ostajem NE smije dirati zadatak"
+    assert db.query(MehanicarLink).first().smjena_odgovor == "ostajem"
+
+
+def test_smjena_gotov_zatvara_kao_nije_gotovo():
+    from app.routers.dispecer import SmjenaIn, z_smjena
+    db = _session()
+    meh, z = _meh_s_pokrenutim(db)
+    r = z_smjena("ts", SmjenaIn(uredjaj="A", odgovor="gotov"), db=db)
+    assert r.get("gotov_za_danas") is True
+    db.refresh(z)
+    assert z.gotovo is False, "gotov za danas NE označava zadatak gotovim"
+    assert z.zapoceto is None, "mjerač mora biti zaustavljen"
+    assert (z.utroseno_sek or 0) > 0, "vrijeme mora biti spremljeno"
+    assert db.query(MehanicarLink).first().smjena_odgovor == "gotov"
+
+
+def test_kraj_sat_po_danu():
+    from datetime import datetime
+    from app.kraj_smjene import _kraj_sat
+    assert _kraj_sat(datetime(2026, 10, 26, 10, 0)) == 15   # ponedjeljak
+    assert _kraj_sat(datetime(2026, 10, 30, 10, 0)) == 15   # petak
+    assert _kraj_sat(datetime(2026, 10, 31, 10, 0)) == 14   # subota
+    assert _kraj_sat(datetime(2026, 11, 1, 10, 0)) is None  # nedjelja
+
+
 def test_ugaseni_link_ne_radi():
     db = _session()
     meh, z = _priprema(db)

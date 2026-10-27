@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     # Zaliha zadataka u pripremi po mehaničaru: čim krene raditi zadatak iz pripreme
     # i ostane manje od ovoliko u redu → obavijest poslovođi da dopuni.
     dispecer_zaliha: int = 2
+    # Javni URL ovog portala (za poveznice iz pozadinskih zadataka, bez Requesta).
+    javni_url: str = "https://bravel-radni-nalozi.fly.dev"
+    # Kraj smjene: pon–pet 15:00, subota 14:00 → pitaj one koji još rade jesu li
+    # gotovi za danas ili ostaju dulje; bez odgovora u 15 min → auto "Nije gotovo".
+    # ISKLJUČENO dok se izričito ne upali (da ne dira pravi rad dok se testira).
+    kraj_smjene_on: bool = False
 
     # Početni voditelj (seed) — kreira se pri prvom pokretanju ako baza je prazna
     seed_admin_username: str = "voditelj"
