@@ -233,6 +233,31 @@ def test_kraj_sat_po_danu():
     assert _kraj_sat(datetime(2026, 11, 1, 10, 0)) is None  # nedjelja
 
 
+def test_test_tok_slaze_tri_zadatka():
+    """Probni tok: test mehaničar + 3 zadatka, prvi 'čeka potvrdu', bez diranja
+    pravih naloga; poveznica ode na test broj."""
+    from app.config import settings as st
+    from app.routers.dispecer import _TEST_MEH_KIME, _red, test_tok
+    db = _session()
+    staro = (st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc)
+    st.dispecer_test_broj = "385911111111"; st.dispecer_wa_on = True
+    st.bravel_agent_url = "https://a"; st.bravel_agent_kljuc = "k"
+    import httpx as _h
+    orig = _h.post
+    _h.post = lambda *a, **k: type("R", (), {"status_code": 200, "text": "ok",
+                                             "json": lambda s: {"ok": True}})()
+    try:
+        r = test_tok(request=_REQ, db=db)
+        assert r["zadataka"] == 3
+        meh = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _TEST_MEH_KIME).first()
+        red = _red(db, meh)
+        assert len(red) == 3, "mehaničar mora imati 3 probna zadatka u redu"
+        assert red[0][2].ceka_potvrdu is True, "prvi mora biti na 'čeka potvrdu'"
+    finally:
+        _h.post = orig
+        st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc = staro
+
+
 def test_ugaseni_link_ne_radi():
     db = _session()
     meh, z = _priprema(db)
