@@ -283,6 +283,30 @@ def test_test_tok_slaze_tri_zadatka():
         st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc = staro
 
 
+def test_red_hitno_ide_odmah_iza_u_tijeku():
+    """HITNO nalog gurne svoje zadatke ODMAH iza onoga u tijeku, ispred ostalih
+    (u tijeku se ne dira)."""
+    from datetime import datetime as _dt, timezone as _tz
+    from app.routers.dispecer import _red
+    db = _session()
+    meh = Korisnik(ime="Meh H", korisnicko_ime="meh.h", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TH", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    nA = Nalog(broj="RN-A", vozilo_id=voz.id, naslov="A", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    nB = Nalog(broj="RN-B", vozilo_id=voz.id, naslov="B", kreirao_id=meh.id, status=StatusNaloga.u_radu, plan_hitno=True)
+    db.add_all([nA, nB]); db.flush()
+    opA1 = Operacija(nalog_id=nA.id, kategorija="A", redoslijed=1)
+    opA2 = Operacija(nalog_id=nA.id, kategorija="A", redoslijed=2)
+    opB = Operacija(nalog_id=nB.id, kategorija="B", redoslijed=1)
+    db.add_all([opA1, opA2, opB]); db.flush()
+    z_run = Zadatak(operacija_id=opA1.id, opis="U_TIJEKU", zapoceto=_dt.now(_tz.utc)); z_run.radnici = [meh]
+    z_norm = Zadatak(operacija_id=opA2.id, opis="OBICNI"); z_norm.radnici = [meh]
+    z_hit = Zadatak(operacija_id=opB.id, opis="HITNI"); z_hit.radnici = [meh]
+    db.add_all([z_run, z_norm, z_hit]); db.commit()
+
+    red = _red(db, meh)
+    assert [t[2].opis for t in red] == ["U_TIJEKU", "HITNI", "OBICNI"]
+
+
 def test_ugaseni_link_ne_radi():
     db = _session()
     meh, z = _priprema(db)

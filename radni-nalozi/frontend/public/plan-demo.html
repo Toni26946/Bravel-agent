@@ -348,7 +348,7 @@
     if(!planZakljucan) h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
     else if(n.hitno) h+='<span class="htog on" title="Hitno (plan zaključan)">🔴</span>';
     // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
-    if(!planZakljucan && !nalogZapoceo(n)) h+='<button class="xrem" onclick="PLAN.izbaci('+n.id+')" title="Izbaci iz plana">✕</button>';
+    if(!planZakljucan) h+='<button class="xrem" onclick="PLAN.izbaci('+n.id+')" title="Izbaci iz plana">✕</button>';
     h+='</span></div>';
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
