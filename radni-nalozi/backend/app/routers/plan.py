@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja
+from ..auth import trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
     Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, StatusNaloga, Zadatak,
@@ -25,7 +25,7 @@ from ..push import obavijesti_korisnika
 from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga
 
 router = APIRouter(prefix="/plan", tags=["plan"])
-_samo_vlasnik = zahtijevaj_ai_poslovodja()
+_samo_vlasnik = zahtijevaj_plan_pristup()   # vlasnik ILI tko ima modul '/plan'
 
 _AKTIVNI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
 PROZOR_MIN = 5

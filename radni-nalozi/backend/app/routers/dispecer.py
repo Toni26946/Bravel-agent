@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import norme
-from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
+from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
@@ -34,7 +34,7 @@ from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 log = logging.getLogger("dispecer")
 router = APIRouter(prefix="/dispecer", tags=["dispecer"])
 page_router = APIRouter()
-_samo_vlasnik = zahtijevaj_ai_poslovodja()
+_samo_vlasnik = zahtijevaj_plan_pristup()   # vlasnik ILI tko ima modul '/plan'
 _skladiste = zahtijevaj_uloge(Uloga.skladistar, Uloga.voditelj, Uloga.poslovodja)
 
 
