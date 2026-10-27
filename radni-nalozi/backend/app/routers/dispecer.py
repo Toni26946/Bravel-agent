@@ -370,6 +370,27 @@ def napravi_link(radnik_id: int, request: Request,
     return {"ok": True, "radnik_id": radnik_id, "token": token, "url": _url_za(request, token)}
 
 
+@router.post("/test-posalji")
+def test_posalji(request: Request,
+                 _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Pošalji PROBNU dispečersku poruku — SAMO na `dispecer_test_broj` (vlasnik).
+    Ne dira nijedan zadatak. Odbija ako test broj nije postavljen (da probna
+    poruka nikad ne ode pravom mehaničaru). Vraća ishod slanja za dijagnostiku."""
+    from ..config import settings
+    if not (settings.dispecer_test_broj or "").strip():
+        raise HTTPException(status_code=400,
+                            detail="dispecer_test_broj nije postavljen — probna poruka se ne šalje")
+    r = (db.query(Korisnik)
+           .filter(Korisnik.uloga == Uloga.radnik, Korisnik.aktivan.is_(True),
+                   Korisnik.prijavljuje_se.is_(True))
+           .order_by(Korisnik.ime).first())
+    if not r:
+        raise HTTPException(status_code=404, detail="Nema aktivnog mehaničara za probnu poveznicu")
+    rez = posalji_poveznicu(db, r, "TEST", "probna poruka dispečera", str(request.base_url))
+    db.commit()
+    return {"ok": bool(rez.get("poslano")), "detalji": rez}
+
+
 @router.post("/ugasi/{radnik_id}")
 def ugasi_link(radnik_id: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Ugasi sve poveznice mehaničara (kill-switch) — poveznica prestaje raditi odmah."""
