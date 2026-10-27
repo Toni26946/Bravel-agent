@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import flota
+from . import kraj_smjene
 from . import podsjetnici
 from .config import settings
 from .database import Base, SessionLocal, engine
@@ -105,11 +106,14 @@ async def lifespan(app: FastAPI):
         log.info("Flota GPS integracija nije konfigurirana (preskačem).")
     # Podsjetnici za parkiranje nezaduženih šlepa (radi i bez GPS-a; detekcija koristi Flota OS).
     parking_task = asyncio.create_task(podsjetnici.petlja())
+    # Kraj smjene (pitanje "gotov za danas / ostaješ dulje") — radi tek kad se upali.
+    kraj_task = asyncio.create_task(kraj_smjene.petlja())
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
     if flota_task:
         flota_task.cancel()
     parking_task.cancel()
+    kraj_task.cancel()
 
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)

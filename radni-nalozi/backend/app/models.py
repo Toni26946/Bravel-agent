@@ -749,5 +749,9 @@ class MehanicarLink(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     zadnje_koristeno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     zadnji_uredjaj: Mapped[str | None] = mapped_column(String(80), nullable=True)  # zadnji viđeni (za reviziju)
+    # Kraj smjene: kad je poslano pitanje "gotov za danas / ostaješ dulje" i odgovor
+    # ("ostajem" | "gotov" | "auto"). Resetira se po danu (provjerava se datum pitanja).
+    smjena_pitano: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    smjena_odgovor: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     radnik: Mapped["Korisnik"] = relationship(foreign_keys=[radnik_id])
