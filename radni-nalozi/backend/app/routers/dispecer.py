@@ -537,7 +537,7 @@ function render(d){
   var bp=document.querySelector('.b-poc'); if(bp) bp.onclick=function(){akc('pocinjem')};
   var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
   var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
-  var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){if(confirm('Prekinuti zadatak kao NEDOVRŠEN? (kraj smjene / promjena plana)'))akc('nije-gotovo')};
+  var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){akc('nije-gotovo')};
 }
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
 async function akc(a){if(busy)return;busy=true;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);}
