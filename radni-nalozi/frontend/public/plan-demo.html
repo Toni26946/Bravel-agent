@@ -260,7 +260,7 @@
   function svabOps(){ var a=[]; nalozi.forEach(function(n){ n.ops.forEach(function(o){ a.push({n:n,o:o}); }); }); return a; }
   function nalByOp(opId){ for(var i=0;i<nalozi.length;i++){var n=nalozi[i];for(var j=0;j<n.ops.length;j++) if(n.ops[j].id===opId) return n;} return null; }
   function trajanje(sek){ sek=Math.max(0,Math.floor(sek)); var h=Math.floor(sek/3600),m=Math.floor((sek%3600)/60),s=sek%60; var p=function(x){return(x<10?"0":"")+x;}; return h>0? h+":"+p(m)+":"+p(s) : m+":"+p(s); }
-  function zivoSek(o){ return (o.akumSek||0) + (o.startTs? (Date.now()-o.startTs)/1000 : 0); }
+  function zivoSek(o){ return o.startTs? (Date.now()-o.startTs)/1000 : 0; }   // samo trenutna sesija (kao „Tekući radovi"), bez nakupljenog od prije
   function nalogZapoceo(n){ for(var i=0;i<n.ops.length;i++){ var s=n.ops[i].status; if(s==="radu"||s==="gotovo"||s==="dijelovi"||s==="pauza") return true; } return false; }
   function cekaSek(n){ return (Date.now()-n.usaoTs)/1000; }
   function napredak(n){ var tot=n.ops.length, done=n.ops.filter(function(o){return o.status==="gotovo";}).length; return {tot:tot,done:done,pct:tot?Math.round(done/tot*100):0}; }
