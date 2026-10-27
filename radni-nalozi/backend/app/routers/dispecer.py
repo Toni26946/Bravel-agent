@@ -324,9 +324,10 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
 
 @router.post("/z/{token}/nije-gotovo")
 def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
-    """Mehaničar prekida zadatak NEDOVRŠEN (kraj smjene / promjena plana). Zaustavi
-    mjerač i ostavi zadatak u pauzi (čuva utrošeno vrijeme, NIJE gotov) — poslovođa
-    ga vidi u planu i po potrebi preusmjeri. NE šalje sljedeći (mehaničar staje)."""
+    """PROMJENA PLANA tijekom dana: trenutni zadatak NIJE gotov → pauziraj ga
+    (zaustavi mjerač, čuva vrijeme, ostaje u redu) i prebaci mehaničara na SLJEDEĆI
+    zadatak (pokaže se na istoj stranici). Ako nema sljedećeg, samo parkira.
+    (Prekid pred kraj smjene ide kroz zasebni prompt — tamo mehaničar staje.)"""
     link = _ucitaj(db, token, p.uredjaj)
     red = _red(db, link.radnik)
     if not red:
@@ -336,6 +337,15 @@ def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     _zatvori_kao_nije_gotovo(z)    # zabilježi vrijeme i zaustavi (ostaje u pauzi)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    # Sljedeći = prvi iz reda koji NIJE upravo pauzirani; označi 'čeka potvrdu' da
+    # iskoči ispred pauziranog i pokaže se na stranici (animacija).
+    preostali = [t for t in _red(db, link.radnik) if t[2].id != z.id]
+    if preostali:
+        nz = preostali[0][2]
+        if not nz.zapoceto:
+            nz.ceka_potvrdu = True
+        db.commit()
+        return _stanje(db, link.radnik)
     db.commit()
     return {"parkirano": True, "ime": link.radnik.ime}
 
