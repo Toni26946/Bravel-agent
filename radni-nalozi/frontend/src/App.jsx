@@ -32,6 +32,7 @@ import SkladisteDashboard from './pages/SkladisteDashboard'
 import EvidencijaRV from './pages/EvidencijaRV'
 import Plan from './pages/Plan'
 import MojaRadiona from './pages/MojaRadiona'
+import Imenik from './pages/Imenik'
 
 function pocetna(uloga) {
   if (uloga === 'vozac') return '/prijave'
@@ -95,6 +96,9 @@ export default function App() {
 
       {/* Plan radione — vlasnik (ai_poslovodja) ILI tko ima modul '/plan' */}
       <Route path="/plan" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{(korisnik?.ai_poslovodja || (Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/plan'))) ? <Plan /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
+
+      {/* Imenik telefona (samo čitanje, iz Flota OS-a) — vlasnik ILI tko ima modul '/imenik' */}
+      <Route path="/imenik" element={<Zasticeno>{korisnik?.imenik ? <Imenik /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />

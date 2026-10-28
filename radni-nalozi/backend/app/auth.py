@@ -127,6 +127,30 @@ def zahtijevaj_ai_poslovodja():
     return _provjera
 
 
+def ima_imenik_pristup(korisnik: Korisnik) -> bool:
+    """Imenik telefona (samo čitanje, iz Flota OS-a): vlasnik (ai_poslovodja) ILI korisnik kojem je
+    izričito dodijeljen modul '/imenik' (allow-lista u Moduli). Uloga sama po sebi NE daje pristup —
+    portal-korisnici (npr. voditelji izvana) ga ne vide dok im ga vlasnik ne dodijeli."""
+    from .config import settings
+    ov = (settings.ai_poslovodja_user or "").strip().lower()
+    ime = (korisnik.korisnicko_ime or "").strip().lower()
+    if ov and ime == ov:
+        return True
+    if not ov and korisnik.uloga == Uloga.voditelj:
+        return True
+    mod = korisnik.moduli if isinstance(korisnik.moduli, (list, tuple)) else []
+    return "/imenik" in mod
+
+
+def zahtijevaj_imenik_pristup():
+    def _provjera(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
+        if korisnik.korisnicko_ime == SERVIS_KORISNIK or not ima_imenik_pristup(korisnik):
+            raise HTTPException(status_code=403, detail="Nemate pristup imeniku")
+        return korisnik
+
+    return _provjera
+
+
 def zahtijevaj_plan_pristup():
     """Ovisnost: pristup Planu radione / dispečeru. Dopušteno vlasniku
     (ai_poslovodja) ILI voditelju/poslovođi kojem je dodijeljen modul '/plan'

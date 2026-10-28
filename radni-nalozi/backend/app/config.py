@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # Korisnička imena koja NISU radnici radione (uprava, korisnici portala) — ne idu u
     # evidenciju radnog vremena ni u izvoz za obračun. Zarezom odvojeno.
     evidencija_bez: str = "toni,velimir.jendris"
+    # Imenik telefona — ČITANJE iz Flota OS-a (GET /api/imenik, zaglavlje X-Imenik-Kljuc).
+    # Isti fly secret IMENIK_KLJUC i na Floti. Prazno = imenik prikazuje poruku „nije povezan".
+    imenik_kljuc: str = ""               # IMENIK_KLJUC — fly secret
     flota_email: str = ""                # alternativa: lokalni račun (12 h JWT)
     flota_lozinka: str = ""
     radiona_lat: float = 0.0

@@ -12,7 +12,7 @@ const NAV_RED = [
   '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
   '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/steta',
-  '/profil',
+  '/imenik', '/profil',
 ]
 
 export default function Layout({ naslov, nazad, children, akcija }) {
@@ -162,6 +162,8 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
     }
   }
+  // Imenik telefona (samo čitanje, iz Flota OS-a): vlasnik ILI tko ima dodijeljen modul '/imenik'.
+  if (korisnik?.imenik) tabovi.push({ do: '/imenik', ikona: '☎️', txt: 'Imenik' })
   // Voditelju Profil ide gore desno (u zaglavlje), ostalima u izbornik.
   if (korisnik?.uloga !== 'voditelj') {
     tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
@@ -175,11 +177,12 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     const kataloskiKljucevi = new Set(MODULI.map((m) => m.key))
     const dopusteni = new Set(korisnik.moduli)
     // '/plan' je izuzet iz filtra — njegovu vidljivost odlučuje gornji push (planPristup).
-    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
+    // '/imenik' isto — odlučuje korisnik.imenik (vlasnik ILI modul).
+    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || x.do === '/imenik' || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
     const prisutni = new Set(vidljiviTabovi.map((x) => x.do))
     for (const m of MODULI) {
-      // '/plan' se dodaje gore preko planPristup (vlasnik ILI modul), ne ovdje.
-      if (m.key === '/plan') continue
+      // '/plan' i '/imenik' se dodaju gore (planPristup / korisnik.imenik), ne ovdje.
+      if (m.key === '/plan' || m.key === '/imenik') continue
       if (dopusteni.has(m.key) && !prisutni.has(m.key)) {
         vidljiviTabovi.push({ do: m.key, ikona: m.ikona, txt: m.literal ? m.txt : t(m.txt) })
       }

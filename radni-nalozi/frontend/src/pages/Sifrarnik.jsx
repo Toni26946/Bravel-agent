@@ -5,6 +5,7 @@ import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
 import { MODULI, MODULI_ULOGA } from '../moduli'
+import { kljucImena, lijepBroj, useBrojeviIzImenika } from '../imenik'
 
 // mala slova + bez kvačica — za pretragu neosjetljivu na dijakritike
 function _norm(s) {
@@ -42,6 +43,7 @@ function Korisnici() {
   const [f, setF] = useState({ ime: '', telefon: '' })
   const [noviRezultat, setNoviRezultat] = useState(null)  // prikaz generiranih pristupnih podataka
   const [samoPortal, setSamoPortal] = useState(false)     // filter: samo korisnici portala
+  const izImenika = useBrojeviIzImenika()                 // službeni broj iz Flota OS imenika (siguran spoj po imenu)
 
   // uvoz radnika
   const [uvozOtvori, setUvozOtvori] = useState(false)
@@ -170,13 +172,14 @@ function Korisnici() {
       {lista.filter((k) => !samoPortal || ['voditelj', 'poslovodja', 'skladistar'].includes(k.uloga)).map((k) => (
         <KorisnikKartica key={k.id} k={k} ULOGE={ULOGE}
           prebaciAktivan={prebaciAktivan} prebaciUlogu={prebaciUlogu} prebaciPrijavu={prebaciPrijavu}
-          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} setGreska={setGreska} />
+          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} setGreska={setGreska}
+          imenik={izImenika[kljucImena(k.ime)]} />
       ))}
     </>
   )
 }
 
-function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, setGreska }) {
+function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, setGreska, imenik }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   return (
@@ -189,6 +192,11 @@ function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijav
         <span className="kk-chev">{otvoren ? '▴' : '▾'}</span>
       </button>
       {k.funkcija && <p className="meta kk-funk">{k.funkcija}</p>}
+      {imenik && (
+        <p className="meta kk-funk" title="Službeni broj iz imenika (Flota OS)">
+          ☎️ <a href={'tel:' + imenik.broj}>{lijepBroj(imenik.broj)}</a>{imenik.kratki ? ` · ${imenik.kratki}` : ''}
+        </p>
+      )}
       {otvoren && (
         <div className="kk-tijelo">
           <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
