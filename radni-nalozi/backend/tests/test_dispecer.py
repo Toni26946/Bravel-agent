@@ -466,6 +466,31 @@ def test_dio_stigao_vraca_zadatak():
     assert z.ceka_potvrdu is True
 
 
+def test_dijelovi_javi_skladistaru():
+    """Mehaničar 'Nemam dijelova' → operacija ide u 'čeka dijelove' i skladište dobije obavijest (/skladiste)."""
+    import app.routers.dispecer as d
+    from app.routers.dispecer import DijeloviIn, z_dijelovi
+    db = _session()
+    meh = Korisnik(ime="Meh DJ", korisnicko_ime="meh.dj", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TDJ", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-DJ", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="RADIM", ceka_potvrdu=True); z.radnici = [meh]; db.add(z)
+    db.add(MehanicarLink(radnik_id=meh.id, token="tdj", aktivan=True)); db.commit()
+
+    pozivi = []
+    orig = d.obavijesti_ulogu
+    d.obavijesti_ulogu = lambda _db, uloga, naslov, tekst, url=None: pozivi.append((uloga, url))
+    try:
+        z_dijelovi("tdj", DijeloviIn(uredjaj="A", naziv="filter goriva"), _REQ, db=db)
+    finally:
+        d.obavijesti_ulogu = orig
+    db.refresh(z)
+    assert z.razlog_prekida == "dijelovi"
+    assert any(u == Uloga.skladistar and url == "/skladiste" for (u, url) in pozivi), "skladište mora dobiti obavijest"
+
+
 if __name__ == "__main__":
     test_tok_pocinjem_gotovo()
     test_ugaseni_link_ne_radi()

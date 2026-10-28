@@ -41,13 +41,21 @@ export default function Skladiste() {
   const [detalj, setDetalj] = useState(null)   // otvorena primka (pregled) ili null
   const [q, setQ] = useState('')               // pretraga po artiklu (i dobavljaču/broju)
   const [narucitelji, setNarucitelji] = useState([])
+  const [dijelovi, setDijelovi] = useState([])     // operacije koje čekaju dijelove (mehaničar stisnuo "Nemam dijelova")
   const [dodajem, setDodajem] = useState(false)   // učitavanje stranice
   const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
   const fileRef = useRef(null)
 
   const ucitaj = () => api.primke().then(setLista).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj(); api.narucitelji().then(setNarucitelji).catch(() => {}) }, [])
+  const ucitajDijelove = () => api.cekaDijelove().then((d) => setDijelovi(Array.isArray(d) ? d : [])).catch(() => {})
+  useEffect(() => { ucitaj(); ucitajDijelove(); api.narucitelji().then(setNarucitelji).catch(() => {}) }, [])
+
+  const dioStigao = async (zid) => {
+    setGreska('')
+    try { await api.dioStigao(zid); setDijelovi((p) => p.filter((o) => o.zadatak_id !== zid)) }
+    catch (e) { setGreska(e.message) }
+  }
 
   const zapocni = () => { setGreska(''); setPoruka(''); setDetalj(null); setNova(praznaPrimka()) }
   const odustani = () => { setNova(null); setCitam(false); setDodajem(false) }
@@ -348,6 +356,29 @@ export default function Skladiste() {
     <Layout naslov={t('skl.naslov')}>
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
+
+      {dijelovi.length > 0 && (
+        <div className="karta" style={{ marginBottom: 14, borderLeft: '4px solid var(--narancasta, #b26a00)' }}>
+          <div className="naslov-red">
+            <h3 style={{ margin: 0 }}>⚠️ Nedostaju dijelovi ({dijelovi.length})</h3>
+          </div>
+          <p className="meta" style={{ marginTop: 2 }}>Mehaničar je prijavio da za ove operacije fali dio. Kad dio stigne, pritisni „Dio stigao" — zadatak se vraća mehaničaru.</p>
+          {dijelovi.map((o) => (
+            <div key={o.zadatak_id} className="karta" style={{ padding: 10, marginTop: 8 }}>
+              <div><strong>🚚 {o.gb || '—'}</strong>{o.vozilo ? ` · ${o.vozilo}` : ''}</div>
+              <div style={{ marginTop: 2 }}>{o.kategorija ? <strong>{o.kategorija} — </strong> : ''}{o.opis}</div>
+              <div className="meta" style={{ marginTop: 2 }}>
+                {o.mehanicar ? `🧑‍🔧 ${o.mehanicar}` : 'bez mehaničara'}
+                {o.dio ? ` · 🔧 naručeno: ${o.dio}` : ''}
+              </div>
+              <div className="btn-red" style={{ marginTop: 8 }}>
+                <button className="btn mali" onClick={() => dioStigao(o.zadatak_id)}>✓ Dio stigao → vrati mehaničaru</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <button className="btn" onClick={zapocni}>{t('skl.nova')}</button>
 
       {lista.length > 0 && (
