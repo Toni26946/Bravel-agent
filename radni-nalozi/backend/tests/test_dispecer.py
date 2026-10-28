@@ -164,6 +164,73 @@ def test_test_posalji_salje_na_test_broj():
         st.dispecer_test_broj, st.dispecer_wa_on, st.bravel_agent_url, st.bravel_agent_kljuc = staro
 
 
+def test_posalji_poveznicu_broj_iz_imenika():
+    """Bez test broja: broj mehaničara se povlači iz IMENIKA (Flota OS) po imenu
+    i šalje bravel-agentu kao `broj` (ne oslanja se više na WHATSAPP_DRIVERS)."""
+    from app import imenik
+    from app.config import settings as st
+    db = _session()
+    meh = Korisnik(ime="Kovač Marko", korisnicko_ime="kovac.marko", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh); db.commit()
+    staro = (st.dispecer_test_broj, st.dispecer_wa_on, st.dispecer_wa_imena,
+             st.bravel_agent_url, st.bravel_agent_kljuc)
+    st.dispecer_test_broj = ""
+    st.dispecer_wa_on = True
+    st.dispecer_wa_imena = ""
+    st.bravel_agent_url = "https://agent.example"
+    st.bravel_agent_kljuc = "k"
+    orig_dohvati = imenik.dohvati
+    imenik.dohvati = lambda osvjezi=False: {"zapisi": [{"ime": "Marko Kovač", "broj": "385912223344", "aktivan": True}]}
+    pozvano = {}
+    import httpx as _httpx
+    orig_post = _httpx.post
+
+    def _fake_post(url, json=None, headers=None, timeout=None):
+        pozvano.update(json or {})
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+            def json(self):
+                return {"ok": True}
+        return R()
+
+    _httpx.post = _fake_post
+    try:
+        rez = posalji_poveznicu(db, meh, "GB100", "Zamjena pločica", "https://x/")
+        assert rez["poslano"] is True
+        assert pozvano.get("broj") == "385912223344", "broj mora doći iz imenika"
+        assert pozvano.get("vozac") == "Kovač Marko"
+    finally:
+        _httpx.post = orig_post
+        imenik.dohvati = orig_dohvati
+        (st.dispecer_test_broj, st.dispecer_wa_on, st.dispecer_wa_imena,
+         st.bravel_agent_url, st.bravel_agent_kljuc) = staro
+
+
+def test_posalji_poveznicu_bez_broja_u_imeniku_ne_salje():
+    """Mehaničar kojeg nema u imeniku (ili bez broja) → ne šalje se."""
+    from app import imenik
+    from app.config import settings as st
+    db = _session()
+    meh = Korisnik(ime="Nitko Nepoznati", korisnicko_ime="nitko", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh); db.commit()
+    staro = (st.dispecer_test_broj, st.dispecer_wa_on, st.dispecer_wa_imena,
+             st.bravel_agent_url, st.bravel_agent_kljuc)
+    st.dispecer_test_broj = ""; st.dispecer_wa_on = True; st.dispecer_wa_imena = ""
+    st.bravel_agent_url = "https://agent.example"; st.bravel_agent_kljuc = "k"
+    orig_dohvati = imenik.dohvati
+    imenik.dohvati = lambda osvjezi=False: {"zapisi": []}
+    try:
+        rez = posalji_poveznicu(db, meh, "GB100", "Opis", "https://x/")
+        assert rez["poslano"] is False
+    finally:
+        imenik.dohvati = orig_dohvati
+        (st.dispecer_test_broj, st.dispecer_wa_on, st.dispecer_wa_imena,
+         st.bravel_agent_url, st.bravel_agent_kljuc) = staro
+
+
 def test_nije_gotovo_pauzira_i_cuva_vrijeme():
     """„Nije gotovo" (kraj smjene / promjena plana): zaustavi mjerač, zadatak OSTAJE
     nedovršen (pauza) s očuvanim vremenom — ne označava se gotovim."""

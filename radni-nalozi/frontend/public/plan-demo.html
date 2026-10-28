@@ -279,7 +279,7 @@
   function nalById(id){ for(var i=0;i<nalozi.length;i++) if(nalozi[i].id===id) return nalozi[i]; return null; }
   function posalji(opId){ act("/zadatak/"+opId+"/posalji"); }
   function isplaniraj(nid){ act("/nalog/"+nid+"/isplaniraj"); }
-  function isplanirajSve(){ if(_busy) return; _busy=true; api("/isplaniraj-sve","POST").then(function(r){ toast("📨 Poslano "+((r&&r.poslano)||0)+(r&&r.vec_rade?" · "+r.vec_rade+" već rade":"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
+  function isplanirajSve(){ if(_busy) return; _busy=true; api("/isplaniraj-sve","POST").then(function(r){ toast("📨 Poslano "+((r&&r.poslano)||0)+(r&&r.vec_poslano?" · "+r.vec_poslano+" već poslano":"")+(r&&r.vec_rade?" · "+r.vec_rade+" već rade":"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
   function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
   function dodajRadnika(opId,mehId,postojeci){ if(!mehId) return; var ids=(postojeci||[]).slice(); var nid=parseInt(mehId,10); if(ids.indexOf(nid)<0) ids.push(nid); act("/zadatak/"+opId+"/dodijeli", {radnici_ids: ids}); }

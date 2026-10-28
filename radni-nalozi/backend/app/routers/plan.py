@@ -517,6 +517,7 @@ def isplaniraj(nalog_id: int, request: Request,
                 mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0
+    vec_poslano = 0
     for m in mehanicari.values():
         red = _red(db, m)
         if not red:
@@ -524,6 +525,9 @@ def isplaniraj(nalog_id: int, request: Request,
         z = red[0][2]                 # trenutni (prvi) zadatak u redu
         if z.zapoceto:                # već radi — ne diraj; red mu ide sam preko stranice
             preskoceno_rade += 1
+            continue
+        if z.ceka_potvrdu:            # već mu je poslano → ne dupliciraj poruku
+            vec_poslano += 1
             continue
         z.ceka_potvrdu = True         # prvi ide na potvrdu/slanje, ostali ostaju u redu
         z.razlog_prekida = None
@@ -534,7 +538,8 @@ def isplaniraj(nalog_id: int, request: Request,
         if wa.get("poslano"):
             poslano += 1
     db.commit()
-    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
+    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano,
+            "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano}
 
 
 @router.post("/isplaniraj-sve")
@@ -558,6 +563,7 @@ def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik)
                     mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0
+    vec_poslano = 0
     for m in mehanicari.values():
         red = _red(db, m)
         if not red:
@@ -565,6 +571,9 @@ def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik)
         z = red[0][2]
         if z.zapoceto:
             preskoceno_rade += 1
+            continue
+        if z.ceka_potvrdu:            # već mu je poslano (pojedinačno ili ranijim klikom) → ne dupliciraj
+            vec_poslano += 1
             continue
         z.ceka_potvrdu = True
         z.razlog_prekida = None
@@ -575,7 +584,8 @@ def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik)
         if wa.get("poslano"):
             poslano += 1
     db.commit()
-    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
+    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano,
+            "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano}
 
 
 class OcistiVrijemeIn(BaseModel):
