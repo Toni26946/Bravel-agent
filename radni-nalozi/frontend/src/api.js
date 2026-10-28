@@ -254,6 +254,9 @@ export const api = {
   flotaStatus: () => zahtjev('/flota/status'),
   flotaProvjeri: () => zahtjev('/flota/provjeri', { method: 'POST' }),
 
+  // Imenik telefona — samo čitanje (izvor je Flota OS)
+  imenik: (osvjezi = false) => zahtjev('/imenik' + (osvjezi ? '?osvjezi=1' : '')),
+
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),
   pushPretplata: (subscription) => zahtjev('/push/pretplata', { method: 'POST', body: { subscription } }),

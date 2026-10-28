@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { Spinner, Prazno } from '../ui'
 import { useT } from '../i18n'
+import { kljucImena, lijepBroj, useBrojeviIzImenika } from '../imenik'
 
 // Šifrarnik vozača — naša evidencija tko je vozač (ime, sektor, telefon).
 // Voditelj dodaje/uređuje/deaktivira; popis puni obrazac zaduženja.
@@ -16,6 +17,8 @@ export default function Vozaci() {
   const [q, setQ] = useState('')
   const [samoAktivni, setSamoAktivni] = useState(true)
   const [dodaj, setDodaj] = useState(false)
+  // Službeni broj iz imenika (Flota OS) — samo kad je spoj po imenu siguran i korisnik smije vidjeti imenik.
+  const izImenika = useBrojeviIzImenika()
 
   const ucitaj = () => api.vozaci().then(setRedovi).catch(() => setRedovi([]))
   useEffect(() => { ucitaj() }, [])
@@ -60,7 +63,8 @@ export default function Vozaci() {
             </thead>
             <tbody>
               {filt.map((v) => (
-                <Red key={v.id} v={v} uredi={uredi} smijeBrisati={smijeBrisati} onPromjena={ucitaj} t={t} />
+                <Red key={v.id} v={v} uredi={uredi} smijeBrisati={smijeBrisati} onPromjena={ucitaj} t={t}
+                  imenik={izImenika[kljucImena(v.ime)]} />
               ))}
             </tbody>
           </table>
@@ -70,7 +74,7 @@ export default function Vozaci() {
   )
 }
 
-function Red({ v, uredi, smijeBrisati, onPromjena, t }) {
+function Red({ v, uredi, smijeBrisati, onPromjena, t, imenik }) {
   const [edit, setEdit] = useState(false)
   const [ime, setIme] = useState(v.ime)
   const [sektor, setSektor] = useState(v.sektor || '')
@@ -103,7 +107,14 @@ function Red({ v, uredi, smijeBrisati, onPromjena, t }) {
     <tr className={v.aktivan ? '' : 'voz-neaktivan'}>
       <td>{v.ime}{!v.aktivan && <span className="meta"> · {t('voz.neaktivan')}</span>}</td>
       <td>{v.sektor || '—'}</td>
-      <td>{v.telefon ? <a href={'tel:' + v.telefon}>{v.telefon}</a> : '—'}</td>
+      <td>
+        {v.telefon ? <a href={'tel:' + v.telefon}>{v.telefon}</a> : (imenik ? null : '—')}
+        {imenik && (
+          <div className="meta" style={{ fontSize: 12 }} title="Službeni broj iz imenika (Flota OS)">
+            ☎️ <a href={'tel:' + imenik.broj}>{lijepBroj(imenik.broj)}</a>{imenik.kratki ? ` · ${imenik.kratki}` : ''}
+          </div>
+        )}
+      </td>
       {uredi && (
         <td className="no-print" style={{ whiteSpace: 'nowrap' }}>
           <button className="ikonbtn" onClick={() => setEdit(true)} title={t('voz.uredi')}>✏️</button>

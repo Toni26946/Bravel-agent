@@ -18,6 +18,8 @@ export const MODULI = [
   { key: '/prijave', ikona: '📋', txt: 'tab.prijave' },
   { key: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona', literal: true },
   { key: '/moj-ucinak', ikona: '🏆', txt: 'tab.mojUcinak' },
+  // Imenik telefona (samo čitanje, iz Flota OS-a) — po zadanom samo vlasnik; ostalima se dodjeljuje ovdje.
+  { key: '/imenik', ikona: '☎️', txt: 'Imenik', literal: true },
 ]
 
 // Koji moduli su relevantni (vidljivi po zadanom) za koju ulogu — za prikaz u uređivaču.

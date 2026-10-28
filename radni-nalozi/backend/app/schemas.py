@@ -98,6 +98,14 @@ class KorisnikOut(ORM):
             return ime == ov
         return self.uloga == Uloga.voditelj
 
+    @computed_field
+    @property
+    def imenik(self) -> bool:
+        """Vidi li ovaj korisnik imenik telefona (vlasnik ILI dodijeljen modul '/imenik')."""
+        if self.ai_poslovodja:
+            return True
+        return isinstance(self.moduli, list) and "/imenik" in self.moduli
+
 
 class OdsutnostUpdate(BaseModel):
     vrsta: str | None = None  # 'godisnji' | 'bolovanje'; None/'dostupan' briše odsutnost
