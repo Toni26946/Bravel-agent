@@ -9,6 +9,9 @@ from .config import settings
 # SQLite treba poseban connect_arg za rad s više niti (dev/lokalno).
 _connect_args = {}
 _url = settings.database_url
+# Fly/Heroku daju "postgres://"; SQLAlchemy 2.0 traži "postgresql://".
+if _url.startswith("postgres://"):
+    _url = "postgresql://" + _url[len("postgres://"):]
 _pool_kwargs = {}
 _je_sqlite = _url.startswith("sqlite")
 _je_sqlite_memorija = _je_sqlite and (":memory:" in _url or _url == "sqlite://")
