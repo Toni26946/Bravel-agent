@@ -22,7 +22,7 @@ from ..models import (
     ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
-from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga
+from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga, nalog_eager
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 _samo_vlasnik = zahtijevaj_plan_pristup()   # vlasnik ILI tko ima modul '/plan'
@@ -221,7 +221,7 @@ def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, tuple[str, i
 # --- GET /plan -------------------------------------------------------------
 @router.get("")
 def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
-    nalozi = db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all()
+    nalozi = db.query(Nalog).options(*nalog_eager()).filter(Nalog.status.in_(_AKTIVNI)).all()
     nalozi = [n for n in nalozi if _gb(n) not in _SKRIVENI_GB]   # bez internih (RADIONA)
     nalozi.sort(key=lambda n: (
         0 if n.plan_hitno else 1,

@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm import Session, joinedload, object_session, selectinload
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
@@ -307,6 +307,21 @@ def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslov
 
 
 # --- popis / detalj ----------------------------------------------------------
+def nalog_eager():
+    """Eager-loading za teške popise (bez N+1): operacije→zadaci→radnici/vremena,
+    dodjele→radnik i to-one FK-ovi. KLJUČNO na Postgresu — inače svaki lazy podupit
+    ide zasebno preko mreže pa se popis od 200+ naloga vuče sekundama / visi."""
+    return (
+        joinedload(Nalog.vozilo),
+        joinedload(Nalog.vozac),
+        joinedload(Nalog.voditelj),
+        joinedload(Nalog.kreirao),
+        selectinload(Nalog.dodjele).joinedload(Dodjela.radnik),
+        selectinload(Nalog.operacije).selectinload(Operacija.zadaci).selectinload(Zadatak.radnici),
+        selectinload(Nalog.operacije).selectinload(Operacija.zadaci).selectinload(Zadatak.vremena),
+    )
+
+
 @router.get("", response_model=list[NalogListItem])
 def popis(
     status: StatusNaloga | None = Query(default=None),
@@ -315,7 +330,7 @@ def popis(
 ):
     if korisnik.uloga == Uloga.vozac:
         raise HTTPException(status_code=403, detail="Vozači nemaju pristup nalozima")
-    q = db.query(Nalog)  # voditelj i radnik vide sve naloge
+    q = db.query(Nalog).options(*nalog_eager())  # voditelj i radnik vide sve naloge
     if status:
         q = q.filter(Nalog.status == status)
     return q.order_by(Nalog.kreiran.desc()).all()
@@ -335,6 +350,7 @@ def nadzor(korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depend
         raise HTTPException(status_code=403, detail="Vozači nemaju pristup")
     return (
         db.query(Nalog)
+        .options(*nalog_eager())
         .filter(Nalog.status.in_(AKTIVNI_STATUSI))
         .order_by(Nalog.azuriran.desc())
         .all()
