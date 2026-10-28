@@ -334,6 +334,12 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
         z.opis = f"{z.opis} {dodatak}" if z.opis and dodatak not in (z.opis or "") else (z.opis or dodatak)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (kartica na /skladiste).
+    nlg = z.operacija.nalog
+    obavijesti_ulogu(
+        db, Uloga.skladistar, "Nedostaju dijelovi",
+        f"GB {_gb(nlg)} · {naziv or z.opis or ''}".strip(" ·"), url="/skladiste",
+    )
     db.commit()
     _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
     return _stanje(db, link.radnik)
