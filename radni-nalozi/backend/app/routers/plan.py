@@ -252,8 +252,17 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     st = db.get(PlanStanje, 1)
     zakljucan = bool(st and st.zakljucan and st.datum == _hr_now().date())
     zak = db.get(Korisnik, st.zakljucao_id) if (zakljucan and st.zakljucao_id) else None
+    _danas_iso = _hr_now().date().isoformat()
+
+    def _odsutan(m) -> bool:
+        if not m.odsutnost_vrsta:
+            return False
+        if m.odsutnost_do and _danas_iso > m.odsutnost_do.isoformat():
+            return False   # odsutnost istekla
+        return True
+
     return {
-        "mehanicari": [{"id": m.id, "ime": m.ime} for m in meh],
+        "mehanicari": [{"id": m.id, "ime": m.ime, "odsutan": _odsutan(m)} for m in meh],
         "nalozi": out_nal,
         "promjene": [{"t": _ms(p.vrijeme), "tekst": p.opis} for p in promjene],
         "zakljucan": zakljucan,
