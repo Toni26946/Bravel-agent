@@ -389,7 +389,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-rad .rad-select { border: none; background: transparent; padding: 4px 2px; font-size: 12px; width: 100%; color: var(--tekst); }
 .op2-rad .rad-tekst { padding: 4px 4px; font-size: 12px; color: var(--tekst); }
 .rad-multi { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; width: 100%; }
-.rad-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--plava-svijetla, #e8f0fe); color: var(--plava, #1a56db); border-radius: 999px; padding: 2px 8px; font-size: 12px; white-space: nowrap; }
+.rad-chip { display: inline-flex; align-items: center; gap: 4px; background: #e8f0fe; color: var(--plava, #0d47a1); border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rad-chip-x { cursor: pointer; font-size: 14px; line-height: 1; color: var(--crvena); }
 .rad-multi .rad-select { width: auto; flex: 1 1 auto; min-width: 90px; }
 .op2-dodaj { grid-column: 1 / -1; padding: 6px 10px 8px; border-top: 1px dashed var(--rub); background: #fcfdfe; }
