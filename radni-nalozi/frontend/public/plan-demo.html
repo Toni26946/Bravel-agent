@@ -346,7 +346,7 @@
   function brojUReduPoMeh(){
     var c={};
     nalozi.forEach(function(n){ n.ops.forEach(function(o){
-      if(o.mehId && o.status!=="gotovo" && o.status!=="dijelovi") c[o.mehId]=(c[o.mehId]||0)+1;
+      if(o.status!=="gotovo" && o.status!=="dijelovi") (o.mehIds||[]).forEach(function(id){ c[id]=(c[id]||0)+1; });
     }); });
     return c;
   }
@@ -477,7 +477,7 @@
   // --- render: Mehaničar (mobitel) ---
   function renderMEH(){
     var m=meh(prikazMeh);
-    var moje=svabOps().filter(function(x){return x.o.mehId===prikazMeh;});
+    var moje=svabOps().filter(function(x){return (x.o.mehIds||[]).indexOf(prikazMeh)>=0;});
     var cekaMe=moje.filter(function(x){return x.o.status==="ceka"||x.o.status==="pauza";});
     var selOpts=MEH.map(function(mm){return '<option value="'+mm.id+'"'+(mm.id===prikazMeh?' selected':'')+'>'+esc(mm.ime)+'</option>';}).join("");
     var h='';
@@ -532,8 +532,7 @@
     nalozi.forEach(function(n){
       n.ops.forEach(function(o){
         if(o.status==="gotovo" || o.status==="dijelovi") return;   // gotovo i "čeka dio" nisu u redu
-        if(!o.mehId) return;
-        (map[o.mehId]=map[o.mehId]||[]).push({n:n,o:o});
+        (o.mehIds||[]).forEach(function(id){ (map[id]=map[id]||[]).push({n:n,o:o}); });
       });
     });
     Object.keys(map).forEach(function(id){
