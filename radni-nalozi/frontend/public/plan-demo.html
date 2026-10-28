@@ -103,6 +103,8 @@
   .lane-hitno{border-color:var(--crveno)}
   .lane-hitno .rang{background:var(--crveno)}
   .hitno-head{color:var(--crveno)}
+  .slob-card{display:flex;flex-wrap:wrap;gap:6px}
+  .slob-cip{display:inline-flex;align-items:center;font-size:12.5px;font-weight:700;color:var(--plava);background:var(--plava-soft);border-radius:999px;padding:4px 10px}
   .htag{color:var(--crveno);background:var(--crveno-bg)}
   .waitc,.waitc2{color:var(--muted);background:var(--s-plan-bg);font-weight:700}
   .xrem{border:1px solid var(--line);background:var(--card);color:var(--crveno);border-radius:7px;width:24px;height:24px;font-size:12px;line-height:1;cursor:pointer}
@@ -239,7 +241,7 @@
   function planSig(d){
     return JSON.stringify({
       z:!!d.zakljucan, p:(d.promjene||[]).length,
-      m:(d.mehanicari||[]).map(function(x){return x.id;}),
+      m:(d.mehanicari||[]).map(function(x){return x.id+(x.odsutan?'-o':'');}),
       n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,
           (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId];})];})
     });
@@ -436,6 +438,13 @@
       else h+='<div class="vozilo" style="padding:4px 0">Još nema promjena plana danas.</div>';
       h+='</div>';
     }
+    // Prisutni mehaničari bez ijednog (nezavršenog) zadatka — da poslovođa vidi tko je slobodan.
+    var _zauzeti={};
+    nalozi.forEach(function(n){ (n.ops||[]).forEach(function(o){ if(o.status!=="gotovo"){ (o.mehIds||[]).forEach(function(id){ _zauzeti[id]=1; }); } }); });
+    var slobodniR=(MEH||[]).filter(function(m){ return !m.odsutan && !_zauzeti[m.id]; }).sort(function(a,b){ return a.ime<b.ime?-1:1; });
+    h+='<div class="sek-nas">🙋 Prisutni bez zadatka ('+slobodniR.length+')</div>';
+    if(slobodniR.length){ h+='<div class="card slob-card">'+slobodniR.map(function(m){ return '<span class="slob-cip">👷 '+esc(m.ime)+'</span>'; }).join('')+'</div>'; }
+    else{ h+='<div class="card" style="color:var(--muted)">Svi prisutni mehaničari imaju zadatak.</div>'; }
     h+='<div class="sek-nas hitno-head">🔴 Hitno — preskače red</div>';
     if(hitni.length){ hitni.forEach(function(n){ h+=nalogCard(n,"🔴",null,"hit"); }); }
     else{ h+='<div class="card" style="color:var(--muted)">Nema hitnih. Označi kamion s 🔴 kad je stvarno hitno.</div>'; }
