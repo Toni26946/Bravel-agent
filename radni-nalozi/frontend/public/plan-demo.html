@@ -277,6 +277,7 @@
   function nalById(id){ for(var i=0;i<nalozi.length;i++) if(nalozi[i].id===id) return nalozi[i]; return null; }
   function posalji(opId){ act("/zadatak/"+opId+"/posalji"); }
   function isplaniraj(nid){ act("/nalog/"+nid+"/isplaniraj"); }
+  function isplanirajSve(){ if(_busy) return; _busy=true; api("/isplaniraj-sve","POST").then(function(r){ toast("📨 Poslano "+((r&&r.poslano)||0)+(r&&r.vec_rade?" · "+r.vec_rade+" već rade":"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
   function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
   function dodajRadnika(opId,mehId,postojeci){ if(!mehId) return; var ids=(postojeci||[]).slice(); var nid=parseInt(mehId,10); if(ids.indexOf(nid)<0) ids.push(nid); act("/zadatak/"+opId+"/dodijeli", {radnici_ids: ids}); }
@@ -415,7 +416,8 @@
     var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
     var h='';
     h+='<div class="pl-top">'+
-         (planZakljucan?'':'<button class="btn sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
+         (planZakljucan?'':'<button class="btn sm" onclick="PLAN.isplanirajSve()" title="Pošalji sve naloge iz plana odjednom — svakom mehaničaru njegov prvi zadatak">📨 Pošalji sve naloge</button>')+
+         (planZakljucan?'':'<button class="btn ghost sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
@@ -607,7 +609,7 @@
   }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs

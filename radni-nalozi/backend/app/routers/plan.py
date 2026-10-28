@@ -528,6 +528,47 @@ def isplaniraj(nalog_id: int, request: Request,
     return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
 
 
+@router.post("/isplaniraj-sve")
+def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Pošalji SVE naloge iz plana odjednom — jedan gumb umjesto po nalogu.
+    Skupi SVE mehaničare dodijeljene u planu (bez duplikata) i svakom pošalje
+    JEDNU poveznicu (njegov prvi zadatak u redu); ostali zadaci ostaju u redu.
+    Tko već radi — preskače se (red mu ide sam preko stranice)."""
+    from .dispecer import _red, posalji_poveznicu
+    nalozi = (db.query(Nalog)
+              .filter(Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None)).all())
+    mehanicari: dict[int, Korisnik] = {}
+    for n in nalozi:
+        if _gb(n) in _SKRIVENI_GB:
+            continue
+        for op in n.operacije:
+            for z in op.zadaci:
+                if z.gotovo or z.razlog_prekida == "dijelovi":
+                    continue
+                for r in z.radnici:
+                    mehanicari.setdefault(r.id, r)
+    poslano = 0
+    preskoceno_rade = 0
+    for m in mehanicari.values():
+        red = _red(db, m)
+        if not red:
+            continue
+        z = red[0][2]
+        if z.zapoceto:
+            preskoceno_rade += 1
+            continue
+        z.ceka_potvrdu = True
+        z.razlog_prekida = None
+        z.prekid_vrijeme = None
+        nt = z.operacija.nalog
+        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", str(request.base_url))
+        if wa.get("poslano"):
+            poslano += 1
+    db.commit()
+    return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano, "vec_rade": preskoceno_rade}
+
+
 class OcistiVrijemeIn(BaseModel):
     zadaci: list[int]
 
