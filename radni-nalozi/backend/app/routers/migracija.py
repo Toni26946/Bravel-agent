@@ -46,12 +46,15 @@ def u_postgres(token: str = Query(...), force: bool = Query(False),
                 if n:
                     raise HTTPException(status_code=409,
                                         detail=f"PG tablica {t.name} nije prazna ({n}). force=1 ako namjerno.")
-        # kopiraj u FK-safe redoslijedu
+        # Isključi FK provjeru tijekom punjenja (SQLite ne provjerava FK pa postoje
+        # siročad reference; app ih tolerira). Superuser može session_replication_role.
+        pc.execute(text("SET session_replication_role = replica"))
         for t in Base.metadata.sorted_tables:
             rows = [dict(r._mapping) for r in sc.execute(select(t))]
             if rows:
                 pc.execute(insert(t), rows)
             rez[t.name] = len(rows)
+        pc.execute(text("SET session_replication_role = origin"))
         # popravi sekvence (no-op ako tablica nema serial PK)
         for t in Base.metadata.sorted_tables:
             for col in t.primary_key.columns:
