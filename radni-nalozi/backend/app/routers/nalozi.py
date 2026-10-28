@@ -66,8 +66,9 @@ samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 # Poslovođa: ograničeni voditelj — smije kreirati i uređivati naloge (ne i brisati cijeli nalog).
 voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
 _UREDNICI = (Uloga.voditelj, Uloga.poslovodja)
-# Uloge koje se mogu prijaviti na operacije (rade rukama): mehaničar + poslovođa (radni poslovođa).
-_SERVISERI = (Uloga.radnik, Uloga.poslovodja)
+# Uloge koje se mogu prijaviti na operacije (rade rukama): SAMO mehaničari (radnik).
+# Poslovođe/voditelji dispečiraju, ne rade na nalozima.
+_SERVISERI = (Uloga.radnik,)
 
 
 # --- pomoćne funkcije --------------------------------------------------------
