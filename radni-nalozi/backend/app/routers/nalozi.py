@@ -361,6 +361,7 @@ async def izasli_iz_radione(korisnik: Korisnik = Depends(trenutni_korisnik), db:
             "id": n.id,
             "broj": n.broj,
             "vozilo": ({"gb": gb, "registracija": n.vozilo.registracija} if n.vozilo else None),
+            "voditelj": (n.voditelj.ime if n.voditelj else (n.kreirao.ime if n.kreirao else None)),
             "lat": lok["lat"], "lon": lok["lon"],
             "udaljenost_m": lok["udaljenost_m"], "mjesto": lok["mjesto"],
         })

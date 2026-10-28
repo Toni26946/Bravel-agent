@@ -70,8 +70,9 @@ def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_ur
     `poruka_dispecera`). GATED — ništa se ne šalje osim ako je izričito upaljeno:
     - `dispecer_wa_on` mora biti True i bravel-agent URL/ključ postavljeni,
     - ako je `dispecer_test_broj` postavljen → SVE ide samo na taj broj (test),
-    - inače mehaničarevo ime mora biti na `dispecer_wa_imena` allowlisti
-      (broj rješava bravel-agent iz svog imenika WHATSAPP_DRIVERS).
+    - inače se broj mehaničara povlači iz IMENIKA (Flota OS = izvor istine) po
+      imenu; bez broja u imeniku → ne šalje se. `dispecer_wa_imena` (ako je
+      postavljena) dodatno ograničava slanje na navedena imena (kill-switch za test).
     `poruka_override` (s {url}) i `link_suffix` (npr. "?kraj=1") za posebne poruke
     (kraj smjene). Nikad ne prekida tok dodjele — na grešci vrati {poslano:False}.
     """
@@ -89,10 +90,17 @@ def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_ur
         body["vozac"] = "test"
         body["broj"] = test
     else:
-        dozvoljeni = {x.strip().lower() for x in (settings.dispecer_wa_imena or "").split(",") if x.strip()}
-        if (radnik.ime or "").strip().lower() not in dozvoljeni:
+        # (opcionalno) kill-switch imena za vrijeme testa; prazno = svi mehaničari iz imenika
+        imena = {x.strip().lower() for x in (settings.dispecer_wa_imena or "").split(",") if x.strip()}
+        if imena and (radnik.ime or "").strip().lower() not in imena:
             return {"poslano": False, "razlog": "mehaničar nije na allowlisti"}
+        # Broj iz IMENIKA (Flota OS) po imenu — samo imena s jednim jednoznačnim brojem.
+        from .. import imenik
+        zapis = imenik.brojevi_po_imenu((imenik.dohvati().get("zapisi")) or []).get(imenik.kljuc_imena(radnik.ime))
+        if not zapis or not zapis.get("broj"):
+            return {"poslano": False, "razlog": "mehaničar nema broj u imeniku"}
         body["vozac"] = radnik.ime
+        body["broj"] = zapis["broj"]
     try:
         import httpx
         r = httpx.post(

@@ -55,6 +55,7 @@ export default function IzasliIzRadione() {
             <div className="izasli-info" onClick={() => nav(`/nalozi/${n.id}`)}>
               <div className="izasli-gb">🚚 {n.vozilo?.gb}</div>
               <div className="meta">{n.broj}{n.vozilo?.registracija ? ` · ${n.vozilo.registracija}` : ''}</div>
+              {n.voditelj && <div className="meta">👔 {n.voditelj}</div>}
               {(n.mjesto || n.lat != null) && (
                 n.lat != null && n.lon != null ? (
                   <a className="meta izasli-lok" href={`https://www.google.com/maps?q=${n.lat},${n.lon}`}
