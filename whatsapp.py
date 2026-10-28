@@ -69,11 +69,23 @@ def _samo_brojke(s):
 
 
 def _dispecer_dozvoljen(to):
-    """Dispečer (radni-nalozi) smije slati SAMO brojevima s WHATSAPP_DISPECER_BROJEVI
-    allowliste — i kad je globalni WHATSAPP_SLANJE_ON ugašen. Tako vozači/podsjetnici
-    ostaju blokirani, a dispečerski linkovi idu samo odabranima (test/mehaničari)."""
-    dozvoljeni = {_samo_brojke(b) for b in os.getenv("WHATSAPP_DISPECER_BROJEVI", "").split(",") if b.strip()}
-    return bool(dozvoljeni) and _samo_brojke(to) in dozvoljeni
+    """Dispečer (radni-nalozi) smije slati i kad je globalni WHATSAPP_SLANJE_ON
+    ugašen — ali SAMO odabranima: brojevima s ručne allowliste WHATSAPP_DISPECER_BROJEVI
+    (override/fallback) ILI brojevima AKTIVNIH mehaničara iz IMENIKA (Flota OS,
+    izvor istine). Tako dodavanje mehaničara u Imenik odmah propušta slanje, a
+    vozači/podsjetnici ostaju blokirani. Na grešci dohvata Imenika → padni natrag
+    SAMO na ručnu allowlistu (ne otvaraj slanje svima)."""
+    rucni = {_samo_brojke(b) for b in os.getenv("WHATSAPP_DISPECER_BROJEVI", "").split(",") if b.strip()}
+    if rucni and _samo_brojke(to) in rucni:
+        return True
+    try:
+        import imenik_flota
+        brojevi = imenik_flota.brojevi_mehanicara()
+        if brojevi and imenik_flota._norm_broj(to) in brojevi:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _post(path, payload):
