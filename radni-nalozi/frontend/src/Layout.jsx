@@ -7,8 +7,8 @@ import { MODULI } from './moduli'
 
 // Jedinstven redoslijed kartica u izborniku — isti za SVE korisnike.
 const NAV_RED = [
-  'grupa:plan',
-  '/plan', '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
+  '/plan', 'grupa:plan',
+  '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', 'grupa:skladiste', '/skladiste', '/skladiste/dashboard', '/evidencija',
   '/zaduzenja', '/radnici', '/pregledi', '/poslovodja', '/steta',
@@ -113,11 +113,10 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
   })
-  // Plan radione (grupa): Plan + dnevni radni pregledi.
+  // Plan radione (grupa): dnevni radni pregledi. (Plan je zasebna direktna kartica iznad.)
   const grupaPlan = () => ({
     grupa: 'plan', ikona: '📋', txt: 'Plan radione',
     djeca: [
-      ...(planPristup ? [{ do: '/plan', ikona: '📋', txt: 'Plan radione' }] : []),
       { do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') },
       { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },
       { do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') },
@@ -136,6 +135,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(true))
     tabovi.push(grupaSkladiste())
@@ -146,6 +146,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
     tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(false))
     tabovi.push(grupaSkladiste())
