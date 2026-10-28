@@ -25,10 +25,11 @@ if _je_sqlite:
     if not _je_sqlite_memorija:
         _pool_kwargs = {"pool_size": 10, "max_overflow": 20, "pool_timeout": 30}
 else:
-    # Postgres (produkcija): veći pool da se pod gužvom (više pollera na /api/plan)
-    # ne iscrpi — inače zahtjevi čekaju vezu 30 s i padnu na 500. pool_recycle
-    # reciklira stare veze koje je Postgres u međuvremenu zatvorio.
-    _pool_kwargs = {"pool_size": 10, "max_overflow": 20, "pool_recycle": 1800, "pool_timeout": 30}
+    # Postgres (produkcija): velik pool jer radiona ima puno otvorenih ekrana koji
+    # pollaju /api/plan. Postgres bez problema podnosi ovoliko veza (za razliku od
+    # SQLite-a). pool_recycle reciklira stare veze; pool_timeout kraći da pod špicom
+    # zahtjev brže odustane nego da visi 30 s.
+    _pool_kwargs = {"pool_size": 20, "max_overflow": 60, "pool_recycle": 1800, "pool_timeout": 15}
 
 engine = create_engine(_url, pool_pre_ping=True, connect_args=_connect_args, **_pool_kwargs)
 

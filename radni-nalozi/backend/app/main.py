@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders
 
 from . import auto_slanje
 from . import flota
@@ -124,23 +124,35 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
 
 
-class SigurnosniZaglavlja(BaseHTTPMiddleware):
-    """Dodaje osnovna sigurnosna HTTP zaglavlja na svaki odgovor."""
+class SigurnosniZaglavlja:
+    """Dodaje sigurnosna HTTP zaglavlja — ČISTI ASGI middleware (NE BaseHTTPMiddleware).
 
-    async def dispatch(self, request: Request, call_next) -> Response:
-        odgovor = await call_next(request)
-        odgovor.headers.setdefault("X-Content-Type-Options", "nosniff")
-        # Plan radione se prikazuje u <iframe> unutar appa (isti origin) → SAMEORIGIN; inače DENY.
-        odgovor.headers["X-Frame-Options"] = (
-            "SAMEORIGIN" if request.url.path == "/plan-demo.html" else "DENY"
-        )
-        odgovor.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        odgovor.headers.setdefault("Permissions-Policy", "geolocation=(), camera=(self), microphone=(self)")
-        # HSTS — promet ide preko HTTPS-a (Fly force_https).
-        odgovor.headers.setdefault(
-            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-        )
-        return odgovor
+    BaseHTTPMiddleware pod prekidom klijenta (česti polling + zatvaranje tabova) zna
+    spriječiti čišćenje ovisnosti (get_db `finally`) pa DB veze cure i pool pukne.
+    Čisti ASGI wrapper samo doda zaglavlja na http.response.start, bez diranja toka.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+
+        async def send_s_zaglavljima(message):
+            if message["type"] == "http.response.start":
+                h = MutableHeaders(scope=message)
+                h.setdefault("X-Content-Type-Options", "nosniff")
+                # Plan radione je u <iframe> (isti origin) → SAMEORIGIN; inače DENY.
+                h["X-Frame-Options"] = "SAMEORIGIN" if path == "/plan-demo.html" else "DENY"
+                h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+                h.setdefault("Permissions-Policy", "geolocation=(), camera=(self), microphone=(self)")
+                h.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+            await send(message)
+
+        await self.app(scope, receive, send_s_zaglavljima)
 
 
 app.add_middleware(SigurnosniZaglavlja)
