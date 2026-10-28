@@ -71,6 +71,52 @@ def test_spoj_po_imenu_samo_siguran():
     assert imenik.kljuc_imena("Horvat Ivan") not in po      # dva broja za isto ime → ne prikazuj
 
 
+class _Odg:
+    def __init__(self, status, tijelo):
+        self.status_code, self._t = status, tijelo
+
+    def json(self):
+        return self._t
+
+
+def test_upis_radione_kljucem_radione_i_osvjezi_kes(monkeypatch):
+    _resetiraj(monkeypatch)
+    monkeypatch.setattr(settings, "imenik_radiona_kljuc", "kr")
+    poslano = []
+
+    def post(url, json=None, params=None, headers=None, timeout=None):
+        poslano.append((url, json, params, headers))
+        return _Odg(200, {"ok": True, "id": 9})
+    monkeypatch.setattr(imenik.httpx, "post", post)
+    dohvati = []
+    monkeypatch.setattr(imenik, "_dohvati_flotu", lambda: dohvati.append(1) or FLOTA)
+    imenik.dohvati()                                       # napuni predmemoriju
+    d = imenik.spremi_radiona({"ime": "Novak Ante", "broj": "0991112222", "odjel": "URED"}, "Toni")
+    url, tijelo, _, hdr = poslano[0]
+    assert url.endswith("/api/imenik/radiona") and hdr == {"X-Imenik-Radiona-Kljuc": "kr"}
+    assert "odjel" not in tijelo and tijelo["korisnik"] == "Toni"   # odjel ne šaljemo — Flota ga prisiljava
+    assert len(dohvati) == 2 and d["broj"] == 3             # predmemorija odmah osvježena
+    imenik.postavi_aktivan_radiona(5, False, "Toni")
+    assert poslano[1][0].endswith("/api/imenik/radiona/5/aktivan") and poslano[1][2]["aktivan"] == "false"
+
+
+def test_upis_tudjeg_odjela_odbijen_i_bez_kljuca(monkeypatch):
+    _resetiraj(monkeypatch)
+    monkeypatch.setattr(settings, "imenik_radiona_kljuc", "kr")
+    monkeypatch.setattr(imenik.httpx, "post", lambda *a, **k: _Odg(403, {"detail": "Samo RADIONA."}))
+    try:
+        imenik.spremi_radiona({"id": 1, "broj": "0991112222"}, "Toni")
+        raise AssertionError("mora pasti")
+    except imenik.GreskaUpisa as e:
+        assert e.status == 403 and "RADIONA" in e.poruka
+    monkeypatch.setattr(settings, "imenik_radiona_kljuc", "")
+    try:
+        imenik.spremi_radiona({"broj": "0991112222"}, "Toni")
+        raise AssertionError("bez ključa upis mora biti isključen")
+    except imenik.GreskaUpisa as e:
+        assert e.status == 503
+
+
 def test_pristup_vlasnik_ili_modul(monkeypatch):
     monkeypatch.setattr(settings, "ai_poslovodja_user", "toni")
     vlasnik = Korisnik(ime="Toni", korisnicko_ime="toni", lozinka_hash="x", uloga=Uloga.voditelj, aktivan=True)

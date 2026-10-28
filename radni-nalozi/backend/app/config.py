@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     # Imenik telefona — ČITANJE iz Flota OS-a (GET /api/imenik, zaglavlje X-Imenik-Kljuc).
     # Isti fly secret IMENIK_KLJUC i na Floti. Prazno = imenik prikazuje poruku „nije povezan".
     imenik_kljuc: str = ""               # IMENIK_KLJUC — fly secret
+    # Zaseban ključ za UPIS u imenik — Flota ga prihvaća SAMO za odjel RADIONA. Prazno = upis isključen.
+    imenik_radiona_kljuc: str = ""       # IMENIK_RADIONA_KLJUC — fly secret
     flota_email: str = ""                # alternativa: lokalni račun (12 h JWT)
     flota_lozinka: str = ""
     radiona_lat: float = 0.0
