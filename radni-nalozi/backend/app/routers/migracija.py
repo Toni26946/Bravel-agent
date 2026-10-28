@@ -9,7 +9,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import create_engine, func, insert, select, text
+from sqlalchemy import Integer, create_engine, func, insert, select, text
 
 from ..auth import zahtijevaj_plan_pristup
 from ..database import Base, engine as izvor_engine
@@ -58,6 +58,8 @@ def u_postgres(token: str = Query(...), force: bool = Query(False),
         # popravi sekvence (no-op ako tablica nema serial PK)
         for t in Base.metadata.sorted_tables:
             for col in t.primary_key.columns:
+                if not isinstance(col.type, Integer):
+                    continue   # sekvenca samo za cjelobrojne PK-ove (ne npr. postavke.kljuc)
                 pc.execute(text(
                     "SELECT setval(seq, GREATEST(COALESCE(maxid, 1), 1), true) "
                     "FROM (SELECT pg_get_serial_sequence(:tbl, :col) AS seq, "
