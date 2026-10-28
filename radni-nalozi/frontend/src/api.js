@@ -256,6 +256,9 @@ export const api = {
 
   // Imenik telefona — samo čitanje (izvor je Flota OS)
   imenik: (osvjezi = false) => zahtjev('/imenik' + (osvjezi ? '?osvjezi=1' : '')),
+  // Upis SAMO za odjel RADIONA (ide u Flotu; vraća svježi imenik)
+  imenikRadionaSpremi: (zapis) => zahtjev('/imenik/radiona', { method: 'POST', body: zapis }),
+  imenikRadionaAktivan: (id, aktivan) => zahtjev(`/imenik/radiona/${id}/aktivan?aktivan=${aktivan}`, { method: 'POST' }),
 
   // Push
   pushKljuc: () => zahtjev('/push/kljuc'),

@@ -62,6 +62,49 @@ def dohvati(osvjezi: bool = False) -> dict:
             "zastarjelo": True, "greska": greska}
 
 
+class GreskaUpisa(Exception):
+    """Flota je odbila upis (status + poruka za korisnika)."""
+
+    def __init__(self, status: int, poruka: str):
+        super().__init__(poruka)
+        self.status = status
+        self.poruka = poruka
+
+
+def _posalji_flotu(putanja: str, json: dict | None = None, params: dict | None = None) -> dict:
+    """POST na Flotu ključem radione. Baca GreskaUpisa (nikad sirovu iznimku s podacima)."""
+    if not settings.imenik_radiona_kljuc:
+        raise GreskaUpisa(503, "Upis u imenik nije uključen (nedostaje IMENIK_RADIONA_KLJUC).")
+    base = settings.flota_api_base.rstrip("/")
+    try:
+        r = httpx.post(f"{base}{putanja}", json=json, params=params, timeout=15,
+                       headers={"X-Imenik-Radiona-Kljuc": settings.imenik_radiona_kljuc})
+    except Exception as e:  # noqa: BLE001
+        log.warning("Imenik upis: Flota OS ne odgovara (%s)", type(e).__name__)
+        raise GreskaUpisa(502, "Flota OS trenutno ne odgovara — broj nije spremljen.")
+    if r.status_code != 200:
+        try:
+            poruka = r.json().get("detail") or f"Flota OS HTTP {r.status_code}"
+        except Exception:  # noqa: BLE001
+            poruka = f"Flota OS HTTP {r.status_code}"
+        raise GreskaUpisa(r.status_code if r.status_code in (400, 403, 404) else 502, str(poruka))
+    return r.json()
+
+
+def spremi_radiona(d: dict, korisnik_ime: str) -> dict:
+    """Novi broj ili ispravak — SAMO odjel RADIONA (Flota to i sama prisiljava). Nakon upisa se
+    predmemorija odmah osvježi, pa korisnik odmah vidi novo stanje. Vraća svježi imenik."""
+    polja = ("id", "ime", "opis", "broj", "kratki", "tarifa", "napomena")
+    _posalji_flotu("/api/imenik/radiona", json={**{k: d.get(k) for k in polja}, "korisnik": korisnik_ime})
+    return dohvati(osvjezi=True)
+
+
+def postavi_aktivan_radiona(rid: int, aktivan: bool, korisnik_ime: str) -> dict:
+    _posalji_flotu(f"/api/imenik/radiona/{int(rid)}/aktivan",
+                   params={"aktivan": "true" if aktivan else "false", "korisnik": korisnik_ime})
+    return dohvati(osvjezi=True)
+
+
 def kljuc_imena(ime: str | None) -> str:
     """„Kovač Marko" == „marko KOVAC": bez dijakritike, mala slova, riječi sortirane."""
     s = str(ime or "").replace("đ", "d").replace("Đ", "D")
