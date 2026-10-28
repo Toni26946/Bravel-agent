@@ -80,6 +80,28 @@ def _poslije_smjene() -> bool:
     return n.hour > KRAJ_H or (n.hour == KRAJ_H and n.minute >= KRAJ_M)
 
 
+def _je_odsutan(m) -> bool:
+    """Je li mehaničar danas odsutan (godišnji/bolovanje) — ista logika kao /api/plan."""
+    if not m.odsutnost_vrsta:
+        return False
+    danas = _hr_now().date().isoformat()
+    if m.odsutnost_do and danas > m.odsutnost_do.isoformat():
+        return False   # odsutnost istekla
+    return True
+
+
+# Auto-slanje jutarnjeg plana (Postavka ključevi; vrijeme je HR lokalno, datum je dan okidanja — jednokratno).
+KLJUC_AUTO_HHMM = "plan_auto_hhmm"
+KLJUC_AUTO_DATUM = "plan_auto_datum"
+
+
+def _auto_slanje_stanje(db: Session) -> dict:
+    from .. import norme
+    hhmm = norme.get_postavka(db, KLJUC_AUTO_HHMM)
+    datum = norme.get_postavka(db, KLJUC_AUTO_DATUM)
+    return {"ukljuceno": bool(hhmm and datum), "ura": hhmm or "06:45", "datum": datum}
+
+
 def _gb(n: Nalog) -> str:
     return (n.vozilo.gb if n and n.vozilo else "") or ""
 
@@ -268,6 +290,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         "zakljucan": zakljucan,
         "zakljucaoIme": (zak.ime if zak else None),
         "zakljucanoTs": (_ms(st.zakljucano) if zakljucan else None),
+        "autoSlanje": _auto_slanje_stanje(db),
     }
 
 
@@ -542,12 +565,11 @@ def isplaniraj(nalog_id: int, request: Request,
             "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano}
 
 
-@router.post("/isplaniraj-sve")
-def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
-    """Pošalji SVE naloge iz plana odjednom — jedan gumb umjesto po nalogu.
-    Skupi SVE mehaničare dodijeljene u planu (bez duplikata) i svakom pošalje
-    JEDNU poveznicu (njegov prvi zadatak u redu); ostali zadaci ostaju u redu.
-    Tko već radi — preskače se (red mu ide sam preko stranice)."""
+def posalji_sve_plan(db: Session, base_url: str) -> dict:
+    """Jezgra 'Pošalji sve naloge': svakom DODIJELJENOM i PRISUTNOM mehaničaru pošalji
+    poveznicu na njegov prvi zadatak u redu. Preskače: odsutne (godišnji/bolovanje),
+    one koji već rade (mjerač teče) i one kojima je već poslano (ceka_potvrdu). Koristi
+    je i ručni gumb i jutarnje auto-slanje (zato prima base_url umjesto Requesta)."""
     from .dispecer import _red, posalji_poveznicu
     nalozi = (db.query(Nalog)
               .filter(Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None)).all())
@@ -564,7 +586,11 @@ def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik)
     poslano = 0
     preskoceno_rade = 0
     vec_poslano = 0
+    odsutni = 0
     for m in mehanicari.values():
+        if _je_odsutan(m):
+            odsutni += 1
+            continue
         red = _red(db, m)
         if not red:
             continue
@@ -580,12 +606,49 @@ def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik)
         z.prekid_vrijeme = None
         nt = z.operacija.nalog
         obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
-        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", str(request.base_url))
+        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", base_url)
         if wa.get("poslano"):
             poslano += 1
     db.commit()
     return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano,
-            "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano}
+            "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano, "odsutni": odsutni}
+
+
+@router.post("/isplaniraj-sve")
+def isplaniraj_sve(request: Request, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Pošalji SVE naloge iz plana odjednom — jedan gumb umjesto po nalogu."""
+    return posalji_sve_plan(db, str(request.base_url))
+
+
+class AutoSlanjeIn(BaseModel):
+    ukljuceno: bool
+    ura: str | None = None   # "HH:MM" (HR lokalno); prazno = 06:45
+
+
+@router.post("/auto-slanje")
+def auto_slanje(p: AutoSlanjeIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Zakaži (ili otkaži) jutarnje auto-slanje plana. Jednokratno: okine se jednom na
+    sljedeći termin pa se sam ugasi. Vrijeme je HR lokalno; ako je danas već prošlo → sutra."""
+    from .. import norme
+    if not p.ukljuceno:
+        norme.set_postavka(db, KLJUC_AUTO_HHMM, None)
+        norme.set_postavka(db, KLJUC_AUTO_DATUM, None)
+        db.commit()
+        return {"ok": True, "ukljuceno": False}
+    dijelovi = (p.ura or "06:45").strip().split(":")
+    try:
+        hh, mm = int(dijelovi[0]), int(dijelovi[1])
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="Neispravno vrijeme (HH:MM)")
+    hhmm = f"{hh:02d}:{mm:02d}"
+    now = _hr_now()
+    datum = now.date() if (now.hour, now.minute) < (hh, mm) else now.date() + timedelta(days=1)
+    norme.set_postavka(db, KLJUC_AUTO_HHMM, hhmm)
+    norme.set_postavka(db, KLJUC_AUTO_DATUM, datum.isoformat())
+    db.commit()
+    return {"ok": True, "ukljuceno": True, "ura": hhmm, "datum": datum.isoformat()}
 
 
 class OcistiVrijemeIn(BaseModel):

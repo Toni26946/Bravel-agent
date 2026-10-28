@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from . import auto_slanje
 from . import flota
 from . import kraj_smjene
 from . import podsjetnici
@@ -109,12 +110,15 @@ async def lifespan(app: FastAPI):
     parking_task = asyncio.create_task(podsjetnici.petlja())
     # Kraj smjene (pitanje "gotov za danas / ostaješ dulje") — radi tek kad se upali.
     kraj_task = asyncio.create_task(kraj_smjene.petlja())
+    # Jutarnje auto-slanje plana (okida se kad vlasnik zakaže termin; inače miruje).
+    auto_task = asyncio.create_task(auto_slanje.petlja())
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
     if flota_task:
         flota_task.cancel()
     parking_task.cancel()
     kraj_task.cancel()
+    auto_task.cancel()
 
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
