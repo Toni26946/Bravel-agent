@@ -7,11 +7,11 @@ import { MODULI } from './moduli'
 
 // Jedinstven redoslijed kartica u izborniku — isti za SVE korisnike.
 const NAV_RED = [
-  '/plan',
-  '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
+  'grupa:plan',
+  '/plan', '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/moja-radiona', '/moj-ucinak', '/prijave',
-  'grupa:vozila', '/skladiste', '/skladiste/dashboard', '/evidencija',
-  '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/poslovodja', '/steta',
+  'grupa:vozila', 'grupa:skladiste', '/skladiste', '/skladiste/dashboard', '/evidencija',
+  '/zaduzenja', '/radnici', '/pregledi', '/poslovodja', '/steta',
   '/imenik', '/profil',
 ]
 
@@ -113,35 +113,43 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
   })
+  // Plan radione (grupa): Plan + dnevni radni pregledi.
+  const grupaPlan = () => ({
+    grupa: 'plan', ikona: '📋', txt: 'Plan radione',
+    djeca: [
+      ...(planPristup ? [{ do: '/plan', ikona: '📋', txt: 'Plan radione' }] : []),
+      { do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') },
+      { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },
+      { do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') },
+      { do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') },
+    ],
+  })
+  // Skladište (grupa): Skladište + Evidencija dijelova.
+  const grupaSkladiste = () => ({
+    grupa: 'skladiste', ikona: '📦', txt: t('tab.skladiste'),
+    djeca: [
+      { do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') },
+      { do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') },
+    ],
+  })
   if (korisnik?.uloga === 'vozac') {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
-    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
-    tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
-    tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
-    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
-    tabovi.push({ do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') })
+    tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(true))
-    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
-    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
+    tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
-    tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
-    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
-    tabovi.push({ do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') })
-    tabovi.push({ do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') })
-    tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
+    tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(false))
-    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
-    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
+    tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
-    tabovi.push({ do: '/vozaci', ikona: '🧑‍✈️', txt: t('tab.vozaci') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
@@ -179,7 +187,9 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     // '/plan' je izuzet iz filtra — njegovu vidljivost odlučuje gornji push (planPristup).
     // '/imenik' isto — odlučuje korisnik.imenik (vlasnik ILI modul).
     vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || x.do === '/imenik' || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
-    const prisutni = new Set(vidljiviTabovi.map((x) => x.do))
+    // Prisutni = i top-level i djeca grupa (da se modul ne doda duplo kao zasebna kartica).
+    const prisutni = new Set()
+    vidljiviTabovi.forEach((x) => { if (x.do) prisutni.add(x.do); if (x.djeca) x.djeca.forEach((d) => prisutni.add(d.do)) })
     for (const m of MODULI) {
       // '/plan' i '/imenik' se dodaju gore (planPristup / korisnik.imenik), ne ovdje.
       if (m.key === '/plan' || m.key === '/imenik') continue
