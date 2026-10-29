@@ -720,19 +720,25 @@
     if(!cont||!card) return;
     e.preventDefault(); e.stopPropagation();
     _drag=true; card.classList.add("dragging");
-    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+    // Slušatelji na DOCUMENT (ne na ručku): pointer tijekom povlačenja ide po elementu
+    // ispod kursora, a i setPointerCapture se otpusti kad karticu premjestimo u DOM-u.
+    // touch-action:none na ručki spriječi skrol na dodir pa potezi dolaze kao pointermove.
     function onMove(ev){
+      if(ev.cancelable) ev.preventDefault();
       var y=ev.clientY, cards=cont.querySelectorAll(".card.nalog"), before=null;
       for(var i=0;i<cards.length;i++){ var c=cards[i]; if(c===card) continue; var r=c.getBoundingClientRect(); if(y < r.top + r.height/2){ before=c; break; } }
       if(before){ if(card.nextSibling!==before) cont.insertBefore(card, before); }
       else if(cont.lastChild!==card){ cont.appendChild(card); }
     }
     function end(){
-      try{ h.releasePointerCapture(e.pointerId); }catch(_){}
-      h.removeEventListener("pointermove",onMove); h.removeEventListener("pointerup",end); h.removeEventListener("pointercancel",end);
+      document.removeEventListener("pointermove",onMove,true);
+      document.removeEventListener("pointerup",end,true);
+      document.removeEventListener("pointercancel",end,true);
       card.classList.remove("dragging"); _drag=false; _plan_commit_red();
     }
-    h.addEventListener("pointermove",onMove); h.addEventListener("pointerup",end); h.addEventListener("pointercancel",end);
+    document.addEventListener("pointermove",onMove,true);
+    document.addEventListener("pointerup",end,true);
+    document.addEventListener("pointercancel",end,true);
   }
   document.getElementById("v-pl").addEventListener("pointerdown", _planDrag);
 
