@@ -403,8 +403,8 @@ class DodajIn(BaseModel):
 
 @router.post("/dodaj")
 def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
-    """Dodaj kamion (po garažnom broju) na KRAJ plana — za brzo slaganje plana
-    tipkanjem GB-ova. Vraća na koju je poziciju došao."""
+    """Dodaj kamion (po garažnom broju) na VRH plana (prvo mjesto) — da novi odmah
+    bude na vrhu bez skrolanja. Vraća na koju je poziciju došao (0)."""
     _provjeri_otkljucan(db)
     gb = (p.gb or "").strip()
     if not gb:
@@ -418,8 +418,12 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
             break
     if not nalog:
         raise HTTPException(status_code=404, detail=f"Nema aktivnog naloga za GB {gb}")
-    maxr = db.query(func.max(Nalog.plan_rang)).filter(Nalog.status.in_(_AKTIVNI)).scalar()
-    nalog.plan_rang = (maxr if maxr is not None else -1) + 1
+    # Novi na VRH plana (prvo mjesto) — ostale u planu pomakni za 1 niže.
+    for n in db.query(Nalog).filter(
+        Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None), Nalog.id != nalog.id
+    ).all():
+        n.plan_rang = (n.plan_rang or 0) + 1
+    nalog.plan_rang = 0
     db.commit()
     return {"ok": True, "gb": _gb(nalog), "rang": nalog.plan_rang}
 
