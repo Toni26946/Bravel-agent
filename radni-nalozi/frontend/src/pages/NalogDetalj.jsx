@@ -516,38 +516,11 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
   )
 }
 
-// Popis radnika na zadatku (može ih biti više). Voditelj dodaje/uklanja.
-function RadniciZadatka({ nalog, z, radnici, jeVoditelj, wrap }) {
-  const { t } = useT()
+// Popis radnika na zadatku — SAMO prikaz. Dodjela/skidanje radnika (prijava) radi
+// se isključivo u Planu (dispečer), ne na nalogu.
+function RadniciZadatka({ z }) {
   const dodijeljeni = z.radnici && z.radnici.length ? z.radnici : (z.zaduzeni ? [z.zaduzeni] : [])
-  const ids = dodijeljeni.map((r) => r.id)
-  const postavi = (novi) => wrap(api.azurirajZadatak(nalog.id, z.id, { radnici_ids: novi }))
-  // Ne nudi radnike koji se ne prijavljuju (npr. skladištar); već dodijeljeni ostaju vidljivi.
-  const slobodni = radnici.filter((r) => !ids.includes(r.id) && r.prijavljuje_se !== false)
-
-  if (!jeVoditelj) {
-    return <span className="rad-tekst">{dodijeljeni.map((r) => r.ime).join(', ') || '—'}</span>
-  }
-  return (
-    <div className="rad-multi">
-      {dodijeljeni.map((r) => (
-        <span key={r.id} className="rad-chip">
-          {r.ime}
-          <span className="rad-chip-x" onClick={() => postavi(ids.filter((x) => x !== r.id))}>×</span>
-        </span>
-      ))}
-      {slobodni.length > 0 && (
-        <select
-          className="rad-select"
-          value=""
-          onChange={(e) => { if (e.target.value) postavi([...ids, Number(e.target.value)]) }}
-        >
-          <option value="">{t('op.dodajRadnika')}</option>
-          {slobodni.map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-        </select>
-      )}
-    </div>
-  )
+  return <span className="rad-tekst">{dodijeljeni.map((r) => r.ime).join(', ') || '—'}</span>
 }
 
 function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
