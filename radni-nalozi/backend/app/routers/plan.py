@@ -751,6 +751,11 @@ def _smije_meh(korisnik: Korisnik, z: Zadatak) -> bool:
 
 @router.post("/zadatak/{zid}/potvrdi")
 def potvrdi(zid: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    # Prijava (početak/nastavak rada) ide ISKLJUČIVO preko WhatsApp poveznice (dispečer,
+    # z_pocinjem). Prijava preko naloga/portala je onemogućena — ni poslovođa ni radnik ne
+    # mogu pokrenuti mehaničara ovim putem.
+    raise HTTPException(status_code=403,
+                        detail="Prijava (početak rada) ide isključivo preko WhatsApp poveznice.")
     z = _zad(db, zid)
     if not _smije_meh(korisnik, z):
         raise HTTPException(status_code=403, detail="Nije tvoja operacija")

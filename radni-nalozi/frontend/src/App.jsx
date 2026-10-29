@@ -117,7 +117,8 @@ export default function App() {
       {/* Šifrarnik: voditelj */}
       <Route path="/sifrarnik" element={<Zasticeno uloge={['voditelj']}><Sifrarnik /></Zasticeno>} />
       <Route path="/radnici" element={<Zasticeno uloge={['voditelj']}><Sifrarnik pocetniTab="korisnici" /></Zasticeno>} />
-      <Route path="/moja-radiona" element={<Zasticeno uloge={['radnik', 'voditelj', 'poslovodja']}><MojaRadiona /></Zasticeno>} />
+      {/* „Moja radiona" više nije za mehaničara — rad ide isključivo preko WhatsApp poveznice. */}
+      <Route path="/moja-radiona" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><MojaRadiona /></Zasticeno>} />
 
       <Route path="/profil" element={<Zasticeno><Profil /></Zasticeno>} />
 

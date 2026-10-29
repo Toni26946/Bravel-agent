@@ -535,7 +535,7 @@
       var pauza = x.o.status==="pauza" || (x.o.akumSek||0)>0;  // nastavak ako ima nakupljenog vremena
       h+='<div class="notif"><div class="nt">'+(pauza?'⏸ NIJE GOTOVO — NASTAVI':'🔔 NOVA OPERACIJA — POTVRDI POČETAK')+(x.n.hitno?' <span class="chip htag" style="margin-left:4px">🔴 HITNO</span>':'')+'</div>'+
          '<div style="margin:6px 0 8px"><b>'+esc(x.o.naziv)+'</b><br><span class="vozilo">GB '+esc(x.n.gb)+' · '+esc(x.n.vozilo)+(pauza&&x.o.akumSek?' · dosad ⏱ '+trajanje(x.o.akumSek):'')+'</span></div>'+
-         '<button class="btn" style="width:100%" onclick="PLAN.potvrdi('+x.o.id+')">'+(pauza?'▶️ Nastavi':'▶️ Potvrdi početak')+'</button></div>';
+         '<div class="hint" style="margin:0;text-align:center">📲 Mehaničar '+(pauza?'nastavlja':'potvrđuje početak')+' preko WhatsApp poveznice.</div></div>';
     });
     var radu=moje.filter(function(x){return x.o.status==="radu";});
     radu.forEach(function(x){

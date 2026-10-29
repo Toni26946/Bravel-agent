@@ -159,7 +159,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
   }
   if (korisnik?.uloga === 'radnik') {
-    tabovi.push({ do: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona' })
+    // „Moja radiona" maknuta — mehaničar radi isključivo preko WhatsApp poveznice.
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }

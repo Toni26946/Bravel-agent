@@ -1194,9 +1194,10 @@ def mjerac_zadatka(
     nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     if podaci.akcija == "start":
-        if nalog.status == StatusNaloga.ceka_dijelove:
-            raise HTTPException(status_code=409, detail="Nalog čeka dijelove — mjerenje je pauzirano.")
-        _pokreni_mjerac(db, z)
+        # Prijava (početak rada) ide ISKLJUČIVO preko WhatsApp poveznice (dispečer) —
+        # pokretanje mehaničara preko naloga je onemogućeno.
+        raise HTTPException(status_code=403,
+                            detail="Prijava (početak rada) ide isključivo preko WhatsApp poveznice.")
     elif podaci.akcija == "stop":
         _zaustavi_mjerac(z)
     else:

@@ -29,7 +29,7 @@ export default function MojaRadiona() {
     setRadi(zid); setGreska('')
     try { await fn(); await ucitaj() } catch (e) { setGreska(e.message) } finally { setRadi(0) }
   }
-  const potvrdi = (o) => akcija(() => api.planPotvrdi(o.id), o.id)
+  // Prijava (početak) ide ISKLJUČIVO preko WhatsApp poveznice (dispečer) — ne iz portala.
   const prekini = async (razlog) => { const o = stop; setStop(null); if (o) await akcija(() => api.planPrekini(o.id, razlog), o.id) }
 
   if (ops === null) return <Layout naslov="Moja radiona"><Spinner /></Layout>
@@ -62,9 +62,9 @@ export default function MojaRadiona() {
               <b>{o.naziv}</b>{o.kat ? ` · ${o.kat}` : ''}
               {nastavak && o.akumSek > 0 ? ` · dosad ⏱ ${trajanje(o.akumSek)}` : ''}
             </p>
-            <button className="btn" style={{ width: '100%' }} disabled={radi === o.id} onClick={() => potvrdi(o)}>
-              {radi === o.id ? '…' : (nastavak ? '▶️ Nastavi' : '▶️ Potvrdi početak')}
-            </button>
+            <div className="meta" style={{ textAlign: 'center', padding: '8px 0 2px' }}>
+              📲 {nastavak ? 'Nastavi' : 'Potvrdi početak'} preko WhatsApp poveznice koju si dobio.
+            </div>
           </div>
         )
       })}
