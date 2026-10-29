@@ -33,7 +33,7 @@ KRAJ_H, KRAJ_M = 14, 45
 MAX_HITNO = 3
 # Interni/pomoćni nalozi koji se NE prikazuju u planu (npr. "RADIONA").
 _SKRIVENI_GB = set()   # interni/skriveni GB-ovi (prazno = ništa skriveno; GB 400 otkriven)
-MAX_PLAN = 15   # najviše vozila u planu (nove dodavanje preko ovoga se odbija)
+MAX_PLAN = 20   # najviše vozila u planu (nove dodavanje preko ovoga se odbija)
 
 
 # --- pomoćno ---------------------------------------------------------------
