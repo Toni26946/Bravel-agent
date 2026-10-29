@@ -42,13 +42,14 @@
   main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;padding-block:16px}
   .wrap{max-width:1040px;margin:0 auto}
   /* Fiksni bočni popis vozila u planu (desno) — brzi skok do naloga. Skriven na užem ekranu. */
-  .plan-idx{position:fixed;top:104px;right:12px;width:62px;max-height:74vh;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 5px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:flex;flex-direction:column;gap:3px}
+  .plan-idx{position:fixed;top:104px;right:12px;width:62px;max-height:74vh;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 5px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:none;flex-direction:column;gap:3px}
   .plan-idx-h{font-size:10px;font-weight:800;color:var(--muted);text-align:center;margin-bottom:1px}
   .plan-idx-it{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:5px 2px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;text-align:center}
   .plan-idx-it:hover{border-color:var(--plava);color:var(--plava)}
   .plan-idx-it.hit{border-color:#e5534b;color:#b3261e}
   .card.flash{outline:2px solid var(--plava);outline-offset:2px}
-  @media(max-width:1199px){ .plan-idx{display:none} }
+  /* Pokaži popis i rezerviraj mu prostor desno — samo u plan pogledu i kad ima dovoljno širine. */
+  @media(min-width:760px){ body.view-pl .plan-idx{display:flex} body.view-pl main{padding-right:84px} }
   .hint{color:var(--muted);font-size:12.5px;margin:0 0 12px}
 
   /* --- Kartice / zajedničko --- */
@@ -633,6 +634,7 @@
     document.getElementById("v-pl").hidden = pogled!=="pl";
     document.getElementById("v-meh").hidden = pogled!=="meh";
     document.getElementById("v-dash").hidden = pogled!=="dash";
+    document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
     var cekaUk = svabOps().filter(function(x){return x.o.status==="ceka"||x.o.status==="pauza";}).length;
     var mt = document.querySelector('.tab[data-v="meh"]');
