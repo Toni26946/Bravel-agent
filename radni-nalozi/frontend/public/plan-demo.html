@@ -175,7 +175,8 @@
   .rad-br{margin-left:auto;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
   .rad-cells{display:flex;gap:8px}
-  .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:18px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative}
+  .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:18px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .rad-cell.drag-arm{outline:2px solid var(--plava);outline-offset:1px}
   .rad-cell.c-radu{border-color:var(--s-radu)}
   .rad-cell .rc-poz{position:absolute;top:5px;right:8px;font-size:10px;font-weight:800;color:var(--muted)}
   .rad-cell .rc-drag{position:absolute;top:3px;left:5px;border:0;background:none;color:var(--muted);cursor:grab;touch-action:none;font-size:13px;line-height:1;padding:0 2px;font-family:inherit}
@@ -758,12 +759,9 @@
     if(!rid||!zids.length) return;
     api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
   }
-  function _dashDrag(e){
-    var h=e.target.closest(".rc-drag"); if(!h) return;
-    var cont=h.closest(".rad-cells"); var card=h.closest(".rad-cell");
-    if(!cont||!card) return;
-    e.preventDefault(); e.stopPropagation();
-    _drag=true; card.classList.add("dragging");
+  // Pokreni stvarno povlačenje kartice (zajedničko za desktop ručku i mobitel long-press).
+  function _beginDashDrag(card, cont){
+    _drag=true; card.classList.add("dragging"); card.classList.remove("drag-arm");
     function onMove(ev){
       if(ev.cancelable) ev.preventDefault();
       var x=ev.clientX, cells=cont.querySelectorAll(".rad-cell"), before=null;
@@ -775,13 +773,44 @@
       document.removeEventListener("pointermove",onMove,true);
       document.removeEventListener("pointerup",end,true);
       document.removeEventListener("pointercancel",end,true);
-      card.classList.remove("dragging"); _drag=false; _dash_commit(cont);
+      card.classList.remove("dragging"); _drag=false;
+      // progutaj klik koji dolazi nakon povlačenja (da se ne otvori nalog)
+      var eat=function(ev){ ev.preventDefault(); ev.stopPropagation(); document.removeEventListener("click",eat,true); };
+      document.addEventListener("click",eat,true);
+      setTimeout(function(){ document.removeEventListener("click",eat,true); }, 500);
+      _dash_commit(cont);
     }
     document.addEventListener("pointermove",onMove,true);
     document.addEventListener("pointerup",end,true);
     document.addEventListener("pointercancel",end,true);
   }
-  document.getElementById("v-dash").addEventListener("pointerdown", _dashDrag);
+  function _dashStart(e){
+    var card=e.target.closest(".rad-cell"); if(!card) return;
+    var cont=card.closest(".rad-cells"); if(!cont) return;
+    if(!card.querySelector(".rc-drag")) return;   // „u tijeku" / nepomična kartica
+    if(e.pointerType!=="touch"){
+      // DESKTOP: samo preko ručke ⠿, kreni odmah
+      if(!e.target.closest(".rc-drag")) return;
+      e.preventDefault(); e.stopPropagation();
+      _beginDashDrag(card, cont);
+      return;
+    }
+    // MOBITEL: drži 0,5 s na kartici pa povuci. Pomak prije toga = skrol (odustani).
+    var sx=e.clientX, sy=e.clientY, krenulo=false;
+    card.classList.add("drag-arm");
+    var timer=setTimeout(function(){
+      krenulo=true; cleanup();
+      if(navigator.vibrate){ try{ navigator.vibrate(30); }catch(_){ } }
+      _beginDashDrag(card, cont);
+    }, 500);
+    function pm(ev){ if(krenulo) return; if(Math.abs(ev.clientX-sx)>10 || Math.abs(ev.clientY-sy)>10){ clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); } }
+    function pu(){ clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); }
+    function cleanup(){ document.removeEventListener("pointermove",pm,true); document.removeEventListener("pointerup",pu,true); document.removeEventListener("pointercancel",pu,true); }
+    document.addEventListener("pointermove",pm,true);
+    document.addEventListener("pointerup",pu,true);
+    document.addEventListener("pointercancel",pu,true);
+  }
+  document.getElementById("v-dash").addEventListener("pointerdown", _dashStart);
 
   render();
   ucitaj();                        // početni dohvat stvarnih podataka
