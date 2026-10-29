@@ -41,6 +41,14 @@
 
   main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;padding-block:16px}
   .wrap{max-width:1040px;margin:0 auto}
+  /* Fiksni bočni popis vozila u planu (desno) — brzi skok do naloga. Skriven na užem ekranu. */
+  .plan-idx{position:fixed;top:104px;right:12px;width:62px;max-height:74vh;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 5px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:flex;flex-direction:column;gap:3px}
+  .plan-idx-h{font-size:10px;font-weight:800;color:var(--muted);text-align:center;margin-bottom:1px}
+  .plan-idx-it{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:5px 2px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;text-align:center}
+  .plan-idx-it:hover{border-color:var(--plava);color:var(--plava)}
+  .plan-idx-it.hit{border-color:#e5534b;color:#b3261e}
+  .card.flash{outline:2px solid var(--plava);outline-offset:2px}
+  @media(max-width:1199px){ .plan-idx{display:none} }
   .hint{color:var(--muted);font-size:12.5px;margin:0 0 12px}
 
   /* --- Kartice / zajedničko --- */
@@ -358,7 +366,7 @@
   function nalogCard(n, rankTxt, idxObj, lane){
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+' ('+bz+')</option>'; }); return s; };
     var mehOptsExcept=function(ids){ var set={}; (ids||[]).forEach(function(i){set[i]=1;}); var s='<option value="">— dodaj —</option>'; MEH.forEach(function(m){ if(set[m.id])return; var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'">'+esc(m.ime)+' ('+bz+')</option>'; }); return s; };
-    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
+    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" id="nalog-'+n.id+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
     h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     if(!planZakljucan) h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
@@ -489,6 +497,11 @@
         h+='</div></div>';
       });
     }
+    // Fiksni bočni popis (desno) — brzi skok do naloga u planu (hitni pa plan).
+    var idxItems='';
+    hitni.forEach(function(n){ idxItems+='<button class="plan-idx-it hit" title="Hitno — GB '+esc(n.gb)+' · '+esc(n.vozilo)+'" onclick="PLAN.skrolDo('+n.id+')">'+esc(n.gb)+'</button>'; });
+    norm.forEach(function(n){ idxItems+='<button class="plan-idx-it" title="GB '+esc(n.gb)+' · '+esc(n.vozilo)+'" onclick="PLAN.skrolDo('+n.id+')">'+esc(n.gb)+'</button>'; });
+    if(idxItems){ h+='<div class="plan-idx"><div class="plan-idx-h">Plan</div>'+idxItems+'</div>'; }
     return h;
   }
 
@@ -650,8 +663,11 @@
     toEl.textContent=msg; toEl.style.opacity="1"; clearTimeout(toEl._t); toEl._t=setTimeout(function(){toEl.style.opacity="0";},1800);
   }
 
+  // Skok na karticu naloga iz bočnog popisa (+ kratki bljesak obruba).
+  function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
+
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, skrolDo:skrolDo,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs
