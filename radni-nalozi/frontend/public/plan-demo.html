@@ -99,6 +99,9 @@
   .nhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .arrows{margin-left:auto;display:flex;gap:4px}
   .arrows button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;width:28px;height:26px;font-size:13px;line-height:1}
+  .arrows .drag-h{cursor:grab;color:var(--muted);touch-action:none;font-size:15px}
+  .arrows .drag-h:active{cursor:grabbing}
+  .card.nalog.dragging{opacity:.72;box-shadow:0 10px 28px rgba(0,0,0,.20)}
   .op{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed var(--line)}
   .op .opn{font-weight:600;font-size:12px;line-height:1.3;min-width:150px;flex:1;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -374,12 +377,13 @@
   function nalogCard(n, rankTxt, idxObj, lane){
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+' ('+bz+')</option>'; }); return s; };
     var mehOptsExcept=function(ids){ var set={}; (ids||[]).forEach(function(i){set[i]=1;}); var s='<option value="">— dodaj —</option>'; MEH.forEach(function(m){ if(set[m.id])return; var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'">'+esc(m.ime)+' ('+bz+')</option>'; }); return s; };
-    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" id="nalog-'+n.id+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
+    var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" id="nalog-'+n.id+'" data-nid="'+n.id+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
     h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
+    // Drag ručka — samo u planu („norm") i kad je otključan. Povuci za promjenu redoslijeda (miš + prst).
+    if(lane==="norm" && !planZakljucan) h+='<button class="drag-h" title="Povuci za promjenu redoslijeda" aria-label="Premjesti redoslijed">⠿</button>';
     if(!planZakljucan) h+='<button class="htog'+(n.hitno?' on':'')+'" onclick="PLAN.hitno('+n.id+')" title="Označi/makni HITNO">🔴</button>';
     else if(n.hitno) h+='<span class="htog on" title="Hitno (plan zaključan)">🔴</span>';
-    // ručne ↑/↓ uklonjene — plan se automatski poreda po dovršenosti
     if(!planZakljucan) h+='<button class="xrem" onclick="PLAN.izbaci('+n.id+')" title="Izbaci iz plana">✕</button>';
     h+='</span></div>';
     var _np=napredak(n);
@@ -494,7 +498,7 @@
     if(hitni.length){ hitni.forEach(function(n){ h+=nalogCard(n,"🔴",null,"hit"); }); }
     else{ h+='<div class="card" style="color:var(--muted)">Nema hitnih. Označi kamion s 🔴 kad je stvarno hitno.</div>'; }
     h+='<div class="sek-nas">Plan za danas</div>';
-    if(norm.length){ norm.forEach(function(n,i){ h+=nalogCard(n,(i+1),{first:i===0,last:i===norm.length-1},"norm"); }); }
+    if(norm.length){ h+='<div id="plan-norm">'; norm.forEach(function(n,i){ h+=nalogCard(n,(i+1),{first:i===0,last:i===norm.length-1},"norm"); }); h+='</div>'; }
     else{ h+='<div class="card" style="color:var(--muted)">Plan je prazan. Klikni <b>➕ Dodaj vozilo</b> i upiši garažne brojeve redom.</div>'; }
     if(ceka.length){
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
@@ -702,10 +706,40 @@
     return (Date.now() - _zadnjaInterakcija) < 4000;
   }
 
+  // --- Drag reorder plana (povuci ručku ⠿; radi mišem i prstom) ---
+  var _drag=false;
+  function _plan_commit_red(){
+    var cont=document.getElementById("plan-norm"); if(!cont) return;
+    var ids=[]; cont.querySelectorAll(".card.nalog").forEach(function(c){ var id=parseInt(c.getAttribute("data-nid"),10); if(id) ids.push(id); });
+    if(!ids.length) return;
+    api("/redoslijed","PUT",{redoslijed:ids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+  }
+  function _planDrag(e){
+    var h=e.target.closest(".drag-h"); if(!h) return;
+    var cont=document.getElementById("plan-norm"); var card=h.closest(".card.nalog");
+    if(!cont||!card) return;
+    e.preventDefault(); e.stopPropagation();
+    _drag=true; card.classList.add("dragging");
+    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+    function onMove(ev){
+      var y=ev.clientY, cards=cont.querySelectorAll(".card.nalog"), before=null;
+      for(var i=0;i<cards.length;i++){ var c=cards[i]; if(c===card) continue; var r=c.getBoundingClientRect(); if(y < r.top + r.height/2){ before=c; break; } }
+      if(before){ if(card.nextSibling!==before) cont.insertBefore(card, before); }
+      else if(cont.lastChild!==card){ cont.appendChild(card); }
+    }
+    function end(){
+      try{ h.releasePointerCapture(e.pointerId); }catch(_){}
+      h.removeEventListener("pointermove",onMove); h.removeEventListener("pointerup",end); h.removeEventListener("pointercancel",end);
+      card.classList.remove("dragging"); _drag=false; _plan_commit_red();
+    }
+    h.addEventListener("pointermove",onMove); h.addEventListener("pointerup",end); h.addEventListener("pointercancel",end);
+  }
+  document.getElementById("v-pl").addEventListener("pointerdown", _planDrag);
+
   render();
   ucitaj();                        // početni dohvat stvarnih podataka
   setInterval(tick,1000);          // živi mjerači
-  setInterval(function(){ if(!_busy && !_planMode && !korisnikBira()) ucitaj(); }, 8000);  // osvježi iz baze (ne dok slažeš plan / biraš radnika)
+  setInterval(function(){ if(!_busy && !_planMode && !_drag && !korisnikBira()) ucitaj(); }, 8000);  // osvježi iz baze (ne dok slažeš plan / biraš radnika / povlačiš)
 })();
 </script>
 
