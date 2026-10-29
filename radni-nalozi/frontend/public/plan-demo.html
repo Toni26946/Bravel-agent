@@ -82,6 +82,11 @@
   /* --- Poslovođa --- */
   .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
   .zak-traka{background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;margin:0 0 10px;font-size:12.5px;font-weight:700}
+  .naprav-card{margin-bottom:12px}
+  .naprav-glava{border:0;background:none;font:inherit;font-weight:800;font-size:13px;color:var(--s-radu,#1f7a39);cursor:pointer;padding:2px 0;width:100%;text-align:left}
+  .naprav-red{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;padding:5px 0;border-top:1px dashed var(--line);font-size:12px}
+  .naprav-ime{font-weight:700;min-width:150px}
+  .naprav-gb{color:var(--muted)}
   .pl-top .brojac{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
   .brojac-btn{margin-left:auto;background:var(--plava-soft);color:var(--plava);border:0;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
   .plan-maker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--plava-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
@@ -251,6 +256,8 @@
   var autoSlanje = {ukljuceno:false, ura:"06:45", datum:null};   // jutarnje auto-slanje plana
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
+  var napravljeno = {mehanicari:[], ukupno:0};   // tko je što napravio danas (gotovi zadaci)
+  var napravOtvoren = false;                      // je li kartica „napravljeno" raširena
   var _brojMeh = {};           // mehId -> broj zadataka u redu (za prikaz u dropdownu)
   var MAX_HITNO = 3;
 
@@ -276,12 +283,15 @@
     });
   }
   function ucitaj(force){
-    return api("").then(function(d){
+    var odMs=new Date(new Date().setHours(0,0,0,0)).getTime();   // danas 00:00 lokalno
+    var pNap=api("/napravljeno?od_ms="+odMs).catch(function(){ return {mehanicari:[],ukupno:0}; });
+    return Promise.all([api(""), pNap]).then(function(res){
+      var d=res[0]; napravljeno=res[1]||{mehanicari:[],ukupno:0};
       MEH=d.mehanicari||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
       planZakljucan=!!d.zakljucan; zakljucaoIme=d.zakljucaoIme||""; zakljucanoTs=d.zakljucanoTs||null;
       autoSlanje=d.autoSlanje||{ukljuceno:false,ura:"06:45",datum:null};
       if(prikazMeh===null && MEH.length) prikazMeh=MEH[0].id;
-      var s=planSig(d);
+      var s=planSig(d)+"|nap:"+(napravljeno.ukupno||0);
       if(!force && s===_lastSig) return;   // ništa strukturno novo → ne precrtavaj
       _lastSig=s; render();
     }).catch(function(e){ toast(e.message||"Greška pri učitavanju"); });
@@ -340,6 +350,7 @@
     api("/zakljucaj","POST",{zakljucan:novo}).then(function(){ toast(novo?"🔒 Plan zaključan":"Plan otključan"); return ucitaj(); })
       .catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
+  function toggleNaprav(){ napravOtvoren=!napravOtvoren; render(); }
   function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
   function planMode(on){
     // NE briše plan — samo otvori unos da se DODA vozilo u postojeći plan.
@@ -479,6 +490,17 @@
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
+    // Kartica: tko je što napravio danas (gotovi zadaci). Sklopiva.
+    h+='<div class="card naprav-card"><button class="naprav-glava" onclick="PLAN.toggleNaprav()">✅ Napravljeno danas — '+(napravljeno.ukupno||0)+' '+(napravOtvoren?'▴':'▾')+'</button>';
+    if(napravOtvoren){
+      var _nm=napravljeno.mehanicari||[];
+      if(!_nm.length){ h+='<div class="vozilo" style="padding:6px 2px">Još ništa danas.</div>'; }
+      else { _nm.forEach(function(m){
+        h+='<div class="naprav-red"><span class="naprav-ime">'+esc(m.ime)+' <b>('+m.zadaci.length+')</b></span>'+
+           '<span class="naprav-gb">'+(m.zadaci||[]).map(function(z){return '<span title="'+esc(z.opis||'')+(z.kat?' · '+esc(z.kat):'')+'">GB '+esc(z.gb)+'</span>';}).join(', ')+'</span></div>';
+      }); }
+    }
+    h+='</div>';
     if(planZakljucan){
       h+='<div class="zak-traka">🔒 Plan zaključan'+(zakljucaoIme?' · '+esc(zakljucaoIme):'')+(zakljucanoTs?' · '+vrijemeHM(zakljucanoTs):'')+' — sastav i redoslijed su zamrznuti. Dnevni rad (dodjela, slanje, štoperica) teče normalno.</div>';
     }
@@ -699,7 +721,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, skrolDo:skrolDo,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, skrolDo:skrolDo,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); } };
 
   // tabs

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from ..auth import trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
@@ -363,6 +363,35 @@ def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
 class MehRedoslijedIn(BaseModel):
     radnik_id: int
     zadaci: list[int] = []   # id-evi zadataka u željenom redu za tog mehaničara
+
+
+@router.get("/napravljeno")
+def napravljeno(od_ms: int = 0, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Tko je što napravio (gotovi zadaci) od `od_ms` (početak dana, lokalno vrijeme s klijenta).
+    Vraća po mehaničaru listu GB-ova/operacija koje je danas završio."""
+    od = (datetime.fromtimestamp(od_ms / 1000, tz=timezone.utc)
+          if od_ms else datetime.now(timezone.utc) - timedelta(days=1))
+    zadaci = (
+        db.query(Zadatak)
+        .options(
+            joinedload(Zadatak.operacija).joinedload(Operacija.nalog).joinedload(Nalog.vozilo),
+            selectinload(Zadatak.radnici),
+        )
+        .filter(Zadatak.zavrseno.isnot(None), Zadatak.zavrseno >= od)
+        .all()
+    )
+    po: dict = {}
+    for z in zadaci:
+        op = z.operacija
+        if op is None:
+            continue
+        gb = _gb(op.nalog) if op.nalog else "?"
+        rad = list(z.radnici) or ([z.zaduzeni] if z.zaduzeni else [])
+        for r in rad:
+            d = po.setdefault(r.id, {"ime": r.ime, "zadaci": []})
+            d["zadaci"].append({"gb": gb, "kat": op.kategorija, "opis": z.opis, "krajTs": _ms(z.zavrseno)})
+    out = sorted(po.values(), key=lambda x: (-len(x["zadaci"]), x["ime"]))
+    return {"mehanicari": out, "ukupno": sum(len(x["zadaci"]) for x in out)}
 
 
 @router.post("/meh-redoslijed")
