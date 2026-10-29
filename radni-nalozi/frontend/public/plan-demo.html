@@ -48,8 +48,15 @@
   .plan-idx-it:hover{border-color:var(--plava);color:var(--plava)}
   .plan-idx-it.hit{border-color:#e5534b;color:#b3261e}
   .card.flash{outline:2px solid var(--plava);outline-offset:2px}
-  /* Pokaži popis i rezerviraj mu prostor desno — samo u plan pogledu i kad ima dovoljno širine. */
-  @media(min-width:760px){ body.view-pl .plan-idx{display:flex} body.view-pl main{padding-right:84px} }
+  /* Popis se vidi u plan pogledu na SVIM širinama; desno mu je rezerviran prostor. */
+  body.view-pl .plan-idx{display:flex}
+  body.view-pl main{padding-right:84px}
+  @media(max-width:759px){                       /* mobitel — kompaktno, uži popis */
+    body.view-pl main{padding-right:46px}
+    .plan-idx{width:38px;right:4px;top:92px;padding:5px 3px;gap:2px}
+    .plan-idx-it{font-size:11px;padding:4px 1px}
+    .plan-idx-h{display:none}
+  }
   .hint{color:var(--muted);font-size:12.5px;margin:0 0 12px}
 
   /* --- Kartice / zajedničko --- */
