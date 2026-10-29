@@ -28,7 +28,7 @@ from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
-from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac
+from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac, nalog_eager
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
 log = logging.getLogger("dispecer")
@@ -152,7 +152,9 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
     """Mehaničarev red nezavršenih zadataka, po redoslijedu iz plana.
     Preskače zadatke koji čekaju dijelove (nisu spremni za rad)."""
     out = []
-    for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
+    # Eager-load (vozilo, operacije→zadaci→radnici/vremena) — bez ovoga je na Postgresu
+    # svaki pristup lazy vezi novi upit (N+1), pa akcija mehaničara zna zapeti par sekundi.
+    for n in db.query(Nalog).options(*nalog_eager()).filter(Nalog.status.in_(_AKTIVNI)).all():
         if _gb(n) in _SKRIVENI_GB:
             continue
         for op in n.operacije:
