@@ -172,6 +172,9 @@
   .rad-row{display:flex;align-items:stretch;gap:8px}
   .rad-ime{flex:none;width:168px;position:sticky;left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-weight:800;font-size:12.5px;display:flex;align-items:center;gap:6px;z-index:2}
   .rad-ime.malo{border-color:var(--s-ceka);color:var(--s-ceka);background:var(--s-ceka-bg)}
+  .rad-ime.slob-top{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg);font-weight:800}
+  .rad-ime.slob-top .rad-br{background:#fff;color:var(--crveno)}
+  .rad-cell.prazno{justify-content:center;align-items:center;text-align:center;color:var(--crveno);border-style:dashed;border-color:var(--crveno);background:transparent;cursor:default;font-size:11.5px;font-weight:700}
   .rad-br{margin-left:auto;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
   .rad-cells{display:flex;gap:8px}
@@ -600,6 +603,8 @@
     var map=redPoRadniku();
     var saZad=[], slobodni=[];
     MEH.forEach(function(m){ var l=map[m.id]||[]; if(l.length) saZad.push({m:m,lista:l}); else slobodni.push(m); });
+    var slobodniPrisutni=slobodni.filter(function(m){return !m.odsutan;});   // prisutni bez zadatka → vrh, crveno
+    var slobodniOdsutni=slobodni.filter(function(m){return m.odsutan;});
     // Uvijek poredano: najmanje zadataka → najviše (tko ima manje je gore, za dopunu);
     // isti broj → abecedno.
     saZad.sort(function(a,b){
@@ -620,10 +625,15 @@
        '<div class="kpi"><div class="n">'+slobodni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
     h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi.</p>';
-    if(!saZad.length){
+    if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
       h+='<div class="rad-scroll"><div class="rad-tbl">';
+      // Prisutni BEZ zadatka — na vrhu, crveno (hitno im dodijeliti posao).
+      slobodniPrisutni.forEach(function(m){
+        h+='<div class="rad-row"><div class="rad-ime slob-top">⚠ '+esc(m.ime)+'<span class="rad-br">0</span></div>'+
+           '<div class="rad-cells"><div class="rad-cell prazno">nema zadatka — dodijeli u planu</div></div></div>';
+      });
       saZad.forEach(function(r){
         var malo=r.cekaju<PRAG;
         h+='<div class="rad-row"><div class="rad-ime'+(malo?' malo':'')+'">'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
@@ -640,9 +650,9 @@
       });
       h+='</div></div>';
     }
-    if(slobodni.length){
-      h+='<div class="sek-nas">Slobodni (bez zadataka)</div>'+
-         '<div class="card" style="color:var(--muted)">'+slobodni.map(function(m){return esc(m.ime);}).join(" · ")+'</div>';
+    if(slobodniOdsutni.length){
+      h+='<div class="sek-nas">Odsutni</div>'+
+         '<div class="card" style="color:var(--muted)">'+slobodniOdsutni.map(function(m){return esc(m.ime);}).join(" · ")+'</div>';
     }
     return h;
   }

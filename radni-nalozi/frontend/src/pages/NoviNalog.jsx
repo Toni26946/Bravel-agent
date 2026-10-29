@@ -112,7 +112,7 @@ export default function NoviNalog() {
         .map((op) => ({
           kategorija: (op.kategorija || '').trim(),
           zadaci: (op.opis || '').trim()
-            ? [{ opis: op.opis.trim(), zaduzeni_id: op.zaduzeni_id || null }]
+            ? [{ opis: op.opis.trim(), zaduzeni_id: null }]   // dodjela radnika ide u Planu
             : [],
         }))
         .filter((op) => op.kategorija)
@@ -222,14 +222,7 @@ export default function NoviNalog() {
                 />
                 <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => azurirajOperaciju(oi, { opis: (op.opis ? op.opis + ' ' : '') + tekst })} />
               </div>
-              <select
-                style={{ marginTop: 6 }}
-                value={op.zaduzeni_id || ''}
-                onChange={(e) => azurirajOperaciju(oi, { zaduzeni_id: e.target.value ? Number(e.target.value) : null })}
-              >
-                <option value="">{t('op.radnik')} —</option>
-                {radnici.filter((r) => r.prijavljuje_se !== false).map((r) => <option key={r.id} value={r.id}>{r.ime}</option>)}
-              </select>
+              {/* Dodjela radnika se radi isključivo u Planu — ne kod kreiranja naloga. */}
             </div>
           ))}
 
