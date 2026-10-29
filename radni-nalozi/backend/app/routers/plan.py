@@ -230,7 +230,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     ))
     meh = (
         db.query(Korisnik)
-        .filter(Korisnik.uloga.in_(_SERVISERI), Korisnik.aktivan.is_(True))
+        .filter(Korisnik.uloga.in_(_SERVISERI), Korisnik.aktivan.is_(True),
+                Korisnik.prijavljuje_se.is_(True))   # samo stvarni mehaničari (ne npr. skladištar)
         .order_by(Korisnik.ime).all()
     )
     preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
