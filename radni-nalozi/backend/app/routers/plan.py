@@ -242,11 +242,18 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         for op in n.operacije:
             for z in op.zadaci:
                 m = _mehanicar(z)
+                vrem = {v.radnik_id: v for v in z.vremena}   # vrijeme po radniku
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
                     "mehovi": [{"id": r.id, "ime": r.ime} for r in z.radnici],
                     "mehIds": [r.id for r in z.radnici],
+                    # Vrijeme po svakom mehaničaru (akumulirano + startTs ako trenutno radi).
+                    "mehVremena": [{
+                        "id": r.id, "ime": r.ime,
+                        "akumSek": int((vrem[r.id].utroseno_sek if r.id in vrem else 0) or 0),
+                        "startTs": _ms(vrem[r.id].zapoceto) if (r.id in vrem and vrem[r.id].zapoceto) else None,
+                    } for r in z.radnici],
                     "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],

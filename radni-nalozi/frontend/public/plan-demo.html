@@ -92,6 +92,8 @@
   .op .opmeh-btn:hover{border-color:var(--plava)}
   .op .meh-cip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--plava);background:var(--plava-soft);border-radius:999px;padding:3px 8px;margin-left:4px}
   .op .cip-x{border:0;background:none;color:var(--plava);cursor:pointer;font-weight:800;font-size:13px;line-height:1;padding:0 1px;font-family:inherit}
+  .op .meh-stack{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+  .op .meh-line{display:inline-flex;align-items:center;gap:6px}
   .op .meh-add-wrap{display:inline-flex;align-items:center;margin-left:4px}
   .op .meh-add{border:1px dashed var(--plava);background:var(--plava-soft);color:var(--plava);border-radius:999px;width:24px;height:24px;cursor:pointer;font-weight:800;font-size:15px;line-height:1;font-family:inherit}
   .op .meh-add:hover{background:#dbe6fb}
@@ -265,6 +267,7 @@
   function nalByOp(opId){ for(var i=0;i<nalozi.length;i++){var n=nalozi[i];for(var j=0;j<n.ops.length;j++) if(n.ops[j].id===opId) return n;} return null; }
   function trajanje(sek){ sek=Math.max(0,Math.floor(sek)); var h=Math.floor(sek/3600),m=Math.floor((sek%3600)/60),s=sek%60; var p=function(x){return(x<10?"0":"")+x;}; return h>0? h+":"+p(m)+":"+p(s) : m+":"+p(s); }
   function zivoSek(o){ return o.startTs? (Date.now()-o.startTs)/1000 : 0; }   // samo trenutna sesija (kao „Tekući radovi"), bez nakupljenog od prije
+  function zivoSekMeh(mv){ return (mv.akumSek||0) + (mv.startTs? (Date.now()-mv.startTs)/1000 : 0); }   // ukupno vrijeme tog mehaničara (akumulirano + živo ako radi)
   function nalogZapoceo(n){ for(var i=0;i<n.ops.length;i++){ var s=n.ops[i].status; if(s==="radu"||s==="gotovo"||s==="dijelovi"||s==="pauza") return true; } return false; }
   function cekaSek(n){ return (Date.now()-n.usaoTs)/1000; }
   function napredak(n){ var tot=n.ops.length, done=n.ops.filter(function(o){return o.status==="gotovo";}).length; return {tot:tot,done:done,pct:tot?Math.round(done/tot*100):0}; }
@@ -412,10 +415,16 @@
           if(o.status==="ceka"||o.status==="radu") h+=' <button class="xrem" onclick="PLAN.makniRadnika('+o.id+')" title="Makni radnika s operacije">✕</button>';
         } else {
           var idsStr2='['+(o.mehIds||[]).join(',')+']';
-          dod2.forEach(function(r){
-            h+='<span class="meh-cip">👷 '+esc(r.ime)+' <button class="cip-x" onclick="PLAN.makniRadnikaIz('+o.id+','+r.id+','+idsStr2+')" title="Makni s operacije">✕</button></span>';
+          var mv=(o.mehVremena&&o.mehVremena.length)?o.mehVremena:dod2.map(function(r){return {id:r.id,ime:r.ime,akumSek:0,startTs:null};});
+          h+='<span class="meh-stack">';
+          mv.forEach(function(r){
+            var tHtml='';
+            if(o.status==="radu" || r.startTs || (r.akumSek||0)>0){
+              tHtml=' <span class="live tnum" data-ts="'+(r.startTs||'')+'" data-base="'+(r.akumSek||0)+'">⏱ '+trajanje(zivoSekMeh(r))+'</span>';
+            }
+            h+='<span class="meh-line"><span class="meh-cip">👷 '+esc(r.ime)+' <button class="cip-x" onclick="PLAN.makniRadnikaIz('+o.id+','+r.id+','+idsStr2+')" title="Makni s operacije">✕</button></span>'+tHtml+'</span>';
           });
-          if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
+          h+='</span>';
         }
         if(o.status==="dijelovi") h+=' <button class="btn ghost sm" onclick="PLAN.dioStigao('+o.id+')">📦 Dio stigao</button>';
       }
@@ -622,6 +631,11 @@
     document.querySelectorAll("[data-start]").forEach(function(el){
       var o=find(parseInt(el.getAttribute("data-start"),10)); if(!o) return;
       el.textContent = "⏱ "+trajanje(zivoSek(o));
+    });
+    document.querySelectorAll("[data-ts]").forEach(function(el){        // vrijeme po mehaničaru (akum + živo)
+      var base=parseFloat(el.getAttribute("data-base"))||0;
+      var ts=parseFloat(el.getAttribute("data-ts"))||0;
+      el.textContent = "⏱ "+trajanje(base + (ts? (now-ts)/1000 : 0));
     });
     document.querySelectorAll("[data-wait]").forEach(function(el){
       var n=nalById(parseInt(el.getAttribute("data-wait"),10)); if(!n) return;
