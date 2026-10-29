@@ -258,6 +258,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],
                     "status": _plan_status(z),
+                    "red": z.red_ruc,                 # ručni red po mehaničaru (dashboard drag)
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
                 })
@@ -353,6 +354,24 @@ def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
         n = db.get(Nalog, nid)
         if n:
             n.plan_rang = i
+    db.commit()
+    return {"ok": True}
+
+
+class MehRedoslijedIn(BaseModel):
+    radnik_id: int
+    zadaci: list[int] = []   # id-evi zadataka u željenom redu za tog mehaničara
+
+
+@router.post("/meh-redoslijed")
+def meh_redoslijed(p: MehRedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Ručni red zadataka za jednog mehaničara (dashboard drag) — postavi red_ruc = pozicija.
+    Zadatak „u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega (vidi _red/kljuc)."""
+    _provjeri_otkljucan(db)
+    for i, zid in enumerate(p.zadaci):
+        z = db.get(Zadatak, zid)
+        if z:
+            z.red_ruc = i
     db.commit()
     return {"ok": True}
 

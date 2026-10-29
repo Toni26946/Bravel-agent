@@ -621,6 +621,9 @@ class Zadatak(Base):
     ceka_potvrdu: Mapped[bool] = mapped_column(Boolean, default=False)
     razlog_prekida: Mapped[str | None] = mapped_column(String(12), nullable=True)  # 'nije' | 'dijelovi'
     prekid_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ručni red zadataka po mehaničaru (dashboard drag). Manji = ranije; None = bez ručnog reda.
+    # Zadatak "u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega.
+    red_ruc: Mapped[int | None] = mapped_column(Integer, nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")

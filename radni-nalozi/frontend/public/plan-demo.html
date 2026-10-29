@@ -175,9 +175,12 @@
   .rad-br{margin-left:auto;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
   .rad-cells{display:flex;gap:8px}
-  .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:7px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative}
+  .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:18px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative}
   .rad-cell.c-radu{border-color:var(--s-radu)}
   .rad-cell .rc-poz{position:absolute;top:5px;right:8px;font-size:10px;font-weight:800;color:var(--muted)}
+  .rad-cell .rc-drag{position:absolute;top:3px;left:5px;border:0;background:none;color:var(--muted);cursor:grab;touch-action:none;font-size:13px;line-height:1;padding:0 2px;font-family:inherit}
+  .rad-cell .rc-drag:active{cursor:grabbing}
+  .rad-cell.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
@@ -580,8 +583,12 @@
     });
     Object.keys(map).forEach(function(id){
       map[id].sort(function(a,b){
-        var fa=_faza(a.o.status), fb=_faza(b.o.status); if(fa!==fb) return fa-fb;
-        var ra=(a.n.rang==null?9999:a.n.rang), rb=(b.n.rang==null?9999:b.n.rang); if(ra!==rb) return ra-rb;
+        // isti red kao dispečer (_red/kljuc): u tijeku prvi, pa hitno, pa RUČNI red (o.red),
+        // pa čeka-potvrdu i rang kao tiebreak za one bez ručnog reda.
+        var ga=(a.o.status==="radu"?0:(a.n.hitno?1:2)), gb=(b.o.status==="radu"?0:(b.n.hitno?1:2)); if(ga!==gb) return ga-gb;
+        var ra=(a.o.red==null?1e6:a.o.red), rb=(b.o.red==null?1e6:b.o.red); if(ra!==rb) return ra-rb;
+        var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
+        var na=(a.n.rang==null?9999:a.n.rang), nb=(b.n.rang==null?9999:b.n.rang); if(na!==nb) return na-nb;
         return a.o.id-b.o.id;
       });
     });
@@ -618,9 +625,11 @@
       h+='<div class="rad-scroll"><div class="rad-tbl">';
       saZad.forEach(function(r){
         var malo=r.cekaju<PRAG;
-        h+='<div class="rad-row"><div class="rad-ime'+(malo?' malo':'')+'">'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells">';
+        h+='<div class="rad-row"><div class="rad-ime'+(malo?' malo':'')+'">'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
-          h+='<div class="rad-cell '+CH[x.o.status]+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
+          var uTijeku=(x.o.status==="radu");
+          h+='<div class="rad-cell '+CH[x.o.status]+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
+             (uTijeku?'':'<button class="rc-drag" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>')+
              '<span class="rc-poz">'+(i+1)+'</span>'+
              '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
@@ -741,6 +750,38 @@
     document.addEventListener("pointercancel",end,true);
   }
   document.getElementById("v-pl").addEventListener("pointerdown", _planDrag);
+
+  // --- Drag redoslijed po mehaničaru (dashboard) — vodoravno; „u tijeku" nema ručku ---
+  function _dash_commit(cont){
+    var rid=parseInt(cont.getAttribute("data-rid"),10);
+    var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
+    if(!rid||!zids.length) return;
+    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+  }
+  function _dashDrag(e){
+    var h=e.target.closest(".rc-drag"); if(!h) return;
+    var cont=h.closest(".rad-cells"); var card=h.closest(".rad-cell");
+    if(!cont||!card) return;
+    e.preventDefault(); e.stopPropagation();
+    _drag=true; card.classList.add("dragging");
+    function onMove(ev){
+      if(ev.cancelable) ev.preventDefault();
+      var x=ev.clientX, cells=cont.querySelectorAll(".rad-cell"), before=null;
+      for(var i=0;i<cells.length;i++){ var c=cells[i]; if(c===card) continue; var r=c.getBoundingClientRect(); if(x < r.left + r.width/2){ before=c; break; } }
+      if(before){ if(card.nextSibling!==before) cont.insertBefore(card, before); }
+      else if(cont.lastChild!==card){ cont.appendChild(card); }
+    }
+    function end(){
+      document.removeEventListener("pointermove",onMove,true);
+      document.removeEventListener("pointerup",end,true);
+      document.removeEventListener("pointercancel",end,true);
+      card.classList.remove("dragging"); _drag=false; _dash_commit(cont);
+    }
+    document.addEventListener("pointermove",onMove,true);
+    document.addEventListener("pointerup",end,true);
+    document.addEventListener("pointercancel",end,true);
+  }
+  document.getElementById("v-dash").addEventListener("pointerdown", _dashDrag);
 
   render();
   ucitaj();                        // početni dohvat stvarnih podataka

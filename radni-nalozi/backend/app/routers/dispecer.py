@@ -168,17 +168,18 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
     def kljuc(t):
         n, op, z = t
         rang = n.plan_rang if n.plan_rang is not None else 9999
-        # 0 = u tijeku (ne dira se), 1 = HITNO (gurne se ODMAH iza onoga u tijeku),
-        # 2 = već poslano (čeka potvrdu), 3 = ostalo. Mehaničar ne vidi da je hitno.
+        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo. Unutar „ostalog" vrijedi
+        # RUČNI red po mehaničaru (red_ruc, slaže se dragom u dashboardu); čeka-potvrdu i
+        # rang su samo tiebreak za zadatke bez ručnog reda. Mehaničar ne vidi da je hitno.
         if z.zapoceto:
             faza = 0
         elif n.plan_hitno:
             faza = 1
-        elif z.ceka_potvrdu:
-            faza = 2
         else:
-            faza = 3
-        return (faza, rang, op.redoslijed or 0, z.id)
+            faza = 2
+        rr = z.red_ruc if z.red_ruc is not None else 10 ** 6
+        cp = 0 if z.ceka_potvrdu else 1
+        return (faza, rr, cp, rang, op.redoslijed or 0, z.id)
 
     out.sort(key=kljuc)
     return out
