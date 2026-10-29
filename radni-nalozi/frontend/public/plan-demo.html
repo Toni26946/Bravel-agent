@@ -404,10 +404,19 @@
         }
         // (slanje po operaciji maknuto — ide skupno preko „Nalog isplaniran" gumba gore)
       } else {
-        h+='<span class="vozilo">👷 '+esc(meh(o.mehId).ime)+'</span>';
-        if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
-        if(o.status==="gotovo") h+=' <span class="vozilo tnum">⏱ '+trajanje(o.akumSek)+'</span>';
-        if(o.status==="ceka"||o.status==="radu"||o.status==="pauza") h+=' <button class="xrem" onclick="PLAN.makniRadnika('+o.id+')" title="Makni radnika s operacije">✕</button>';
+        // Svi dodijeljeni na operaciji (ne samo prvi) — za operacije s 2+ mehaničara.
+        var dod2=(o.mehovi&&o.mehovi.length)?o.mehovi:(o.mehId?[{id:o.mehId,ime:meh(o.mehId).ime}]:[]);
+        if(dod2.length<=1){
+          h+='<span class="vozilo">👷 '+esc((dod2[0]&&dod2[0].ime)||meh(o.mehId).ime)+'</span>';
+          if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
+          if(o.status==="ceka"||o.status==="radu") h+=' <button class="xrem" onclick="PLAN.makniRadnika('+o.id+')" title="Makni radnika s operacije">✕</button>';
+        } else {
+          var idsStr2='['+(o.mehIds||[]).join(',')+']';
+          dod2.forEach(function(r){
+            h+='<span class="meh-cip">👷 '+esc(r.ime)+' <button class="cip-x" onclick="PLAN.makniRadnikaIz('+o.id+','+r.id+','+idsStr2+')" title="Makni s operacije">✕</button></span>';
+          });
+          if(o.status==="radu") h+=' <span class="live tnum" data-start="'+o.id+'">⏱ '+trajanje(zivoSek(o))+'</span>';
+        }
         if(o.status==="dijelovi") h+=' <button class="btn ghost sm" onclick="PLAN.dioStigao('+o.id+')">📦 Dio stigao</button>';
       }
       h+='</span></div>';
