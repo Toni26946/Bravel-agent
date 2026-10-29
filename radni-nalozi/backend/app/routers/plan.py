@@ -33,6 +33,7 @@ KRAJ_H, KRAJ_M = 14, 45
 MAX_HITNO = 3
 # Interni/pomoćni nalozi koji se NE prikazuju u planu (npr. "RADIONA").
 _SKRIVENI_GB = {"400"}
+MAX_PLAN = 15   # najviše vozila u planu (nove dodavanje preko ovoga se odbija)
 
 
 # --- pomoćno ---------------------------------------------------------------
@@ -445,6 +446,17 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
             break
     if not nalog:
         raise HTTPException(status_code=404, detail=f"Nema aktivnog naloga za GB {gb}")
+    if _gb(nalog) in _SKRIVENI_GB:
+        raise HTTPException(status_code=409, detail=f"GB {gb} je interni — ne prikazuje se u planu.")
+    # Cap: najviše MAX_PLAN vozila u planu. Postojeće ne diramo (ako je već u planu samo ga
+    # dižemo na vrh); nove preko 15 odbijamo. Skriveni/interni se ne broje.
+    if nalog.plan_rang is None:
+        u_planu = [n for n in db.query(Nalog).filter(
+            Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None)).all()
+            if _gb(n) not in _SKRIVENI_GB]
+        if len(u_planu) >= MAX_PLAN:
+            raise HTTPException(status_code=409,
+                                detail=f"Plan je pun — najviše {MAX_PLAN} vozila. Makni jedno pa dodaj.")
     # Novi na VRH plana (prvo mjesto) — ostale u planu pomakni za 1 niže.
     for n in db.query(Nalog).filter(
         Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None), Nalog.id != nalog.id
