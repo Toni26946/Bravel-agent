@@ -22,11 +22,13 @@ export default function Poslovodja() {
       <div className="pos-tabovi no-print" style={{ marginBottom: 10 }}>
         <button className={'pos-tab' + (tab === 'ucinak' ? ' akt' : '')} onClick={() => setTab('ucinak')}>📊 {t('pos.ucinak')}</button>
         <button className={'pos-tab' + (tab === 'ljestvica' ? ' akt' : '')} onClick={() => setTab('ljestvica')}>🏆 {t('pos.ljestvica')}</button>
+        <button className={'pos-tab' + (tab === 'sumnjivo' ? ' akt' : '')} onClick={() => setTab('sumnjivo')}>⏱️ Sumnjivo brzi</button>
         <button className={'pos-tab' + (tab === 'norme' ? ' akt' : '')} onClick={() => setTab('norme')}>💶 {t('pos.norme')}</button>
         <button className={'pos-tab' + (tab === 'postavke' ? ' akt' : '')} onClick={() => setTab('postavke')}>⚙️ {t('pos.postavke')}</button>
       </div>
       {tab === 'ucinak' && <Ucinak t={t} />}
       {tab === 'ljestvica' && <Ljestvica t={t} />}
+      {tab === 'sumnjivo' && <SumnjivoBrzi />}
       {tab === 'norme' && <Norme t={t} voditelj={voditelj} />}
       {tab === 'postavke' && <Postavke t={t} voditelj={voditelj} />}
     </Layout>
@@ -119,6 +121,57 @@ function Ljestvica({ t }) {
           <p className="meta" style={{ marginTop: 8 }}>{t('pos.ljestvicaNapo')}</p>
         </>
       )}
+    </div>
+  )
+}
+
+function SumnjivoBrzi() {
+  const [dana, setDana] = useState(1)
+  const [prag, setPrag] = useState(120)
+  const [d, setD] = useState(null)
+  useEffect(() => { setD(null); api.sumnjivoBrzi(dana, prag).then(setD).catch(() => setD({ redovi: [] })) }, [dana, prag])
+  const mmss = (s) => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), x = s % 60; return (m > 0 ? m + ' min ' : '') + x + ' s' }
+  const vrijeme = (iso) => { try { return new Date(iso).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return '—' } }
+  return (
+    <div>
+      <p className="meta" style={{ marginTop: 0 }}>
+        Zadaci koje je mehaničar označio gotovima, a proveo na njima manje od praga — za uočiti „kliknuo gotovo, a nije radio".
+      </p>
+      <div className="vz-filteri" style={{ marginBottom: 8 }}>
+        {[1, 3, 7, 30].map((n) => (
+          <button key={n} className={'vz-fil' + (dana === n ? ' akt' : '')} onClick={() => setDana(n)}>{n === 1 ? 'danas' : n + ' dana'}</button>
+        ))}
+      </div>
+      <div className="vz-filteri" style={{ marginBottom: 8 }}>
+        <span className="meta" style={{ alignSelf: 'center', marginRight: 4 }}>Prag (manje od):</span>
+        {[60, 120, 300, 600].map((s) => (
+          <button key={s} className={'vz-fil' + (prag === s ? ' akt' : '')} onClick={() => setPrag(s)}>{s < 120 ? s + ' s' : (s / 60) + ' min'}</button>
+        ))}
+      </div>
+      {d === null ? <Spinner /> : d.redovi.length === 0 ? (
+        <p className="meta">Nema sumnjivo brzih završetaka u odabranom razdoblju. 👍</p>
+      ) : (
+        <div className="karta">
+          <table className="di-tab">
+            <thead>
+              <tr><th>GB</th><th>Operacija</th><th>Mehaničar</th><th>Trajanje</th><th>Norma</th><th>Kraj</th></tr>
+            </thead>
+            <tbody>
+              {d.redovi.map((r) => (
+                <tr key={r.zadatak_id}>
+                  <td><strong>{r.gb || '—'}</strong>{r.registracija ? <div className="meta">{r.registracija}</div> : null}</td>
+                  <td>{r.kategorija}{r.opis ? <div className="meta">{r.opis}</div> : null}</td>
+                  <td>{(r.mehanicari || []).join(', ') || '—'}</td>
+                  <td style={{ color: '#b3261e', fontWeight: 700, whiteSpace: 'nowrap' }}>{mmss(r.trajanje_sek)}{!r.pokrenuo && <div className="meta">bez „Počinjem"</div>}</td>
+                  <td className="meta" style={{ whiteSpace: 'nowrap' }}>{r.norma_min ? r.norma_min + ' min' : '—'}</td>
+                  <td className="meta" style={{ whiteSpace: 'nowrap' }}>{vrijeme(r.kraj)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="meta" style={{ marginTop: 8 }}>Prikazani su samo zadaci s dodijeljenim mehaničarom. „bez Počinjem" = označeno gotovo bez pokretanja mjerača.</p>
     </div>
   )
 }

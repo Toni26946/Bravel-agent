@@ -193,6 +193,7 @@ export const api = {
   rekalibriraj: () => zahtjev('/poslovodja/rekalibriraj', { method: 'POST' }),
   ljestvica: (dana = 7) => zahtjev(`/ucinak/ljestvica?dana=${dana}`),
   mojUcinak: (dana = 7) => zahtjev(`/ucinak/moj?dana=${dana}`),
+  sumnjivoBrzi: (dana = 1, prag = 120) => zahtjev(`/ucinak/sumnjivo-brzi?dana=${dana}&prag_sek=${prag}`),
 
   // Šteta
   stete: () => zahtjev('/stete'),

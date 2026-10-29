@@ -164,3 +164,53 @@ def moj_ucinak(dana: int = Query(default=7, ge=1, le=365),
         "ukupno_servisera": len(poredak),
         "red": poslovi,
     }
+
+
+@router.get("/sumnjivo-brzi")
+def sumnjivo_brzi(
+    dana: int = Query(default=1, ge=1, le=90),
+    prag_sek: int = Query(default=120, ge=1, le=3600),
+    db: Session = Depends(get_db),
+    _: Korisnik = Depends(voditelj_ili_poslovodja),
+):
+    """Zadaci koje je mehaničar označio gotovima a da je na njima proveo manje od
+    `prag_sek` sekundi (zadano 120 s) u zadnjih `dana` dana. Za svaki: trajanje,
+    je li uopće pokrenuo mjerač, norma (očekivano) i tko je bio na zadatku."""
+    od, do = _raspon(dana)
+    norme = _norme_map(db)
+    zadaci = db.execute(
+        select(Zadatak).where(
+            Zadatak.zavrseno.isnot(None),
+            Zadatak.zavrseno >= od,
+            Zadatak.zavrseno <= do,
+        )
+    ).scalars().all()
+    redovi = []
+    for z in zadaci:
+        op = z.operacija
+        if op is None or (op.kategorija or "").upper() == "TEST":
+            continue
+        rad = _radnici_zadatka(z)
+        if not rad:                      # samo zadaci koje je zatvorio mehaničar (ima radnika)
+            continue
+        trajanje = int(z.utroseno_sek or 0)
+        if trajanje <= 0 and z.zapoceto and z.zavrseno:
+            trajanje = max(0, int((z.zavrseno - z.zapoceto).total_seconds()))
+        if trajanje >= prag_sek:
+            continue
+        n = op.nalog
+        voz = n.vozilo if n else None
+        redovi.append({
+            "zadatak_id": z.id,
+            "gb": (voz.gb if voz else (n.broj if n else None)),
+            "registracija": (voz.registracija if voz else None),
+            "kategorija": op.kategorija,
+            "opis": z.opis,
+            "trajanje_sek": trajanje,
+            "pokrenuo": z.zapoceto is not None,
+            "norma_min": norme.get(norm_kat(op.kategorija)),
+            "kraj": z.zavrseno.isoformat() if z.zavrseno else None,
+            "mehanicari": [r.ime for r in rad],
+        })
+    redovi.sort(key=lambda r: r["trajanje_sek"])
+    return {"dana": dana, "prag_sek": prag_sek, "redovi": redovi}
