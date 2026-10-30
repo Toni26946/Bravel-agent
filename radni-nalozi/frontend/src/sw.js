@@ -22,9 +22,15 @@ precacheAndRoute(asetiManifest)
 // Navigacije (otvaranje/osvježavanje stranice) → NETWORK-FIRST:
 // uvijek se dohvati svjež index.html s mreže (aktualni hash-evi JS/CSS), pa nema praznog
 // ekrana nakon deploya. Offline (ili spora mreža > 3 s) → padne na zadnji keširani index.
+//
+// VAŽNO: isključi server-renderane stranice koje NISU dio SPA ljuske — one imaju vlastiti
+// HTML (npr. mehaničarska poveznica /z/<token>, plan-demo, /api, /docs). Bez ovog denylista
+// SW bi im na sporoj mreži (> 3 s) servirao SPA/offline ljusku → mehaničar vidi BIJELI ekran
+// (SPA nema rutu /z/). Denylist pušta te putanje ravno na mrežu.
 registerRoute(
   new NavigationRoute(
-    new NetworkFirst({ cacheName: 'html-navigacije', networkTimeoutSeconds: 3 })
+    new NetworkFirst({ cacheName: 'html-navigacije', networkTimeoutSeconds: 3 }),
+    { denylist: [/^\/z\//, /^\/api\//, /^\/docs/, /^\/health/, /^\/plan-demo/] }
   )
 )
 

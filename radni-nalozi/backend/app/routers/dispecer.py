@@ -656,6 +656,12 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 <div class="top">BRAVEL · radni zadatak</div>
 <div class="wrap" id="app"><div class="info">Učitavam…</div></div>
 <script>
+// Mehaničarska stranica NIJE PWA — ako je na mobitelu zaostao service worker s portala,
+// on zna presresti ovu navigaciju i servirati SPA/offline ljusku → bijeli ekran. Zato
+// odjavi svaki SW čim se stranica učita (ljekovito: idući put otvara se čisto s mreže).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
+}
 const TOKEN="__TOKEN__";
 function uredjaj(){let u=localStorage.getItem('bravel_uredjaj');if(!u){u=(crypto.randomUUID?crypto.randomUUID():String(Math.random())+Date.now());localStorage.setItem('bravel_uredjaj',u);}return u;}
 async function api(akcija,extra){
