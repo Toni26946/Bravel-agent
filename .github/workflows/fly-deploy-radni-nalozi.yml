@@ -56,4 +56,5 @@ jobs:
           flyctl deploy \
             --app "$FLY_APP" \
             --config radni-nalozi/fly.toml \
-            --image registry.fly.io/${FLY_APP}:${{ github.sha }}
+            --image registry.fly.io/${FLY_APP}:${{ github.sha }} \
+            --env APP_VERZIJA=${{ github.sha }}

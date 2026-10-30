@@ -566,33 +566,47 @@ def ukloni_duplikat_mihael(db: Session) -> None:
 
 
 def obavijesti_osvjezi(db: Session) -> None:
-    """Jednokratno: pošalji svim korisnicima push da osvježe aplikaciju (nova verzija).
+    """Nakon SVAKOG deploya (nove verzije servera) pošalji voditeljima/poslovođama push
+    da osvježe stranicu. Gejtano po VERZIJI (git SHA iz APP_VERZIJA), ne po restartu:
 
-    Bump zastavice (.osvjezi_vN) kad treba ponovno poslati."""
-    zastavica = Path(settings.upload_dir).parent / ".osvjezi_v1"
+    - verzija nije upečena (lokalno/dev) → ništa;
+    - verzija ista kao zadnja zapisana (običan restart, crash, skaliranje) → ništa;
+    - prvi put (nema zapisa) → samo zapiši verziju, bez obavijesti (da se ne spama na uvođenju);
+    - verzija se promijenila → zapiši novu i pošalji push voditeljima + poslovođama.
+
+    Zastavica je datoteka `.verzija` na volumenu (jedan volumen → nema duplikata)."""
+    verzija = (settings.app_verzija or "").strip()
+    if not verzija:
+        return
+    zastavica = Path(settings.upload_dir).parent / ".verzija"
     try:
-        if zastavica.exists():
-            return
+        zadnja = zastavica.read_text(encoding="utf-8").strip() if zastavica.exists() else ""
     except OSError:
-        pass
-    try:
-        from .push import _posalji, push_omogucen
-        if push_omogucen():
-            poslano = 0
-            for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all():
-                if k.push_subscription:
-                    if _posalji(k.push_subscription, "Nova verzija aplikacije",
-                                "Osvježite aplikaciju: zatvorite je i ponovno otvorite (ili povucite prema dolje).",
-                                url="/"):
-                        poslano += 1
-            log.info("Poslana obavijest o osvježavanju: %d korisnika.", poslano)
-    except Exception as e:  # noqa: BLE001
-        log.warning("Obavijest o osvježavanju nije poslana: %s", e)
+        zadnja = ""
+    if zadnja == verzija:
+        return   # ista verzija → običan restart, ne šalji
+    prva = (zadnja == "")
+    # Zapiši novu verziju ODMAH (da paralelni startovi ne dupliciraju obavijest).
     try:
         zastavica.parent.mkdir(parents=True, exist_ok=True)
-        zastavica.write_text("done", encoding="utf-8")
+        zastavica.write_text(verzija, encoding="utf-8")
     except OSError:
         pass
+    if prva:
+        return   # prvo pokretanje s ovom logikom → samo zabilježi, bez obavijesti
+    try:
+        from .push import obavijesti_ulogu, push_omogucen
+        if push_omogucen():
+            obavijesti_ulogu(
+                db, [Uloga.voditelj, Uloga.poslovodja],
+                "Ažurirano — osvježite",
+                "Nova verzija aplikacije. Osvježite stranicu (povucite prema dolje ili F5).",
+                url="/plan",
+            )
+            db.commit()
+            log.info("Obavijest o osvježavanju poslana (verzija %s).", verzija[:12])
+    except Exception as e:  # noqa: BLE001
+        log.warning("Obavijest o osvježavanju nije poslana: %s", e)
 
 
 def osiguraj_vozilo_483(db: Session) -> None:

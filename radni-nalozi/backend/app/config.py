@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     dispecer_zaliha: int = 2
     # Javni URL ovog portala (za poveznice iz pozadinskih zadataka, bez Requesta).
     javni_url: str = "https://bravel-radni-nalozi.fly.dev"
+    # Verzija izgradnje (git SHA) — proslijedi je deploy preko `flyctl deploy --env APP_VERZIJA`.
+    # Na promjenu verzije pri startu šaljemo voditeljima push „osvježi" (vidi obavijesti_osvjezi).
+    # Prazno (lokalno/dev) → obavijest se ne šalje.
+    app_verzija: str = ""
     # Kraj smjene: pon–pet 15:00, subota 14:00 → pitaj one koji još rade jesu li
     # gotovi za danas ili ostaju dulje; bez odgovora u 15 min → auto "Nije gotovo".
     # ISKLJUČENO dok se izričito ne upali (da ne dira pravi rad dok se testira).
