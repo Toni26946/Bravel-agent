@@ -82,11 +82,17 @@
   /* --- Poslovođa --- */
   .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
   .zak-traka{background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;margin:0 0 10px;font-size:12.5px;font-weight:700}
-  .naprav-card{margin-bottom:12px}
-  .naprav-glava{border:0;background:none;font:inherit;font-weight:800;font-size:13px;color:var(--s-radu,#1f7a39);cursor:pointer;padding:2px 0;width:100%;text-align:left}
-  .naprav-red{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;padding:5px 0;border-top:1px dashed var(--line);font-size:12px}
-  .naprav-ime{font-weight:700;min-width:150px}
-  .naprav-gb{color:var(--muted)}
+  .nap-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .nap-card{padding:12px 14px}
+  .nap-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;color:var(--s-radu,#1f7a39);padding-bottom:6px;border-bottom:2px solid var(--line)}
+  .nap-br{margin-left:auto;background:var(--s-radu,#1f7a39);color:#fff;border-radius:999px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;padding:0 6px}
+  .nap-task{padding:7px 0;border-top:1px dashed var(--line)}
+  .nap-task:first-of-type{border-top:0}
+  .nap-t1{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .nap-gb{font-weight:800;font-size:12.5px}
+  .nap-kat{color:var(--muted);font-size:11px;font-weight:700}
+  .nap-vr{margin-left:auto;color:var(--muted);font-size:11px;font-weight:700}
+  .nap-opis{font-size:12px;line-height:1.35;margin-top:2px}
   .pl-top .brojac{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
   .brojac-btn{margin-left:auto;background:var(--plava-soft);color:var(--plava);border:0;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
   .plan-maker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--plava-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
@@ -220,6 +226,7 @@
   <button class="tab akt" data-v="pl">👷‍♂️ Poslovođa</button>
   <button class="tab" data-v="meh">📱 Mehaničar</button>
   <button class="tab" data-v="dash">👷 Radnici</button>
+  <button class="tab" data-v="nap">✅ Napravljeno</button>
   <span class="datum" id="datum"></span>
 </nav>
 
@@ -228,6 +235,7 @@
     <section id="v-pl" hidden></section>
     <section id="v-meh" hidden></section>
     <section id="v-dash" hidden></section>
+    <section id="v-nap" hidden></section>
     <div class="foot">Vidljivo samo vlasniku · osvježava se automatski.</div>
   </div>
 </main>
@@ -493,17 +501,7 @@
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
        '</div>';
-    // Kartica: tko je što napravio danas (gotovi zadaci). Sklopiva.
-    h+='<div class="card naprav-card"><button class="naprav-glava" onclick="PLAN.toggleNaprav()">✅ Napravljeno danas — '+(napravljeno.ukupno||0)+' '+(napravOtvoren?'▴':'▾')+'</button>';
-    if(napravOtvoren){
-      var _nm=napravljeno.mehanicari||[];
-      if(!_nm.length){ h+='<div class="vozilo" style="padding:6px 2px">Još ništa danas.</div>'; }
-      else { _nm.forEach(function(m){
-        h+='<div class="naprav-red"><span class="naprav-ime">'+esc(m.ime)+' <b>('+m.zadaci.length+')</b></span>'+
-           '<span class="naprav-gb">'+(m.zadaci||[]).map(function(z){return '<span title="'+esc(z.opis||'')+(z.kat?' · '+esc(z.kat):'')+'">GB '+esc(z.gb)+'</span>';}).join(', ')+'</span></div>';
-      }); }
-    }
-    h+='</div>';
+    // (Pregled „Napravljeno danas" je sad zaseban tab — vidi renderNAP.)
     if(planZakljucan){
       h+='<div class="zak-traka">🔒 Plan zaključan'+(zakljucaoIme?' · '+esc(zakljucaoIme):'')+(zakljucanoTs?' · '+vrijemeHM(zakljucanoTs):'')+' — sastav i redoslijed su zamrznuti. Dnevni rad (dodjela, slanje, štoperica) teče normalno.</div>';
     }
@@ -681,14 +679,36 @@
     return h;
   }
 
+  // --- render: Napravljeno danas (zaseban tab) — kartica po radniku s opisom zadataka ---
+  function renderNAP(){
+    var nm=napravljeno.mehanicari||[];
+    var h='<p class="hint">Što je svaki radnik danas <b>završio</b> (gotovi zadaci) — ukupno '+(napravljeno.ukupno||0)+'.</p>';
+    if(!nm.length){ h+='<div class="card" style="color:var(--muted)">Još ništa danas.</div>'; return h; }
+    h+='<div class="nap-grid">';
+    nm.forEach(function(m){
+      h+='<div class="card nap-card"><div class="nap-head">👷 '+esc(m.ime)+' <span class="nap-br">'+m.zadaci.length+'</span></div>';
+      (m.zadaci||[]).forEach(function(z){
+        h+='<div class="nap-task"><div class="nap-t1"><span class="nap-gb">GB '+esc(z.gb)+'</span>'+
+           (z.kat?'<span class="nap-kat">· '+esc(z.kat)+'</span>':'')+
+           (z.krajTs?'<span class="nap-vr">'+vrijemeHM(z.krajTs)+'</span>':'')+'</div>'+
+           '<div class="nap-opis">'+esc(z.opis||'—')+'</div></div>';
+      });
+      h+='</div>';
+    });
+    h+='</div>';
+    return h;
+  }
+
   function render(){
     _brojMeh = brojUReduPoMeh();
     document.getElementById("v-pl").innerHTML = renderPL();
     document.getElementById("v-meh").innerHTML = renderMEH();
     document.getElementById("v-dash").innerHTML = renderDASH();
+    document.getElementById("v-nap").innerHTML = renderNAP();
     document.getElementById("v-pl").hidden = pogled!=="pl";
     document.getElementById("v-meh").hidden = pogled!=="meh";
     document.getElementById("v-dash").hidden = pogled!=="dash";
+    document.getElementById("v-nap").hidden = pogled!=="nap";
     document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
     var cekaUk = svabOps().filter(function(x){return x.o.status==="ceka"||x.o.status==="pauza";}).length;
