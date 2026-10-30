@@ -293,9 +293,11 @@
   }
   function ucitaj(force){
     var odMs=new Date(new Date().setHours(0,0,0,0)).getTime();   // danas 00:00 lokalno
-    var pNap=api("/napravljeno?od_ms="+odMs).catch(function(){ return {mehanicari:[],ukupno:0}; });
+    // „Napravljeno" povuci SAMO kad je taj tab otvoren — inače svaki ciklus (8 s) × puno
+    // kartica nepotrebno opterećuje server (dupli upiti) i zna izgladniti prijavu (502).
+    var pNap=(pogled==="nap") ? api("/napravljeno?od_ms="+odMs).catch(function(){ return null; }) : Promise.resolve(null);
     return Promise.all([api(""), pNap]).then(function(res){
-      var d=res[0]; napravljeno=res[1]||{mehanicari:[],ukupno:0};
+      var d=res[0]; if(res[1]) napravljeno=res[1];
       MEH=d.mehanicari||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
       planZakljucan=!!d.zakljucan; zakljucaoIme=d.zakljucaoIme||""; zakljucanoTs=d.zakljucanoTs||null;
       autoSlanje=d.autoSlanje||{ukljuceno:false,ura:"06:45",datum:null};
@@ -753,6 +755,7 @@
     pogled=b.getAttribute("data-v");
     document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("akt",t===b);});
     render();
+    if(pogled==="nap") ucitaj(true);   // „Napravljeno" se ne povlači u pozadini → osvježi pri otvaranju
   });
 
   // datum
