@@ -162,6 +162,11 @@ export const api = {
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/odjava`, { method: 'POST' }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
+  // Samostalni rad (npr. vulkanizer): sam otvara posao i sam se prijavljuje
+  samostalno: () => zahtjev('/samostalno'),
+  samostalnoPosao: (gb, opis) => zahtjev('/samostalno/posao', { method: 'POST', body: { gb, opis } }),
+  samostalnoAkcija: (zid, akcija) => zahtjev(`/samostalno/${zid}/${akcija}`, { method: 'POST' }),
+
   // Moja radiona (radnik vidi svoje operacije iz plana)
   planMoje: () => zahtjev('/plan/moje'),
   planPotvrdi: (zid) => zahtjev(`/plan/zadatak/${zid}/potvrdi`, { method: 'POST' }),

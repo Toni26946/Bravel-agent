@@ -9,7 +9,7 @@ import { MODULI } from './moduli'
 const NAV_RED = [
   '/plan', 'grupa:plan',
   '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
-  '/moja-radiona', '/moj-ucinak', '/prijave',
+  '/samostalno', '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', 'grupa:skladiste', '/skladiste', '/skladiste/dashboard', '/evidencija',
   '/zaduzenja', '/radnici', '/pregledi', '/poslovodja', '/steta',
   '/imenik', '/profil',

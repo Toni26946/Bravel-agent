@@ -33,8 +33,12 @@ import EvidencijaRV from './pages/EvidencijaRV'
 import Plan from './pages/Plan'
 import MojaRadiona from './pages/MojaRadiona'
 import Imenik from './pages/Imenik'
+import Samostalno from './pages/Samostalno'
 
-function pocetna(uloga) {
+function pocetna(korisnik) {
+  const uloga = korisnik?.uloga
+  // Samostalni rad (npr. vulkanizer): njegov ekran je „Moj rad".
+  if (uloga === 'radnik' && Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/samostalno')) return '/samostalno'
   if (uloga === 'vozac') return '/prijave'
   // Skladištar: njegov ekran je skladište (primke otpremnica).
   if (uloga === 'skladistar') return '/skladiste'
@@ -48,7 +52,7 @@ function Zasticeno({ uloge, modul, children }) {
   // Pristup: dopuštena uloga ILI izričito dodijeljen modul (po korisniku).
   const dodijeljen = modul && Array.isArray(korisnik.moduli) && korisnik.moduli.includes(modul)
   if (uloge && !uloge.includes(korisnik.uloga) && !dodijeljen) {
-    return <Navigate to={pocetna(korisnik.uloga)} replace />
+    return <Navigate to={pocetna(korisnik)} replace />
   }
   return children
 }
@@ -59,7 +63,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/prijava" element={korisnik ? <Navigate to={pocetna(korisnik.uloga)} replace /> : <Login />} />
+      <Route path="/prijava" element={korisnik ? <Navigate to={pocetna(korisnik)} replace /> : <Login />} />
 
       {/* Vozač + voditelj: prijave kvarova */}
       <Route path="/prijave" element={<Zasticeno uloge={['vozac', 'voditelj']}><Prijave /></Zasticeno>} />
@@ -95,10 +99,10 @@ export default function App() {
       <Route path="/moj-ucinak" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']}><MojUcinak /></Zasticeno>} />
 
       {/* Plan radione — vlasnik (ai_poslovodja) ILI tko ima modul '/plan' */}
-      <Route path="/plan" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{(korisnik?.ai_poslovodja || (Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/plan'))) ? <Plan /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
+      <Route path="/plan" element={<Zasticeno uloge={['voditelj', 'poslovodja']}>{(korisnik?.ai_poslovodja || (Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/plan'))) ? <Plan /> : <Navigate to={pocetna(korisnik)} replace />}</Zasticeno>} />
 
       {/* Imenik telefona (samo čitanje, iz Flota OS-a) — vlasnik ILI tko ima modul '/imenik' */}
-      <Route path="/imenik" element={<Zasticeno>{korisnik?.imenik ? <Imenik /> : <Navigate to={pocetna(korisnik?.uloga)} replace />}</Zasticeno>} />
+      <Route path="/imenik" element={<Zasticeno>{korisnik?.imenik ? <Imenik /> : <Navigate to={pocetna(korisnik)} replace />}</Zasticeno>} />
 
       {/* Šteta: voditelj */}
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
@@ -120,9 +124,12 @@ export default function App() {
       {/* „Moja radiona" više nije za mehaničara — rad ide isključivo preko WhatsApp poveznice. */}
       <Route path="/moja-radiona" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><MojaRadiona /></Zasticeno>} />
 
+      {/* Samostalni rad (vulkanizer i sl.) — SAMO radnik s modulom '/samostalno' */}
+      <Route path="/samostalno" element={<Zasticeno>{(korisnik?.uloga === 'radnik' && Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/samostalno')) ? <Samostalno /> : <Navigate to={pocetna(korisnik)} replace />}</Zasticeno>} />
+
       <Route path="/profil" element={<Zasticeno><Profil /></Zasticeno>} />
 
-      <Route path="*" element={<Navigate to={korisnik ? pocetna(korisnik.uloga) : '/prijava'} replace />} />
+      <Route path="*" element={<Navigate to={korisnik ? pocetna(korisnik) : '/prijava'} replace />} />
     </Routes>
   )
 }

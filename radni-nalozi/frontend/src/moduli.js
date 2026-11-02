@@ -18,6 +18,8 @@ export const MODULI = [
   { key: '/prijave', ikona: '📋', txt: 'tab.prijave' },
   { key: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona', literal: true },
   { key: '/moj-ucinak', ikona: '🏆', txt: 'tab.mojUcinak' },
+  // Samostalni rad (npr. vulkanizer): radnik sam otvara posao i sam se prijavljuje (bez WhatsAppa).
+  { key: '/samostalno', ikona: '🛞', txt: 'Moj rad', literal: true },
   // Imenik telefona (samo čitanje, iz Flota OS-a) — po zadanom samo vlasnik; ostalima se dodjeljuje ovdje.
   { key: '/imenik', ikona: '☎️', txt: 'Imenik', literal: true },
 ]
@@ -27,7 +29,7 @@ export const MODULI_ULOGA = {
   voditelj: ['/izbornik', '/vozila-u-radu', '/nalozi', '/izasli', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/radnici', '/pregledi', '/steta'],
   poslovodja: ['/izbornik', '/vozila-u-radu', '/nalozi', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/vozaci', '/pregledi'],
   skladistar: ['/skladiste', '/skladiste/dashboard'],
-  radnik: ['/moja-radiona', '/moj-ucinak', '/nalozi'],
+  radnik: ['/moja-radiona', '/moj-ucinak', '/nalozi', '/samostalno'],
   vozac: ['/prijave'],
 }
 
