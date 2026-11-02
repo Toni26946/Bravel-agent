@@ -566,13 +566,13 @@ def ukloni_duplikat_mihael(db: Session) -> None:
 
 
 def obavijesti_osvjezi(db: Session) -> None:
-    """Nakon SVAKOG deploya (nove verzije servera) pošalji voditeljima/poslovođama push
+    """Nakon SVAKOG deploya (nove verzije servera) pošalji SVIM korisnicima portala push
     da osvježe stranicu. Gejtano po VERZIJI (git SHA iz APP_VERZIJA), ne po restartu:
 
     - verzija nije upečena (lokalno/dev) → ništa;
     - verzija ista kao zadnja zapisana (običan restart, crash, skaliranje) → ništa;
     - prvi put (nema zapisa) → samo zapiši verziju, bez obavijesti (da se ne spama na uvođenju);
-    - verzija se promijenila → zapiši novu i pošalji push voditeljima + poslovođama.
+    - verzija se promijenila → zapiši novu i pošalji push svim korisnicima (s „što je novo").
 
     Zastavica je datoteka `.verzija` na volumenu (jedan volumen → nema duplikata)."""
     verzija = (settings.app_verzija or "").strip()
@@ -597,12 +597,12 @@ def obavijesti_osvjezi(db: Session) -> None:
     try:
         from .push import obavijesti_ulogu, push_omogucen
         if push_omogucen():
-            obavijesti_ulogu(
-                db, [Uloga.voditelj, Uloga.poslovodja],
-                "Ažurirano — osvježite",
-                "Nova verzija aplikacije. Osvježite stranicu (povucite prema dolje ili F5).",
-                url="/plan",
-            )
+            # SVI korisnici portala (sve uloge, aktivni, s uključenim obavijestima) +
+            # kratko „što je novo" (naslov commita iz deploya, APP_NOVO).
+            novo = (settings.app_novo or "").strip()
+            tijelo = (f"Novo: {novo}. " if novo else "Nova verzija aplikacije. ") + \
+                "Osvježite stranicu (povucite prema dolje ili F5)."
+            obavijesti_ulogu(db, list(Uloga), "Ažurirano — osvježite", tijelo[:300], url="/")
             db.commit()
             log.info("Obavijest o osvježavanju poslana (verzija %s).", verzija[:12])
     except Exception as e:  # noqa: BLE001

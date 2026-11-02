@@ -52,9 +52,14 @@ jobs:
       - name: Deploy gotove slike
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN2 }}
+          # Poruka commita ide kroz env (ne izravno u skriptu) — sigurno od navodnika.
+          COMMIT_PORUKA: ${{ github.event.head_commit.message }}
         run: |
+          # „Što je novo" za push korisnicima: prvi redak commita bez prefiksa „Radni nalozi:".
+          NOVO=$(printf '%s\n' "$COMMIT_PORUKA" | head -n 1 | sed -E 's/^Radni nalozi:[[:space:]]*//' | cut -c1-200)
           flyctl deploy \
             --app "$FLY_APP" \
             --config radni-nalozi/fly.toml \
             --image registry.fly.io/${FLY_APP}:${{ github.sha }} \
-            --env APP_VERZIJA=${{ github.sha }}
+            --env APP_VERZIJA=${{ github.sha }} \
+            --env "APP_NOVO=$NOVO"

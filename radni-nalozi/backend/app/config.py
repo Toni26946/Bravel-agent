@@ -106,6 +106,8 @@ class Settings(BaseSettings):
     # Na promjenu verzije pri startu šaljemo voditeljima push „osvježi" (vidi obavijesti_osvjezi).
     # Prazno (lokalno/dev) → obavijest se ne šalje.
     app_verzija: str = ""
+    # Kratko „što je novo" u toj verziji (prvi redak commita, bez „Radni nalozi:") — APP_NOVO.
+    app_novo: str = ""
     # Kraj smjene: pon–pet 15:00, subota 14:00 → pitaj one koji još rade jesu li
     # gotovi za danas ili ostaju dulje; bez odgovora u 15 min → auto "Nije gotovo".
     # ISKLJUČENO dok se izričito ne upali (da ne dira pravi rad dok se testira).
