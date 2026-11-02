@@ -14,6 +14,14 @@ def test_razdjelnik_tisucica():
     assert normaliziraj_gb("1 113") == "1113"
 
 
+def test_tisucu_tri_kao_1_3():
+    """„tisuću tri" → diktafon „1.3": bez popisa vozila 1003; s popisom bira postojeći."""
+    assert normaliziraj_gb("1.3") == "1003"
+    assert normaliziraj_gb("1.3", {"1003", "13"}) == "1003"
+    assert normaliziraj_gb("1.3", {"13", "500"}) == "13"      # 1003 ne postoji → 13
+    assert normaliziraj_gb("1.3", {"1300"}) == "1300"
+
+
 def test_obicni_brojevi_ostaju():
     assert normaliziraj_gb("21") == "21"
     assert normaliziraj_gb("1003") == "1003"

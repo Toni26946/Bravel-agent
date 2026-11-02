@@ -275,7 +275,8 @@ def _postavi_dodjele(db: Session, nalog: Nalog, radnici_ids: list[int]) -> None:
 
 # --- AI glasovni unos --------------------------------------------------------
 @router.post("/glasovni-parse", response_model=GlasovniOdgovor)
-def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslovodja)):
+def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslovodja),
+                   db: Session = Depends(get_db)):
     if not ai_dostupan():
         raise HTTPException(status_code=503, detail="Glasovni unos nije konfiguriran (nedostaje ANTHROPIC_API_KEY).")
     if not z.tekst.strip():
@@ -299,7 +300,7 @@ def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslov
                 zadaci.append(GlasovniZadatak(opis=opis, radnik=radnik))
         operacije.append(GlasovnaOperacija(kategorija=kat, zadaci=zadaci))
     return GlasovniOdgovor(
-        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb")),
+        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb"), {str(g) for (g,) in db.query(Vozilo.gb).all()}),
         voditelj=podaci.get("voditelj") or None,
         vozac=podaci.get("vozac") or None,
         operacije=operacije,

@@ -18,18 +18,33 @@ def ai_dostupan() -> bool:
     return bool(anthropic and settings.anthropic_api_key)
 
 
-def normaliziraj_gb(gb) -> str | None:
-    """Garažni broj iz diktata → same znamenke. Hrvatski diktafon „tisuću tri" piše
-    kao „1.003", a zna i izgubiti nulu („1.03"); GB nikad nema decimala, pa je točka/
-    zarez/razmak razdjelnik tisućica: lijevo + desno dopunjeno na 3 znamenke → „1003"."""
+def kandidati_gb(gb) -> list[str]:
+    """Mogući garažni brojevi iz diktata, od najvjerojatnijeg. Hrvatski diktafon
+    „tisuću tri" piše kao „1.003", „1.03" ili čak „1.3" (gubi nule); GB nikad nema
+    decimala, pa je točka/zarez/razmak razdjelnik tisućica → prvo „1003", zatim
+    „13" (spojeno) i „1300" (dopunjeno zdesna)."""
     import re
     if gb is None:
-        return None
+        return []
     s = re.sub(r"(?i)^\s*gb\s*", "", str(gb)).strip()
     m = re.fullmatch(r"(\d{1,3})[.,\s](\d{1,3})", s)
     if m:
-        return m.group(1) + m.group(2).zfill(3)
-    return s or None
+        a, b = m.group(1), m.group(2)
+        return list(dict.fromkeys([a + b.zfill(3), a + b, a + b.ljust(3, "0")]))
+    return [s] if s else []
+
+
+def normaliziraj_gb(gb, postojeci: set[str] | None = None) -> str | None:
+    """Garažni broj iz diktata → same znamenke (vidi kandidati_gb). Ako je dan skup
+    postojećih GB-ova, vrati prvog kandidata koji stvarno postoji."""
+    k = kandidati_gb(gb)
+    if not k:
+        return None
+    if postojeci:
+        for x in k:
+            if x in postojeci:
+                return x
+    return k[0]
 
 
 SUSTAV = (
@@ -41,7 +56,9 @@ SUSTAV = (
     '{"vozilo_gb": string|null, "voditelj": string|null, "vozac": string|null, '
     '"operacije": [{"kategorija": string, "zadaci": [{"opis": string, "radnik": string|null}]}]}\n'
     "Pravila:\n"
-    "- vozilo_gb: garažni broj vozila kako je izgovoren (npr. \"21\"). Ako nije spomenut → null.\n"
+    "- vozilo_gb: garažni broj vozila kako je izgovoren (npr. \"21\"). Ako nije spomenut → null. "
+    "Prepiši broj TOČNO kako piše u tekstu, s točkama/zarezima (npr. \"1.3\", \"1.03\", \"1.003\") — "
+    "diktafon tako piše tisućice; NE skraćuj ga i ne pretvaraj (\"1.3\" NIJE \"03\" ni \"3\").\n"
     "- voditelj i vozac: odaberi TOČNO ime iz danih popisa koje najbolje odgovara "
     "izgovorenom; ako nije spomenuto ili nema poklapanja → null.\n"
     "- Svaku operaciju svrstaj u NAJBLIŽU kategoriju iz popisa DOZVOLJENE KATEGORIJE i "
@@ -138,7 +155,8 @@ SUSTAV_STETA_GOVOR = (
     "Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
     '{"vozilo_gb": string|null, "vozac": string|null, "opis": string}\n'
     "Pravila:\n"
-    "- vozilo_gb: garažni broj kamiona kako je izgovoren (npr. \"122\"). Ako nije spomenut → null.\n"
+    "- vozilo_gb: garažni broj kamiona kako je izgovoren (npr. \"122\"). Ako nije spomenut → null. "
+    "Prepiši broj TOČNO kako piše u tekstu, s točkama/zarezima (npr. \"1.3\", \"1.003\") — ne skraćuj ga.\n"
     "- vozac: odaberi TOČNO ime iz danog popisa vozača koje najbolje odgovara izgovorenom; "
     "ako nije spomenuto ili nema poklapanja → null.\n"
     "- opis: jasan, sažet opis onoga što je oštećeno/potrgano (bez garažnog broja i imena vozača).\n"

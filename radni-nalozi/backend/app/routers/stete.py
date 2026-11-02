@@ -41,7 +41,8 @@ def _provjeri_veze(db: Session, vozilo_id: int | None, vozac_id: int | None) -> 
 
 # --- AI glasovni unos --------------------------------------------------------
 @router.post("/glasovni-parse", response_model=StetaGlasovniOdgovor)
-def glasovni_parse(z: StetaGlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)):
+def glasovni_parse(z: StetaGlasovniZahtjev, _: Korisnik = Depends(samo_voditelj),
+                   db: Session = Depends(get_db)):
     if not ai_dostupan():
         raise HTTPException(status_code=503, detail="Glasovni unos nije konfiguriran (nedostaje ANTHROPIC_API_KEY).")
     if not z.tekst.strip():
@@ -51,7 +52,7 @@ def glasovni_parse(z: StetaGlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"AI nije uspio obraditi govor: {e}")
     return StetaGlasovniOdgovor(
-        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb")),
+        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb"), {str(g) for (g,) in db.query(Vozilo.gb).all()}),
         vozac=podaci.get("vozac") or None,
         opis=(podaci.get("opis") or "").strip(),
     )
