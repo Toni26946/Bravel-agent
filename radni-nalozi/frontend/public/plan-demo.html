@@ -42,7 +42,7 @@
   main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;padding-block:16px}
   .wrap{max-width:1040px;margin:0 auto}
   /* Fiksni bočni popis vozila u planu (desno) — brzi skok do naloga. Skriven na užem ekranu. */
-  .plan-idx{position:fixed;top:104px;right:12px;width:62px;max-height:calc(100vh - 104px - 100px);overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 5px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:none;flex-direction:column;gap:3px}
+  .plan-idx{position:fixed;top:104px;right:12px;width:62px;max-height:calc(100vh - 104px - 170px);overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 5px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:none;flex-direction:column;gap:3px}
   .plan-idx-h{font-size:10px;font-weight:800;color:var(--muted);text-align:center;margin-bottom:1px}
   .plan-idx-it{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:5px 2px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;text-align:center}
   .plan-idx-it:hover{border-color:var(--plava);color:var(--plava)}
@@ -53,9 +53,22 @@
   body.view-dash .wrap{max-width:none}
   body.view-pl .plan-idx{display:flex}
   body.view-pl main{padding-right:84px}
+  /* Fiksni popis mehaničara (lijevo) — broj zadataka u redu, najmanje → najviše;
+     crveno = nije prijavljen ni na jedan zadatak (ništa „U tijeku"). Samo na širokom ekranu. */
+  .meh-idx{position:fixed;top:104px;left:12px;width:190px;max-height:calc(100vh - 104px - 24px);overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 7px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:40;display:none;flex-direction:column;gap:4px}
+  .meh-idx-h{font-size:10px;font-weight:800;color:var(--muted);text-align:center;margin-bottom:2px}
+  .meh-idx-it{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px;font-weight:700}
+  .meh-idx-it .mi-ime{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meh-idx-it .mi-br{flex:none;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:0 8px;font-size:11px;font-weight:800}
+  .meh-idx-it.nije{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg)}
+  .meh-idx-it.nije .mi-br{background:#fff;color:var(--crveno)}
+  @media(min-width:1100px){
+    body.view-pl .meh-idx{display:flex}
+    body.view-pl main{padding-left:216px}
+  }
   @media(max-width:759px){                       /* mobitel — kompaktno, uži popis */
     body.view-pl main{padding-right:46px}
-    .plan-idx{width:38px;right:4px;top:92px;padding:5px 3px;gap:2px;max-height:calc(100vh - 92px - 145px)}
+    .plan-idx{width:38px;right:4px;top:92px;padding:5px 3px;gap:2px;max-height:calc(100vh - 92px - 170px)}
     .plan-idx-it{font-size:11px;padding:4px 1px}
     .plan-idx-h{display:none}
   }
@@ -186,6 +199,8 @@
   .rad-row{display:flex;align-items:stretch;gap:8px}
   .rad-ime{flex:none;width:168px;position:sticky;left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-weight:800;font-size:12.5px;display:flex;align-items:center;gap:6px;z-index:2}
   .rad-ime.malo{border-color:var(--s-ceka);color:var(--s-ceka);background:var(--s-ceka-bg)}
+  .rad-ime.nije{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg)}
+  .rad-ime.nije .rad-br{background:#fff;color:var(--crveno)}
   .rad-ime.slob-top{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg);font-weight:800}
   .rad-ime.slob-top .rad-br{background:#fff;color:var(--crveno)}
   .rad-cell.prazno{justify-content:center;align-items:center;text-align:center;color:var(--crveno);border-style:dashed;border-color:var(--crveno);background:transparent;cursor:default;font-size:11.5px;font-weight:700}
@@ -547,6 +562,20 @@
     hitni.forEach(function(n){ idxItems+='<button class="plan-idx-it hit" title="Hitno — GB '+esc(n.gb)+' · '+esc(n.vozilo)+'" onclick="PLAN.skrolDo('+n.id+')">'+esc(n.gb)+'</button>'; });
     norm.forEach(function(n){ idxItems+='<button class="plan-idx-it" title="GB '+esc(n.gb)+' · '+esc(n.vozilo)+'" onclick="PLAN.skrolDo('+n.id+')">'+esc(n.gb)+'</button>'; });
     if(idxItems){ h+='<div class="plan-idx"><div class="plan-idx-h">Plan</div>'+idxItems+'</div>'; }
+    // Fiksni popis mehaničara (lijevo): broj zadataka u redu, najmanje → najviše;
+    // crveno = nije prijavljen ni na jedan zadatak (ništa „U tijeku").
+    var rpr=redPoRadniku();
+    var mehL=(MEH||[]).filter(function(m){ return !m.odsutan; }).map(function(m){
+      var l=rpr[m.id]||[];
+      return {m:m, br:l.length, radi:l.some(function(x){ return x.o.status==="radu"; })};
+    }).sort(function(a,b){ return a.br!==b.br ? a.br-b.br : (a.m.ime<b.m.ime?-1:1); });
+    if(mehL.length){
+      h+='<div class="meh-idx"><div class="meh-idx-h">Mehaničari · zadataka</div>'+
+         mehL.map(function(x){
+           return '<div class="meh-idx-it'+(x.radi?'':' nije')+'" title="'+esc(x.m.ime)+(x.radi?'':' — nije prijavljen na zadatak')+'">'+
+                  '<span class="mi-ime">'+esc(x.m.ime)+'</span><span class="mi-br">'+x.br+'</span></div>';
+         }).join('')+'</div>';
+    }
     return h;
   }
 
@@ -650,7 +679,7 @@
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
        '<div class="kpi"><div class="n">'+slobodni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. Karticu možeš povući i u redak drugog mehaničara.</p>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak. Karticu možeš povući i u redak drugog mehaničara.</p>';
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
@@ -662,7 +691,8 @@
       });
       saZad.forEach(function(r){
         var malo=r.cekaju<PRAG;
-        h+='<div class="rad-row"><div class="rad-ime'+(malo?' malo':'')+'">'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        var nije=!r.lista.some(function(x){ return x.o.status==="radu"; });   // nije prijavljen na zadatak → crveno
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'>'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var uTijeku=(x.o.status==="radu");
           h+='<div class="rad-cell '+CH[x.o.status]+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
