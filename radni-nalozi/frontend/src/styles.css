@@ -27,8 +27,10 @@ a { color: inherit; text-decoration: none; }
 
 /* Layout */
 /* Lijevi izbornik (rail) na SVIM širinama: skupljen = ikone, raširen = ikone + tekst. */
+/* Puna širina prozora (bez max-width) — na širokom ekranu nema praznih rubova lijevo/desno.
+   Uske stranice (obrasci) i dalje drže svoju širinu preko .sadrzaj. */
 .app {
-  max-width: 1180px; margin: 0 auto; height: 100%;
+  height: 100%;
   display: grid;
   grid-template-columns: 60px 1fr;
   grid-template-rows: auto 1fr;
