@@ -296,6 +296,17 @@ def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
     db.commit()
 
 
+def _nedovrseni_iza_hitnih(z: Zadatak, nz: Zadatak, preostali: list) -> None:
+    """„Nije gotovo": nedovršeni zadatak ostaje mehaničaru u redu — iza HITNIH, a ispred
+    svih ostalih (prvi sljedeći čim završi zadatak koji mu se upravo pokazao).
+    Hitni su ionako uvijek ispred (faza 1 u _red), pa se ručni red (red_ruc) prepisuje
+    samo za obične: [upravo prikazani, nedovršeni, ostali po dosadašnjem redu]."""
+    obicni = [t[2] for t in preostali if not t[0].plan_hitno and not t[2].zapoceto]
+    poredak = ([nz] if nz in obicni else []) + [z] + [x for x in obicni if x is not nz]
+    for i, x in enumerate(poredak):
+        x.red_ruc = i
+
+
 @router.post("/z/{token}/gotovo")
 def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(get_db)):
     link = _ucitaj(db, token, p.uredjaj)
@@ -370,6 +381,7 @@ def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
         nz = preostali[0][2]
         if not nz.zapoceto:
             nz.ceka_potvrdu = True
+        _nedovrseni_iza_hitnih(z, nz, preostali)
         db.commit()
         return _stanje(db, link.radnik)
     db.commit()

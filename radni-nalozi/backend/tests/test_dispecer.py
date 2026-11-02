@@ -279,6 +279,48 @@ def test_nije_gotovo_promjena_plana_vraca_sljedeci():
     assert (z1.utroseno_sek or 0) > 0, "vrijeme trenutnog mora biti spremljeno"
 
 
+def _meh_za_nedovrseni(db, s_hitnim: bool):
+    """Mehaničar radi TRENUTNI, u redu A, B, C (ručni red) + opcionalno HITNI."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    meh = Korisnik(ime="Meh ND", korisnicko_ime="meh.nd", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="TND", marka="MAN"); db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-ND", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    nh = Nalog(broj="RN-NDH", vozilo_id=voz.id, naslov="H", kreirao_id=meh.id, status=StatusNaloga.u_radu, plan_hitno=True)
+    db.add_all([n, nh]); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); oph = Operacija(nalog_id=nh.id, kategorija="H")
+    db.add_all([op, oph]); db.flush()
+    zadaci = [Zadatak(operacija_id=op.id, opis="TRENUTNI", zapoceto=_dt.now(_tz.utc) - _td(minutes=5))]
+    for i, o in enumerate(["A", "B", "C"]):
+        zadaci.append(Zadatak(operacija_id=op.id, opis=o, red_ruc=i))
+    if s_hitnim:
+        zadaci.append(Zadatak(operacija_id=oph.id, opis="HITNI"))
+    for z in zadaci:
+        z.radnici = [meh]
+    db.add_all(zadaci)
+    db.add(MehanicarLink(radnik_id=meh.id, token="tnd", aktivan=True)); db.commit()
+    return meh
+
+
+def test_nije_gotovo_ide_odmah_iza_sljedeceg():
+    """Bez hitnih: pokaže se sljedeći (A), a nedovršeni je PRVI iza njega (ispred B, C)."""
+    from app.routers.dispecer import _red, z_nije_gotovo
+    db = _session()
+    meh = _meh_za_nedovrseni(db, s_hitnim=False)
+    r = z_nije_gotovo("tnd", UredjajIn(uredjaj="A"), db=db)
+    assert r.get("opis") == "A"
+    assert [t[2].opis for t in _red(db, meh)] == ["A", "TRENUTNI", "B", "C"]
+
+
+def test_nije_gotovo_ide_iza_hitnih():
+    """S hitnim: pokaže se HITNI, a nedovršeni odmah iza njega, ispred običnih."""
+    from app.routers.dispecer import _red, z_nije_gotovo
+    db = _session()
+    meh = _meh_za_nedovrseni(db, s_hitnim=True)
+    r = z_nije_gotovo("tnd", UredjajIn(uredjaj="A"), db=db)
+    assert r.get("opis") == "HITNI"
+    assert [t[2].opis for t in _red(db, meh)] == ["HITNI", "TRENUTNI", "A", "B", "C"]
+
+
 def _meh_s_pokrenutim(db, token="ts"):
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
     meh = Korisnik(ime="Meh S", korisnicko_ime="meh.s", lozinka_hash="x", uloga=Uloga.radnik)
