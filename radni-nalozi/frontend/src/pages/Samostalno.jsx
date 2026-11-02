@@ -21,7 +21,9 @@ export default function Samostalno() {
   const [greska, setGreska] = useState('')
   const [tik, setTik] = useState(0)        // sekunde od zadnjeg dohvata (živi mjerač)
 
-  const ucitaj = () => api.samostalno().then((r) => { setD(r); setTik(0) }).catch((e) => setGreska(e.message || 'Greška'))
+  // Vlasnik: /samostalno?kao=<id> → pregled radnikova zaslona (samo gledanje).
+  const kao = new URLSearchParams(window.location.search).get('kao')
+  const ucitaj = () => api.samostalno(kao).then((r) => { setD(r); setTik(0) }).catch((e) => setGreska(e.message || 'Greška'))
   useEffect(() => { ucitaj() }, [])
   useAutoOsvjezi(ucitaj, 30000)
   useEffect(() => { const id = setInterval(() => setTik((x) => x + 1), 1000); return () => clearInterval(id) }, [])
@@ -43,10 +45,13 @@ export default function Samostalno() {
   if (d === null) return <Layout naslov="Moj rad">{greska ? <div className="greska">{greska}</div> : <Spinner />}</Layout>
   const uTijeku = d.otvoreni.filter((z) => z.radi)
   const ostali = d.otvoreni.filter((z) => !z.radi)
+  const pr = !!d.pregled   // pregled vlasnika — gumbi zaključani
 
   return (
     <Layout naslov="Moj rad">
+      {pr && <div className="karta" style={{ background: '#fff4d6', borderColor: '#f0c44c' }}>👁 Pregled kao <b>{d.ime}</b> — ovako mu izgleda zaslon (samo za gledanje).</div>}
       {greska && <div className="greska">{greska}</div>}
+      <fieldset disabled={pr} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
 
       {uTijeku.map((z) => (
         <div key={z.id} className="karta" style={{ borderColor: '#1f7a39', borderWidth: 2 }}>
@@ -103,6 +108,7 @@ export default function Samostalno() {
           <strong>GB {z.gb}</strong> · {z.opis} <span className="meta">· ⏱ {trajanje(z.sek)}</span>
         </div>
       ))}
+      </fieldset>
     </Layout>
   )
 }

@@ -163,7 +163,7 @@ export const api = {
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
 
   // Samostalni rad (npr. vulkanizer): sam otvara posao i sam se prijavljuje
-  samostalno: () => zahtjev('/samostalno'),
+  samostalno: (kao) => zahtjev('/samostalno' + (kao ? `?kao=${kao}` : '')),
   samostalnoPosao: (gb, opis) => zahtjev('/samostalno/posao', { method: 'POST', body: { gb, opis } }),
   samostalnoAkcija: (zid, akcija) => zahtjev(`/samostalno/${zid}/${akcija}`, { method: 'POST' }),
 

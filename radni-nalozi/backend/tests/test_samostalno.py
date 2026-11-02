@@ -65,7 +65,7 @@ def test_tok_novi_pauza_pocni_gotovo():
     db.refresh(z)
     assert z.gotovo is True and z.zavrseno is not None
 
-    s = stanje(k=k, db=db)
+    s = stanje(korisnik=k, db=db)
     assert [x["opis"] for x in s["otvoreni"]] == ["balansiranje"]
     assert [x["opis"] for x in s["danas"]] == ["krpanje gume"]
 

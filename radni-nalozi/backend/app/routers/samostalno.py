@@ -87,9 +87,25 @@ def _pauziraj_ostale(db: Session, k: Korisnik, osim_id: int | None = None) -> No
             _zaustavi_mjerac(z)
 
 
+def _je_vlasnik(k: Korisnik) -> bool:
+    from ..config import settings
+    ov = (settings.ai_poslovodja_user or "").strip().lower()
+    return bool(ov) and (k.korisnicko_ime or "").strip().lower() == ov
+
+
 @router.get("")
-def stanje(k: Korisnik = Depends(_samo_samostalni), db: Session = Depends(get_db)):
-    """Moji otvoreni zadaci (u tijeku prvi) + što sam danas završio."""
+def stanje(kao: int | None = None, korisnik: Korisnik = Depends(trenutni_korisnik),
+           db: Session = Depends(get_db)):
+    """Moji otvoreni zadaci (u tijeku prvi) + što sam danas završio.
+    Vlasnik smije ?kao=<id> — PREGLED tuđeg zaslona, samo za gledanje (akcije ostaju zaključane)."""
+    if ima_samostalno(korisnik):
+        k = korisnik
+    elif kao and _je_vlasnik(korisnik):
+        k = db.get(Korisnik, kao)
+        if not k or not ima_samostalno(k):
+            raise HTTPException(status_code=404, detail="Radnik nema samostalni rad")
+    else:
+        raise HTTPException(status_code=403, detail="Nemate pristup samostalnom radu")
     svi = db.query(Zadatak).join(Zadatak.radnici).filter(Korisnik.id == k.id).all()
     otvoreni = [z for z in svi if not z.gotovo and z.operacija.nalog.status != StatusNaloga.zatvoren]
     otvoreni.sort(key=lambda z: (0 if z.zapoceto else 1, -(z.id)))
@@ -98,6 +114,7 @@ def stanje(k: Korisnik = Depends(_samo_samostalni), db: Session = Depends(get_db
     gotovi.sort(key=lambda z: _aware(z.zavrseno), reverse=True)
     return {
         "ime": k.ime,
+        "pregled": k.id != korisnik.id,
         "kategorija": ZADANA_KATEGORIJA,
         "otvoreni": [_zadatak_out(z) for z in otvoreni],
         "danas": [_zadatak_out(z) for z in gotovi],

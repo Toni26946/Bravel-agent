@@ -125,7 +125,7 @@ export default function App() {
       <Route path="/moja-radiona" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><MojaRadiona /></Zasticeno>} />
 
       {/* Samostalni rad (vulkanizer i sl.) — SAMO radnik s modulom '/samostalno' */}
-      <Route path="/samostalno" element={<Zasticeno>{(korisnik?.uloga === 'radnik' && Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/samostalno')) ? <Samostalno /> : <Navigate to={pocetna(korisnik)} replace />}</Zasticeno>} />
+      <Route path="/samostalno" element={<Zasticeno>{((korisnik?.uloga === 'radnik' && Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/samostalno')) || korisnik?.ai_poslovodja) ? <Samostalno /> : <Navigate to={pocetna(korisnik)} replace />}</Zasticeno>} />
 
       <Route path="/profil" element={<Zasticeno><Profil /></Zasticeno>} />
 
