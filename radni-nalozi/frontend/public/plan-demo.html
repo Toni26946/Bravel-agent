@@ -49,6 +49,8 @@
   .plan-idx-it.hit{border-color:#e5534b;color:#b3261e}
   .card.flash{outline:2px solid var(--plava);outline-offset:2px}
   /* Popis se vidi u plan pogledu na SVIM širinama; desno mu je rezerviran prostor. */
+  /* Radnici: puna širina (bez .wrap max-width) — redovi stanu pa nema vodoravne trake bez potrebe */
+  body.view-dash .wrap{max-width:none}
   body.view-pl .plan-idx{display:flex}
   body.view-pl main{padding-right:84px}
   @media(max-width:759px){                       /* mobitel — kompaktno, uži popis */
@@ -712,6 +714,7 @@
     document.getElementById("v-dash").hidden = pogled!=="dash";
     document.getElementById("v-nap").hidden = pogled!=="nap";
     document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
+    document.body.classList.toggle("view-dash", pogled==="dash");
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
     var cekaUk = svabOps().filter(function(x){return x.o.status==="ceka"||x.o.status==="pauza";}).length;
     var mt = document.querySelector('.tab[data-v="meh"]');
