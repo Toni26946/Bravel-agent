@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from ..auth import trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
-    Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, StatusNaloga, Zadatak,
+    Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa, StatusNaloga, Zadatak,
     ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
@@ -389,9 +389,38 @@ def napravljeno(od_ms: int = 0, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
         rad = list(z.radnici) or ([z.zaduzeni] if z.zaduzeni else [])
         for r in rad:
             d = po.setdefault(r.id, {"ime": r.ime, "zadaci": []})
-            d["zadaci"].append({"gb": gb, "kat": op.kategorija, "opis": z.opis, "krajTs": _ms(z.zavrseno)})
+            d["zadaci"].append({"zid": z.id, "gb": gb, "kat": op.kategorija, "opis": z.opis, "krajTs": _ms(z.zavrseno)})
     out = sorted(po.values(), key=lambda x: (-len(x["zadaci"]), x["ime"]))
     return {"mehanicari": out, "ukupno": sum(len(x["zadaci"]) for x in out)}
+
+
+@router.post("/zadatak/{zid}/vrati")
+def vrati_u_plan(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """„Nije gotovo" iz pregleda Napravljeno: zadatak se ponovno otvara i vraća u plan
+    ISTOM mehaničaru kao nedovršen (pauza, čuva dosadašnje vrijeme, mjerač NE kreće).
+    Ako je nalog bio gotov/zatvoren, vraća se u rad da se opet vidi u planu."""
+    z = _zad(db, zid)
+    if not z.gotovo:
+        raise HTTPException(status_code=400, detail="Zadatak nije označen gotovim")
+    z.gotovo = False
+    z.zavrseno = None
+    z.ceka_potvrdu = False
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+    n = z.operacija.nalog
+    if n.status in (StatusNaloga.gotov, StatusNaloga.zatvoren):
+        stari = n.status
+        n.status = StatusNaloga.u_radu
+        n.zatvoren = None
+        db.add(PovijestStatusa(nalog_id=n.id, stari_status=stari.value, novi_status=n.status.value,
+                               napomena="Zadatak vraćen u plan (nije gotovo)", promijenio_id=korisnik.id))
+    db.flush()
+    _auto_status_naloga(db, n, korisnik)
+    m = _mehanicar(z)
+    _log(db, korisnik, "vrati", f"GB {_gb(n)}: vraćeno u plan — nije gotovo ({z.opis or ''})"[:250],
+         nalog_id=n.id, zadatak_id=z.id, radnik_id=(m.id if m else None))
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/meh-redoslijed")

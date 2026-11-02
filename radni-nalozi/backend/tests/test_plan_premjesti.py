@@ -43,3 +43,24 @@ def test_premjesti_prebaci_na_drugog_i_slozi_red():
     assert za.ceka_potvrdu is False, "novom mehaničaru se tek treba poslati"
     assert [t[2].opis for t in _red(db, b)] == ["B1", "SELI", "B2"]
     assert _red(db, a) == []
+
+
+def test_vrati_u_plan_otvara_gotov_zadatak():
+    from datetime import datetime, timezone
+    from app.routers.plan import vrati_u_plan
+    db = _session()
+    a = Korisnik(ime="Meh A", korisnicko_ime="meh.a", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T56", marka="MAN"); db.add_all([a, voz]); db.flush()
+    n = Nalog(broj="RN-V", vozilo_id=voz.id, naslov="T", kreirao_id=a.id, status=StatusNaloga.gotov)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="GOTOV", gotovo=True, utroseno_sek=600,
+                zavrseno=datetime.now(timezone.utc)); z.radnici = [a]
+    db.add(z); db.commit()
+
+    vrati_u_plan(z.id, korisnik=a, db=db)
+    db.refresh(z); db.refresh(n)
+    assert z.gotovo is False and z.zavrseno is None and z.zapoceto is None
+    assert z.utroseno_sek == 600, "dosadašnje vrijeme ostaje"
+    assert n.status == StatusNaloga.u_radu
+    assert [t[2].opis for t in _red(db, a)] == ["GOTOV"], "vraća se istom mehaničaru u red"
