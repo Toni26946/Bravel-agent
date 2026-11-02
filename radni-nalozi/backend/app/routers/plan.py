@@ -407,6 +407,45 @@ def meh_redoslijed(p: MehRedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db:
     return {"ok": True}
 
 
+class PremjestiIn(BaseModel):
+    zadatak_id: int
+    s_radnika: int
+    na_radnika: int
+    redoslijed: list[int] = []   # novi red zadataka ciljnog mehaničara (dashboard drag)
+
+
+@router.post("/premjesti")
+def premjesti(p: PremjestiIn, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Dashboard drag između mehaničara: zadatak prelazi s jednog na drugog i dobiva
+    mjesto u njegovom redu. Zadatak u tijeku se ne seli (prvo ga treba zaustaviti).
+    Ako je bio poslan starom mehaničaru (čeka potvrdu), ta se oznaka skida — novom
+    ga treba poslati (gumb Pošalji / auto-slanje)."""
+    _provjeri_otkljucan(db)
+    z = _zad(db, p.zadatak_id)
+    if z.gotovo:
+        raise HTTPException(status_code=400, detail="Zadatak je već gotov")
+    if z.zapoceto:
+        raise HTTPException(status_code=400, detail="Zadatak je u tijeku — prvo ga zaustavi")
+    if p.s_radnika != p.na_radnika:
+        stari = db.get(Korisnik, p.s_radnika)
+        # novi mehaničar preuzima mjesto starog (ostali suradnici na zadatku ostaju)
+        ids = [p.na_radnika if r.id == p.s_radnika else r.id for r in z.radnici]
+        if p.na_radnika not in ids:
+            ids.append(p.na_radnika)
+        _set_radnici(db, z, ids)
+        z.ceka_potvrdu = False
+        novi = db.get(Korisnik, p.na_radnika)
+        _log(db, korisnik, "premjesti",
+             f"GB {_gb(z.operacija.nalog)}: {stari.ime if stari else '?'} → {novi.ime if novi else '?'}",
+             nalog_id=z.operacija.nalog_id, zadatak_id=z.id, radnik_id=p.na_radnika)
+    for i, zid in enumerate(p.redoslijed):
+        x = db.get(Zadatak, zid)
+        if x:
+            x.red_ruc = i
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/zastoji")
 def zastoji(dana: int = 14, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Nalozi 'u radu' bez aktivnosti dulje od `dana` dana — za čišćenje podataka.

@@ -648,7 +648,7 @@
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
        '<div class="kpi"><div class="n">'+slobodni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi.</p>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. Karticu možeš povući i u redak drugog mehaničara.</p>';
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
@@ -656,7 +656,7 @@
       // Prisutni BEZ zadatka — na vrhu, crveno (hitno im dodijeliti posao).
       slobodniPrisutni.forEach(function(m){
         h+='<div class="rad-row"><div class="rad-ime slob-top">⚠ '+esc(m.ime)+'<span class="rad-br">0</span></div>'+
-           '<div class="rad-cells"><div class="rad-cell prazno">nema zadatka — dodijeli u planu</div></div></div>';
+           '<div class="rad-cells" data-rid="'+m.id+'"><div class="rad-cell prazno">nema zadatka — dodijeli u planu ili povuci karticu ovamo</div></div></div>';
       });
       saZad.forEach(function(r){
         var malo=r.cekaju<PRAG;
@@ -819,23 +819,38 @@
   // Pokreni stvarno povlačenje kartice (zajedničko za desktop ručku i mobitel long-press).
   function _beginDashDrag(card, cont){
     _drag=true; card.classList.add("dragging"); card.classList.remove("drag-arm");
+    var izvor=cont;                       // redak (mehaničar) iz kojeg je kartica krenula
+    card.style.pointerEvents="none";      // da elementFromPoint vidi redak ISPOD kartice
     function onMove(ev){
       if(ev.cancelable) ev.preventDefault();
-      var x=ev.clientX, cells=cont.querySelectorAll(".rad-cell"), before=null;
+      // Kartica smije i u redak DRUGOG mehaničara (redak ispod prsta/miša).
+      var pod=document.elementFromPoint(ev.clientX, ev.clientY);
+      var red=pod && pod.closest(".rad-row"), novi=red && red.querySelector(".rad-cells[data-rid]");
+      if(novi && novi!==cont){ cont=novi; }
+      var x=ev.clientX, cells=cont.querySelectorAll(".rad-cell:not(.prazno)"), before=null;
       for(var i=0;i<cells.length;i++){ var c=cells[i]; if(c===card) continue; var r=c.getBoundingClientRect(); if(x < r.left + r.width/2){ before=c; break; } }
       if(before){ if(card.nextSibling!==before) cont.insertBefore(card, before); }
       else if(cont.lastChild!==card){ cont.appendChild(card); }
+      var ph=cont.querySelector(".rad-cell.prazno"); if(ph) ph.style.display="none";
     }
     function end(){
       document.removeEventListener("pointermove",onMove,true);
       document.removeEventListener("pointerup",end,true);
       document.removeEventListener("pointercancel",end,true);
-      card.classList.remove("dragging"); _drag=false;
+      card.classList.remove("dragging"); card.style.pointerEvents=""; _drag=false;
       // progutaj klik koji dolazi nakon povlačenja (da se ne otvori nalog)
       var eat=function(ev){ ev.preventDefault(); ev.stopPropagation(); document.removeEventListener("click",eat,true); };
       document.addEventListener("click",eat,true);
       setTimeout(function(){ document.removeEventListener("click",eat,true); }, 500);
-      _dash_commit(cont);
+      if(cont===izvor){ _dash_commit(cont); return; }
+      // Preseljeno drugom mehaničaru → prebaci zadatak + složi njegov red.
+      var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
+      api("/premjesti","POST",{
+        zadatak_id:parseInt(card.getAttribute("data-zid"),10),
+        s_radnika:parseInt(izvor.getAttribute("data-rid"),10),
+        na_radnika:parseInt(cont.getAttribute("data-rid"),10),
+        redoslijed:zids
+      }).then(function(){ toast("Zadatak prebačen"); ucitaj(); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
     }
     document.addEventListener("pointermove",onMove,true);
     document.addEventListener("pointerup",end,true);
