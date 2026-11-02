@@ -9,9 +9,14 @@ const digits = (s) => (s || '').toString().replace(/\D/g, '')
 
 function nadjiVozilo(vozila, gb) {
   if (!gb) return null
+  // Diktafon „tisuću tri" piše kao „1.003" ili „1.03" — točka/zarez je razdjelnik
+  // tisućica (GB nema decimala): lijevo + desno dopunjeno na 3 znamenke → „1003".
+  const m = String(gb).trim().match(/^(\d{1,3})[.,\s](\d{1,3})$/)
+  const tis = m ? m[1] + m[2].padStart(3, '0') : null
   const n = norm(gb)
   const d = digits(gb)
   return (
+    (tis && vozila.find((v) => digits(v.gb) === tis)) ||
     vozila.find((v) => norm(v.gb) === n) ||
     (d && vozila.find((v) => digits(v.gb) === d)) ||
     null

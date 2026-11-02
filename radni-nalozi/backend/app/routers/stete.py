@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from ..ai import ai_dostupan, parsiraj_stetu_govor, procijeni_stetu
+from ..ai import ai_dostupan, normaliziraj_gb, parsiraj_stetu_govor, procijeni_stetu
 from ..auth import zahtijevaj_uloge
 from ..database import get_db
 from ..models import Fotografija, Korisnik, Steta, Uloga, Vozilo
@@ -51,7 +51,7 @@ def glasovni_parse(z: StetaGlasovniZahtjev, _: Korisnik = Depends(samo_voditelj)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"AI nije uspio obraditi govor: {e}")
     return StetaGlasovniOdgovor(
-        vozilo_gb=podaci.get("vozilo_gb") or None,
+        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb")),
         vozac=podaci.get("vozac") or None,
         opis=(podaci.get("opis") or "").strip(),
     )

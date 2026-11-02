@@ -18,6 +18,20 @@ def ai_dostupan() -> bool:
     return bool(anthropic and settings.anthropic_api_key)
 
 
+def normaliziraj_gb(gb) -> str | None:
+    """Garažni broj iz diktata → same znamenke. Hrvatski diktafon „tisuću tri" piše
+    kao „1.003", a zna i izgubiti nulu („1.03"); GB nikad nema decimala, pa je točka/
+    zarez/razmak razdjelnik tisućica: lijevo + desno dopunjeno na 3 znamenke → „1003"."""
+    import re
+    if gb is None:
+        return None
+    s = re.sub(r"(?i)^\s*gb\s*", "", str(gb)).strip()
+    m = re.fullmatch(r"(\d{1,3})[.,\s](\d{1,3})", s)
+    if m:
+        return m.group(1) + m.group(2).zfill(3)
+    return s or None
+
+
 SUSTAV = (
     "Ti si asistent koji iz izgovorenog teksta (servis kamiona) izvlači "
     "strukturirani radni nalog. Ulazni tekst može biti na BILO KOJEM jeziku "

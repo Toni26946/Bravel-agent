@@ -29,7 +29,7 @@ from ..models import (
     Zadatak,
     ZadatakRadnikVrijeme,
 )
-from ..ai import ai_dostupan, parsiraj
+from ..ai import ai_dostupan, normaliziraj_gb, parsiraj
 from .. import flota
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from ..schemas import (
@@ -299,7 +299,7 @@ def glasovni_parse(z: GlasovniZahtjev, _: Korisnik = Depends(voditelj_ili_poslov
                 zadaci.append(GlasovniZadatak(opis=opis, radnik=radnik))
         operacije.append(GlasovnaOperacija(kategorija=kat, zadaci=zadaci))
     return GlasovniOdgovor(
-        vozilo_gb=podaci.get("vozilo_gb") or None,
+        vozilo_gb=normaliziraj_gb(podaci.get("vozilo_gb")),
         voditelj=podaci.get("voditelj") or None,
         vozac=podaci.get("vozac") or None,
         operacije=operacije,
