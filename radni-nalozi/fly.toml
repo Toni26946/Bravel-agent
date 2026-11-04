@@ -18,10 +18,11 @@ primary_region = "ams"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  # Stroj se NIKAD ne gasi — app mora biti stalno dostupan (bez ~20 s hladnog
+  # starta koji je izgledao kao pad) i pozadinski Flota OS GPS nadzor mora teći
+  # neprekidno. Auto-stop isključen; jedan stroj uvijek radi.
+  auto_stop_machines = "off"
   auto_start_machines = true
-  # Barem jedan stroj stalno radi — pozadinski Flota OS GPS nadzor mora teći
-  # neprekidno (inače bi se stroj ugasio kad nema prometa i provjere bi stale).
   min_machines_running = 1
 
 [[mounts]]
