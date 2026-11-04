@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
-from ..models import DnevnikPrikapcanja, Korisnik, Uloga, Vozac, Zaduzenje
+from .. import imenik
+from ..models import DnevnikPrikapcanja, Korisnik, Uloga, Zaduzenje
 from ..schemas import (
     ZaduzenjeCreate,
     ZaduzenjeListItem,
@@ -134,25 +135,9 @@ def predlozak(_: Korisnik = Depends(voditelj_ili_poslovodja)):
 
 @router.get("/vozaci", response_model=list[str])
 def vozaci(db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
-    """Popis poznatih vozača (za padajući izbornik) — objedinjeno iz:
-    šifrarnika vozača (aktivni), korisnika uloge 'vozac', dnevnika
-    prikapčanja i ranijih zaduženja."""
-    imena: dict[str, str] = {}  # ključ = lowercase (dedup), vrijednost = prikaz
-
-    def _dodaj(v):
-        if v and v.strip():
-            s = v.strip()
-            imena.setdefault(s.lower(), s)
-
-    for (ime,) in db.query(Vozac.ime).filter(Vozac.aktivan == True).all():  # noqa: E712
-        _dodaj(ime)
-    for (ime,) in db.query(Korisnik.ime).filter(Korisnik.uloga == Uloga.vozac, Korisnik.aktivan == True).all():  # noqa: E712
-        _dodaj(ime)
-    for (v,) in db.query(DnevnikPrikapcanja.vozac).filter(DnevnikPrikapcanja.vozac.isnot(None)).distinct().all():
-        _dodaj(v)
-    for (v,) in db.query(Zaduzenje.vozac).filter(Zaduzenje.vozac.isnot(None)).distinct().all():
-        _dodaj(v)
-    return sorted(imena.values(), key=lambda s: s.lower())
+    """Popis vozača za padajući izbornik — UŽIVO iz Flota OS imenika (odjel VOZAČI).
+    Jedini izvor; uređuje se u Floti. Ako Flota nije dostupna, vraća zadnje poznato."""
+    return imenik.vozaci_imena()
 
 
 @router.get("", response_model=list[ZaduzenjeListItem])

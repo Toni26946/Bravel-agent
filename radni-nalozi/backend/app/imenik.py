@@ -112,6 +112,41 @@ def kljuc_imena(ime: str | None) -> str:
     return " ".join(sorted(w for w in "".join(ch if ch.isalnum() else " " for ch in s).split() if w))
 
 
+def _ime_sredjeno(ime) -> str:
+    return " ".join(str(ime or "").split())
+
+
+def vozaci_imena(osvjezi: bool = False) -> list[str]:
+    """Imena vozača UŽIVO iz Flotinog imenika (odjel VOZAČI, aktivni), sortirano.
+    Jedini izvor popisa vozača — uređuju se u Flota OS imeniku."""
+    d = dohvati(osvjezi=osvjezi)
+    imena = {
+        _ime_sredjeno(z.get("ime")) for z in d.get("zapisi", [])
+        if (z.get("odjel") or "") == "VOZAČI" and (z.get("ime") or "").strip()
+    }
+    return sorted(imena, key=str.lower)
+
+
+def vozaci_puni(osvjezi: bool = False) -> list[dict]:
+    """Vozači iz Flotinog imenika kao {id, ime, sektor, telefon, aktivan} (za šifrarnik).
+    `sektor` = opis iz imenika, `telefon` = broj. Samo aktivni (dohvati ih već filtrira)."""
+    d = dohvati(osvjezi=osvjezi)
+    out = []
+    for z in d.get("zapisi", []):
+        if (z.get("odjel") or "") != "VOZAČI":
+            continue
+        ime = _ime_sredjeno(z.get("ime"))
+        if not ime:
+            continue
+        out.append({
+            "id": z.get("id"), "ime": ime,
+            "sektor": z.get("opis") or None, "telefon": z.get("broj"),
+            "aktivan": True,
+        })
+    out.sort(key=lambda r: r["ime"].lower())
+    return out
+
+
 def brojevi_po_imenu(zapisi: list) -> dict:
     """{kljuc_imena: {broj, kratki}} SAMO za imena s jednim jedinim brojem (siguran spoj).
     Ime koje se pojavljuje s više različitih brojeva se izostavlja — radije ništa nego krivi broj."""

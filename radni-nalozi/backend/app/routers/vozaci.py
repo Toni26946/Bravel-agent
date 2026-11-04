@@ -15,8 +15,13 @@ from sqlalchemy.orm import Session
 from ..auth import zahtijevaj_uloge
 from ..config import settings
 from ..database import get_db
+from .. import imenik
 from ..models import Korisnik, Uloga, Vozac
 from ..schemas import VozacCreate, VozacOut, VozacUpdate
+
+# Vozači se od sada vuku UŽIVO iz Flota OS imenika (odjel VOZAČI) — ondje se i
+# uređuju. Lokalni šifrarnik (tablica Vozac + seed) više nije izvor za prikaz.
+_UREDI_U_FLOTI = "Vozači se uređuju u Flota OS imeniku (odjel VOZAČI)."
 
 log = logging.getLogger("vozaci")
 router = APIRouter(prefix="/vozaci", tags=["vozaci"])
@@ -96,61 +101,24 @@ def seed_vozaci(db: Session) -> None:
 
 @router.get("", response_model=list[VozacOut])
 def popis(
-    aktivni: bool = Query(default=False, description="Samo aktivni vozači"),
+    aktivni: bool = Query(default=False, description="(zadržano radi kompatibilnosti)"),
     db: Session = Depends(get_db),
     _: Korisnik = Depends(voditelj_ili_poslovodja),
 ):
-    q = select(Vozac)
-    if aktivni:
-        q = q.where(Vozac.aktivan == True)  # noqa: E712
-    return db.execute(q.order_by(Vozac.ime)).scalars().all()
+    """Vozači UŽIVO iz Flota OS imenika (odjel VOZAČI) — svi su aktivni."""
+    return imenik.vozaci_puni()
 
 
-@router.post("", response_model=VozacOut, status_code=201)
-def kreiraj(podaci: VozacCreate, db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
-    ime = (podaci.ime or "").strip()
-    if not ime:
-        raise HTTPException(status_code=400, detail="Ime vozača je obavezno")
-    v = Vozac(
-        ime=ime,
-        sektor=(podaci.sektor or "").strip() or None,
-        telefon=(podaci.telefon or "").strip() or None,
-        aktivan=True,
-        izvor="rucno",
-    )
-    db.add(v)
-    db.commit()
-    db.refresh(v)
-    return v
+@router.post("", status_code=409)
+def kreiraj(podaci: VozacCreate, _: Korisnik = Depends(voditelj_ili_poslovodja)):
+    raise HTTPException(status_code=409, detail=_UREDI_U_FLOTI)
 
 
-@router.patch("/{vozac_id}", response_model=VozacOut)
-def azuriraj(vozac_id: int, izmjene: VozacUpdate, db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
-    v = db.get(Vozac, vozac_id)
-    if not v:
-        raise HTTPException(status_code=404, detail="Vozač ne postoji")
-    podaci = izmjene.model_dump(exclude_unset=True)
-    if "ime" in podaci:
-        novo = (podaci["ime"] or "").strip()
-        if not novo:
-            raise HTTPException(status_code=400, detail="Ime vozača ne može biti prazno")
-        v.ime = novo
-    if "sektor" in podaci:
-        v.sektor = (podaci["sektor"] or "").strip() or None
-    if "telefon" in podaci:
-        v.telefon = (podaci["telefon"] or "").strip() or None
-    if "aktivan" in podaci and podaci["aktivan"] is not None:
-        v.aktivan = bool(podaci["aktivan"])
-    db.commit()
-    db.refresh(v)
-    return v
+@router.patch("/{vozac_id}", status_code=409)
+def azuriraj(vozac_id: int, izmjene: VozacUpdate, _: Korisnik = Depends(voditelj_ili_poslovodja)):
+    raise HTTPException(status_code=409, detail=_UREDI_U_FLOTI)
 
 
-@router.delete("/{vozac_id}", status_code=204)
-def obrisi(vozac_id: int, db: Session = Depends(get_db), _: Korisnik = Depends(samo_voditelj)):
-    v = db.get(Vozac, vozac_id)
-    if not v:
-        raise HTTPException(status_code=404, detail="Vozač ne postoji")
-    db.delete(v)
-    db.commit()
-    return None
+@router.delete("/{vozac_id}", status_code=409)
+def obrisi(vozac_id: int, _: Korisnik = Depends(samo_voditelj)):
+    raise HTTPException(status_code=409, detail=_UREDI_U_FLOTI)

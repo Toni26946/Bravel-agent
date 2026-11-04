@@ -11,8 +11,9 @@ import { kljucImena, lijepBroj, useBrojeviIzImenika } from '../imenik'
 export default function Vozaci() {
   const { t } = useT()
   const { korisnik } = useAuth()
-  const uredi = korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja'
-  const smijeBrisati = korisnik?.uloga === 'voditelj'
+  // Vozači se vuku uživo iz Flota OS imenika (odjel VOZAČI) i ondje se uređuju — ovdje samo pregled.
+  const uredi = false
+  const smijeBrisati = false
   const [redovi, setRedovi] = useState(null)
   const [q, setQ] = useState('')
   const [samoAktivni, setSamoAktivni] = useState(true)
@@ -40,7 +41,7 @@ export default function Vozaci() {
 
   return (
     <Layout naslov={t('tab.vozaci')} akcija={akcija}>
-      <p className="meta" style={{ marginTop: 0 }}>{t('voz.opis')}</p>
+      <p className="meta" style={{ marginTop: 0 }}>Popis se vuče uživo iz Flota OS imenika (odjel VOZAČI). Vozači se dodaju i uređuju u Floti.</p>
 
       {dodaj && uredi && <DodajVozaca onGotovo={() => { setDodaj(false); ucitaj() }} t={t} />}
 
