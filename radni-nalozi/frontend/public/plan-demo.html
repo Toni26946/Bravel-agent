@@ -457,9 +457,10 @@
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
        '<div class="prog-lbl">'+_np.pct+'% završeno · '+_np.done+'/'+_np.tot+' operacija</div>';
-    // „Okreni list" za radionu (npr. GB 400): zatvori nalog — gotovo u povijest, nedovršeno
-    // u novi nalog pod istim GB. Prikaži samo kad ima i gotovih i nedovršenih operacija.
-    if(!planZakljucan && _np.done>0 && _np.done<_np.tot){
+    // „Okreni list" SAMO za radionu GB 400 (sabirni nalog): zatvori nalog — gotovo u
+    // povijest, nedovršeno u novi nalog pod istim GB. Na običnim nalozima se ne nudi.
+    // Prikaži samo kad ima i gotovih i nedovršenih operacija i plan nije zaključan.
+    if(!planZakljucan && (String(n.gb||"").replace(/^0+/,"")==="400") && _np.done>0 && _np.done<_np.tot){
       h+='<div style="margin:6px 0 2px"><button class="btn ghost sm" onclick="PLAN.obnovi('+n.id+')" title="Zatvori nalog: gotove operacije idu u povijest, a nedovršene u novi nalog pod istim GB (radnici i mjerači ostaju)">🗂 Arhiviraj gotovo → novi nalog ('+_np.done+')</button></div>';
     }
     // „Nalog isplaniran" — gumb gore na kartici. Aktivan tek kad su SVE operacije
