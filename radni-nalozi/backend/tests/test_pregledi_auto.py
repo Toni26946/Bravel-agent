@@ -49,7 +49,7 @@ def test_dodaje_operaciju_za_rok_u_prozoru_i_ne_duplira():
     op = next(o for o in n.operacije if o.kategorija == "REGISTRACIJA")
     assert op.zadaci and op.zadaci[0].opis.startswith("Produženje registracije")
     z = op.zadaci[0]
-    assert z.radnici == []       # nedodijeljeno — pregledar se u planu nudi kao ⭐ prijedlog
+    assert [r.korisnicko_ime for r in z.radnici] == [pregledi_auto.PREGLEDI_KIME]  # odmah dodijeljen pregledaru
     assert z.zapoceto is None     # mjerač NE kreće
     assert n.plan_rang is not None       # mora biti U PLANU da se vidi
 

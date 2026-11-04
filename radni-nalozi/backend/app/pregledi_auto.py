@@ -142,6 +142,7 @@ def tik(db) -> int:
     # Novi auto-nalozi/operacije idu na KRAJ plana (da budu vidljivi, ali ne na vrhu).
     mx = db.query(func.max(Nalog.plan_rang)).filter(Nalog.status.in_(_AKTIVNI)).scalar()
     sljedeci_rang = (mx if mx is not None else -1) + 1
+    pregledar = _pregledar(db)   # Karthik — pregledi mu se odmah dodijele (SAMO ove kategorije)
     dodano = 0
     promjena = False
     vozila = (
@@ -163,11 +164,21 @@ def tik(db) -> int:
                 continue
             op = Operacija(kategorija=kat, redoslijed=len(nalog.operacije))
             nalog.operacije.append(op)
-            # Bez dodjele — pregledar (Karthik) se u planu nudi kao PRIJEDLOG (⭐); voditelj potvrdi.
-            op.zadaci.append(Zadatak(opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0))
+            z = Zadatak(opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0)
+            if pregledar:
+                z.radnici = [pregledar]   # odmah dodijeljen pregledaru (bez mjerača)
+            op.zadaci.append(z)
             db.flush()
             dodano += 1
             promjena = True
+        # Dodijeli pregledara i postojećim pregled-operacijama bez radnika (npr. one iz ranije).
+        if pregledar:
+            for op in nalog.operacije:
+                if op.kategorija in _KATEGORIJE:
+                    for z in op.zadaci:
+                        if " — rok " in (z.opis or "") and not z.radnici:
+                            z.radnici = [pregledar]
+                            promjena = True
         # Da se VIDI U PLANU: ako nalog s našom pregled-operacijom nije u planu, dodaj ga na kraj.
         if nalog.plan_rang is None and _ima_nasu_pregled(nalog):
             nalog.plan_rang = sljedeci_rang
@@ -176,26 +187,6 @@ def tik(db) -> int:
     if promjena:
         db.commit()
     return dodano
-
-
-def ocisti_karthik_dodjele(db) -> None:
-    """Jednokratno: makni pregledara (Karthik) s auto-pregled operacija — prebacili smo ga
-    s automatske dodjele na PRIJEDLOG (⭐) u planu. Idući put ostaju nedodijeljene."""
-    zastavica = Path(settings.upload_dir).parent / ".pregledi_bez_dodjele_v1"
-    if zastavica.exists():
-        return
-    pregledar = _pregledar(db)
-    maknuto = 0
-    if pregledar:
-        for op in db.query(Operacija).filter(Operacija.kategorija.in_(_KATEGORIJE)).all():
-            for z in op.zadaci:
-                if " — rok " in (z.opis or "") and any(r.id == pregledar.id for r in z.radnici):
-                    z.radnici = [r for r in z.radnici if r.id != pregledar.id]
-                    maknuto += 1
-        db.commit()
-    zastavica.parent.mkdir(parents=True, exist_ok=True)
-    zastavica.write_text("done", encoding="utf-8")
-    log.info("Auto-pregledi: pregledar maknut s %d operacija (sad samo prijedlog).", maknuto)
 
 
 def ocisti_jednokratno(db) -> None:

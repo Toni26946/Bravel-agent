@@ -251,9 +251,12 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                 Korisnik.prijavljuje_se.is_(True))   # samo stvarni mehaničari (ne npr. skladištar)
         .order_by(Korisnik.ime).all()
     )
-    preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
-    # Pregledar (Karthik) — PRIJEDLOG (⭐) na pregled-operacijama (periodički/taho/PP/registracija).
+    # Pregledar (Karthik) — vidljiv u Radnici/dropdownu da mu se vide dodijeljeni pregledi.
+    # Dispatch (Pošalji sve / isplaniraj) ga svejedno preskače (prijavljuje_se=False).
     pregledar = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _PREGLEDAR_KIME).first()
+    if pregledar and pregledar not in meh:
+        meh.append(pregledar)
+    preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
     zad_ids = [z.id for n in nalozi for op in n.operacije for z in op.zadaci]
     radili = _radio_po_zadatku(db, zad_ids)   # tko je nakupio vrijeme na zadatku
     out_nal = []
