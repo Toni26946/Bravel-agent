@@ -58,6 +58,7 @@ VRSTE = [
     ("PP APARATI", "Servis PP aparata", lambda r: _rok(r.pp_datum, r.pp_int)),
     ("REGISTRACIJA", "Produženje registracije", lambda r: r.registracija_istek),
 ]
+_KATEGORIJE = {k for (k, _o, _f) in VRSTE}
 
 
 def _vozilo_za_gb(db, gb: str) -> Vozilo:
@@ -104,6 +105,15 @@ def _vec_na_aktivnom(db, voz_id: int, kategorija: str) -> bool:
     )
 
 
+def _ima_nasu_pregled(nalog: Nalog) -> bool:
+    """Ima li nalog NAŠU auto-operaciju pregleda (kategorija pregleda + ' — rok ' u opisu)."""
+    for op in nalog.operacije:
+        if op.kategorija in _KATEGORIJE:
+            if any(" — rok " in (z.opis or "") for z in op.zadaci):
+                return True
+    return False
+
+
 def tik(db) -> int:
     """Jedan prolaz: dodaj operacije za provjere kojima je rok ≤ PRAG_DANA.
     Vraća broj dodanih operacija. Bez aktivnog voditelja ne radi ništa."""
@@ -117,7 +127,11 @@ def tik(db) -> int:
         return 0
     danas = date.today()
     prag = danas + timedelta(days=PRAG_DANA)
+    # Novi auto-nalozi/operacije idu na KRAJ plana (da budu vidljivi, ali ne na vrhu).
+    mx = db.query(func.max(Nalog.plan_rang)).filter(Nalog.status.in_(_AKTIVNI)).scalar()
+    sljedeci_rang = (mx if mx is not None else -1) + 1
     dodano = 0
+    promjena = False
     vozila = (
         db.query(RegistarVozila)
         .filter(RegistarVozila.status != StatusVozila.prodano)
@@ -135,17 +149,20 @@ def tik(db) -> int:
         for kat, opis, rok in dospjele:
             if _vec_na_aktivnom(db, voz.id, kat):
                 continue
-            op = Operacija(nalog_id=nalog.id, kategorija=kat, redoslijed=len(nalog.operacije))
+            op = Operacija(kategorija=kat, redoslijed=len(nalog.operacije))
             nalog.operacije.append(op)
+            op.zadaci.append(Zadatak(opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0))
             db.flush()
-            db.add(Zadatak(operacija_id=op.id, opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0))
             dodano += 1
-    if dodano:
+            promjena = True
+        # Da se VIDI U PLANU: ako nalog s našom pregled-operacijom nije u planu, dodaj ga na kraj.
+        if nalog.plan_rang is None and _ima_nasu_pregled(nalog):
+            nalog.plan_rang = sljedeci_rang
+            sljedeci_rang += 1
+            promjena = True
+    if promjena:
         db.commit()
     return dodano
-
-
-_KATEGORIJE = {k for (k, _o, _f) in VRSTE}
 
 
 def ocisti_jednokratno(db) -> None:

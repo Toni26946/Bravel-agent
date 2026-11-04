@@ -46,8 +46,18 @@ def test_dodaje_operaciju_za_rok_u_prozoru_i_ne_duplira():
     op = next(o for o in n.operacije if o.kategorija == "REGISTRACIJA")
     assert op.zadaci and op.zadaci[0].opis.startswith("Produženje registracije")
     assert op.zadaci[0].radnici == []  # nitko dodijeljen → može se dodijeliti u planu
+    assert n.plan_rang is not None       # mora biti U PLANU da se vidi
 
     assert pregledi_auto.tik(db) == 0  # drugi prolaz ne duplira
+    db.refresh(n)
+    assert n.plan_rang is not None       # i dalje u planu
+
+    # Postojeća auto-operacija bez ranga (kao 20 iz prve verzije) → tik je vrati u plan.
+    n.plan_rang = None
+    db.commit()
+    pregledi_auto.tik(db)
+    db.refresh(n)
+    assert n.plan_rang is not None
 
 
 def test_periodicki_po_intervalu_i_daleki_rok_se_preskace():
