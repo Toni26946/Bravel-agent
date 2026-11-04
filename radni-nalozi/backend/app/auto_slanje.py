@@ -19,7 +19,11 @@ from .database import SessionLocal
 from . import norme
 from .models import Uloga
 from .push import obavijesti_ulogu
-from .routers.plan import KLJUC_AUTO_DATUM, KLJUC_AUTO_HHMM, _hr_now, posalji_sve_plan
+from .routers.plan import (
+    KLJUC_AUTO_DATUM, KLJUC_AUTO_HHMM,
+    KLJUC_AUTO_PON_HHMM, KLJUC_AUTO_PON_ON, KLJUC_AUTO_PON_ZADNJE,
+    _hr_now, posalji_sve_plan,
+)
 
 log = logging.getLogger("auto_slanje")
 _INTERVAL = 60
@@ -31,7 +35,50 @@ def _ocisti(db) -> None:
     db.commit()
 
 
+def _javi_voditelju(db, hhmm: str, rez: dict) -> None:
+    try:
+        obavijesti_ulogu(db, Uloga.voditelj, "Jutarnji plan poslan",
+                         f"Auto-slanje u {hhmm}: poslano {rez.get('poslano')} mehaničarima.", url="/plan")
+        db.commit()
+    except Exception:  # noqa: BLE001 — obavijest nije kritična
+        pass
+
+
+def _tik_ponavlja(db) -> None:
+    """Ponavljajuće jutarnje slanje: svaki radni dan (pon–sub) u zadani sat. Nedjelja se
+    preskače. Šalje najviše jednom dnevno (anti-duplikat po datumu). Propušten prozor
+    (server bio dolje > 2 h nakon termina) → ne šalje stari plan, samo označi dan."""
+    if norme.get_postavka(db, KLJUC_AUTO_PON_ON) != "1":
+        return
+    hhmm = norme.get_postavka(db, KLJUC_AUTO_PON_HHMM) or "07:00"
+    try:
+        hh, mm = (int(x) for x in hhmm.split(":"))
+    except (ValueError, TypeError):
+        return
+    now = _hr_now()
+    if now.weekday() == 6:      # nedjelja — ne šalji
+        return
+    danas = now.date().isoformat()
+    if norme.get_postavka(db, KLJUC_AUTO_PON_ZADNJE) == danas:
+        return                   # danas već obrađeno
+    cilj = hh * 60 + mm
+    sad = now.hour * 60 + now.minute
+    if sad < cilj:
+        return                   # još nije vrijeme
+    norme.set_postavka(db, KLJUC_AUTO_PON_ZADNJE, danas)  # označi odmah (anti-dup kod paralelnih startova)
+    db.commit()
+    if sad > cilj + 120:
+        log.info("Auto-slanje (ponavlja): propušten termin %s (sad %02d:%02d) — ne šaljem stari plan.",
+                 hhmm, now.hour, now.minute)
+        return
+    rez = posalji_sve_plan(db, settings.javni_url)
+    log.info("Auto-slanje (ponavlja %s): poslano %s, već rade %s, već poslano %s, odsutni %s",
+             hhmm, rez.get("poslano"), rez.get("vec_rade"), rez.get("vec_poslano"), rez.get("odsutni"))
+    _javi_voditelju(db, hhmm, rez)
+
+
 def _tik(db) -> None:
+    _tik_ponavlja(db)
     hhmm = norme.get_postavka(db, KLJUC_AUTO_HHMM)
     datum = norme.get_postavka(db, KLJUC_AUTO_DATUM)
     if not (hhmm and datum):
@@ -53,12 +100,7 @@ def _tik(db) -> None:
         _ocisti(db)
         log.info("Auto-slanje (%s): poslano %s, već rade %s, već poslano %s, odsutni %s",
                  hhmm, rez.get("poslano"), rez.get("vec_rade"), rez.get("vec_poslano"), rez.get("odsutni"))
-        try:
-            obavijesti_ulogu(db, Uloga.voditelj, "Jutarnji plan poslan",
-                             f"Auto-slanje u {hhmm}: poslano {rez.get('poslano')} mehaničarima.", url="/plan")
-            db.commit()
-        except Exception:  # noqa: BLE001 — obavijest nije kritična
-            pass
+        _javi_voditelju(db, hhmm, rez)
 
 
 async def petlja() -> None:

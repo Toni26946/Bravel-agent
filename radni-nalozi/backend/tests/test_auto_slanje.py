@@ -19,7 +19,9 @@ from app import norme
 from app.database import Base
 from app.models import Korisnik, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from app.routers.plan import (
-    AutoSlanjeIn, KLJUC_AUTO_DATUM, KLJUC_AUTO_HHMM, auto_slanje as arm_auto,
+    AutoPonavljaIn, AutoSlanjeIn, KLJUC_AUTO_DATUM, KLJUC_AUTO_HHMM,
+    KLJUC_AUTO_PON_HHMM, KLJUC_AUTO_PON_ON, KLJUC_AUTO_PON_ZADNJE,
+    auto_slanje as arm_auto, auto_slanje_ponavlja as arm_pon,
     posalji_sve_plan, _hr_now,
 )
 
@@ -121,6 +123,42 @@ def test_tik_ne_salje_propusteno():
     db.refresh(z)
     assert z.ceka_potvrdu is False                      # NIŠTA nije poslano
     assert not norme.get_postavka(db, KLJUC_AUTO_DATUM)  # očišćeno
+
+
+def test_ponavlja_salje_svaki_radni_dan_jednom():
+    """Ponavljajuće: upaljeno za 00:00, radni dan → tik okine; drugi tik isti dan NE duplira."""
+    db = _session()
+    meh = Korisnik(ime="Meh R", korisnicko_ime="mehr", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh); db.flush()
+    _n, z = _plan_nalog(db, meh)
+    now = _hr_now()
+    norme.set_postavka(db, KLJUC_AUTO_PON_ON, "1")
+    norme.set_postavka(db, KLJUC_AUTO_PON_HHMM, f"{now.hour:02d}:{now.minute:02d}")  # sada → unutar prozora
+    db.commit()
+    danas = now.date().isoformat()
+    nedjelja = now.weekday() == 6
+
+    auto_mod._tik_ponavlja(db)
+    db.refresh(z)
+    assert norme.get_postavka(db, KLJUC_AUTO_PON_ZADNJE) == danas  # dan obrađen (i vikendom)
+    if not nedjelja:
+        assert z.ceka_potvrdu is True                              # radni dan → poslano
+    assert norme.get_postavka(db, KLJUC_AUTO_PON_ON) == "1"        # ostaje upaljeno (ponavlja se)
+
+    z.ceka_potvrdu = False; db.commit()
+    auto_mod._tik_ponavlja(db)                                    # isti dan opet
+    db.refresh(z)
+    assert z.ceka_potvrdu is False                                # drugi put NIŠTA (već danas)
+
+
+def test_ponavlja_gasenje():
+    db = _session()
+    vlasnik = Korisnik(ime="Vl", korisnicko_ime="vl2", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add(vlasnik); db.flush()
+    arm_pon(AutoPonavljaIn(ukljuceno=True, ura="07:00"), _=vlasnik, db=db)
+    assert norme.get_postavka(db, KLJUC_AUTO_PON_ON) == "1"
+    arm_pon(AutoPonavljaIn(ukljuceno=False), _=vlasnik, db=db)
+    assert norme.get_postavka(db, KLJUC_AUTO_PON_ON) in (None, "")
 
 
 if __name__ == "__main__":

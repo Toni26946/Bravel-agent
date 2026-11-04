@@ -352,13 +352,26 @@
   function isplaniraj(nid){ act("/nalog/"+nid+"/isplaniraj"); }
   function isplanirajSve(){ if(_busy) return; _busy=true; api("/isplaniraj-sve","POST").then(function(r){ toast("📨 Poslano "+((r&&r.poslano)||0)+(r&&r.vec_poslano?" · "+r.vec_poslano+" već poslano":"")+(r&&r.vec_rade?" · "+r.vec_rade+" već rade":"")+(r&&r.odsutni?" · "+r.odsutni+" odsutno":"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function autoSlanjeHtml(){
-    if(autoSlanje.ukljuceno){
-      return '<span class="pl-auto on">⏰ Auto-slanje: '+esc(autoSlanje.datum||'')+' u '+esc(autoSlanje.ura||'')+' <button class="btn ghost sm" onclick="PLAN.autoOff()">Otkaži</button></span>';
+    var pon=(autoSlanje.ponavlja)||{ukljuceno:false,ura:"07:00"};
+    // Ponavljajuće: svaki radni dan sam od sebe (glavni način).
+    var h='';
+    if(pon.ukljuceno){
+      h+='<span class="pl-auto on">🔁 Svaki radni dan u '+esc(pon.ura||'07:00')+' <button class="btn ghost sm" onclick="PLAN.autoPonOff()">Ugasi</button></span>';
+    } else {
+      h+='<span class="pl-auto">🔁 <input id="auto-pon-ura" type="time" value="'+esc(pon.ura||'07:00')+'" style="padding:4px 6px;border:1px solid var(--rub,#ccc);border-radius:6px;font:inherit;width:92px"> <button class="btn ghost sm" onclick="PLAN.autoPonOn()" title="Automatski svaki radni dan (pon–sub) pošalji plan mehaničarima u ovo vrijeme">Svaki radni dan</button></span>';
     }
-    return '<span class="pl-auto">⏰ <input id="auto-ura" type="time" value="'+esc(autoSlanje.ura||'06:45')+'" style="padding:4px 6px;border:1px solid var(--rub,#ccc);border-radius:6px;font:inherit;width:92px"> <button class="btn ghost sm" onclick="PLAN.autoOn()" title="Zakaži da se plan automatski pošalje mehaničarima u navedeno vrijeme (jednokratno)">Zakaži slanje</button></span>';
+    // Jednokratno (zakaži za sutra) — ostaje kao rezerva.
+    if(autoSlanje.ukljuceno){
+      h+=' <span class="pl-auto on">⏰ Jednom: '+esc(autoSlanje.datum||'')+' u '+esc(autoSlanje.ura||'')+' <button class="btn ghost sm" onclick="PLAN.autoOff()">Otkaži</button></span>';
+    } else {
+      h+=' <span class="pl-auto">⏰ <input id="auto-ura" type="time" value="'+esc(autoSlanje.ura||'06:45')+'" style="padding:4px 6px;border:1px solid var(--rub,#ccc);border-radius:6px;font:inherit;width:92px"> <button class="btn ghost sm" onclick="PLAN.autoOn()" title="Jednokratno — pošalji plan u navedeno vrijeme (samo sljedeći put)">Zakaži jednom</button></span>';
+    }
+    return h;
   }
   function autoOn(){ var el=document.getElementById("auto-ura"); var ura=(el&&el.value)||"06:45"; act("/auto-slanje",{ukljuceno:true,ura:ura}); }
   function autoOff(){ act("/auto-slanje",{ukljuceno:false}); }
+  function autoPonOn(){ var el=document.getElementById("auto-pon-ura"); var ura=(el&&el.value)||"07:00"; act("/auto-slanje-ponavlja",{ukljuceno:true,ura:ura}); }
+  function autoPonOff(){ act("/auto-slanje-ponavlja",{ukljuceno:false}); }
   function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
   function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
   function dodajRadnika(opId,mehId,postojeci){ if(!mehId) return; var ids=(postojeci||[]).slice(); var nid=parseInt(mehId,10); if(ids.indexOf(nid)<0) ids.push(nid); act("/zadatak/"+opId+"/dodijeli", {radnici_ids: ids}); }
@@ -783,7 +796,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, skrolDo:skrolDo,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Napravljeno → „Nije gotovo": zadatak se ponovno otvara i vraća u plan istom mehaničaru.
     vratiUPlan:function(zid){

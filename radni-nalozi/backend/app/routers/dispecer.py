@@ -639,6 +639,7 @@ _HTML = """<!doctype html>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f8;color:#1f2a37}
 .top{background:#0d47a1;color:#fff;padding:16px;font-weight:700;font-size:18px}
+.who{font-weight:600;font-size:15px;opacity:.92}
 .wrap{padding:16px;max-width:560px;margin:0 auto}
 .kart{background:#fff;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .gb{font-size:34px;font-weight:800;line-height:1}
@@ -665,7 +666,7 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
   55%{box-shadow:0 0 0 7px #ffcf4d}100%{transform:none;opacity:1;box-shadow:0 1px 3px rgba(0,0,0,.08)}}
 </style></head>
 <body>
-<div class="top">BRAVEL · radni zadatak</div>
+<div class="top">BRAVEL · radni zadatak<span id="who" class="who"></span></div>
 <div class="wrap" id="app"><div class="info">Učitavam…</div></div>
 <script>
 // Mehaničarska stranica NIJE PWA — ako je na mobitelu zaostao service worker s portala,
@@ -687,6 +688,8 @@ function beep(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)r
 function najaviNovi(){try{if(navigator.vibrate)navigator.vibrate([220,110,220]);}catch(_){}beep();var b=document.getElementById('novibanner');if(b)setTimeout(function(){b.style.opacity='0';},3500);}
 function render(d){
   const app=document.getElementById('app');
+  // Ime mehaničara gore — da svatko odmah vidi je li ovo NJEGOV popis (kriva poveznica = tuđe ime).
+  var w=document.getElementById('who'); if(w) w.textContent = d.ime ? ('  ·  👤 '+d.ime) : '';
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
   if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
   if(d.gotov_za_danas){app.innerHTML='<div class="kart"><div class="info"><b>Gotov za danas.</b><br/>Vrijeme je spremljeno. Vidimo se sutra!</div></div>';return;}

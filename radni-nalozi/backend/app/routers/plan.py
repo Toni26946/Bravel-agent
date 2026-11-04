@@ -94,13 +94,23 @@ def _je_odsutan(m) -> bool:
 # Auto-slanje jutarnjeg plana (Postavka ključevi; vrijeme je HR lokalno, datum je dan okidanja — jednokratno).
 KLJUC_AUTO_HHMM = "plan_auto_hhmm"
 KLJUC_AUTO_DATUM = "plan_auto_datum"
+# Ponavljajuće jutarnje slanje: svaki radni dan (pon–sub) u zadani sat, samostalno.
+KLJUC_AUTO_PON_ON = "plan_auto_pon_on"        # "1" = uključeno
+KLJUC_AUTO_PON_HHMM = "plan_auto_pon_hhmm"    # "HH:MM"
+KLJUC_AUTO_PON_ZADNJE = "plan_auto_pon_zadnje"  # zadnji datum kad je poslano (anti-duplikat)
 
 
 def _auto_slanje_stanje(db: Session) -> dict:
     from .. import norme
     hhmm = norme.get_postavka(db, KLJUC_AUTO_HHMM)
     datum = norme.get_postavka(db, KLJUC_AUTO_DATUM)
-    return {"ukljuceno": bool(hhmm and datum), "ura": hhmm or "06:45", "datum": datum}
+    return {
+        "ukljuceno": bool(hhmm and datum), "ura": hhmm or "06:45", "datum": datum,
+        "ponavlja": {
+            "ukljuceno": norme.get_postavka(db, KLJUC_AUTO_PON_ON) == "1",
+            "ura": norme.get_postavka(db, KLJUC_AUTO_PON_HHMM) or "07:00",
+        },
+    }
 
 
 def _gb(n: Nalog) -> str:
@@ -789,6 +799,35 @@ def auto_slanje(p: AutoSlanjeIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessi
     norme.set_postavka(db, KLJUC_AUTO_DATUM, datum.isoformat())
     db.commit()
     return {"ok": True, "ukljuceno": True, "ura": hhmm, "datum": datum.isoformat()}
+
+
+class AutoPonavljaIn(BaseModel):
+    ukljuceno: bool
+    ura: str | None = None   # "HH:MM"
+
+
+@router.post("/auto-slanje-ponavlja")
+def auto_slanje_ponavlja(p: AutoPonavljaIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Uključi/isključi ponavljajuće jutarnje slanje: svaki radni dan (pon–sub) u zadani
+    sat, samostalno (ne treba paliti navečer). Nedjelja se preskače. Propušten termin
+    (server bio dolje dulje od 2 h) se NE šalje naknadno (da ne ode stari plan)."""
+    from .. import norme
+    if not p.ukljuceno:
+        norme.set_postavka(db, KLJUC_AUTO_PON_ON, None)
+        db.commit()
+        return {"ok": True, "ukljuceno": False}
+    dijelovi = (p.ura or "07:00").strip().split(":")
+    try:
+        hh, mm = int(dijelovi[0]), int(dijelovi[1])
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="Neispravno vrijeme (HH:MM)")
+    hhmm = f"{hh:02d}:{mm:02d}"
+    norme.set_postavka(db, KLJUC_AUTO_PON_ON, "1")
+    norme.set_postavka(db, KLJUC_AUTO_PON_HHMM, hhmm)
+    db.commit()
+    return {"ok": True, "ukljuceno": True, "ura": hhmm}
 
 
 class OcistiVrijemeIn(BaseModel):
