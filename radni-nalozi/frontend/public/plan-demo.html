@@ -199,7 +199,8 @@
   .rad-scroll{overflow-x:auto;padding-bottom:6px}
   .rad-tbl{display:flex;flex-direction:column;gap:8px;min-width:min-content}
   .rad-row{display:flex;align-items:stretch;gap:8px}
-  .rad-ime{flex:none;width:168px;position:sticky;left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-weight:800;font-size:12.5px;display:flex;align-items:center;gap:6px;z-index:2}
+  .rad-ime{flex:none;width:168px;position:sticky;left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-weight:800;font-size:12.5px;display:flex;flex-direction:column;align-items:stretch;gap:5px;z-index:2}
+  .rad-ime .ri-top{display:flex;align-items:center;gap:6px}
   .rad-ime.malo{border-color:var(--s-ceka);color:var(--s-ceka);background:var(--s-ceka-bg)}
   .rad-ime.nije{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg)}
   .rad-ime.nije .rad-br{background:#fff;color:var(--crveno)}
@@ -207,7 +208,7 @@
   .rad-ime.slob-top .rad-br{background:#fff;color:var(--crveno)}
   .rad-cell.prazno{justify-content:center;align-items:center;text-align:center;color:var(--crveno);border-style:dashed;border-color:var(--crveno);background:transparent;cursor:default;font-size:11.5px;font-weight:700}
   .rad-ime .ri-ime{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rad-send{flex:none;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:2px 7px;font-size:14px;line-height:1;cursor:pointer}
+  .rad-send{align-self:stretch;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:3px 7px;font-size:13px;line-height:1.3;cursor:pointer}
   .rad-send:hover{border-color:var(--plava)}
   .rad-br{margin-left:4px;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
@@ -482,8 +483,10 @@
           // još nitko nije dodijeljen → glavni padajući izbornik + prijedlog
           h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(0)+'</select>';
           var prep=o.preporukaId;
-          if(prep && meh(prep).ime){
-            h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog po iskustvu — najviše završenih u ovoj kategoriji">⭐ '+esc(meh(prep).ime)+' ('+(_brojMeh[prep]||0)+')</button>';
+          var prepIme=o.preporukaIme || (meh(prep)&&meh(prep).ime);   // pregledar nije u MEH → ime iz payloada
+          if(prep && prepIme){
+            var prepBroj = o.preporukaIme ? '' : ' ('+(_brojMeh[prep]||0)+')';   // prijedlog po ulozi → bez brojača
+            h+='<button class="btn ghost sm zvj" onclick="PLAN.dodijeli('+o.id+','+prep+')" title="Prijedlog mehaničara za ovu operaciju">⭐ '+esc(prepIme)+prepBroj+'</button>';
           }
         } else {
           // dodijeljeni → čipovi (sa ✕) + „＋" ikonica za još jednog mehaničara
@@ -708,7 +711,7 @@
       h+='<div class="rad-scroll"><div class="rad-tbl">';
       // Prisutni BEZ zadatka — na vrhu, crveno (hitno im dodijeliti posao).
       slobodniPrisutni.forEach(function(m){
-        h+='<div class="rad-row"><div class="rad-ime slob-top">⚠ '+esc(m.ime)+'<span class="rad-br">0</span></div>'+
+        h+='<div class="rad-row"><div class="rad-ime slob-top"><div class="ri-top">⚠ <span class="ri-ime">'+esc(m.ime)+'</span><span class="rad-br">0</span></div></div>'+
            '<div class="rad-cells" data-rid="'+m.id+'"><div class="rad-cell prazno">nema zadatka — dodijeli u planu ili povuci karticu ovamo</div></div></div>';
       });
       saZad.forEach(function(r){
@@ -716,8 +719,8 @@
         var nije=!r.lista.some(function(x){ return x.o.status==="radu"; });   // nije prijavljen na zadatak → crveno
         // Prvi zadatak koji mu se može (ponovno) poslati = prvi koji nije „u tijeku".
         var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(r.lista[si].o.status!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
-        var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨</button>' : '';
-        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'>'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span>'+sendBtn+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨 Pošalji</button>' : '';
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var uTijeku=(x.o.status==="radu");
           h+='<div class="rad-cell '+CH[x.o.status]+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+

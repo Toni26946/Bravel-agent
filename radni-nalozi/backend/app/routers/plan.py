@@ -37,6 +37,9 @@ MAX_HITNO = 3
 # Interni/pomoćni nalozi koji se NE prikazuju u planu (npr. "RADIONA").
 _SKRIVENI_GB = set()   # interni/skriveni GB-ovi (prazno = ništa skriveno; GB 400 otkriven)
 MAX_PLAN = 50   # najviše vozila u planu (nove dodavanje preko ovoga se odbija)
+# Pregledar (radnik koji radi preglede/registracije) se nudi kao ⭐ prijedlog na ove kategorije.
+_PREGLED_KAT = {"PERIODIČKI PREGLED", "BAŽDARENJE TAHOGRAFA", "PP APARATI", "REGISTRACIJA"}
+_PREGLEDAR_KIME = "karthik.raju"
 
 
 # --- pomoćno ---------------------------------------------------------------
@@ -249,6 +252,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         .order_by(Korisnik.ime).all()
     )
     preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
+    # Pregledar (Karthik) — PRIJEDLOG (⭐) na pregled-operacijama (periodički/taho/PP/registracija).
+    pregledar = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _PREGLEDAR_KIME).first()
     zad_ids = [z.id for n in nalozi for op in n.operacije for z in op.zadaci]
     radili = _radio_po_zadatku(db, zad_ids)   # tko je nakupio vrijeme na zadatku
     out_nal = []
@@ -258,6 +263,10 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             for z in op.zadaci:
                 m = _mehanicar(z)
                 vrem = {v.radnik_id: v for v in z.vremena}   # vrijeme po radniku
+                prep_id = preporuke.get(_norm_kat(op.kategorija))
+                prep_ime = None
+                if prep_id is None and pregledar and op.kategorija in _PREGLED_KAT:
+                    prep_id, prep_ime = pregledar.id, pregledar.ime   # prijedlog pregledara
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
                     "mehId": m.id if m else None,
@@ -269,7 +278,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                         "akumSek": int((vrem[r.id].utroseno_sek if r.id in vrem else 0) or 0),
                         "startTs": _ms(vrem[r.id].zapoceto) if (r.id in vrem and vrem[r.id].zapoceto) else None,
                     } for r in z.radnici],
-                    "preporukaId": preporuke.get(_norm_kat(op.kategorija)),
+                    "preporukaId": prep_id,
+                    "preporukaIme": prep_ime,
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],
                     "status": _plan_status(z),
