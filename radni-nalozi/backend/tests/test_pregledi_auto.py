@@ -155,6 +155,21 @@ def test_obavijest_ne_salje_dok_ima_tudjeg_posla():
     assert zp.ceka_potvrdu is False
 
 
+def test_obavijest_preskace_pregled_only_i_cisti():
+    """Nalog koji ima SAMO pregled (nema drugog posla) → ne šalje; poništi pogrešan čeka-potvrdu."""
+    db = _session()
+    db.add(Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                    lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False))
+    db.flush()
+    n, zp = _nalog_s_pregledom(db, "F3", "RN-F3")
+    zp.ceka_potvrdu = True   # simulira pogrešno poslano iz prvog burst-a
+    db.commit()
+
+    assert pregledi_auto.obavijesti_pregledara(db, "https://x/") == 0
+    db.refresh(zp)
+    assert zp.ceka_potvrdu is False   # poništeno jer nema drugog posla
+
+
 def test_bez_voditelja_ne_radi_nista():
     db = _session()
     _vozilo(db, "D4")

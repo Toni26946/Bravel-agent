@@ -204,17 +204,30 @@ def obavijesti_pregledara(db, base_url: str) -> int:
     from .routers.dispecer import posalji_poveznicu
     from .push import obavijesti_korisnika
     poslano = 0
+    promjena = False
     for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
-        njegove, tudje_nezavrsene = [], 0
+        njegove, tudje_nezavrsene, tudje_ukupno = [], 0, 0
         for op in n.operacije:
             for z in op.zadaci:
-                if z.gotovo:
-                    continue
-                if op.kategorija in _KATEGORIJE and any(r.id == pregledar.id for r in z.radnici):
-                    njegove.append(z)
+                je_njegov = op.kategorija in _KATEGORIJE and any(r.id == pregledar.id for r in z.radnici)
+                if je_njegov:
+                    if not z.gotovo:
+                        njegove.append(z)
                 else:
-                    tudje_nezavrsene += 1
-        if not njegove or tudje_nezavrsene > PRAG_OSTALE:
+                    tudje_ukupno += 1
+                    if not z.gotovo:
+                        tudje_nezavrsene += 1
+        if not njegove:
+            continue
+        # Nalog koji ima SAMO pregled (nema drugog posla) → ne obavještavaj (vozilo nije bilo
+        # na popravku). Usput poništi eventualno pogrešno postavljen „čeka potvrdu".
+        if tudje_ukupno == 0:
+            for z in njegove:
+                if z.ceka_potvrdu:
+                    z.ceka_potvrdu = False
+                    promjena = True
+            continue
+        if tudje_nezavrsene > PRAG_OSTALE:
             continue
         z = next((x for x in njegove if not x.ceka_potvrdu), None)
         if z is None:
@@ -222,6 +235,7 @@ def obavijesti_pregledara(db, base_url: str) -> int:
         gb = (n.vozilo.gb if n.vozilo else "") or ""
         z.ceka_potvrdu = True
         z.razlog_prekida = None
+        promjena = True
         override = f"GB {gb}: vozilo je gotovo, ostalo je još tvoje — {z.opis}. {{url}}"
         posalji_poveznicu(db, pregledar, gb, z.opis or "", base_url, poruka_override=override)
         try:
@@ -229,7 +243,7 @@ def obavijesti_pregledara(db, base_url: str) -> int:
         except Exception:  # noqa: BLE001
             pass
         poslano += 1
-    if poslano:
+    if promjena:
         db.commit()
     return poslano
 
