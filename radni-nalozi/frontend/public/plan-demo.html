@@ -206,7 +206,10 @@
   .rad-ime.slob-top{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg);font-weight:800}
   .rad-ime.slob-top .rad-br{background:#fff;color:var(--crveno)}
   .rad-cell.prazno{justify-content:center;align-items:center;text-align:center;color:var(--crveno);border-style:dashed;border-color:var(--crveno);background:transparent;cursor:default;font-size:11.5px;font-weight:700}
-  .rad-br{margin-left:auto;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
+  .rad-ime .ri-ime{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rad-send{flex:none;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:2px 7px;font-size:14px;line-height:1;cursor:pointer}
+  .rad-send:hover{border-color:var(--plava)}
+  .rad-br{margin-left:4px;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
   .rad-cells{display:flex;gap:8px}
   .rad-cell{flex:none;width:152px;border:1px solid var(--line);border-radius:10px;padding:18px 9px 8px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -707,7 +710,10 @@
       saZad.forEach(function(r){
         var malo=r.cekaju<PRAG;
         var nije=!r.lista.some(function(x){ return x.o.status==="radu"; });   // nije prijavljen na zadatak → crveno
-        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'>'+(malo?'⚠ ':'')+esc(r.m.ime)+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        // Prvi zadatak koji mu se može (ponovno) poslati = prvi koji nije „u tijeku".
+        var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(r.lista[si].o.status!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
+        var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨</button>' : '';
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'>'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span>'+sendBtn+'<span class="rad-br">'+r.lista.length+'</span></div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var uTijeku=(x.o.status==="radu");
           h+='<div class="rad-cell '+CH[x.o.status]+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
@@ -798,6 +804,10 @@
   // --- API za inline onclick ---
   window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
+    // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
+    posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
+      api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":"Spremljeno (WhatsApp nije poslan)"); ucitaj(); })
+        .catch(function(err){ toast(err.message||"Greška"); }); },
     // Napravljeno → „Nije gotovo": zadatak se ponovno otvara i vraća u plan istom mehaničaru.
     vratiUPlan:function(zid){
       if(!confirm('Vratiti ovu operaciju u plan kao NIJE GOTOVO?')) return;
