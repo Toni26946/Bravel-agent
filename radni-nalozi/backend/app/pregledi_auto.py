@@ -36,6 +36,10 @@ _AKTIVNI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelov
 # odmah dolazi dodijeljen njemu — SAMO na ove 4 kategorije, nigdje drugdje. prijavljuje_se=false
 # pa ga dispatch (WhatsApp) preskače — on radi preglede, ne prima poveznice kao terenski mehaničar.
 PREGLEDI_KIME = "karthik.raju"
+# Obavijest pregledaru: kad je na vozilu ostalo ≤ ovoliko TUĐIH nezavršenih operacija
+# (dakle gotovo je sve osim njegovog), dobije WhatsApp da odradi svoje.
+PRAG_OSTALE = 1
+_OBAVIJEST_INTERVAL_S = 300
 
 
 def _pregledar(db):
@@ -187,6 +191,60 @@ def tik(db) -> int:
     if promjena:
         db.commit()
     return dodano
+
+
+def obavijesti_pregledara(db, base_url: str) -> int:
+    """Kad je vozilo gotovo OSIM pregledarovih operacija (ostalo ≤ PRAG_OSTALE tuđih
+    nezavršenih) → pošalji pregledaru (Karthik) WhatsApp poveznicu da odradi svoje
+    (registracija/baždar/periodički/PP). Šalje jednom po operaciji — `ceka_potvrdu`
+    služi kao oznaka da je poslano, pa se ne ponavlja."""
+    pregledar = _pregledar(db)
+    if not pregledar:
+        return 0
+    from .routers.dispecer import posalji_poveznicu
+    from .push import obavijesti_korisnika
+    poslano = 0
+    for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
+        njegove, tudje_nezavrsene = [], 0
+        for op in n.operacije:
+            for z in op.zadaci:
+                if z.gotovo:
+                    continue
+                if op.kategorija in _KATEGORIJE and any(r.id == pregledar.id for r in z.radnici):
+                    njegove.append(z)
+                else:
+                    tudje_nezavrsene += 1
+        if not njegove or tudje_nezavrsene > PRAG_OSTALE:
+            continue
+        z = next((x for x in njegove if not x.ceka_potvrdu), None)
+        if z is None:
+            continue   # već poslano (čeka potvrdu) → ne dupliciraj
+        gb = (n.vozilo.gb if n.vozilo else "") or ""
+        z.ceka_potvrdu = True
+        z.razlog_prekida = None
+        override = f"GB {gb}: vozilo je gotovo, ostalo je još tvoje — {z.opis}. {{url}}"
+        posalji_poveznicu(db, pregledar, gb, z.opis or "", base_url, poruka_override=override)
+        try:
+            obavijesti_korisnika(db, pregledar.id, "Vozilo spremno za tebe", f"GB {gb}: {z.opis}", "/moja-radiona")
+        except Exception:  # noqa: BLE001
+            pass
+        poslano += 1
+    if poslano:
+        db.commit()
+    return poslano
+
+
+async def petlja_obavijesti() -> None:
+    log.info("Pregledar-obavijest pokrenuta (interval %ss, prag ostalih %s).", _OBAVIJEST_INTERVAL_S, PRAG_OSTALE)
+    while True:
+        try:
+            with SessionLocal() as db:
+                obavijesti_pregledara(db, settings.javni_url)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 — ne ruši petlju
+            log.warning("Pregledar-obavijest tik greška: %s", e)
+        await asyncio.sleep(_OBAVIJEST_INTERVAL_S)
 
 
 def ocisti_jednokratno(db) -> None:

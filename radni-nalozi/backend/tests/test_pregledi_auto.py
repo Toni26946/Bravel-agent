@@ -106,6 +106,55 @@ def test_dispatch_preskace_pregledara():
     assert rez["mehanicara"] == 0  # Karthik preskočen
 
 
+def _nalog_s_pregledom(db, gb, broj):
+    kar = db.query(Korisnik).filter(Korisnik.korisnicko_ime == pregledi_auto.PREGLEDI_KIME).first()
+    db.add(Vozilo(gb=gb, marka="MAN")); db.flush()
+    voz = db.query(Vozilo).filter(Vozilo.gb == gb).one()
+    n = Nalog(broj=broj, vozilo_id=voz.id, naslov=gb, kreirao_id=kar.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    opp = Operacija(nalog_id=n.id, kategorija="REGISTRACIJA"); db.add(opp); db.flush()
+    zp = Zadatak(operacija_id=opp.id, opis="Produženje registracije — rok 07.11.2026"); zp.radnici = [kar]
+    db.add(zp); db.flush()
+    return n, zp
+
+
+def test_obavijest_salje_kad_ostalo_samo_njegovo():
+    """Sve tuđe gotovo (ostalo ≤1) → pregledar dobije poruku (ceka_potvrdu); drugi put ne."""
+    from datetime import datetime, timezone
+    db = _session()
+    db.add(Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                    lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False))
+    db.flush()
+    n, zp = _nalog_s_pregledom(db, "F1", "RN-F1")
+    # jedna tuđa operacija — GOTOVA
+    op2 = Operacija(nalog_id=n.id, kategorija="MOTOR"); db.add(op2); db.flush()
+    db.add(Zadatak(operacija_id=op2.id, opis="servis", gotovo=True, zavrseno=datetime.now(timezone.utc)))
+    db.commit()
+
+    assert pregledi_auto.obavijesti_pregledara(db, "https://x/") == 1
+    db.refresh(zp)
+    assert zp.ceka_potvrdu is True
+    assert pregledi_auto.obavijesti_pregledara(db, "https://x/") == 0  # već poslano
+
+
+def test_obavijest_ne_salje_dok_ima_tudjeg_posla():
+    db = _session()
+    db.add(Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                    lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False))
+    db.flush()
+    n, zp = _nalog_s_pregledom(db, "F2", "RN-F2")
+    # dvije tuđe operacije NISU gotove (> PRAG_OSTALE)
+    for i, kat in enumerate(("MOTOR", "ELEKTRIKA")):
+        op = Operacija(nalog_id=n.id, kategorija=kat); db.add(op); db.flush()
+        db.add(Zadatak(operacija_id=op.id, opis=f"posao{i}"))
+    db.commit()
+
+    assert pregledi_auto.obavijesti_pregledara(db, "https://x/") == 0
+    db.refresh(zp)
+    assert zp.ceka_potvrdu is False
+
+
 def test_bez_voditelja_ne_radi_nista():
     db = _session()
     _vozilo(db, "D4")

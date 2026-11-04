@@ -117,6 +117,8 @@ async def lifespan(app: FastAPI):
     auto_task = asyncio.create_task(auto_slanje.petlja())
     # Auto-operacije za periodične provjere (~2 tjedna prije roka → operacija u nalogu).
     pregledi_task = asyncio.create_task(pregledi_auto.petlja())
+    # Obavijest pregledaru kad je vozilo gotovo osim njegovih operacija (WhatsApp).
+    pregledi_obav_task = asyncio.create_task(pregledi_auto.petlja_obavijesti())
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
     if flota_task:
@@ -125,6 +127,7 @@ async def lifespan(app: FastAPI):
     kraj_task.cancel()
     auto_task.cancel()
     pregledi_task.cancel()
+    pregledi_obav_task.cancel()
 
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
