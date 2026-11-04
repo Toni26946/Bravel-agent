@@ -101,6 +101,7 @@ async def lifespan(app: FastAPI):
         seed_vozaci(db)
         seed_norme(db)
         uskladi_norme(db)
+        pregledi_auto.ocisti_jednokratno(db)   # makni poplavu auto-pregleda iz prve verzije
         auto_sync_pri_pokretanju(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None

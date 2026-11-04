@@ -16,9 +16,11 @@ import asyncio
 import calendar
 import logging
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 from sqlalchemy import func
 
+from .config import settings
 from .database import SessionLocal
 from .models import (
     Korisnik, Nalog, Operacija, RegistarVozila, StatusNaloga, StatusVozila,
@@ -113,7 +115,8 @@ def tik(db) -> int:
     )
     if not voditelj:
         return 0
-    prag = date.today() + timedelta(days=PRAG_DANA)
+    danas = date.today()
+    prag = danas + timedelta(days=PRAG_DANA)
     dodano = 0
     vozila = (
         db.query(RegistarVozila)
@@ -121,8 +124,10 @@ def tik(db) -> int:
         .all()
     )
     for r in vozila:
+        # Samo NADOLAZEĆI rokovi (danas → +14 dana). Davno dospjele (stari/zaostali
+        # datumi) namjerno preskačemo da ne poplave plan — hvatamo svaki ~2 tj. prije.
         dospjele = [(kat, opis, rok) for (kat, opis, fn) in VRSTE
-                    if (rok := fn(r)) and rok <= prag]
+                    if (rok := fn(r)) and danas <= rok <= prag]
         if not dospjele:
             continue
         voz = _vozilo_za_gb(db, r.gb)
@@ -138,6 +143,44 @@ def tik(db) -> int:
     if dodano:
         db.commit()
     return dodano
+
+
+_KATEGORIJE = {k for (k, _o, _f) in VRSTE}
+
+
+def ocisti_jednokratno(db) -> None:
+    """Jednokratno: makni auto-operacije pregleda koje je PRVA verzija stvorila i za
+    davno dospjele rokove (poplava od 146). Briše operacije tih kategorija čiji zadatak
+    ima ' — rok ' u opisu, pa prazne auto-naloge nastale u zadnja 24 h. Pokreće se
+    jednom (zastavica na volumenu); redovni tik (nadolazeći rokovi) radi dalje normalno."""
+    zastavica = Path(settings.upload_dir).parent / ".ocisti_auto_preglede_v1"
+    if zastavica.exists():
+        return
+    ops = db.query(Operacija).filter(Operacija.kategorija.in_(_KATEGORIJE)).all()
+    obrisano = 0
+    dirnuti: set[int] = set()
+    for op in ops:
+        zs = op.zadaci
+        if len(zs) == 1 and " — rok " in (zs[0].opis or ""):
+            dirnuti.add(op.nalog_id)
+            db.delete(op)
+            obrisano += 1
+    db.flush()
+    granica = datetime.now(timezone.utc) - timedelta(hours=24)
+    naloga = 0
+    for nid in dirnuti:
+        n = db.get(Nalog, nid)
+        if not n:
+            continue
+        kreiran = n.kreiran if n.kreiran.tzinfo else n.kreiran.replace(tzinfo=timezone.utc)
+        if (not n.operacije and not n.radni_sati and not n.dijelovi and not n.fotografije
+                and n.prijava_id is None and n.plan_rang is None and kreiran >= granica):
+            db.delete(n)
+            naloga += 1
+    db.commit()
+    zastavica.parent.mkdir(parents=True, exist_ok=True)
+    zastavica.write_text("done", encoding="utf-8")
+    log.info("Očišćeno auto-pregleda (prva verzija): %d operacija, %d praznih naloga.", obrisano, naloga)
 
 
 async def petlja() -> None:
