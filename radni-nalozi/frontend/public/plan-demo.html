@@ -463,14 +463,8 @@
     if(!planZakljucan && (String(n.gb||"").replace(/^0+/,"")==="400") && _np.done>0 && _np.done<_np.tot){
       h+='<div style="margin:6px 0 2px"><button class="btn ghost sm" onclick="PLAN.obnovi('+n.id+')" title="Zatvori nalog: gotove operacije idu u povijest, a nedovršene u novi nalog pod istim GB (radnici i mjerači ostaju)">🗂 Arhiviraj gotovo → novi nalog ('+_np.done+')</button></div>';
     }
-    // „Nalog isplaniran" — gumb gore na kartici. Aktivan tek kad su SVE operacije
-    // (koje treba poslati) dodijeljene; pošalje svakom mehaničaru prvi zadatak, ostale u red.
-    var saljive=n.ops.filter(function(o){return o.status==="plan"||o.status==="pauza";});
-    if(saljive.length){
-      var sviDod=saljive.every(function(o){return !!o.mehId;});
-      h+='<div style="margin:8px 0 2px"><button class="btn sm" onclick="PLAN.isplaniraj('+n.id+')" '+(sviDod?'':'disabled')+
-         ' title="'+(sviDod?'Pošalji plan mehaničarima (prvi zadatak odmah, ostali u red)':'Prvo dodijeli radnika na sve operacije')+'">📨 Nalog isplaniran — pošalji ('+saljive.length+')</button></div>';
-    }
+    // (Gumb „Nalog isplaniran" po nalogu uklonjen — dodjela radnika ga već stavlja u red;
+    // slanje ide skupno preko „Pošalji sve naloge" gore i jutarnjeg auto-slanja.)
     n.ops.forEach(function(o){
       if(o.status==="gotovo") return; // gotove operacije se ne prikazuju u planu
       // Operacija koju još treba dodijeliti, a nema nijednog radnika → blago zacrveni redak.
