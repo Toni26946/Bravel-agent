@@ -614,14 +614,15 @@ def obnovi_nalog(nid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
     n = db.get(Nalog, nid)
     if not n:
         raise HTTPException(status_code=404, detail="Nalog ne postoji")
-    # Nedovršena operacija = ima bar jedan zadatak koji NIJE gotov (prazna operacija
-    # bez zadataka nema što prenijeti → ostaje na zatvorenom nalogu).
-    nedovrsene = [op for op in n.operacije if any(not z.gotovo for z in op.zadaci)]
-    gotove = [op for op in n.operacije if op not in nedovrsene]
-    if not nedovrsene:
+    # Radimo po ZADATKU (ne cijeloj operaciji): jedna operacija radione zna sadržavati
+    # i gotov i nedovršen zadatak — gotove treba arhivirati, nedovršene prenijeti.
+    svi = [z for op in n.operacije for z in op.zadaci]
+    gotovi = [z for z in svi if z.gotovo]
+    nedovrseni = [z for z in svi if not z.gotovo]
+    if not nedovrseni:
         raise HTTPException(status_code=409,
                             detail="Nema nedovršenih operacija — nema što prenijeti u novi nalog.")
-    if not gotove:
+    if not gotovi:
         raise HTTPException(status_code=409,
                             detail="Sve operacije su još u radu — nema gotovih za zatvoriti.")
 
@@ -633,26 +634,39 @@ def obnovi_nalog(nid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
     )
     db.add(novi)
     db.flush()
-    # Premjesti nedovršene operacije preko kolekcija (izbjegni delete-orphan brisanje).
-    for op in list(nedovrsene):
-        n.operacije.remove(op)
-        novi.operacije.append(op)
+    # Preseli NEDOVRŠENE zadatke u novi nalog, grupirane u operaciju iste kategorije
+    # (radnici, mjerači, utrošeno vrijeme i red ostaju jer selimo isti objekt zadatka).
+    nove_op: dict[str, Operacija] = {}
+    for op in n.operacije:
+        za_seliti = [z for z in op.zadaci if not z.gotovo]
+        for z in za_seliti:
+            cilj = nove_op.get(op.kategorija)
+            if cilj is None:
+                cilj = Operacija(kategorija=op.kategorija, redoslijed=len(nove_op))
+                novi.operacije.append(cilj)
+                nove_op[op.kategorija] = cilj
+            op.zadaci.remove(z)
+            cilj.zadaci.append(z)
+    # Operacije kojima su svi zadaci preseljeni (ostale prazne) makni sa zatvorenog naloga.
+    for op in list(n.operacije):
+        if not op.zadaci:
+            n.operacije.remove(op)
     # Prenesi dodjele (nalog↔radnik) za radnike koji su na prenesenim zadacima.
-    preneseni_rad = {r.id for op in nedovrsene for z in op.zadaci for r in z.radnici}
+    preneseni_rad = {r.id for z in nedovrseni for r in z.radnici}
     for rid in preneseni_rad:
         db.add(Dodjela(nalog_id=novi.id, radnik_id=rid))
 
-    # Stari nalog: izlazi iz plana i zatvara se; gotove operacije → servisna povijest.
+    # Stari nalog: izlazi iz plana i zatvara se; gotovi zadaci → servisna povijest.
     n.plan_rang = None
     n.plan_hitno = False
     stari_status = n.status
     n.status = StatusNaloga.zatvoren
     n.zatvoren = datetime.now(timezone.utc)
     db.flush()
-    _sync_povijest(db, n)   # upiše gotove operacije u povijest_rada vozila
+    _sync_povijest(db, n)   # upiše gotove zadatke u povijest_rada vozila
     db.add(PovijestStatusa(
         nalog_id=n.id, stari_status=stari_status.value, novi_status=n.status.value,
-        napomena=f"Zatvoren — gotovo arhivirano, {len(nedovrsene)} nedovršenih preneseno u {novi.broj}",
+        napomena=f"Zatvoren — {len(gotovi)} gotovih arhivirano, {len(nedovrseni)} nedovršenih preneseno u {novi.broj}",
         promijenio_id=korisnik.id,
     ))
     db.add(PovijestStatusa(
@@ -660,11 +674,11 @@ def obnovi_nalog(nid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
         napomena=f"Otvoren prijenosom nedovršenog iz {n.broj}", promijenio_id=korisnik.id,
     ))
     _log(db, korisnik, "obnovi",
-         f"GB {_gb(n)}: zatvoren {n.broj}, nedovršeno ({len(nedovrsene)}) → {novi.broj}",
+         f"GB {_gb(n)}: zatvoren {n.broj}, nedovršeno ({len(nedovrseni)}) → {novi.broj}",
          nalog_id=novi.id)
     db.commit()
     return {"ok": True, "novi_id": novi.id, "novi_broj": novi.broj,
-            "preneseno": len(nedovrsene), "arhivirano": len(gotove), "gb": _gb(novi)}
+            "preneseno": len(nedovrseni), "arhivirano": len(gotovi), "gb": _gb(novi)}
 
 
 @router.patch("/nalog/{nid}/hitno")

@@ -71,6 +71,39 @@ def test_obnovi_prenese_nedovrseno_i_arhivira_gotovo():
     assert len(pov) == 1 and pov[0].opis == "oprano"
 
 
+def test_obnovi_pomijesana_operacija():
+    """Operacija s DVA zadatka (jedan gotov, jedan ne): gotov ostaje na zatvorenom
+    nalogu (→ povijest), nedovršen se preseli u novi — ne smije pasti na 'nema gotovih'."""
+    db = _session()
+    vod = Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj)
+    meh = Korisnik(ime="Meh", korisnicko_ime="meh", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="400", marka="RADIONA"); db.add_all([vod, meh, voz]); db.flush()
+    n = Nalog(broj="RN-400-B", vozilo_id=voz.id, naslov="RADIONA", kreirao_id=vod.id,
+              status=StatusNaloga.u_radu, plan_rang=1)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="RAZNO", redoslijed=0); db.add(op); db.flush()
+    zg = Zadatak(operacija_id=op.id, opis="gotov dio", gotovo=True,
+                 zavrseno=datetime.now(timezone.utc))
+    zn = Zadatak(operacija_id=op.id, opis="nedovrsen dio"); zn.radnici = [meh]
+    db.add_all([zg, zn]); db.commit()
+
+    rez = obnovi_nalog(n.id, korisnik=vod, db=db)
+    assert rez["arhivirano"] == 1 and rez["preneseno"] == 1
+
+    db.refresh(n)
+    assert n.status == StatusNaloga.zatvoren
+    # Na zatvorenom ostaje samo gotov zadatak; nedovršen je otišao.
+    preostali = [z for o in n.operacije for z in o.zadaci]
+    assert [z.opis for z in preostali] == ["gotov dio"]
+    novi = db.get(Nalog, rez["novi_id"])
+    preneseni = [z for o in novi.operacije for z in o.zadaci]
+    assert [z.opis for z in preneseni] == ["nedovrsen dio"]
+    assert novi.operacije[0].kategorija == "RAZNO"
+    # Gotov dio upisan u povijest.
+    pov = db.query(PovijestRada).filter(PovijestRada.nalog_id == n.id).all()
+    assert len(pov) == 1 and pov[0].opis == "gotov dio"
+
+
 def test_obnovi_odbija_kad_nema_gotovih():
     db = _session()
     vod = Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj)
