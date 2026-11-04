@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from app import pregledi_auto
 from app.database import Base
 from app.models import (
-    Korisnik, Nalog, Operacija, RegistarVozila, StatusNaloga, StatusVozila, Uloga, Vozilo,
+    Korisnik, Nalog, Operacija, RegistarVozila, StatusNaloga, StatusVozila, Uloga, Vozilo, Zadatak,
 )
 
 
@@ -33,6 +33,9 @@ def _vozilo(db, gb):
 def test_dodaje_operaciju_za_rok_u_prozoru_i_ne_duplira():
     db = _session()
     db.add(Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj))
+    # Pregledar (Karthik) — auto-pregled mora odmah doći dodijeljen njemu.
+    db.add(Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                    lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False))
     _vozilo(db, "D1")
     # Registracija ističe za 5 dana → unutar praga (14).
     db.add(RegistarVozila(gb="D1", kategorija="kamion", status=StatusVozila.aktivno,
@@ -45,7 +48,9 @@ def test_dodaje_operaciju_za_rok_u_prozoru_i_ne_duplira():
     assert "REGISTRACIJA" in kategorije
     op = next(o for o in n.operacije if o.kategorija == "REGISTRACIJA")
     assert op.zadaci and op.zadaci[0].opis.startswith("Produženje registracije")
-    assert op.zadaci[0].radnici == []  # nitko dodijeljen → može se dodijeliti u planu
+    z = op.zadaci[0]
+    assert [r.korisnicko_ime for r in z.radnici] == [pregledi_auto.PREGLEDI_KIME]  # odmah Karthik
+    assert z.zapoceto is None  # samo dodijeljen, mjerač NE kreće
     assert n.plan_rang is not None       # mora biti U PLANU da se vidi
 
     assert pregledi_auto.tik(db) == 0  # drugi prolaz ne duplira
@@ -78,6 +83,27 @@ def test_periodicki_po_intervalu_i_daleki_rok_se_preskace():
         n.vozilo.gb for n in db.query(Nalog).filter(Nalog.status.in_(pregledi_auto._AKTIVNI)).all()
     }
     assert gbovi_s_nalogom == {"D2"}  # samo D2 dobio nalog/operaciju
+
+
+def test_dispatch_preskace_pregledara():
+    """'Pošalji sve' NE šalje pregledaru (prijavljuje_se=False) — on radi preglede, ne prima poveznice."""
+    from app.routers.plan import posalji_sve_plan
+    db = _session()
+    kar = Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                   lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False)
+    db.add(kar)
+    db.add(Vozilo(gb="E1", marka="MAN"))
+    db.flush()
+    voz = db.query(Vozilo).filter(Vozilo.gb == "E1").one()
+    n = Nalog(broj="RN-E1", vozilo_id=voz.id, naslov="E1", kreirao_id=kar.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="REGISTRACIJA"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="Produženje registracije — rok 07.11.2026"); z.radnici = [kar]
+    db.add(z); db.commit()
+
+    rez = posalji_sve_plan(db, "https://x/")
+    assert rez["mehanicara"] == 0  # Karthik preskočen
 
 
 def test_bez_voditelja_ne_radi_nista():

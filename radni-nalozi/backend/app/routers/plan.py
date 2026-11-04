@@ -770,6 +770,8 @@ def isplaniraj(nalog_id: int, request: Request,
             if z.gotovo or z.razlog_prekida == "dijelovi":
                 continue
             for r in z.radnici:
+                if not r.prijavljuje_se:
+                    continue   # npr. pregledar (Karthik) — ne prima WhatsApp poveznice
                 mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0
@@ -815,6 +817,8 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
                 if z.gotovo or z.razlog_prekida == "dijelovi":
                     continue
                 for r in z.radnici:
+                    if not r.prijavljuje_se:
+                        continue   # pregledar (Karthik) — ne prima WhatsApp poveznice
                     mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0

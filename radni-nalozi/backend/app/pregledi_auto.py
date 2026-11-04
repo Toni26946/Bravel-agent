@@ -32,6 +32,18 @@ log = logging.getLogger("pregledi_auto")
 PRAG_DANA = 14              # koliko prije roka se operacija pojavi (~2 tjedna)
 _INTERVAL_S = 6 * 3600      # provjera svakih 6 h
 _AKTIVNI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
+# Zadani „pregledar" (radnik koji radi preglede/registracije, modul /pregledi): auto-pregled
+# odmah dolazi dodijeljen njemu — SAMO na ove 4 kategorije, nigdje drugdje. prijavljuje_se=false
+# pa ga dispatch (WhatsApp) preskače — on radi preglede, ne prima poveznice kao terenski mehaničar.
+PREGLEDI_KIME = "karthik.raju"
+
+
+def _pregledar(db):
+    return (
+        db.query(Korisnik)
+        .filter(Korisnik.korisnicko_ime == PREGLEDI_KIME, Korisnik.uloga == Uloga.radnik)
+        .first()
+    )
 
 
 def _plus_mj(d: date, n: int) -> date:
@@ -130,6 +142,7 @@ def tik(db) -> int:
     # Novi auto-nalozi/operacije idu na KRAJ plana (da budu vidljivi, ali ne na vrhu).
     mx = db.query(func.max(Nalog.plan_rang)).filter(Nalog.status.in_(_AKTIVNI)).scalar()
     sljedeci_rang = (mx if mx is not None else -1) + 1
+    pregledar = _pregledar(db)   # Karthik — dodjeljuje se SAMO na ove pregled-operacije
     dodano = 0
     promjena = False
     vozila = (
@@ -151,10 +164,21 @@ def tik(db) -> int:
                 continue
             op = Operacija(kategorija=kat, redoslijed=len(nalog.operacije))
             nalog.operacije.append(op)
-            op.zadaci.append(Zadatak(opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0))
+            z = Zadatak(opis=f"{opis} — rok {rok.strftime('%d.%m.%Y')}", redoslijed=0)
+            if pregledar:
+                z.radnici = [pregledar]   # odmah dodijeljen pregledaru (bez mjerača)
+            op.zadaci.append(z)
             db.flush()
             dodano += 1
             promjena = True
+        # Osiguraj pregledara i na postojećim našim pregled-operacijama bez radnika (npr. 20 iz ranije).
+        if pregledar:
+            for op in nalog.operacije:
+                if op.kategorija in _KATEGORIJE:
+                    for z in op.zadaci:
+                        if " — rok " in (z.opis or "") and not z.radnici:
+                            z.radnici = [pregledar]
+                            promjena = True
         # Da se VIDI U PLANU: ako nalog s našom pregled-operacijom nije u planu, dodaj ga na kraj.
         if nalog.plan_rang is None and _ima_nasu_pregled(nalog):
             nalog.plan_rang = sljedeci_rang
