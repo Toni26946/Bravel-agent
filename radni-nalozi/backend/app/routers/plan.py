@@ -18,11 +18,14 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from ..auth import trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
-    Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa, StatusNaloga, Zadatak,
-    ZadatakRadnikVrijeme,
+    Dodjela, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
+    Prioritet, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
-from .nalozi import _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga, nalog_eager
+from .nalozi import (
+    _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga,
+    _sljedeci_broj, _sync_povijest, nalog_eager,
+)
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 _samo_vlasnik = zahtijevaj_plan_pristup()   # vlasnik ILI tko ima modul '/plan'
@@ -596,6 +599,72 @@ def izbaci_iz_plana(nid: int, _: Korisnik = Depends(_samo_vlasnik), db: Session 
     n.plan_hitno = False
     db.commit()
     return {"ok": True, "gb": _gb(n)}
+
+
+@router.post("/nalog/{nid}/obnovi")
+def obnovi_nalog(nid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Zatvori nalog i otvori NOVI pod istim GB, prenoseći samo NEDOVRŠENE operacije.
+
+    Namijenjeno radioni (npr. GB 400) gdje se gomilaju operacije: jednim klikom
+    „okreneš list" — gotove operacije ostaju na ZATVORENOM nalogu i odlaze u
+    servisnu povijest vozila, a sve nedovršeno (zadatak nije gotov, uključujući
+    ono što je trenutno u tijeku) seli se u svježi nalog SA SVIME: dodijeljeni
+    radnici, pokrenuti mjerači, utrošeno vrijeme i ručni red ostaju netaknuti.
+    Novi nalog preuzima mjesto starog u planu (rang + hitno)."""
+    n = db.get(Nalog, nid)
+    if not n:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    # Nedovršena operacija = ima bar jedan zadatak koji NIJE gotov (prazna operacija
+    # bez zadataka nema što prenijeti → ostaje na zatvorenom nalogu).
+    nedovrsene = [op for op in n.operacije if any(not z.gotovo for z in op.zadaci)]
+    gotove = [op for op in n.operacije if op not in nedovrsene]
+    if not nedovrsene:
+        raise HTTPException(status_code=409,
+                            detail="Nema nedovršenih operacija — nema što prenijeti u novi nalog.")
+    if not gotove:
+        raise HTTPException(status_code=409,
+                            detail="Sve operacije su još u radu — nema gotovih za zatvoriti.")
+
+    novi = Nalog(
+        broj=_sljedeci_broj(db), vozilo_id=n.vozilo_id, naslov=n.naslov, opis=n.opis,
+        prioritet=n.prioritet, kreirao_id=korisnik.id, voditelj_id=n.voditelj_id,
+        vozac_id=n.vozac_id, status=StatusNaloga.u_radu,
+        plan_rang=n.plan_rang, plan_hitno=bool(n.plan_hitno),
+    )
+    db.add(novi)
+    db.flush()
+    # Premjesti nedovršene operacije preko kolekcija (izbjegni delete-orphan brisanje).
+    for op in list(nedovrsene):
+        n.operacije.remove(op)
+        novi.operacije.append(op)
+    # Prenesi dodjele (nalog↔radnik) za radnike koji su na prenesenim zadacima.
+    preneseni_rad = {r.id for op in nedovrsene for z in op.zadaci for r in z.radnici}
+    for rid in preneseni_rad:
+        db.add(Dodjela(nalog_id=novi.id, radnik_id=rid))
+
+    # Stari nalog: izlazi iz plana i zatvara se; gotove operacije → servisna povijest.
+    n.plan_rang = None
+    n.plan_hitno = False
+    stari_status = n.status
+    n.status = StatusNaloga.zatvoren
+    n.zatvoren = datetime.now(timezone.utc)
+    db.flush()
+    _sync_povijest(db, n)   # upiše gotove operacije u povijest_rada vozila
+    db.add(PovijestStatusa(
+        nalog_id=n.id, stari_status=stari_status.value, novi_status=n.status.value,
+        napomena=f"Zatvoren — gotovo arhivirano, {len(nedovrsene)} nedovršenih preneseno u {novi.broj}",
+        promijenio_id=korisnik.id,
+    ))
+    db.add(PovijestStatusa(
+        nalog_id=novi.id, stari_status=None, novi_status=novi.status.value,
+        napomena=f"Otvoren prijenosom nedovršenog iz {n.broj}", promijenio_id=korisnik.id,
+    ))
+    _log(db, korisnik, "obnovi",
+         f"GB {_gb(n)}: zatvoren {n.broj}, nedovršeno ({len(nedovrsene)}) → {novi.broj}",
+         nalog_id=novi.id)
+    db.commit()
+    return {"ok": True, "novi_id": novi.id, "novi_broj": novi.broj,
+            "preneseno": len(nedovrsene), "arhivirano": len(gotove), "gb": _gb(novi)}
 
 
 @router.patch("/nalog/{nid}/hitno")

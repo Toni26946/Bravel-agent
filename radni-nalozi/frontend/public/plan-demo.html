@@ -409,6 +409,10 @@
       .catch(function(e){ toast(e.message||"Greška"); }).then(_fokusGB); }
   function ocistiPlan(){ api("/ocisti","POST").then(function(){ toast("Plan očišćen — kreni novi"); return ucitaj(); }).then(_fokusGB); }
   function izbaci(nid){ if(_busy) return; _busy=true; api("/nalog/"+nid+"/izbaci","POST").then(function(r){ toast("Izbačeno iz plana"+(r&&r.gb?" · GB "+r.gb:"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
+  // Zatvori nalog i prenesi nedovršeno u novi (radiona „okreni list"): gotovo → povijest.
+  function obnovi(nid){ if(_busy) return; var n=nalById(nid); var np=n?napredak(n):{done:0,tot:0};
+    if(!confirm("Zatvoriti ovaj nalog i otvoriti novi pod istim GB?\n\n• "+(np.tot-np.done)+" nedovršenih operacija → novi nalog (radnici i mjerači ostaju)\n• "+np.done+" gotovih → servisna povijest")) return;
+    _busy=true; api("/nalog/"+nid+"/obnovi","POST").then(function(r){ toast("🗂 Novi nalog "+((r&&r.novi_broj)||"")+" · preneseno "+((r&&r.preneseno)||0)+", arhivirano "+((r&&r.arhivirano)||0)); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   // Prekid operacije (modal): gotovo / nije gotovo / nema dijelova
   var stopOp=null;
   function openStop(opId){ var o=find(opId); if(!o) return; stopOp=opId; var n=nalByOp(opId); document.getElementById("modal-sub").textContent=(n?"GB "+n.gb+" · ":"")+o.naziv; document.getElementById("modal").hidden=false; }
@@ -453,6 +457,11 @@
     var _np=napredak(n);
     h+='<div class="prog" title="'+_np.done+'/'+_np.tot+' operacija gotovo"><div class="prog-bar" style="width:'+_np.pct+'%"></div></div>'+
        '<div class="prog-lbl">'+_np.pct+'% završeno · '+_np.done+'/'+_np.tot+' operacija</div>';
+    // „Okreni list" za radionu (npr. GB 400): zatvori nalog — gotovo u povijest, nedovršeno
+    // u novi nalog pod istim GB. Prikaži samo kad ima i gotovih i nedovršenih operacija.
+    if(!planZakljucan && _np.done>0 && _np.done<_np.tot){
+      h+='<div style="margin:6px 0 2px"><button class="btn ghost sm" onclick="PLAN.obnovi('+n.id+')" title="Zatvori nalog: gotove operacije idu u povijest, a nedovršene u novi nalog pod istim GB (radnici i mjerači ostaju)">🗂 Arhiviraj gotovo → novi nalog ('+_np.done+')</button></div>';
+    }
     // „Nalog isplaniran" — gumb gore na kartici. Aktivan tek kad su SVE operacije
     // (koje treba poslati) dodijeljene; pošalje svakom mehaničaru prvi zadatak, ostale u red.
     var saljive=n.ops.filter(function(o){return o.status==="plan"||o.status==="pauza";});
@@ -802,7 +811,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
