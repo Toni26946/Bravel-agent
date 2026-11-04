@@ -14,6 +14,7 @@ from . import auto_slanje
 from . import flota
 from . import kraj_smjene
 from . import podsjetnici
+from . import pregledi_auto
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
@@ -113,6 +114,8 @@ async def lifespan(app: FastAPI):
     kraj_task = asyncio.create_task(kraj_smjene.petlja())
     # Jutarnje auto-slanje plana (okida se kad vlasnik zakaže termin; inače miruje).
     auto_task = asyncio.create_task(auto_slanje.petlja())
+    # Auto-operacije za periodične provjere (~2 tjedna prije roka → operacija u nalogu).
+    pregledi_task = asyncio.create_task(pregledi_auto.petlja())
     log.info("Bravel Radni Nalozi backend spreman.")
     yield
     if flota_task:
@@ -120,6 +123,7 @@ async def lifespan(app: FastAPI):
     parking_task.cancel()
     kraj_task.cancel()
     auto_task.cancel()
+    pregledi_task.cancel()
 
 
 app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
