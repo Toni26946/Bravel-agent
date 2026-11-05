@@ -16,7 +16,7 @@ ovdje se NIŠTA ne šalje; ovo je samo stranica + akcije.
 import logging
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -219,18 +219,55 @@ def _je_popisni(radnik: Korisnik) -> bool:
     return not radnik.prijavljuje_se
 
 
+_ROK_RE = re.compile(r"rok\s+(\d{1,2})\.(\d{1,2})\.(\d{4})")
+
+
+def _rok_stavke(db: Session, gb: str, opis: str | None, kategorija: str | None) -> date | None:
+    """Rok provjere: prvo iz opisa ('… — rok DD.MM.YYYY'), zatim iz registra vozila
+    (za ručne stavke bez upisanog roka). None ako se ne zna."""
+    m = _ROK_RE.search(opis or "")
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
+    from .. import pregledi_auto as pa
+    from ..models import RegistarVozila
+    r = db.query(RegistarVozila).filter(RegistarVozila.gb == gb).first()
+    if r is None and gb:
+        g = gb.lstrip("0") or gb
+        r = db.query(RegistarVozila).filter(RegistarVozila.gb == g).first()
+    if r is not None:
+        kat = (kategorija or "").upper()
+        for vk, _o, fn in pa.VRSTE:
+            if vk == kat:
+                try:
+                    return fn(r)
+                except Exception:  # noqa: BLE001
+                    return None
+    return None
+
+
 def _popis(db: Session, radnik: Korisnik) -> list[dict]:
-    """Svi njegovi nezavršeni zadaci kao popis (za pregledara). Redoslijed iz _red."""
+    """Svi njegovi nezavršeni zadaci kao popis (za pregledara), sortirano po roku —
+    najbliži gore; stavke bez poznatog roka idu na dno."""
     stavke = []
     for n, op, z in _red(db, radnik):
         voz = n.vozilo
         vozilo = " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x)
+        gb = _gb(n)
+        rok = _rok_stavke(db, gb, z.opis, op.kategorija)
         stavke.append({
-            "zadatak_id": z.id, "gb": _gb(n),
+            "zadatak_id": z.id, "gb": gb,
             "vozilo": vozilo or (n.naslov or ""),
             "reg": (voz.registracija if voz else "") or "",
             "opis": z.opis, "kategorija": op.kategorija,
+            "rok": rok.strftime("%d.%m.%Y") if rok else None,
+            "_rok": rok,
         })
+    stavke.sort(key=lambda s: (s["_rok"] or date.max, s["gb"]))
+    for s in stavke:
+        s.pop("_rok", None)
     return stavke
 
 
@@ -715,6 +752,7 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 .b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-nije:disabled{opacity:.5}
 .b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
 .pregbroj{font-weight:800;font-size:18px;margin:2px 0 14px;color:#0d47a1}
+.rok{margin-top:8px;font-size:14px;font-weight:700;color:#b26a00}
 .banner{background:#fff4d6;border:1px solid #f0c44c;color:#7a4e00;border-radius:12px;padding:16px;font-weight:700;text-align:center;font-size:17px;margin-bottom:4px}
 .info{text-align:center;color:#5b6470;padding:32px 16px;font-size:18px}
 .greska{background:#fdeaea;color:#b3261e;border:1px solid #e5534b;border-radius:12px;padding:16px;font-weight:700;text-align:center}
@@ -787,9 +825,10 @@ function renderPopis(d){
   if(!lista.length){app.innerHTML='<div class="kart"><div class="info"><b>Nema otvorenih pregleda.</b><br/>Sve je gotovo. 👍</div></div>';return;}
   let h='<div class="pregbroj">Tvoji pregledi: '+lista.length+'</div>';
   for(const s of lista){
+    var rokLinija = (s.rok && !/rok/i.test(s.opis||'')) ? '<div class="rok">Rok: '+esc(s.rok)+'</div>' : '';
     h+='<div class="kart"><div class="gb">'+esc(s.gb)+'</div>'
       +'<div class="meta">'+esc([s.vozilo,s.reg].filter(Boolean).join(' · '))+'</div>'
-      +'<div class="opis">'+esc(s.opis)+'</div>'
+      +'<div class="opis">'+esc(s.opis)+'</div>'+rokLinija
       +'<div class="gumbi"><button class="b-stavka" data-zid="'+s.zadatak_id+'" data-gb="'+esc(s.gb)+'">✓ Gotovo</button></div>'
       +'</div>';
   }

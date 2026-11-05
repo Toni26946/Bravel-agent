@@ -563,27 +563,36 @@ def test_pregledar_popis_i_gotovo_stavka():
     db.add_all([op1, op2]); db.flush()
     z1 = Zadatak(operacija_id=op1.id, opis="Periodični pregled — rok 17.11.2026"); z1.radnici = [kar]
     z2 = Zadatak(operacija_id=op2.id, opis="Produženje registracije — rok 19.11.2026"); z2.radnici = [kar]
-    db.add_all([z1, z2])
+    # Stavka bez poznatog roka (nema 'rok' u opisu, nema registra) → ide na DNO.
+    voz3 = Vozilo(gb="50", marka="MAN"); db.add(voz3); db.flush()
+    n3 = Nalog(broj="RN-50", vozilo_id=voz3.id, naslov="50", kreirao_id=kar.id,
+               status=StatusNaloga.u_radu, plan_rang=2)
+    db.add(n3); db.flush()
+    op3 = Operacija(nalog_id=n3.id, kategorija="PP APARATI"); db.add(op3); db.flush()
+    z3 = Zadatak(operacija_id=op3.id, opis="Servis PP aparata"); z3.radnici = [kar]
+    db.add_all([z1, z2, z3])
     db.add(MehanicarLink(radnik_id=kar.id, token="tokkar", aktivan=True))
     db.commit()
 
     s = z_stanje("tokkar", UredjajIn(uredjaj="A"), db=db)
     assert s.get("pregledar") is True
-    assert sorted(x["gb"] for x in s["popis"]) == ["156", "37"]
+    # Sortirano po roku, najbliži gore: 156 (17.11) < 37 (19.11) < 50 (bez roka).
+    assert [x["gb"] for x in s["popis"]] == ["156", "37", "50"]
+    assert s["popis"][0]["rok"] == "17.11.2026"
 
-    # Gotovo za 156 → ostaje samo 37; 156 je gotov, 37 nije.
+    # Gotovo za 156 → ostaju 37 pa 50 (po roku); 156 je gotov, 37 nije.
     r = z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z1.id), db=db)
     assert r.get("pregledar") is True
-    assert [x["gb"] for x in r["popis"]] == ["37"]
+    assert [x["gb"] for x in r["popis"]] == ["37", "50"]
     db.refresh(z1); db.refresh(z2)
     assert z1.gotovo is True and z2.gotovo is False
 
     # Tuđi zadatak se NE može označiti gotovim preko njegove poveznice.
     drugi = Korisnik(ime="Drugi", korisnicko_ime="drugi", lozinka_hash="x", uloga=Uloga.radnik)
-    voz3 = Vozilo(gb="99", marka="X"); db.add_all([drugi, voz3]); db.flush()
-    n3 = Nalog(broj="RN-99", vozilo_id=voz3.id, naslov="99", kreirao_id=drugi.id, status=StatusNaloga.u_radu)
-    db.add(n3); db.flush()
-    op3 = Operacija(nalog_id=n3.id, kategorija="MOTOR"); db.add(op3); db.flush()
-    z3 = Zadatak(operacija_id=op3.id, opis="servis"); z3.radnici = [drugi]; db.add(z3); db.commit()
+    voz9 = Vozilo(gb="99", marka="X"); db.add_all([drugi, voz9]); db.flush()
+    n9 = Nalog(broj="RN-99", vozilo_id=voz9.id, naslov="99", kreirao_id=drugi.id, status=StatusNaloga.u_radu)
+    db.add(n9); db.flush()
+    op9 = Operacija(nalog_id=n9.id, kategorija="MOTOR"); db.add(op9); db.flush()
+    z9 = Zadatak(operacija_id=op9.id, opis="servis"); z9.radnici = [drugi]; db.add(z9); db.commit()
     with ocekuj_http(404):
-        z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z3.id), db=db)
+        z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z9.id), db=db)
