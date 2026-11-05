@@ -149,9 +149,12 @@ def tik(db) -> int:
     pregledar = _pregledar(db)   # Karthik — pregledi mu se odmah dodijele (SAMO ove kategorije)
     dodano = 0
     promjena = False
+    # SAMO kamioni — mali auti/prikolice NE idu u plan (gušili su ga auto-pregledima).
+    # "kamion" je ista oznaka kategorije koju koristi ostatak app-a (servisi, spremne…).
     vozila = (
         db.query(RegistarVozila)
-        .filter(RegistarVozila.status != StatusVozila.prodano)
+        .filter(RegistarVozila.status != StatusVozila.prodano,
+                RegistarVozila.kategorija == "kamion")
         .all()
     )
     for r in vozila:
@@ -294,6 +297,55 @@ def ocisti_jednokratno(db) -> None:
     zastavica.parent.mkdir(parents=True, exist_ok=True)
     zastavica.write_text("done", encoding="utf-8")
     log.info("Očišćeno auto-pregleda (prva verzija): %d operacija, %d praznih naloga.", obrisano, naloga)
+
+
+def _je_kamion(db, gb: str | None) -> bool:
+    """Je li vozilo (po garažnom broju) kamion u registru — i s vodećim nulama."""
+    if not gb:
+        return False
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        g = gb.lstrip("0") or gb
+        r = db.get(RegistarVozila, g)
+    return bool(r and (r.kategorija or "") == "kamion")
+
+
+def ocisti_ne_kamione(db) -> None:
+    """Jednokratno: makni auto-operacije pregleda koje su se nakalemile na male aute i
+    druga NE-kamion vozila (prije filtra „samo kamioni"). Briše operacije kategorija
+    pregleda (zadatak s ' — rok ') na vozilima koja NISU kamioni, pa prazne auto-naloge."""
+    zastavica = Path(settings.upload_dir).parent / ".ocisti_pregledi_ne_kamion_v1"
+    if zastavica.exists():
+        return
+    ops = db.query(Operacija).filter(Operacija.kategorija.in_(_KATEGORIJE)).all()
+    obrisano = 0
+    dirnuti: set[int] = set()
+    for op in ops:
+        zs = op.zadaci
+        if not (len(zs) == 1 and " — rok " in (zs[0].opis or "")):
+            continue
+        n = db.get(Nalog, op.nalog_id)
+        gb = (n.vozilo.gb if (n and n.vozilo) else None)
+        if _je_kamion(db, gb):
+            continue   # kamion → ostaje
+        dirnuti.add(op.nalog_id)
+        db.delete(op)
+        obrisano += 1
+    db.flush()
+    naloga = 0
+    for nid in dirnuti:
+        n = db.get(Nalog, nid)
+        if not n:
+            continue
+        # Prazan auto-nalog (nastao samo radi pregleda) → makni i iz plana.
+        if (not n.operacije and not n.radni_sati and not n.dijelovi and not n.fotografije
+                and n.prijava_id is None):
+            db.delete(n)
+            naloga += 1
+    db.commit()
+    zastavica.parent.mkdir(parents=True, exist_ok=True)
+    zastavica.write_text("done", encoding="utf-8")
+    log.info("Očišćeno auto-pregleda na ne-kamionima: %d operacija, %d praznih naloga.", obrisano, naloga)
 
 
 async def petlja() -> None:

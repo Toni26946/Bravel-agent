@@ -170,6 +170,58 @@ def test_obavijest_preskace_pregled_only_i_cisti():
     assert zp.ceka_potvrdu is False   # poništeno jer nema drugog posla
 
 
+def test_ne_dodaje_za_ne_kamion():
+    """Mali auto / prikolica / bez kategorije → NE dobiva auto-pregled (samo kamioni)."""
+    db = _session()
+    db.add(Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj))
+    _vozilo(db, "A1")
+    _vozilo(db, "A2")
+    _vozilo(db, "A3")
+    db.add(RegistarVozila(gb="A1", kategorija="osobni", status=StatusVozila.aktivno,
+                          registracija_istek=date.today() + timedelta(days=5)))
+    db.add(RegistarVozila(gb="A2", kategorija="prikolica", status=StatusVozila.aktivno,
+                          registracija_istek=date.today() + timedelta(days=5)))
+    db.add(RegistarVozila(gb="A3", kategorija=None, status=StatusVozila.aktivno,
+                          registracija_istek=date.today() + timedelta(days=5)))
+    db.commit()
+
+    assert pregledi_auto.tik(db) == 0
+    assert db.query(Nalog).count() == 0
+
+
+def test_ocisti_ne_kamione_mice_stare_preglede():
+    """Postojeći auto-pregled na malom autu se počisti; na kamionu ostaje."""
+    import os
+    import tempfile
+    from app.config import settings
+
+    db = _session()
+    db.add(Korisnik(ime="Karthik Raju", korisnicko_ime=pregledi_auto.PREGLEDI_KIME,
+                    lozinka_hash="x", uloga=Uloga.radnik, prijavljuje_se=False))
+    db.flush()
+    # Mali auto s auto-pregledom (prazan nalog samo za pregled) → mora nestati.
+    db.add(RegistarVozila(gb="A9", kategorija="osobni", status=StatusVozila.aktivno))
+    n_auto, _ = _nalog_s_pregledom(db, "A9", "RN-A9")
+    # Kamion s auto-pregledom → mora ostati.
+    db.add(RegistarVozila(gb="K9", kategorija="kamion", status=StatusVozila.aktivno))
+    n_kam, _ = _nalog_s_pregledom(db, "K9", "RN-K9")
+    db.commit()
+
+    # Zastavica u izoliranom temp dir-u da se čišćenje uopće izvrši.
+    stari = settings.upload_dir
+    d = tempfile.mkdtemp()
+    settings.upload_dir = os.path.join(d, "up")
+    try:
+        pregledi_auto.ocisti_ne_kamione(db)
+    finally:
+        settings.upload_dir = stari
+
+    assert db.get(Nalog, n_auto.id) is None          # prazan nalog malog auta obrisan
+    assert db.get(Nalog, n_kam.id) is not None        # kamionov nalog ostaje
+    kam_kat = [op.kategorija for op in db.get(Nalog, n_kam.id).operacije]
+    assert "REGISTRACIJA" in kam_kat
+
+
 def test_bez_voditelja_ne_radi_nista():
     db = _session()
     _vozilo(db, "D4")
