@@ -87,3 +87,24 @@ def test_klik_bonus_prekrsaji_i_podjela():
     assert red["Bruno"]["bonus_eur"] == 75.0
     # Bruno (bez prekršaja, veći bonus) je prvi.
     assert red["Bruno"]["mjesto"] == 1
+
+
+def test_klik_bonus_izuzima_teren():
+    """Radnik na terenu se NE broji u pool (iako ima zapis slanja)."""
+    db = _session()
+    a = Korisnik(ime="Ante", korisnicko_ime="ante", lozinka_hash="x", uloga=Uloga.radnik)
+    c = Korisnik(ime="Cvjetko", korisnicko_ime="cvjetko", lozinka_hash="x",
+                 uloga=Uloga.radnik, odsutnost_vrsta="teren")
+    db.add_all([a, c]); db.flush()
+    d1 = (_NOW - timedelta(days=2)).date()
+    for r in (a, c):
+        db.add(KlikPoslano(radnik_id=r.id, poslano=_hr(d1, 6, 50)))
+        _zad(db, r, _hr(d1, 7, 0))
+    db.commit()
+
+    out = _klik_bonus(db, dana=30, pool=100.0)
+    imena = {r["ime"] for r in out["redovi"]}
+    assert "Ante" in imena
+    assert "Cvjetko" not in imena          # teren izuzet
+    # Cijeli pool ide jedinom preostalom (Ante).
+    assert out["redovi"][0]["bonus_eur"] == 100.0

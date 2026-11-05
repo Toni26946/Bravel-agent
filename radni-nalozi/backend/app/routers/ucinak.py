@@ -253,6 +253,17 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
                 nav += 1
         po[rid] = {"ocekivano": len(dani), "na_vrijeme": nav, "prekrsaji": len(dani) - nav}
 
+    # Teren: na njih se pravilo poola NE odnosi (vani su, ne primaju jutarnji plan).
+    if po:
+        teren_ids = {
+            r for (r,) in db.execute(
+                select(Korisnik.id).where(Korisnik.id.in_(list(po.keys())),
+                                          Korisnik.odsutnost_vrsta == "teren")
+            ).all()
+        }
+        for rid in teren_ids:
+            po.pop(rid, None)
+
     # 4) Podjela poola: razmjerno disciplini; izgubljeni dio onima bez prekršaja.
     n = len(po)
     base = (pool / n) if n else 0.0

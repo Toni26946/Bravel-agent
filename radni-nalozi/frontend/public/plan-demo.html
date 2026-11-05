@@ -69,6 +69,7 @@
   .meh-idx-it.nije{border-color:var(--crveno);color:var(--crveno);background:var(--crveno-bg)}
   .meh-idx-it.nije .mi-br{background:#fff;color:var(--crveno)}
   .meh-idx-it.ods{opacity:.7;background:#f3f4f6}
+  .meh-idx-it.te{background:#e8f5e9;border-color:#a5d6a7}
   @media(min-width:1100px){
     body.view-pl .meh-idx{display:flex}
     body.view-pl main{padding-left:216px}
@@ -622,8 +623,10 @@
       var l=rpr[m.id]||[];
       return {m:m, br:l.length, radi:l.some(function(x){ return x.o.status==="radu"; }), ods:m.odsutnost||(m.odsutan?'odsutan':'')};
     }).sort(function(a,b){
-      var ao=a.ods?1:0, bo=b.ods?1:0;            // odsutni na dno
-      return ao!==bo ? ao-bo : (a.br!==b.br ? a.br-b.br : (a.m.ime<b.m.ime?-1:1));
+      // Teren na vrh (aktivni, vani), pa prisutni po broju, pa odsutni (godišnji/bolovanje/odsutan) na dno.
+      function grp(x){ return x.ods==='teren' ? 0 : (x.ods ? 2 : 1); }
+      var ga=grp(a), gbv=grp(b);
+      return ga!==gbv ? ga-gbv : (a.br!==b.br ? a.br-b.br : (a.m.ime<b.m.ime?-1:1));
     });
     function statEmo(ods){ return ods==='godisnji'?'🌴 ':ods==='bolovanje'?'🤒 ':ods==='odsutan'?'⛔ ':ods==='teren'?'🚜 ':''; }
     function statMenu(x){
@@ -635,7 +638,8 @@
     if(mehL.length){
       h+='<div class="meh-idx"><div class="meh-idx-h">Mehaničari · zadataka</div>'+
          mehL.map(function(x){
-           return '<div class="meh-idx-it'+(x.ods?' ods':(x.radi?'':' nije'))+'" title="'+esc(x.m.ime)+(x.ods?' — '+esc(x.ods):(x.radi?'':' — nije prijavljen na zadatak'))+'">'+
+           var kls = x.ods==='teren' ? ' te' : (x.ods ? ' ods' : (x.radi?'':' nije'));
+           return '<div class="meh-idx-it'+kls+'" title="'+esc(x.m.ime)+(x.ods?' — '+esc(x.ods):(x.radi?'':' — nije prijavljen na zadatak'))+'">'+
                   '<div class="mi-top"><button type="button" class="mi-ime" onclick="PLAN.toggleStat('+x.m.id+')">'+statEmo(x.ods)+esc(x.m.ime)+' <span class="mi-caret">▾</span></button><span class="mi-br">'+x.br+'</span></div>'+
                   statMenu(x)+'</div>';
          }).join('')+'</div>';
