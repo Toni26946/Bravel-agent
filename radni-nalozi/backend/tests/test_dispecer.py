@@ -1,7 +1,7 @@
 """Test dispečera: login-less tok zadatka (token + vezanje uređaja + 3 akcije).
 
-Pokriva: stanje veže prvi uređaj, tuđi uređaj → 403, Počinjem pokrene mjerač,
-Gotovo završi zadatak (+ upis u povijest_rada) i vrati 'nema više zadataka'.
+Pokriva: stanje zapamti prvi uređaj, drugi uređaj se NE blokira, Počinjem pokrene
+mjerač, Gotovo završi zadatak (+ upis u povijest_rada) i vrati 'nema više zadataka'.
 """
 import os
 import sys
@@ -70,9 +70,10 @@ def test_tok_pocinjem_gotovo():
     assert s["gb"] == "T777"
     assert s["stanje"] == "ceka"
 
-    # tuđi uređaj "B" → 403
-    with ocekuj_http(403):
-        z_stanje("tok123", UredjajIn(uredjaj="B"), db=db)
+    # Drugi uređaj "B" se više NE blokira (WhatsApp preglednik varira otisak) —
+    # token je tajna poveznica, pa B svejedno vidi iste njegove zadatke.
+    sB = z_stanje("tok123", UredjajIn(uredjaj="B"), db=db)
+    assert sB["zadatak_id"] == z.id
 
     # Počinjem (uređaj A) → mjerač radi
     s2 = z_pocinjem("tok123", UredjajIn(uredjaj="A"), db=db)

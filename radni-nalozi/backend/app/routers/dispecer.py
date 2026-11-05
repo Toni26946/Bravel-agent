@@ -16,7 +16,7 @@ ovdje se NIŠTA ne šalje; ovo je samo stranica + akcije.
 import logging
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -130,21 +130,32 @@ def _link(db: Session, token: str) -> MehanicarLink | None:
 
 
 def _provjeri_uredjaj(db: Session, link: MehanicarLink, uredjaj: str) -> None:
-    """Veži poveznicu na prvi uređaj; odbij tuđi (+ revizija i obavijest voditelju)."""
+    """Prihvati uređaj — uređaj se NE blokira (odluka Tonija 05.11.2026.).
+
+    Prije se poveznica tvrdo vezala na prvi uređaj (drugi → „nije za tebe"). Ali
+    WhatsApp-ov interni preglednik ne pamti localStorage pa otisak uređaja varira
+    između otvaranja i legitiman mehaničar bi naizmjence dobivao 403 (vidljivo u
+    logu: ista poveznica 200→403→200). Token je ionako tajna poveznica samo za
+    njegove zadatke, a voditelj je gasi jednim klikom (kill-switch). Zato prvi
+    uređaj samo zapamtimo radi revizije; drugi uređaj javimo voditelju TEK ako je
+    poveznica dulje mirovala (da variranje otiska ne zasipa obavijestima), ali rad
+    NE prekidamo."""
     uredjaj = (uredjaj or "").strip()[:80]
     if not uredjaj:
         raise HTTPException(status_code=400, detail="Nedostaje oznaka uređaja")
+    sad = datetime.now(timezone.utc)
     if link.uredjaj is None:
-        link.uredjaj = uredjaj  # prvi uređaj preuzima poveznicu
+        link.uredjaj = uredjaj   # prvi uređaj — zapamti za reviziju
     elif link.uredjaj != uredjaj:
-        link.zadnji_uredjaj = uredjaj
-        obavijesti_ulogu(
-            db, Uloga.voditelj, "Poveznica s tuđeg uređaja",
-            f"{link.radnik.ime}: pokušaj otvaranja s drugog uređaja", url="/plan",
-        )
-        db.commit()
-        raise HTTPException(status_code=403, detail="Ova poveznica nije za tebe")
-    link.zadnje_koristeno = datetime.now(timezone.utc)
+        zk = link.zadnje_koristeno
+        if zk is not None and zk.tzinfo is None:
+            zk = zk.replace(tzinfo=timezone.utc)
+        if zk is None or (sad - zk) > timedelta(hours=12):
+            obavijesti_ulogu(
+                db, Uloga.voditelj, "Poveznica s drugog uređaja",
+                f"{link.radnik.ime}: poveznica otvorena s drugog uređaja", url="/plan",
+            )
+    link.zadnje_koristeno = sad
     link.zadnji_uredjaj = uredjaj
 
 

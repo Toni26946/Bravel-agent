@@ -738,7 +738,8 @@ class MehanicarLink(Base):
     Jedan aktivan ključ po mehaničaru. Poveznica (/z/<token>) otvara stranicu
     samo njegovih zadataka — bez prijave. Sigurnost:
     - `token`: tajni nasumičan ključ (samo u poveznici),
-    - `uredjaj`: veže se na PRVI uređaj koji je otvori; drugi uređaj → odbijen,
+    - `uredjaj`: pamti prvi uređaj (revizija); drugi se NE blokira jer WhatsApp
+      preglednik varira otisak — token je dovoljna tajna, kill-switch je zaštita,
     - `aktivan`: voditelj jednim klikom gasi sve poveznice mehaničara,
     - bilježi se zadnje korištenje (tko/kad/s kojeg uređaja) — revizija.
     """
