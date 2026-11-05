@@ -211,7 +211,33 @@ def _cijena(db: Session, kategorija: str | None) -> dict | None:
     return {"norma_min": nm.norma_min, "eur": iznos}
 
 
+def _je_popisni(radnik: Korisnik) -> bool:
+    """Radnik koji radi s POPISOM umjesto reda jedan-po-jedan (pregledar — ne prijavljuje
+    se u portal). Njegovi poslovi (periodički, taho, PP, registracija, baždar) čekaju
+    termine/vozila pa ih ne može slijedno 'završavati' — treba vidjeti SVE i kvačicom
+    označiti što je gotovo. Inače bi ga red vrtio u krug (nije gotovo → drugi → opet isti)."""
+    return not radnik.prijavljuje_se
+
+
+def _popis(db: Session, radnik: Korisnik) -> list[dict]:
+    """Svi njegovi nezavršeni zadaci kao popis (za pregledara). Redoslijed iz _red."""
+    stavke = []
+    for n, op, z in _red(db, radnik):
+        voz = n.vozilo
+        vozilo = " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x)
+        stavke.append({
+            "zadatak_id": z.id, "gb": _gb(n),
+            "vozilo": vozilo or (n.naslov or ""),
+            "reg": (voz.registracija if voz else "") or "",
+            "opis": z.opis, "kategorija": op.kategorija,
+        })
+    return stavke
+
+
 def _stanje(db: Session, radnik: Korisnik) -> dict:
+    # Pregledar: popis svih pregleda s kvačicom (ne red jedan-po-jedan).
+    if _je_popisni(radnik):
+        return {"pregledar": True, "ime": radnik.ime, "popis": _popis(db, radnik)}
     red = _red(db, radnik)
     if not red:
         return {"nema": True, "ime": radnik.ime}
@@ -337,6 +363,31 @@ def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(g
     db.commit()
     _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
     return _stanje(db, link.radnik)   # sljedeći zadatak ili {nema:True}
+
+
+class StavkaIn(BaseModel):
+    uredjaj: str
+    zadatak_id: int
+
+
+@router.post("/z/{token}/gotovo-stavka")
+def z_gotovo_stavka(token: str, p: StavkaIn, db: Session = Depends(get_db)):
+    """Pregledar označi JEDNU stavku s popisa gotovom (po zadatak_id). Ostale ostaju —
+    bez vrtnje reda. Dopušteno samo za njegove zadatke."""
+    link = _ucitaj(db, token, p.uredjaj)
+    z = db.get(Zadatak, p.zadatak_id)
+    if not z or not any(r.id == link.radnik.id for r in z.radnici):
+        raise HTTPException(status_code=404, detail="Zadatak nije tvoj")
+    _zaustavi_mjerac(z)
+    z.gotovo = True
+    z.zavrseno = datetime.now(timezone.utc)
+    z.ceka_potvrdu = False
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+    db.flush()
+    _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    db.commit()
+    return _stanje(db, link.radnik)
 
 
 @router.post("/z/{token}/dijelovi")
@@ -662,6 +713,8 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 .b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-nije{background:#5b6470}
 .b-ostaje{background:#1f7a39} .b-kraj{background:#5b6470}
 .b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-nije:disabled{opacity:.5}
+.b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
+.pregbroj{font-weight:800;font-size:18px;margin:2px 0 14px;color:#0d47a1}
 .banner{background:#fff4d6;border:1px solid #f0c44c;color:#7a4e00;border-radius:12px;padding:16px;font-weight:700;text-align:center;font-size:17px;margin-bottom:4px}
 .info{text-align:center;color:#5b6470;padding:32px 16px;font-size:18px}
 .greska{background:#fdeaea;color:#b3261e;border:1px solid #e5534b;border-radius:12px;padding:16px;font-weight:700;text-align:center}
@@ -705,6 +758,7 @@ function render(d){
   if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
   if(d.gotov_za_danas){app.innerHTML='<div class="kart"><div class="info"><b>Gotov za danas.</b><br/>Vrijeme je spremljeno. Vidimo se sutra!</div></div>';return;}
   if(d.parkirano){app.innerHTML='<div class="kart"><div class="info">Zabilježeno — zadatak <b>nije dovršen</b> (pauza).<br/>Vrijeme je spremljeno. Doviđenja!</div></div>';return;}
+  if(d.pregledar){ renderPopis(d); return; }
   let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
   app.innerHTML=
@@ -726,6 +780,34 @@ function render(d){
   var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
   var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){akc('nije-gotovo')};
   if(d._novi) najaviNovi();
+}
+function renderPopis(d){
+  const app=document.getElementById('app');
+  const lista=d.popis||[];
+  if(!lista.length){app.innerHTML='<div class="kart"><div class="info"><b>Nema otvorenih pregleda.</b><br/>Sve je gotovo. 👍</div></div>';return;}
+  let h='<div class="pregbroj">Tvoji pregledi: '+lista.length+'</div>';
+  for(const s of lista){
+    h+='<div class="kart"><div class="gb">'+esc(s.gb)+'</div>'
+      +'<div class="meta">'+esc([s.vozilo,s.reg].filter(Boolean).join(' · '))+'</div>'
+      +'<div class="opis">'+esc(s.opis)+'</div>'
+      +'<div class="gumbi"><button class="b-stavka" data-zid="'+s.zadatak_id+'" data-gb="'+esc(s.gb)+'">✓ Gotovo</button></div>'
+      +'</div>';
+  }
+  app.innerHTML=h;
+  document.querySelectorAll('.b-stavka').forEach(function(b){
+    b.onclick=function(){
+      if(!confirm('Označiti kao gotovo — GB '+b.getAttribute('data-gb')+'?'))return;
+      gotovoStavka(parseInt(b.getAttribute('data-zid'),10), b);
+    };
+  });
+}
+async function gotovoStavka(zid, btn){
+  if(busy)return; busy=true;
+  if(btn){btn.disabled=true; btn.textContent='…';}
+  const {status,j}=await api('gotovo-stavka',{zadatak_id:zid});
+  busy=false;
+  if(status>=400){render({greska:(j.detail||'Greška')});return;}
+  render(j);
 }
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
 async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}

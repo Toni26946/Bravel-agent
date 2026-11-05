@@ -35,7 +35,9 @@ from app.database import Base
 from app.models import (
     Korisnik, MehanicarLink, Nalog, Operacija, PovijestRada, StatusNaloga, Uloga, Vozilo, Zadatak,
 )
-from app.routers.dispecer import UredjajIn, posalji_poveznicu, z_gotovo, z_pocinjem, z_stanje
+from app.routers.dispecer import (
+    StavkaIn, UredjajIn, posalji_poveznicu, z_gotovo, z_gotovo_stavka, z_pocinjem, z_stanje,
+)
 
 
 def _session():
@@ -541,3 +543,47 @@ if __name__ == "__main__":
     test_slanje_ugaseno_ne_salje_ni_ne_stvara_token()
     test_dio_stigao_vraca_zadatak()
     print("OK — dispečer testovi prošli")
+
+
+def test_pregledar_popis_i_gotovo_stavka():
+    """Pregledar (prijavljuje_se=False) dobije POPIS svih pregleda, a 'Gotovo' po stavci
+    makne samo tu — ostale ostaju (nema vrtnje reda kao kod mehaničara)."""
+    db = _session()
+    kar = Korisnik(ime="Karthik Raju", korisnicko_ime="karthik.raju", lozinka_hash="x",
+                   uloga=Uloga.radnik, prijavljuje_se=False)
+    voz1 = Vozilo(gb="156", marka="MAN"); voz2 = Vozilo(gb="37", marka="MAN")
+    db.add_all([kar, voz1, voz2]); db.flush()
+    n1 = Nalog(broj="RN-156", vozilo_id=voz1.id, naslov="156", kreirao_id=kar.id,
+               status=StatusNaloga.u_radu, plan_rang=0)
+    n2 = Nalog(broj="RN-37", vozilo_id=voz2.id, naslov="37", kreirao_id=kar.id,
+               status=StatusNaloga.u_radu, plan_rang=1)
+    db.add_all([n1, n2]); db.flush()
+    op1 = Operacija(nalog_id=n1.id, kategorija="PERIODIČKI PREGLED")
+    op2 = Operacija(nalog_id=n2.id, kategorija="REGISTRACIJA")
+    db.add_all([op1, op2]); db.flush()
+    z1 = Zadatak(operacija_id=op1.id, opis="Periodični pregled — rok 17.11.2026"); z1.radnici = [kar]
+    z2 = Zadatak(operacija_id=op2.id, opis="Produženje registracije — rok 19.11.2026"); z2.radnici = [kar]
+    db.add_all([z1, z2])
+    db.add(MehanicarLink(radnik_id=kar.id, token="tokkar", aktivan=True))
+    db.commit()
+
+    s = z_stanje("tokkar", UredjajIn(uredjaj="A"), db=db)
+    assert s.get("pregledar") is True
+    assert sorted(x["gb"] for x in s["popis"]) == ["156", "37"]
+
+    # Gotovo za 156 → ostaje samo 37; 156 je gotov, 37 nije.
+    r = z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z1.id), db=db)
+    assert r.get("pregledar") is True
+    assert [x["gb"] for x in r["popis"]] == ["37"]
+    db.refresh(z1); db.refresh(z2)
+    assert z1.gotovo is True and z2.gotovo is False
+
+    # Tuđi zadatak se NE može označiti gotovim preko njegove poveznice.
+    drugi = Korisnik(ime="Drugi", korisnicko_ime="drugi", lozinka_hash="x", uloga=Uloga.radnik)
+    voz3 = Vozilo(gb="99", marka="X"); db.add_all([drugi, voz3]); db.flush()
+    n3 = Nalog(broj="RN-99", vozilo_id=voz3.id, naslov="99", kreirao_id=drugi.id, status=StatusNaloga.u_radu)
+    db.add(n3); db.flush()
+    op3 = Operacija(nalog_id=n3.id, kategorija="MOTOR"); db.add(op3); db.flush()
+    z3 = Zadatak(operacija_id=op3.id, opis="servis"); z3.radnici = [drugi]; db.add(z3); db.commit()
+    with ocekuj_http(404):
+        z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z3.id), db=db)
