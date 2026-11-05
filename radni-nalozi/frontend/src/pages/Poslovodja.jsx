@@ -22,12 +22,14 @@ export default function Poslovodja() {
       <div className="pos-tabovi no-print" style={{ marginBottom: 10 }}>
         <button className={'pos-tab' + (tab === 'ucinak' ? ' akt' : '')} onClick={() => setTab('ucinak')}>📊 {t('pos.ucinak')}</button>
         <button className={'pos-tab' + (tab === 'ljestvica' ? ' akt' : '')} onClick={() => setTab('ljestvica')}>🏆 {t('pos.ljestvica')}</button>
+        <button className={'pos-tab' + (tab === 'klik' ? ' akt' : '')} onClick={() => setTab('klik')}>✅ Klik-bonus</button>
         <button className={'pos-tab' + (tab === 'sumnjivo' ? ' akt' : '')} onClick={() => setTab('sumnjivo')}>⏱️ Sumnjivo brzi</button>
         <button className={'pos-tab' + (tab === 'norme' ? ' akt' : '')} onClick={() => setTab('norme')}>💶 {t('pos.norme')}</button>
         <button className={'pos-tab' + (tab === 'postavke' ? ' akt' : '')} onClick={() => setTab('postavke')}>⚙️ {t('pos.postavke')}</button>
       </div>
       {tab === 'ucinak' && <Ucinak t={t} />}
       {tab === 'ljestvica' && <Ljestvica t={t} />}
+      {tab === 'klik' && <KlikBonus voditelj={voditelj} />}
       {tab === 'sumnjivo' && <SumnjivoBrzi />}
       {tab === 'norme' && <Norme t={t} voditelj={voditelj} />}
       {tab === 'postavke' && <Postavke t={t} voditelj={voditelj} />}
@@ -120,6 +122,70 @@ function Ljestvica({ t }) {
           </div>
           <p className="meta" style={{ marginTop: 8 }}>{t('pos.ljestvicaNapo')}</p>
         </>
+      )}
+    </div>
+  )
+}
+
+function KlikBonus({ voditelj }) {
+  const [dana, setDana] = useState(30)
+  const [d, setD] = useState(null)
+  const [pool, setPool] = useState('')
+  const [poruka, setPoruka] = useState('')
+  const ucitaj = (n = dana) => {
+    setD(null)
+    api.klikBonus(n).then((x) => { setD(x); setPool(x.pool_eur || 0) }).catch(() => setD({ redovi: [] }))
+  }
+  useEffect(() => { ucitaj(dana) }, [dana])
+  const eur = (x) => (x || 0).toLocaleString('hr-HR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  const spremiPool = async () => {
+    await api.klikPostavke({ pool: Number(pool) || 0 })
+    setPoruka('Spremljeno'); setTimeout(() => setPoruka(''), 2000); ucitaj(dana)
+  }
+  return (
+    <div>
+      <p className="meta" style={{ marginTop: 0 }}>
+        Tko ujutro klikne na vrijeme. Pravilo: poruka do <strong>{d?.cutoff || '07:00'}</strong> → mora stisnuti
+        (Počinjem/Gotovo) do <strong>{d?.deadline || '07:10'}</strong>. Kašnjenje/propust = prekršaj. Pool se dijeli
+        po disciplini; izgubljeno ide onima bez prekršaja.
+      </p>
+      <div className="vz-filteri" style={{ marginBottom: 8 }}>
+        {[30, 90, 180].map((n) => (
+          <button key={n} className={'vz-fil' + (dana === n ? ' akt' : '')} onClick={() => setDana(n)}>{n} dana</button>
+        ))}
+      </div>
+      {voditelj && (
+        <div className="btn-red no-print" style={{ marginBottom: 8, gap: 8, alignItems: 'center' }}>
+          <span className="meta">Mjesečni pool (€):</span>
+          <input className="pos-min" type="number" min="0" step="50" value={pool} onChange={(e) => setPool(e.target.value)} style={{ width: 120 }} />
+          <button className="btn sekund mali" onClick={spremiPool}>Spremi pool</button>
+          {poruka && <span className="uspjeh">{poruka}</span>}
+        </div>
+      )}
+      <div className="pos-shadow">🧪 Shadow — samo mjerenje, stvarna plaća se ne mijenja.</div>
+      {d === null ? <Spinner /> : d.redovi.length === 0 ? (
+        <p className="meta">Još nema podataka — bilježi se od sad (svako jutarnje slanje poveznice).</p>
+      ) : (
+        <div className="karta">
+          <table className="di-tab">
+            <thead>
+              <tr><th>#</th><th>Serviser</th><th>Jutara</th><th>Na vrijeme</th><th>Prekršaji</th><th>%</th><th>Bonus</th></tr>
+            </thead>
+            <tbody>
+              {d.redovi.map((r) => (
+                <tr key={r.radnik_id} className={r.prekrsaji === 0 ? 'lj-top' : ''}>
+                  <td>{r.mjesto}</td>
+                  <td><strong>{r.ime}</strong></td>
+                  <td>{r.ocekivano}</td>
+                  <td>{r.na_vrijeme}</td>
+                  <td style={r.prekrsaji > 0 ? { color: '#b3261e', fontWeight: 700 } : null}>{r.prekrsaji}</td>
+                  <td>{r.postotak}%</td>
+                  <td className="pos-cijena">{d.pool_eur > 0 ? eur(r.bonus_eur) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

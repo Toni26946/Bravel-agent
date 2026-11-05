@@ -199,6 +199,8 @@ export const api = {
   ljestvica: (dana = 7) => zahtjev(`/ucinak/ljestvica?dana=${dana}`),
   mojUcinak: (dana = 7) => zahtjev(`/ucinak/moj?dana=${dana}`),
   sumnjivoBrzi: (dana = 1, prag = 120) => zahtjev(`/ucinak/sumnjivo-brzi?dana=${dana}&prag_sek=${prag}`),
+  klikBonus: (dana = 30) => zahtjev(`/ucinak/klik-bonus?dana=${dana}`),
+  klikPostavke: (izmjene) => zahtjev('/ucinak/klik-postavke', { method: 'POST', body: izmjene }),
 
   // Šteta
   stete: () => zahtjev('/stete'),

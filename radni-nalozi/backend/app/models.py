@@ -759,3 +759,16 @@ class MehanicarLink(Base):
     smjena_odgovor: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     radnik: Mapped["Korisnik"] = relationship(foreign_keys=[radnik_id])
+
+
+class KlikPoslano(Base):
+    """Trag da je mehaničaru poslana poveznica (jedno slanje = jedan zapis).
+
+    Služi klik-bonusu: iz vremena slanja znamo je li poruka stigla prije jutarnjeg
+    praga, pa usporedbom s njegovim prvim klikom (Počinjem/Gotovo) tog dana vidimo je
+    li reagirao na vrijeme. Samo mjerenje — ne dira plaću."""
+    __tablename__ = "klik_poslano"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
+    poslano: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)

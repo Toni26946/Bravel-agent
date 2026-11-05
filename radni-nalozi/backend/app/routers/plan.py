@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
-    Dodjela, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
+    Dodjela, KlikPoslano, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
     Prioritet, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
@@ -859,6 +859,7 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
         wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", base_url)
         if wa.get("poslano"):
             poslano += 1
+            db.add(KlikPoslano(radnik_id=m.id))   # trag za klik-bonus (kad mu je poslano)
     db.commit()
     return {"ok": True, "mehanicara": len(mehanicari), "poslano": poslano,
             "vec_rade": preskoceno_rade, "vec_poslano": vec_poslano, "odsutni": odsutni}
