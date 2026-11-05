@@ -134,6 +134,7 @@ export const api = {
   parkingLokacija: (id, lokacija) => zahtjev(`/nalozi/${id}/parking`, { method: 'POST', body: { lokacija } }),
   parkingOtvoreno: (id) => zahtjev(`/nalozi/${id}/parking/otvoreno`, { method: 'POST' }),
   nalog: (id) => zahtjev(`/nalozi/${id}`),
+  nalogLokacija: (id) => zahtjev(`/nalozi/${id}/lokacija`),
   kreirajNalog: (b) => zahtjev('/nalozi', { method: 'POST', body: b }),
   azurirajNalog: (id, b) => zahtjev(`/nalozi/${id}`, { method: 'PATCH', body: b }),
   obrisiNalog: (id) => zahtjev(`/nalozi/${id}`, { method: 'DELETE' }),

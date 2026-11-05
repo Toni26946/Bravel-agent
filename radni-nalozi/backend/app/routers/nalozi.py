@@ -541,6 +541,17 @@ def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: S
     return _dohvati_ovlasten(db, nalog_id, korisnik)
 
 
+@router.get("/{nalog_id}/lokacija")
+async def nalog_lokacija(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik),
+                         db: Session = Depends(get_db)):
+    """Trenutna lokacija vozila ovog naloga po GPS-u: {lat, lon, udaljenost_m, mjesto}.
+    `mjesto` je naziv mjesta (reverse-geocode); prazno ako nema svježe pozicije."""
+    _dohvati_ovlasten(db, nalog_id, korisnik)   # provjera ovlasti (baci ako nema pristup)
+    n = db.get(Nalog, nalog_id)
+    gb = n.vozilo.gb if (n and n.vozilo) else None
+    return await flota.lokacija_vozila(gb)
+
+
 def _spoji_operacije(db: Session, nalog: Nalog, operacije) -> list[Zadatak]:
     """Pridodaj operacije/zadatke u postojeći nalog; iste kategorije se spoje.
 

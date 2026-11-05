@@ -43,6 +43,7 @@ export default function NalogDetalj() {
   const [forma, setForma] = useState({ naslov: '', opis: '' })
   const [servis, setServis] = useState(null)
   const [pregled, setPregled] = useState(null)   // periodične provjere vozila (registar)
+  const [lok, setLok] = useState(null)           // trenutna lokacija vozila (GPS → naziv mjesta)
 
   const ucitaj = () => api.nalog(id).then(setN).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [id])
@@ -62,6 +63,11 @@ export default function NalogDetalj() {
     if (!voziloGb) { setPregled(null); return }
     api.pregledVozila(voziloGb).then(setPregled).catch(() => setPregled(null))
   }, [voziloGb])
+  // Trenutna lokacija vozila po GPS-u (naziv mjesta) — tiho, ako nema pozicije ostaje prazno.
+  useEffect(() => {
+    if (!voziloGb) { setLok(null); return }
+    api.nalogLokacija(id).then(setLok).catch(() => setLok(null))
+  }, [voziloGb, id])
 
   if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
   if (!n) return <Layout naslov="Nalog" nazad={true}><Spinner /></Layout>
@@ -104,6 +110,15 @@ export default function NalogDetalj() {
             </button>
           ) : <>🚚 {voziloLabel(n.vozilo)}</>}
         </p>
+        {lok?.mjesto && (
+          <p className="meta">📍 {t('nalog.lokacija')}: <strong>{lok.mjesto}</strong>
+            {typeof lok.udaljenost_m === 'number' && (
+              <span> · {lok.udaljenost_m >= 1000
+                ? (lok.udaljenost_m / 1000).toFixed(1).replace('.', ',') + ' km'
+                : Math.round(lok.udaljenost_m) + ' m'} {t('nalog.odRadione')}</span>
+            )}
+          </p>
+        )}
         {n.voditelj && <p className="meta">🧑‍🔧 {t('nalog.voditelj')}: <strong>{n.voditelj.ime}</strong></p>}
         {n.vozac && <p className="meta">🚛 {t('nalog.vozac')}: <strong>{n.vozac.ime}</strong></p>}
         {n.rok && <p className="meta">📅 {t('nalog.rok')}: <strong>{datum(n.rok)}</strong></p>}
