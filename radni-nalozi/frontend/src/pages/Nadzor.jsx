@@ -89,8 +89,8 @@ function RadnikChip({ r, onPromjena }) {
     } catch (_) { /* tiho */ } finally { setRadi(false) }
   }
 
-  const boja = status === 'godisnji' ? 'go' : status === 'bolovanje' ? 'bo' : status === 'odsutan' ? 'od' : ''
-  const emo = status === 'godisnji' ? '🌴 ' : status === 'bolovanje' ? '🤒 ' : status === 'odsutan' ? '⛔ ' : ''
+  const boja = status === 'godisnji' ? 'go' : status === 'bolovanje' ? 'bo' : status === 'odsutan' ? 'od' : status === 'teren' ? 'te' : ''
+  const emo = status === 'godisnji' ? '🌴 ' : status === 'bolovanje' ? '🤒 ' : status === 'odsutan' ? '⛔ ' : status === 'teren' ? '🚜 ' : ''
   const naslov = status && r.odsutnost_do
     ? `${t('ods.' + status)} do ${r.odsutnost_do}` : (status ? t('ods.' + status) : '')
 
@@ -104,6 +104,7 @@ function RadnikChip({ r, onPromjena }) {
           {!nacin ? (
             <>
               <button className="cm-opt" disabled={radi} onClick={() => spremi(null)}>✅ {t('ods.dostupan')}</button>
+              <button className="cm-opt" disabled={radi} onClick={() => spremi('teren')}>🚜 {t('ods.teren')}</button>
               <button className="cm-opt" onClick={() => setNacin('godisnji')}>🌴 {t('ods.godisnji')}</button>
               <button className="cm-opt" onClick={() => setNacin('bolovanje')}>🤒 {t('ods.bolovanje')}</button>
               <button className="cm-opt" onClick={() => setNacin('odsutan')}>⛔ {t('ods.odsutan')}</button>

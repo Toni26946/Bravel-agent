@@ -320,7 +320,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         return True
 
     return {
-        "mehanicari": [{"id": m.id, "ime": m.ime, "odsutan": _odsutan(m)} for m in meh],
+        "mehanicari": [{"id": m.id, "ime": m.ime, "odsutan": _odsutan(m),
+                        "odsutnost": (m.odsutnost_vrsta if _odsutan(m) else None)} for m in meh],
         "nalozi": out_nal,
         "promjene": [{"t": _ms(p.vrijeme), "tekst": p.opis} for p in promjene],
         "zakljucan": zakljucan,
