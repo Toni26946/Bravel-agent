@@ -177,7 +177,10 @@ def ucinak(dana: int = Query(default=30, ge=1, le=365),
 
     norme_map = {n.kategorija: n.norma_min for n in db.execute(select(NormaPosla)).scalars().all()}
 
-    po_radniku_min: dict[str, int] = defaultdict(int)
+    # Grupiramo PO POJEDINCU: zajednički posao (dva+ imena u zapisu, spojena zarezom)
+    # podijeli se jednako na sudionike (norma/broj_ljudi), pa svaki mehaničar ima JEDAN
+    # red — zbroj svog samostalnog i svog dijela zajedničkog posla.
+    po_radniku_min: dict[str, float] = defaultdict(float)
     po_radniku_broj: dict[str, int] = defaultdict(int)
     bez_norme = 0
     red = db.execute(
@@ -185,15 +188,17 @@ def ucinak(dana: int = Query(default=30, ge=1, le=365),
         .where(PovijestRada.datum >= od, PovijestRada.datum <= do)
     ).all()
     for radnik, operacija in red:
-        ime = (radnik or "").strip()
-        if not ime:
+        imena = [x.strip() for x in (radnik or "").split(",") if x.strip()]
+        if not imena:
             continue
         norma = norme_map.get(norm_kat(operacija))
         if norma is None:
             bez_norme += 1
             continue
-        po_radniku_min[ime] += int(norma)
-        po_radniku_broj[ime] += 1
+        dio = int(norma) / len(imena)   # pošteno: svakom njegov dio
+        for ime in imena:
+            po_radniku_min[ime] += dio
+            po_radniku_broj[ime] += 1
 
     redovi = []
     for ime, minute in po_radniku_min.items():
@@ -201,7 +206,7 @@ def ucinak(dana: int = Query(default=30, ge=1, le=365),
         redovi.append(UcinakRedak(
             radnik=ime,
             broj_poslova=po_radniku_broj[ime],
-            norma_min=minute,
+            norma_min=round(minute),
             norma_sati=sati,
             procijenjena_zarada=round(sati * eur, 2),
         ))
