@@ -130,3 +130,26 @@ def test_obnovi_odbija_kad_nema_nedovrsenih():
     with pytest.raises(HTTPException) as e:
         obnovi_nalog(n.id, korisnik=vod, db=db)
     assert e.value.status_code == 409
+
+
+def test_smije_meh_vlasnik_ne_puca_na_ai_poslovodja():
+    """Regresija: dispečer/vlasnik smije kliknuti umjesto mehaničara. Prije je
+    _smije_meh čitao ORM.ai_poslovodja (ne postoji) → AttributeError → 500 na /prekini."""
+    from app.auth import ima_plan_pristup, je_vlasnik
+    from app.routers.plan import _smije_meh
+
+    db = _session()
+    # settings.ai_poslovodja_user default = "toni" → vlasnik je korisnik "toni".
+    toni = Korisnik(ime="Toni", korisnicko_ime="toni", lozinka_hash="x", uloga=Uloga.voditelj)
+    meh = Korisnik(ime="Meh", korisnicko_ime="meh", lozinka_hash="x", uloga=Uloga.radnik)
+    drugi = Korisnik(ime="Drugi", korisnicko_ime="drugi", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="1", marka="X"); db.add_all([toni, meh, drugi, voz]); db.flush()
+    n = Nalog(broj="RN-1", vozilo_id=voz.id, naslov="1", kreirao_id=toni.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="MOTOR"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="x"); z.radnici = [meh]; db.add(z); db.commit()
+
+    assert je_vlasnik(toni) is True and ima_plan_pristup(toni) is True
+    assert _smije_meh(toni, z) is True     # vlasnik umjesto mehaničara (ne puca)
+    assert _smije_meh(meh, z) is True      # sam mehaničar
+    assert _smije_meh(drugi, z) is False   # tuđi radnik bez pristupa planu → ne

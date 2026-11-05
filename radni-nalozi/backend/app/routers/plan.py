@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from ..auth import trenutni_korisnik, zahtijevaj_plan_pristup
+from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
     Dodjela, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
@@ -995,7 +995,9 @@ def dio_stigao(zid: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Dep
 
 # --- write: mehaničar (ili vlasnik) ---------------------------------------
 def _smije_meh(korisnik: Korisnik, z: Zadatak) -> bool:
-    return bool(korisnik.ai_poslovodja or any(r.id == korisnik.id for r in z.radnici))
+    # Dispečer/voditelj (pristup Planu) smije kliknuti umjesto mehaničara, ILI sam mehaničar.
+    # (Prije: korisnik.ai_poslovodja — to polje postoji samo na Pydantic shemi, ne na ORM-u → 500.)
+    return bool(ima_plan_pristup(korisnik) or any(r.id == korisnik.id for r in z.radnici))
 
 
 @router.post("/zadatak/{zid}/potvrdi")

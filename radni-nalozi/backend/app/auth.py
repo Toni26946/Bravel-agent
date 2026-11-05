@@ -151,22 +151,35 @@ def zahtijevaj_imenik_pristup():
     return _provjera
 
 
+def je_vlasnik(korisnik: Korisnik) -> bool:
+    """Je li korisnik vlasnik AI Poslovođe (settings.ai_poslovodja_user); prazno → voditelj.
+    ORM-ekvivalent computed polja schemas.KorisnikOut.ai_poslovodja (koje na ORM objektu NE postoji)."""
+    from .config import settings
+    ov = (settings.ai_poslovodja_user or "").strip().lower()
+    ime = (korisnik.korisnicko_ime or "").strip().lower()
+    if ov:
+        return ime == ov
+    return korisnik.uloga == Uloga.voditelj
+
+
+def ima_plan_pristup(korisnik: Korisnik) -> bool:
+    """Pristup Planu radione / dispečeru: vlasnik (ai_poslovodja) ILI voditelj/poslovođa
+    kojem je dodijeljen modul '/plan'. Boolean verzija (za provjere izvan ovisnosti)."""
+    if je_vlasnik(korisnik):
+        return True
+    if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja):
+        mod = korisnik.moduli if isinstance(korisnik.moduli, (list, tuple)) else []
+        return "/plan" in mod
+    return False
+
+
 def zahtijevaj_plan_pristup():
     """Ovisnost: pristup Planu radione / dispečeru. Dopušteno vlasniku
     (ai_poslovodja) ILI voditelju/poslovođi kojem je dodijeljen modul '/plan'
     (preko Moduli). Tako vlasnik sam bira tko smije dispečirati."""
     def _provjera(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
-        from .config import settings
-        ov = (settings.ai_poslovodja_user or "").strip().lower()
-        ime = (korisnik.korisnicko_ime or "").strip().lower()
-        if ov and ime == ov:
+        if ima_plan_pristup(korisnik):
             return korisnik
-        if not ov and korisnik.uloga == Uloga.voditelj:
-            return korisnik
-        if korisnik.uloga in (Uloga.voditelj, Uloga.poslovodja):
-            mod = korisnik.moduli if isinstance(korisnik.moduli, (list, tuple)) else []
-            if "/plan" in mod:
-                return korisnik
         raise HTTPException(status_code=403, detail="Nemate pristup Planu radione")
 
     return _provjera
