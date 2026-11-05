@@ -70,6 +70,10 @@
   .meh-idx-it.nije .mi-br{background:#fff;color:var(--crveno)}
   .meh-idx-it.ods{opacity:.7;background:#f3f4f6}
   .meh-idx-it.te{background:#e8f5e9;border-color:#a5d6a7}
+  .bonus-tab{width:100%;border-collapse:collapse;font-size:13px}
+  .bonus-tab th,.bonus-tab td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  .bonus-tab th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .bonus-tab tr.b-cist td{background:#f0fdf4}
   @media(min-width:1100px){
     body.view-pl .meh-idx{display:flex}
     body.view-pl main{padding-left:216px}
@@ -258,6 +262,7 @@
   <button class="tab" data-v="meh">📱 Mehaničar</button>
   <button class="tab" data-v="dash">👷 Radnici</button>
   <button class="tab" data-v="nap">✅ Napravljeno</button>
+  <button class="tab" data-v="bonus">💶 Klik-bonus</button>
   <span class="datum" id="datum"></span>
 </nav>
 
@@ -267,6 +272,7 @@
     <section id="v-meh" hidden></section>
     <section id="v-dash" hidden></section>
     <section id="v-nap" hidden></section>
+    <section id="v-bonus" hidden></section>
     <div class="foot">Vidljivo samo vlasniku · osvježava se automatski.</div>
   </div>
 </main>
@@ -297,6 +303,7 @@
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
   var napravljeno = {mehanicari:[], ukupno:0};   // tko je što napravio danas (gotovi zadaci)
+  var bonus = null;              // klik-bonus (jutarnja disciplina) — povuče se kad se otvori tab
   var napravOtvoren = false;                      // je li kartica „napravljeno" raširena
   var _brojMeh = {};           // mehId -> broj zadataka u redu (za prikaz u dropdownu)
   var MAX_HITNO = 3;
@@ -806,16 +813,39 @@
     return h;
   }
 
+  // --- render: Klik-bonus (jutarnja disciplina) ---
+  function renderBONUS(){
+    if(bonus===null){ return '<p class="hint">Učitavam…</p>'; }
+    var r=bonus.redovi||[];
+    var pool=(bonus.pool_eur||0);
+    var h='<p class="hint">Jutarnja disciplina klikanja: poruka do <b>'+esc(bonus.cutoff||'07:00')+'</b> → stisni (Počinjem/Gotovo) do <b>'+esc(bonus.deadline||'07:10')+'</b>. Prekršaj smanjuje dio. Pool <b>'+pool.toLocaleString('hr-HR')+' €</b> · 🧪 shadow (plaća se ne dira) · teren se ne broji.</p>';
+    if(!r.length){ h+='<div class="card" style="color:var(--muted)">Još nema podataka — bilježi se od sad (svako jutarnje slanje poveznice).</div>'; return h; }
+    h+='<div class="card"><table class="bonus-tab"><thead><tr><th>#</th><th>Serviser</th><th>Jutara</th><th>Na vrijeme</th><th>Prekršaji</th><th>%</th><th>Bonus</th></tr></thead><tbody>';
+    r.forEach(function(x){
+      h+='<tr'+(x.prekrsaji===0?' class="b-cist"':'')+'><td>'+x.mjesto+'</td><td><b>'+esc(x.ime)+'</b></td><td>'+x.ocekivano+'</td><td>'+x.na_vrijeme+'</td>'+
+         '<td'+(x.prekrsaji>0?' style="color:var(--crveno);font-weight:700"':'')+'>'+x.prekrsaji+'</td><td>'+x.postotak+'%</td>'+
+         '<td>'+(pool>0?(x.bonus_eur||0).toLocaleString('hr-HR')+' €':'—')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    return h;
+  }
+  function ucitajBonus(){
+    apiRaw("/ucinak/klik-bonus?dana=30").then(function(x){ bonus=x; render(); })
+      .catch(function(){ bonus={redovi:[]}; render(); });
+  }
+
   function render(){
     _brojMeh = brojUReduPoMeh();
     document.getElementById("v-pl").innerHTML = renderPL();
     document.getElementById("v-meh").innerHTML = renderMEH();
     document.getElementById("v-dash").innerHTML = renderDASH();
     document.getElementById("v-nap").innerHTML = renderNAP();
+    document.getElementById("v-bonus").innerHTML = renderBONUS();
     document.getElementById("v-pl").hidden = pogled!=="pl";
     document.getElementById("v-meh").hidden = pogled!=="meh";
     document.getElementById("v-dash").hidden = pogled!=="dash";
     document.getElementById("v-nap").hidden = pogled!=="nap";
+    document.getElementById("v-bonus").hidden = pogled!=="bonus";
     document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
     document.body.classList.toggle("view-dash", pogled==="dash");
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
@@ -872,6 +902,7 @@
     document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("akt",t===b);});
     render();
     if(pogled==="nap") ucitaj(true);   // „Napravljeno" se ne povlači u pozadini → osvježi pri otvaranju
+    if(pogled==="bonus") ucitajBonus(); // klik-bonus se povlači tek kad se otvori
   });
 
   // datum
