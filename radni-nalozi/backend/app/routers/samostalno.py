@@ -162,7 +162,7 @@ def novi_posao(p: NoviPosao, k: Korisnik = Depends(_samo_samostalni), db: Sessio
     op.zadaci.append(z)
     db.flush()
     _pauziraj_ostale(db, k)
-    _pokreni_mjerac(db, z, odjavi_druge=False)
+    _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=k.id)
     db.flush()
     _auto_status_naloga(db, nalog, k)
     db.commit()
@@ -178,7 +178,7 @@ def pocni(zid: int, k: Korisnik = Depends(_samo_samostalni), db: Session = Depen
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
-    _pokreni_mjerac(db, z, odjavi_druge=False)
+    _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=k.id)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, k)
     db.commit()

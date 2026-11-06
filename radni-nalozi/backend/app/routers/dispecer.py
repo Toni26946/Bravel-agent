@@ -348,7 +348,9 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
-    _pokreni_mjerac(db, z, odjavi_druge=False)   # zadrži ostale zadatke u redu čekanja
+    # Pokreni mjerač SAMO ovom mehaničaru — ako su na operaciji dvojica, drugi kreće tek
+    # kad SAM stisne Počinjem (prije se pokretao mjerač i onome tko nije kliknuo).
+    _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=link.radnik.id)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     provjeri_zalihu(db, link.radnik)   # krenuo iz pripreme → javi poslovođi ako je zaliha niska

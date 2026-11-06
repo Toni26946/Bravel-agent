@@ -161,6 +161,9 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
     if not z.zapoceto and dozvoli_start:
         z.zapoceto = datetime.now(timezone.utc)
     _uskladi_radnicke_mjerace(z)
+    # Izravna dodjela u nalogu = tim kreće odmah → pokreni sve dodijeljene.
+    if z.zapoceto:
+        _pokreni_radnicke_mjerace(z, None)
 
 
 # --- razdvajanje operacija po osovini ----------------------------------------
@@ -1030,10 +1033,11 @@ def _aware(dt: datetime) -> datetime:
 
 
 def _uskladi_radnicke_mjerace(z: Zadatak) -> None:
-    """Uskladi per-radnik mjerače sa stanjem zadatka: svaki DODIJELJENI radnik
-    mjeri dok zadatak radi (z.zapoceto) i nije gotov; čim radnik ode ili se
-    zadatak zaustavi/završi, proteklo mu se pribroji. Tako se zna tko je koliko
-    radio — više radnika istovremeno znači da svaki broji SVOJE vrijeme."""
+    """Uskladi (ZAUSTAVI/RECONCILE) per-radnik mjerače sa stanjem zadatka: osigura
+    zapis za svakog dodijeljenog radnika i zaustavi mjerač onome tko je otišao ili
+    kad se zadatak zaustavi/završi. NE pokreće mjerač sam — pokretanje je izričito
+    (po radniku) preko `_pokreni_radnicke_mjerace`, da pokretanje JEDNOG radnika ne
+    pokrene i ostale (svaki stisne svoj „Počinjem")."""
     sess = object_session(z)
     if sess is None:
         return
@@ -1056,14 +1060,32 @@ def _uskladi_radnicke_mjerace(z: Zadatak) -> None:
             zr = ZadatakRadnikVrijeme(radnik_id=rid)
             z.vremena.append(zr)   # back_populates postavi zadatak_id
             zapisi[rid] = zr
-        if radi and not zr.zapoceto:
-            zr.zapoceto = sad
-        elif not radi:
-            _stani(zr)
+        if not radi:
+            _stani(zr)              # zadatak stao/gotov → zaustavi i radnika
+        # NE pokrećemo automatski: radnik kreće tek kad SAM stisne Počinjem.
     # radnici koji više nisu dodijeljeni → zaustavi (povijest ostaje)
     for rid, zr in zapisi.items():
         if rid not in aktivni:
             _stani(zr)
+
+
+def _pokreni_radnicke_mjerace(z: Zadatak, rids=None) -> None:
+    """Pokreni per-radnik mjerač za zadane radnike (ili SVE dodijeljene ako rids=None).
+    Zadatak mora već teći (z.zapoceto). Ostale radnike ne dira."""
+    if z.gotovo or not z.zapoceto:
+        return
+    sad = datetime.now(timezone.utc)
+    zapisi = {zr.radnik_id: zr for zr in z.vremena}
+    aktivni = {r.id for r in z.radnici}
+    cilj = aktivni if rids is None else (set(rids) & aktivni)
+    for rid in cilj:
+        zr = zapisi.get(rid)
+        if zr is None:
+            zr = ZadatakRadnikVrijeme(radnik_id=rid)
+            z.vremena.append(zr)
+            zapisi[rid] = zr
+        if not zr.zapoceto:
+            zr.zapoceto = sad
 
 
 def _zaustavi_mjerac(z: Zadatak) -> None:
@@ -1127,18 +1149,24 @@ def _zaustavi_druge_mjerace(db: Session, z: Zadatak) -> None:
         _zaustavi_mjerac(d)   # akumulira vrijeme i zaustavi, ali zadrži radnike
 
 
-def _pokreni_mjerac(db: Session, z: Zadatak, odjavi_druge: bool = True) -> None:
+def _pokreni_mjerac(db: Session, z: Zadatak, odjavi_druge: bool = True,
+                    radnik_id: int | None = None) -> None:
     """Pokreni mjerač zadatka. `odjavi_druge=True` (zadano, obična radiona) radnike
     odjavi s drugih zadataka; `False` (dispečerov red) im zadrži dodjelu, samo
-    zaustavi njihove druge pokrenute mjerače."""
-    if z.gotovo or z.zapoceto:
+    zaustavi njihove druge pokrenute mjerače.
+
+    `radnik_id` → pokreni mjerač SAMO tom radniku (ostali čekaju da svaki sam stisne
+    Počinjem). `None` → pokreni sve dodijeljene (npr. nastavak tima iz naloga)."""
+    if z.gotovo:
         return
-    if odjavi_druge:
-        _odjavi_iz_drugih(db, z)
-    else:
-        _zaustavi_druge_mjerace(db, z)
-    z.zapoceto = datetime.now(timezone.utc)
-    _uskladi_radnicke_mjerace(z)
+    if not z.zapoceto:
+        if odjavi_druge:
+            _odjavi_iz_drugih(db, z)
+        else:
+            _zaustavi_druge_mjerace(db, z)
+        z.zapoceto = datetime.now(timezone.utc)
+    _uskladi_radnicke_mjerace(z)   # osigura zapise + reconcilea (bez auto-starta)
+    _pokreni_radnicke_mjerace(z, None if radnik_id is None else [radnik_id])
 
 
 @router.post("/{nalog_id}/operacije/{op_id}/zadaci", response_model=ZadatakOut, status_code=201)

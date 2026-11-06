@@ -596,3 +596,34 @@ def test_pregledar_popis_i_gotovo_stavka():
     z9 = Zadatak(operacija_id=op9.id, opis="servis"); z9.radnici = [drugi]; db.add(z9); db.commit()
     with ocekuj_http(404):
         z_gotovo_stavka("tokkar", StavkaIn(uredjaj="A", zadatak_id=z9.id), db=db)
+
+
+def test_pocinjem_pokrece_samo_tog_radnika():
+    """Zadatak s DVA radnika: kad jedan stisne Počinjem, mjerač kreće SAMO njemu;
+    drugi kreće tek kad sam stisne (prije se pokretao mjerač i onome tko nije kliknuo)."""
+    db = _session()
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    b = Korisnik(ime="B", korisnicko_ime="b", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T1", marka="MAN"); db.add_all([a, b, voz]); db.flush()
+    n = Nalog(broj="RN-T1", vozilo_id=voz.id, naslov="T1", kreirao_id=a.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="BLATOBRANI"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="posao", ceka_potvrdu=True); z.radnici = [a, b]
+    db.add(z)
+    db.add(MehanicarLink(radnik_id=a.id, token="tokA", aktivan=True))
+    db.add(MehanicarLink(radnik_id=b.id, token="tokB", aktivan=True))
+    db.commit()
+
+    z_pocinjem("tokA", UredjajIn(uredjaj="dA"), db=db)   # A stisne Počinjem
+    db.refresh(z)
+    assert z.zapoceto is not None
+    vr = {x.radnik_id: x for x in z.vremena}
+    assert vr[a.id].zapoceto is not None                 # A radi
+    assert (b.id not in vr) or (vr[b.id].zapoceto is None)  # B NE radi
+
+    z_pocinjem("tokB", UredjajIn(uredjaj="dB"), db=db)   # sad B stisne
+    db.refresh(z)
+    vr = {x.radnik_id: x for x in z.vremena}
+    assert vr[a.id].zapoceto is not None
+    assert vr[b.id].zapoceto is not None                 # sad i B radi
