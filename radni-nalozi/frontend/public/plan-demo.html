@@ -771,7 +771,7 @@
        '<div class="kpi"><div class="n">'+saZad.length+'</div><div class="l">Radnika sa zadacima</div></div>'+
        '<div class="kpi"><div class="n">'+ukupno+'</div><div class="l">Zadataka u redu</div></div>'+
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
-       '<div class="kpi"><div class="n">'+slobodni.length+'</div><div class="l">Slobodnih</div></div>'+
+       '<div class="kpi"><div class="n">'+slobodniPrisutni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
     h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak. Karticu možeš povući i u redak drugog mehaničara.</p>';
     if(!saZad.length && !slobodniPrisutni.length){
