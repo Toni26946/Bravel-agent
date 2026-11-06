@@ -10,7 +10,7 @@ Shadow mode i dalje vrijedi za stvarnu plaću — ovo je prikaz učinka.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -176,6 +176,19 @@ def moj_ucinak(dana: int = Query(default=7, ge=1, le=365),
 KLJUC_KLIK_CUTOFF = "klik_cutoff"       # "HH:MM" — do kad poruka vrijedi kao jutarnja
 KLJUC_KLIK_DEADLINE = "klik_deadline"   # "HH:MM" — do kad mora kliknuti
 KLJUC_KLIK_POOL = "klik_pool"           # € mjesečni pool
+KLJUC_KLIK_JUTRA = "klik_jutra"         # ISO datumi (CSV) kad je jutarnji plan poslan
+
+
+def zabiljezi_jutro(db: Session, d) -> None:
+    """Zabilježi da je JUTRO odrađeno (jutarnji plan poslan) — taj dan se očekuje klik
+    od SVIH prisutnih mehaničara. Čuva zadnjih ~90 datuma u postavci."""
+    ds = d.isoformat() if hasattr(d, "isoformat") else str(d)
+    stari = [x.strip() for x in (get_postavka(db, KLJUC_KLIK_JUTRA, "") or "").split(",") if x.strip()]
+    if ds in stari:
+        return
+    stari.append(ds)
+    set_postavka(db, KLJUC_KLIK_JUTRA, ",".join(stari[-90:]))
+    db.commit()
 
 
 def _hr_offset(now_utc: datetime) -> timedelta:
@@ -214,20 +227,46 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
     dh, dm = _hhmm(get_postavka(db, KLJUC_KLIK_DEADLINE, "07:10"), "07:10")
     od = datetime.now(timezone.utc) - timedelta(days=dana)
 
-    # 1) Koja su jutra komu "očekivana" (poruka poslana do cutoff-a).
-    disp = db.execute(
-        select(KlikPoslano.radnik_id, KlikPoslano.poslano).where(KlikPoslano.poslano >= od)
-    ).all()
-    ocekivano: dict[int, set] = defaultdict(set)
-    for rid, ts in disp:
+    danas = _u_hr(datetime.now(timezone.utc)).date()
+    od_date = od.date()
+
+    # 1) JUTRA kad je plan poslan (= očekivani dani za SVE prisutne): dani iz KlikPoslano
+    #    (poruka ≤ cutoff) + ručno zabilježeni marker (da se broji i jutro bez novih poruka).
+    jutra: set = set()
+    for (ts,) in db.execute(select(KlikPoslano.poslano).where(KlikPoslano.poslano >= od)).all():
         h = _u_hr(ts)
         if (h.hour, h.minute) <= (ch, cm):
-            ocekivano[rid].add(h.date())
+            jutra.add(h.date())
+    for ds in (get_postavka(db, KLJUC_KLIK_JUTRA, "") or "").split(","):
+        ds = ds.strip()
+        if not ds:
+            continue
+        try:
+            d = date.fromisoformat(ds)
+        except ValueError:
+            continue
+        if od_date <= d <= danas:
+            jutra.add(d)
 
-    # 2) Prvi klik (Počinjem ili Gotovo) po danu, po radniku.
-    rids = list(ocekivano.keys())
+    # 2) Svi PRISUTNI mehaničari (prijavljuju se u sustav). Očekuju se svako jutro,
+    #    osim dana kad su odsutni (godišnji/bolovanje/odsutan za to razdoblje). Teren ne ulazi.
+    meh = db.execute(select(Korisnik).where(
+        Korisnik.uloga == Uloga.radnik, Korisnik.aktivan.is_(True),
+        Korisnik.prijavljuje_se.is_(True))).scalars().all()
+
+    def _odsutan_na(m, d) -> bool:
+        if not m.odsutnost_vrsta:
+            return False
+        if m.odsutnost_od and d < m.odsutnost_od:
+            return False
+        if m.odsutnost_do and d > m.odsutnost_do:
+            return False
+        return True   # pokriva taj dan (ili bez datuma = trajno)
+
+    # 3) Prvi klik (Počinjem/Gotovo) po danu, po radniku.
+    rids = [m.id for m in meh]
     prvi: dict[int, dict] = defaultdict(dict)
-    if rids:
+    if rids and jutra:
         rows = db.execute(
             select(zadatak_radnici.c.radnik_id, Zadatak.zapoceto, Zadatak.zavrseno)
             .join(Zadatak, Zadatak.id == zadatak_radnici.c.zadatak_id)
@@ -243,28 +282,24 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
                 if cur is None or h < cur:
                     prvi[rid][h.date()] = h
 
-    # 3) Po radniku: očekivano / na vrijeme / prekršaji.
+    # 4) Po radniku: očekivani dani (jutra kad je prisutan) / na vrijeme / prekršaji. Teren van.
     po: dict[int, dict] = {}
-    for rid, dani in ocekivano.items():
+    imena: dict[int, str] = {}
+    for m in meh:
+        imena[m.id] = m.ime
+        if m.odsutnost_vrsta == "teren":
+            continue
+        dani = [d for d in jutra if not _odsutan_na(m, d)]
+        if not dani:
+            continue
         nav = 0
         for d in dani:
-            k = prvi.get(rid, {}).get(d)
+            k = prvi.get(m.id, {}).get(d)
             if k is not None and (k.hour, k.minute) <= (dh, dm):
                 nav += 1
-        po[rid] = {"ocekivano": len(dani), "na_vrijeme": nav, "prekrsaji": len(dani) - nav}
+        po[m.id] = {"ocekivano": len(dani), "na_vrijeme": nav, "prekrsaji": len(dani) - nav}
 
-    # Teren: na njih se pravilo poola NE odnosi (vani su, ne primaju jutarnji plan).
-    if po:
-        teren_ids = {
-            r for (r,) in db.execute(
-                select(Korisnik.id).where(Korisnik.id.in_(list(po.keys())),
-                                          Korisnik.odsutnost_vrsta == "teren")
-            ).all()
-        }
-        for rid in teren_ids:
-            po.pop(rid, None)
-
-    # 4) Podjela poola: razmjerno disciplini; izgubljeni dio onima bez prekršaja.
+    # 5) Podjela poola: razmjerno disciplini; izgubljeni dio onima bez prekršaja.
     n = len(po)
     base = (pool / n) if n else 0.0
     sirovi = {rid: base * (d["na_vrijeme"] / d["ocekivano"] if d["ocekivano"] else 0.0)
@@ -273,9 +308,6 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
     cisti = [rid for rid, d in po.items() if d["prekrsaji"] == 0 and d["ocekivano"] > 0]
     extra = (ostatak / len(cisti)) if cisti else 0.0
 
-    imena = {k.id: k.ime for k in db.execute(
-        select(Korisnik).where(Korisnik.id.in_(rids or [0]))
-    ).scalars().all()}
     redovi = []
     for rid, d in po.items():
         bonus = sirovi[rid] + (extra if rid in cisti else 0.0)

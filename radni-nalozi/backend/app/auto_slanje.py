@@ -74,6 +74,12 @@ def _tik_ponavlja(db) -> None:
     rez = posalji_sve_plan(db, settings.javni_url)
     log.info("Auto-slanje (ponavlja %s): poslano %s, već rade %s, već poslano %s, odsutni %s",
              hhmm, rez.get("poslano"), rez.get("vec_rade"), rez.get("vec_poslano"), rez.get("odsutni"))
+    # Klik-bonus: zabilježi da je jutro odrađeno (očekivani dan za SVE prisutne, i bez novih poruka).
+    try:
+        from .routers import ucinak as _uc
+        _uc.zabiljezi_jutro(db, now.date())
+    except Exception:  # noqa: BLE001 — bilježenje nije kritično
+        pass
     _javi_voditelju(db, hhmm, rez)
 
 

@@ -1,8 +1,6 @@
-"""Test klik-bonusa: jutarnja disciplina klikanja + podjela poola.
-
-Pravilo: poruka poslana do cutoff (07:00) → mora kliknuti (Počinjem/Gotovo) do
-deadline (07:10). Kašnjenje = prekršaj. Pool se dijeli razmjerno disciplini;
-izgubljeni dio ide onima bez prekršaja."""
+"""Test klik-bonusa: SVI prisutni mehaničari se broje svako JUTRO kad je plan poslan.
+Tko ne klikne (Počinjem/Gotovo) do deadline-a = prekršaj. Odsutni/teren se izuzimaju.
+Pool se dijeli razmjerno disciplini; izgubljeni dio ide onima bez prekršaja."""
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -19,7 +17,8 @@ from app.database import Base
 from app.models import (
     KlikPoslano, Korisnik, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak,
 )
-from app.routers.ucinak import _hr_offset, _klik_bonus
+from app.norme import set_postavka
+from app.routers.ucinak import KLJUC_KLIK_JUTRA, _hr_offset, _klik_bonus
 
 
 def _session():
@@ -43,68 +42,64 @@ _brojac = [0]
 def _zad(db, radnik, zapoceto):
     _brojac[0] += 1
     voz = Vozilo(gb=f"V{_brojac[0]}", marka="MAN"); db.add(voz); db.flush()
-    n = Nalog(broj=f"RN-{_brojac[0]}", vozilo_id=voz.id, naslov="x", kreirao_id=radnik.id, status=StatusNaloga.u_radu)
+    n = Nalog(broj=f"RN-{_brojac[0]}", vozilo_id=voz.id, naslov="x", kreirao_id=radnik.id,
+              status=StatusNaloga.u_radu)
     db.add(n); db.flush()
     op = Operacija(nalog_id=n.id, kategorija="MOTOR"); db.add(op); db.flush()
     z = Zadatak(operacija_id=op.id, opis="x", zapoceto=zapoceto); z.radnici = [radnik]
     db.add(z); db.flush()
 
 
-def test_klik_bonus_prekrsaji_i_podjela():
+def test_klik_bonus_svi_prisutni_po_jutru():
+    """Oba prisutna se broje za jutro d1; A kliknuo na vrijeme, B nije → prekršaj."""
     db = _session()
-    a = Korisnik(ime="Ante", korisnicko_ime="ante", lozinka_hash="x", uloga=Uloga.radnik)
-    b = Korisnik(ime="Bruno", korisnicko_ime="bruno", lozinka_hash="x", uloga=Uloga.radnik)
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    b = Korisnik(ime="B", korisnicko_ime="b", lozinka_hash="x", uloga=Uloga.radnik)
     db.add_all([a, b]); db.flush()
-
-    d1 = (_NOW - timedelta(days=3)).date()
-    d2 = (_NOW - timedelta(days=2)).date()
-
-    # A: dva jutra očekivano (poruka 06:50). Dan1 klik 07:05 (na vrijeme), dan2 klik 07:30 (kasno).
-    db.add(KlikPoslano(radnik_id=a.id, poslano=_hr(d1, 6, 50)))
-    db.add(KlikPoslano(radnik_id=a.id, poslano=_hr(d2, 6, 50)))
-    _zad(db, a, _hr(d1, 7, 5))
-    _zad(db, a, _hr(d2, 7, 30))
-
-    # B: jedno jutro, klik 07:00 (na vrijeme) → bez prekršaja.
-    db.add(KlikPoslano(radnik_id=b.id, poslano=_hr(d1, 6, 50)))
-    _zad(db, b, _hr(d1, 7, 0))
-
-    # Poruka POSLIJE cutoffa (09:00) ne stvara očekivano jutro.
-    db.add(KlikPoslano(radnik_id=b.id, poslano=_hr(d2, 9, 0)))
-    db.commit()
+    d1 = (_NOW - timedelta(days=1)).date()
+    set_postavka(db, KLJUC_KLIK_JUTRA, d1.isoformat())   # jutro odrađeno (marker)
+    _zad(db, a, _hr(d1, 7, 0))                            # A kliknuo 07:00
+    db.commit()                                          # B nije kliknuo
 
     out = _klik_bonus(db, dana=30, pool=100.0)
     red = {r["ime"]: r for r in out["redovi"]}
-
-    assert red["Ante"]["ocekivano"] == 2
-    assert red["Ante"]["na_vrijeme"] == 1
-    assert red["Ante"]["prekrsaji"] == 1
-    assert red["Bruno"]["ocekivano"] == 1      # 09:00 poruka se ne broji
-    assert red["Bruno"]["prekrsaji"] == 0
-
-    # base = 100/2 = 50. A: 50×(1/2)=25. B: 50×1=50. Ostatak 25 → čistom (Bruno).
-    assert red["Ante"]["bonus_eur"] == 25.0
-    assert red["Bruno"]["bonus_eur"] == 75.0
-    # Bruno (bez prekršaja, veći bonus) je prvi.
-    assert red["Bruno"]["mjesto"] == 1
+    assert red["A"]["ocekivano"] == 1 and red["A"]["prekrsaji"] == 0
+    assert red["B"]["ocekivano"] == 1 and red["B"]["prekrsaji"] == 1
+    assert red["A"]["bonus_eur"] == 100.0   # cijeli pool čistom (A)
+    assert red["B"]["bonus_eur"] == 0.0
 
 
-def test_klik_bonus_izuzima_teren():
-    """Radnik na terenu se NE broji u pool (iako ima zapis slanja)."""
+def test_klik_bonus_teren_i_odsutni_izuzeti():
+    """Teren i godišnji (za taj dan) se NE broje u pool."""
     db = _session()
-    a = Korisnik(ime="Ante", korisnicko_ime="ante", lozinka_hash="x", uloga=Uloga.radnik)
-    c = Korisnik(ime="Cvjetko", korisnicko_ime="cvjetko", lozinka_hash="x",
-                 uloga=Uloga.radnik, odsutnost_vrsta="teren")
-    db.add_all([a, c]); db.flush()
-    d1 = (_NOW - timedelta(days=2)).date()
-    for r in (a, c):
-        db.add(KlikPoslano(radnik_id=r.id, poslano=_hr(d1, 6, 50)))
-        _zad(db, r, _hr(d1, 7, 0))
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    c = Korisnik(ime="C", korisnicko_ime="c", lozinka_hash="x", uloga=Uloga.radnik,
+                 odsutnost_vrsta="teren")
+    e = Korisnik(ime="E", korisnicko_ime="e", lozinka_hash="x", uloga=Uloga.radnik,
+                 odsutnost_vrsta="godisnji")
+    db.add_all([a, c, e]); db.flush()
+    d1 = (_NOW - timedelta(days=1)).date()
+    e.odsutnost_od = d1 - timedelta(days=1)
+    e.odsutnost_do = d1 + timedelta(days=1)              # godišnji pokriva d1
+    set_postavka(db, KLJUC_KLIK_JUTRA, d1.isoformat())
+    _zad(db, a, _hr(d1, 7, 0))
     db.commit()
 
-    out = _klik_bonus(db, dana=30, pool=100.0)
-    imena = {r["ime"] for r in out["redovi"]}
-    assert "Ante" in imena
-    assert "Cvjetko" not in imena          # teren izuzet
-    # Cijeli pool ide jedinom preostalom (Ante).
-    assert out["redovi"][0]["bonus_eur"] == 100.0
+    out = _klik_bonus(db, dana=30, pool=90.0)
+    assert {r["ime"] for r in out["redovi"]} == {"A"}    # C (teren) i E (godišnji) izuzeti
+    assert out["redovi"][0]["bonus_eur"] == 90.0
+
+
+def test_klik_bonus_jutro_iz_poslano():
+    """Jutro se prepozna i iz KlikPoslano (poruka ≤ cutoff), ne samo iz markera."""
+    db = _session()
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(a); db.flush()
+    d1 = (_NOW - timedelta(days=1)).date()
+    db.add(KlikPoslano(radnik_id=a.id, poslano=_hr(d1, 6, 50)))
+    _zad(db, a, _hr(d1, 7, 0))
+    db.commit()
+
+    out = _klik_bonus(db, dana=30, pool=50.0)
+    red = {r["ime"]: r for r in out["redovi"]}
+    assert red["A"]["ocekivano"] == 1 and red["A"]["na_vrijeme"] == 1
