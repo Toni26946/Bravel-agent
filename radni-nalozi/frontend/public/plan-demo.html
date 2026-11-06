@@ -746,10 +746,14 @@
   function renderDASH(){
     var PRAG=2;
     var map=redPoRadniku();
-    var saZad=[], slobodni=[];
-    MEH.forEach(function(m){ var l=map[m.id]||[]; if(l.length) saZad.push({m:m,lista:l}); else slobodni.push(m); });
-    var slobodniPrisutni=slobodni.filter(function(m){return !m.odsutan;});   // prisutni bez zadatka → vrh, crveno
-    var slobodniOdsutni=slobodni.filter(function(m){return m.odsutan;});
+    var saZad=[], slobodniPrisutni=[], slobodniOdsutni=[];
+    MEH.forEach(function(m){
+      // Odsutni (godišnji/bolovanje/odsutan) se NE prikazuju u redovima — samo u podnožju.
+      // Teren ostaje (radi, samo vani).
+      if(m.odsutan && m.odsutnost!=='teren'){ slobodniOdsutni.push(m); return; }
+      var l=map[m.id]||[];
+      if(l.length) saZad.push({m:m,lista:l}); else slobodniPrisutni.push(m);   // prisutni bez zadatka → vrh, crveno
+    });
     // Uvijek poredano: najmanje zadataka → najviše (tko ima manje je gore, za dopunu);
     // isti broj → abecedno.
     saZad.sort(function(a,b){
