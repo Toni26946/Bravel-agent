@@ -223,6 +223,8 @@
   .rad-ime .ri-ime{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rad-send{align-self:stretch;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:3px 7px;font-size:13px;line-height:1.3;cursor:pointer}
   .rad-send:hover{border-color:var(--plava)}
+  .rad-prijavi{align-self:stretch;margin-top:4px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:3px 7px;font-size:13px;line-height:1.3;cursor:pointer}
+  .rad-prijavi:hover{border-color:#b26a00;color:#b26a00}
   .rad-br{margin-left:4px;background:var(--plava-soft);color:var(--plava);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800}
   .rad-ime.malo .rad-br{background:#fff;color:var(--s-ceka)}
   .rad-cells{display:flex;gap:8px}
@@ -783,7 +785,8 @@
         // Prvi zadatak koji mu se može (ponovno) poslati = prvi koji ON ne radi.
         var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(mehStatus(r.lista[si].o, r.m.id)!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
         var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨 Pošalji</button>' : '';
-        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        var prijaviBtn = zaSlanje ? '<button class="rad-prijavi" onclick="PLAN.prijaviRucno(event,'+zaSlanje+','+r.m.id+')" title="Ručno prijavi mehaničara na zadatak (računa se kao prekršaj jer nije sam kliknuo)">✍️ Prijavi</button>' : '';
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+prijaviBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
           var uTijeku=(st==="radu");
@@ -901,6 +904,11 @@
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
       api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":"Spremljeno (WhatsApp nije poslan)"); ucitaj(); })
+        .catch(function(err){ toast(err.message||"Greška"); }); },
+    // Ručna prijava mehaničara na zadatak (umjesto da sam klikne) → broji se kao prekršaj.
+    prijaviRucno:function(e,zid,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
+      if(!confirm("Ručno prijaviti mehaničara na zadatak? Broji se kao prekršaj (nije sam kliknuo).")) return;
+      api("/zadatak/"+zid+"/prijavi-rucno","POST",{radnik_id:rid}).then(function(){ toast("✍️ Prijavljen (prekršaj)"); ucitaj(true); })
         .catch(function(err){ toast(err.message||"Greška"); }); },
     // Napravljeno → „Nije gotovo": zadatak se ponovno otvara i vraća u plan istom mehaničaru.
     vratiUPlan:function(zid){

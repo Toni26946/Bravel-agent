@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
-    Dodjela, KlikPoslano, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
+    Dodjela, KlikPoslano, KlikRucno, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
     Prioritet, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
@@ -763,6 +763,35 @@ def posalji(zid: int, request: Request, korisnik: Korisnik = Depends(_samo_vlasn
     wa = posalji_poveznicu(db, m, _gb(n), z.opis or "", str(request.base_url))
     db.commit()
     return {"ok": True, "wa": wa}
+
+
+class PrijaviRucnoIn(BaseModel):
+    radnik_id: int
+
+
+@router.post("/zadatak/{zid}/prijavi-rucno")
+def prijavi_rucno(zid: int, p: PrijaviRucnoIn, korisnik: Korisnik = Depends(_samo_vlasnik),
+                  db: Session = Depends(get_db)):
+    """Dispečer RUČNO prijavi mehaničara na zadatak (pokrene mu mjerač umjesto njega).
+    Bilježi se kao ručna prijava → u klik-bonusu se taj dan broji kao prekršaj (nije sam
+    kliknuo). Pokreće mjerač SAMO tom mehaničaru (ostali na operaciji i dalje čekaju svoj)."""
+    z = _zad(db, zid)
+    m = next((r for r in z.radnici if r.id == p.radnik_id), None)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Mehaničar nije dodijeljen na ovom zadatku")
+    n = z.operacija.nalog
+    z.ceka_potvrdu = False
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+    _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=m.id)
+    db.add(KlikRucno(radnik_id=m.id))   # ručna prijava → prekršaj u klik-bonusu
+    db.flush()
+    _auto_status_naloga(db, n, korisnik)
+    _log(db, korisnik, "rucna-prijava",
+         f"{m.ime} ručno prijavljen na zadatak (GB {_gb(n)})",
+         nalog_id=n.id, zadatak_id=z.id, radnik_id=m.id)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/nalog/{nalog_id}/isplaniraj")

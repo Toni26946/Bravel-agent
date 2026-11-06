@@ -21,6 +21,7 @@ from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
 from ..models import (
     KlikPoslano,
+    KlikRucno,
     Korisnik,
     NormaPosla,
     Uloga,
@@ -282,6 +283,13 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
                 if cur is None or h < cur:
                     prvi[rid][h.date()] = h
 
+    # Dani kad je mehaničar RUČNO prijavljen (dispečer umjesto njega) → prekršaj, ne broji na vrijeme.
+    rucno: dict[int, set] = defaultdict(set)
+    for rid, ts in db.execute(
+        select(KlikRucno.radnik_id, KlikRucno.kreiran).where(KlikRucno.kreiran >= od)
+    ).all():
+        rucno[rid].add(_u_hr(ts).date())
+
     # 4) Po radniku: očekivani dani (jutra kad je prisutan) / na vrijeme / prekršaji. Teren van.
     po: dict[int, dict] = {}
     imena: dict[int, str] = {}
@@ -294,6 +302,8 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
             continue
         nav = 0
         for d in dani:
+            if d in rucno.get(m.id, ()):
+                continue   # ručno prijavljen tog dana → prekršaj (nije sam kliknuo)
             k = prvi.get(m.id, {}).get(d)
             if k is not None and (k.hour, k.minute) <= (dh, dm):
                 nav += 1

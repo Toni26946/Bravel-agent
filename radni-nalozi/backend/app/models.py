@@ -772,3 +772,13 @@ class KlikPoslano(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
     poslano: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+
+class KlikRucno(Base):
+    """Trag da je mehaničara na zadatak RUČNO prijavio dispečer (nije sam kliknuo).
+    Za klik-bonus: taj dan mu se broji kao prekršaj (ručna prijava = nije kliknuo)."""
+    __tablename__ = "klik_rucno"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)

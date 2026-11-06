@@ -153,3 +153,28 @@ def test_smije_meh_vlasnik_ne_puca_na_ai_poslovodja():
     assert _smije_meh(toni, z) is True     # vlasnik umjesto mehaničara (ne puca)
     assert _smije_meh(meh, z) is True      # sam mehaničar
     assert _smije_meh(drugi, z) is False   # tuđi radnik bez pristupa planu → ne
+
+
+def test_prijavi_rucno_pokrece_mjerac_i_biljezi():
+    """Ručna prijava: pokrene mjerač tom mehaničaru i zabilježi KlikRucno (za klik-bonus)."""
+    from app.models import KlikRucno
+    from app.routers.plan import PrijaviRucnoIn, prijavi_rucno
+
+    db = _session()
+    vod = Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj)
+    meh = Korisnik(ime="Meh", korisnicko_ime="meh", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="900", marka="X"); db.add_all([vod, meh, voz]); db.flush()
+    n = Nalog(broj="RN-900", vozilo_id=voz.id, naslov="900", kreirao_id=vod.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="MOTOR"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="x", ceka_potvrdu=True); z.radnici = [meh]
+    db.add(z); db.commit()
+
+    rez = prijavi_rucno(z.id, PrijaviRucnoIn(radnik_id=meh.id), korisnik=vod, db=db)
+    assert rez["ok"] is True
+    db.refresh(z)
+    assert z.zapoceto is not None
+    vr = {x.radnik_id: x for x in z.vremena}
+    assert vr[meh.id].zapoceto is not None          # mjerač mu teče
+    assert db.query(KlikRucno).filter(KlikRucno.radnik_id == meh.id).count() == 1

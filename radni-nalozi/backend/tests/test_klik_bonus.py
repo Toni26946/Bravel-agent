@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import (
-    KlikPoslano, Korisnik, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak,
+    KlikPoslano, KlikRucno, Korisnik, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak,
 )
 from app.norme import set_postavka
 from app.routers.ucinak import KLJUC_KLIK_JUTRA, _hr_offset, _klik_bonus
@@ -103,3 +103,19 @@ def test_klik_bonus_jutro_iz_poslano():
     out = _klik_bonus(db, dana=30, pool=50.0)
     red = {r["ime"]: r for r in out["redovi"]}
     assert red["A"]["ocekivano"] == 1 and red["A"]["na_vrijeme"] == 1
+
+
+def test_klik_bonus_rucna_prijava_je_prekrsaj():
+    """Ručna prijava (dispečer umjesto njega) tog dana = prekršaj, čak i ako postoji klik."""
+    db = _session()
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(a); db.flush()
+    d1 = (_NOW - timedelta(days=1)).date()
+    set_postavka(db, KLJUC_KLIK_JUTRA, d1.isoformat())
+    _zad(db, a, _hr(d1, 7, 0))                               # ima klik 07:00 (inače na vrijeme)
+    db.add(KlikRucno(radnik_id=a.id, kreiran=_hr(d1, 7, 5)))  # ali RUČNO prijavljen taj dan
+    db.commit()
+
+    out = _klik_bonus(db, dana=30, pool=50.0)
+    red = {r["ime"]: r for r in out["redovi"]}
+    assert red["A"]["na_vrijeme"] == 0 and red["A"]["prekrsaji"] == 1
