@@ -12,7 +12,7 @@ from .auth import hash_lozinka
 from .config import settings
 from .models import (
     EvidencijaRV, Korisnik, Nalog, PovijestRada, RegistarVozila, StatusNaloga,
-    StatusVozila, Uloga, Vozilo, Zadatak,
+    StatusVozila, Uloga, Vozilo, Zadatak, ZadatakRadnikVrijeme,
 )
 
 log = logging.getLogger("seed")
@@ -1249,3 +1249,29 @@ def seed_radnici(db: Session, lozinka: str = "radnik123") -> None:
         dodano += 1
     db.commit()
     log.info("Uvezeno %d radnika (početna lozinka '%s').", dodano, lozinka)
+
+
+def jednokratno_reset_borovyk_gb174(db: Session) -> None:
+    """Jednokratno: Borovyku Yevhen (radnik 15) na zadatku 1112 (GB 174, BLATOBRANI 2.
+    osovina) je mjerač bio pokrenut zbog starog buga (pokretanje jednog radnika pokretalo
+    je i ostale) iako nije radio. Nuliraj mu mjerač BEZ pribrajanja (zapoceto=None,
+    utroseno_sek=0). Gennadiy (14) se ne dira. Guard na trajnom volumenu."""
+    zastavica = Path(settings.upload_dir).parent / ".reset_borovyk_gb174_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    zr = (
+        db.query(ZadatakRadnikVrijeme)
+        .filter(ZadatakRadnikVrijeme.zadatak_id == 1112,
+                ZadatakRadnikVrijeme.radnik_id == 15)
+        .first()
+    )
+    if zr is not None:
+        zr.zapoceto = None
+        zr.utroseno_sek = 0
+        db.commit()
+        log.info("Reset mjerača: Borovyk (15) na zadatku 1112 (GB 174).")
+    zastavica.parent.mkdir(parents=True, exist_ok=True)
+    zastavica.write_text("done", encoding="utf-8")

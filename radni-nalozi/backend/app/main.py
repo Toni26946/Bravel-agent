@@ -29,6 +29,7 @@ from .seed import (
     backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
     jednokratno_deaktiviraj_bivse,
+    jednokratno_reset_borovyk_gb174,
     osiguraj_mihaela_i_zvonimira,
     osiguraj_pristup_zvonimir,
     ukloni_duplikat_mihael,
@@ -103,6 +104,7 @@ async def lifespan(app: FastAPI):
         uskladi_norme(db)
         pregledi_auto.ocisti_jednokratno(db)   # makni poplavu auto-pregleda iz prve verzije
         pregledi_auto.ocisti_ne_kamione(db)    # makni auto-preglede s malih auta/ne-kamiona
+        jednokratno_reset_borovyk_gb174(db)    # makni lažni mjerač (stari bug) Borovyku na GB174
         auto_sync_pri_pokretanju(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
