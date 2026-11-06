@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja, zahtijevaj_uloge
+from ..auth import trenutni_korisnik, zahtijevaj_ai_poslovodja, zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import (
     KlikPoslano,
@@ -33,6 +33,7 @@ from ..norme import KLJUC_EUR, get_postavka, norm_kat, set_postavka
 router = APIRouter(prefix="/ucinak", tags=["ucinak"])
 
 voditelj_ili_poslovodja = zahtijevaj_ai_poslovodja()  # ljestvica je dio AI Poslovođe → samo vlasnik
+_plan_pristup = zahtijevaj_plan_pristup()             # Klik-bonus: svi s pristupom Planu (voditelji/poslovođe)
 
 
 def _eur(db: Session) -> float:
@@ -339,9 +340,10 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
 @router.get("/klik-bonus")
 def klik_bonus(dana: int = Query(default=30, ge=1, le=365),
                pool: float | None = Query(default=None, ge=0),
-               db: Session = Depends(get_db), _: Korisnik = Depends(voditelj_ili_poslovodja)):
+               db: Session = Depends(get_db), _: Korisnik = Depends(_plan_pristup)):
     """Klik-bonus ljestvica (shadow): tko kliká ujutro na vrijeme i koliki mu je dio
-    poola. `pool` iz upita gazi spremljeni (postavka)."""
+    poola. Vide je svi s pristupom Planu (vlasnik + voditelji/poslovođe s modulom /plan);
+    postavljanje poola (/klik-postavke) ostaje samo vlasniku. `pool` iz upita gazi spremljeni."""
     if pool is None:
         try:
             pool = float(get_postavka(db, KLJUC_KLIK_POOL, "0") or 0)
