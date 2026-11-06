@@ -794,6 +794,35 @@ def prijavi_rucno(zid: int, p: PrijaviRucnoIn, korisnik: Korisnik = Depends(_sam
     return {"ok": True}
 
 
+@router.post("/zadatak/{zid}/ponisti-rucnu")
+def ponisti_rucnu(zid: int, p: PrijaviRucnoIn, korisnik: Korisnik = Depends(_samo_vlasnik),
+                  db: Session = Depends(get_db)):
+    """Poništi ručnu prijavu (greška/demo): zaustavi mjerač tom radniku BEZ pribrajanja,
+    vrati zadatak u 'čeka potvrdu' (ako nitko drugi ne radi) i obriši zadnji KlikRucno
+    (da se ne broji kao prekršaj). Vraća stanje kakvo je bilo prije ručne prijave."""
+    z = _zad(db, zid)
+    m = next((r for r in z.radnici if r.id == p.radnik_id), None)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Mehaničar nije dodijeljen na ovom zadatku")
+    for zr in z.vremena:
+        if zr.radnik_id == m.id:
+            zr.zapoceto = None
+            zr.utroseno_sek = 0
+    drugi_radi = any(zr.zapoceto for zr in z.vremena if zr.radnik_id != m.id)
+    if not drugi_radi:
+        z.zapoceto = None            # izravno (bez pribrajanja u z.utroseno_sek)
+        z.ceka_potvrdu = True
+    zadnji = (db.query(KlikRucno)
+              .filter(KlikRucno.radnik_id == m.id)
+              .order_by(KlikRucno.id.desc()).first())
+    if zadnji is not None:
+        db.delete(zadnji)
+    db.flush()
+    _auto_status_naloga(db, z.operacija.nalog, korisnik)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/nalog/{nalog_id}/isplaniraj")
 def isplaniraj(nalog_id: int, request: Request,
                korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):

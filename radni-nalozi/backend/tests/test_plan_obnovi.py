@@ -178,3 +178,28 @@ def test_prijavi_rucno_pokrece_mjerac_i_biljezi():
     vr = {x.radnik_id: x for x in z.vremena}
     assert vr[meh.id].zapoceto is not None          # mjerač mu teče
     assert db.query(KlikRucno).filter(KlikRucno.radnik_id == meh.id).count() == 1
+
+
+def test_ponisti_rucnu_vraca_stanje():
+    """Poništavanje ručne prijave: mjerač stane bez pribrajanja, čeka potvrdu, KlikRucno obrisan."""
+    from app.models import KlikRucno
+    from app.routers.plan import PrijaviRucnoIn, ponisti_rucnu, prijavi_rucno
+
+    db = _session()
+    vod = Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj)
+    meh = Korisnik(ime="Meh", korisnicko_ime="meh", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="901", marka="X"); db.add_all([vod, meh, voz]); db.flush()
+    n = Nalog(broj="RN-901", vozilo_id=voz.id, naslov="901", kreirao_id=vod.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="MOTOR"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="x", ceka_potvrdu=True); z.radnici = [meh]
+    db.add(z); db.commit()
+
+    prijavi_rucno(z.id, PrijaviRucnoIn(radnik_id=meh.id), korisnik=vod, db=db)
+    ponisti_rucnu(z.id, PrijaviRucnoIn(radnik_id=meh.id), korisnik=vod, db=db)
+    db.refresh(z)
+    assert z.zapoceto is None and z.ceka_potvrdu is True
+    vr = {x.radnik_id: x for x in z.vremena}
+    assert vr[meh.id].zapoceto is None and vr[meh.id].utroseno_sek == 0
+    assert db.query(KlikRucno).filter(KlikRucno.radnik_id == meh.id).count() == 0
