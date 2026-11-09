@@ -573,6 +573,15 @@
           });
           h+='</span>';
         }
+        // „＋" za dodavanje još jednog mehaničara i kad operacija već traje (u tijeku / čeka / čeka dio).
+        if(o.status!=="gotovo"){
+          var postojeciIds=dod2.map(function(r){return r.id;});
+          var idsStrR='['+postojeciIds.join(',')+']';
+          h+='<span class="meh-add-wrap">'
+            +'<button class="meh-add" title="Dodaj još jednog mehaničara" onclick="PLAN.pokaziDodaj(this)">＋</button>'
+            +'<select class="meh-add-sel" style="display:none" onchange="PLAN.dodajRadnika('+o.id+',this.value,'+idsStrR+')">'+mehOptsExcept(postojeciIds)+'</select>'
+            +'</span>';
+        }
         if(o.status==="dijelovi") h+=' <button class="btn ghost sm" onclick="PLAN.dioStigao('+o.id+')">📦 Dio stigao</button>';
       }
       h+='</span></div>';
