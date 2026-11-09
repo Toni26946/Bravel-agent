@@ -28,7 +28,7 @@ from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
-from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac, nalog_eager
+from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac, nalog_eager, servis_odradjen
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
 log = logging.getLogger("dispecer")
@@ -397,6 +397,7 @@ def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(g
     z.zavrseno = datetime.now(timezone.utc)
     z.razlog_prekida = None
     z.prekid_vrijeme = None
+    servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()

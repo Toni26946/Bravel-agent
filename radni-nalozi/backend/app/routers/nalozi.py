@@ -1106,6 +1106,25 @@ def _zatvori_kao_nije_gotovo(z: Zadatak) -> None:
     z.prekid_vrijeme = None
 
 
+def servis_odradjen(db: Session, z: Zadatak) -> None:
+    """Kad se SERVIS operacija ZAVRŠI → upiši datum (i trenutni km) kao zadnji servis
+    vozila, da brojač do idućeg servisa krene ispočetka. Tiho ako nije servis/nema vozila."""
+    op = getattr(z, "operacija", None)
+    if op is None or (op.kategorija or "").upper() != "SERVIS":
+        return
+    nalog = getattr(op, "nalog", None)
+    gb = (nalog.vozilo.gb if (nalog and nalog.vozilo) else None)
+    if not gb:
+        return
+    from ..models import RegistarVozila
+    r = db.get(RegistarVozila, gb) or db.get(RegistarVozila, (gb.lstrip("0") or gb))
+    if r is None:
+        return
+    r.servis_zadnji = date.today()
+    if r.km_trenutni is not None:
+        r.servis_km = r.km_trenutni   # km na servisu = trenutni → km-brojač ispočetka
+
+
 def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
     """Radnici ovog zadatka se odjavljuju sa svih DRUGIH zadataka (jedan radnik
     radi istovremeno na samo jednoj operaciji). Ako zadatak ostane bez ijednog
@@ -1201,6 +1220,7 @@ def azuriraj_zadatak(
         if podaci.gotovo:
             _zaustavi_mjerac(z)  # zaustavi mjerenje i zabilježi vrijeme završetka
             z.zavrseno = datetime.now(timezone.utc)
+            servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
             # Ako operacija ima dodijeljene radnike, nastavi mjerenje s njima

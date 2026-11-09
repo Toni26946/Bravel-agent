@@ -24,7 +24,7 @@ from ..models import (
 from ..push import obavijesti_korisnika
 from .nalozi import (
     _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga,
-    _sljedeci_broj, _sync_povijest, nalog_eager,
+    _sljedeci_broj, _sync_povijest, nalog_eager, servis_odradjen,
 )
 
 router = APIRouter(prefix="/plan", tags=["plan"])
@@ -1110,6 +1110,7 @@ def prekini(zid: int, p: PrekiniIn, korisnik: Korisnik = Depends(trenutni_korisn
         z.zavrseno = datetime.now(timezone.utc)
         z.razlog_prekida = None
         z.prekid_vrijeme = None
+        servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
     elif p.razlog == "dijelovi":
         z.razlog_prekida = "dijelovi"
         z.prekid_vrijeme = None

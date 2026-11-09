@@ -250,3 +250,23 @@ def test_servis_dospio_dodaje_operaciju_u_plan():
     assert n.plan_rang is not None         # u planu
 
     assert pregledi_auto.tik(db) == 0      # drugi prolaz ne duplira
+
+
+def test_servis_odradjen_azurira_zadnji_servis():
+    """Kad se SERVIS operacija završi → zadnji servis = danas, servis_km = trenutni km."""
+    from app.routers.nalozi import servis_odradjen
+    db = _session()
+    db.add(Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj))
+    _vozilo(db, "S2")
+    db.add(RegistarVozila(gb="S2", kategorija="kamion", status=StatusVozila.aktivno,
+                          servis_zadnji=date.today() - timedelta(days=400), km_trenutni=250000))
+    db.commit()
+
+    pregledi_auto.tik(db)
+    n = db.query(Nalog).filter(Nalog.status.in_(pregledi_auto._AKTIVNI)).one()
+    op = next(o for o in n.operacije if o.kategorija == "SERVIS")
+    servis_odradjen(db, op.zadaci[0]); db.commit()
+
+    r = db.get(RegistarVozila, "S2")
+    assert r.servis_zadnji == date.today()
+    assert r.servis_km == 250000
