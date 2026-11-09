@@ -79,6 +79,15 @@ class Settings(BaseSettings):
     # kalibraciju €/norma-sat. App dohvaća stranicu i parsira mjesečne podatke.
     obracun_url: str = "https://bravel-obracun.surge.sh"
 
+    # APROSS / Zagreb Data — API za skladišne dokumente (šifrarnici, stanje zalihe,
+    # kreiranje primki/artikala u ERP-u). Dvostruka autentifikacija: API-KEY u URL-u
+    # + HTTP Basic (korisnik/lozinka). Sve se dostavlja sigurnim kanalom (fly secrets).
+    # Prazan API-KEY = integracija isključena (endpointi vraćaju „nije povezano").
+    aross_base: str = "https://bravel-api-test.zgdata.hr/api5"  # bez završnog / i bez ključa
+    aross_api_key: str = ""              # AROSS_API_KEY — fly secret (dio URL-a)
+    aross_user: str = ""                 # AROSS_USER — Basic Auth korisnik — fly secret
+    aross_pass: str = ""                 # AROSS_PASS — Basic Auth lozinka — fly secret
+
     # AI Poslovođa — vidljiva SAMO ovom korisničkom imenu (dok nije spremno za sve).
     # Prazno = fallback na voditelja (da se ne zaključa).
     ai_poslovodja_user: str = "toni"
