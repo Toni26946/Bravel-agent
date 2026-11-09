@@ -77,6 +77,20 @@ VRSTE = [
 _KATEGORIJE = {k for (k, _o, _f) in VRSTE}
 
 
+def _servis_opis(si: dict) -> str:
+    """Kratak opis servis-operacije: kad je zadnji servis + koliko još do servisa."""
+    z = si.get("servis_zadnji")
+    zadnji = f"zadnji {date.fromisoformat(z).strftime('%d.%m.%Y')}" if z else "zadnji nepoznat"
+    kmp, dani = si.get("km_preostalo"), si.get("preostalo_dana")
+    if kmp is not None:
+        do = f"prekoračeno {abs(kmp)} km" if kmp <= 0 else f"još {kmp} km"
+    elif dani is not None:
+        do = "dospio" if dani <= 0 else f"još {dani} dana"
+    else:
+        do = "dospio"
+    return f"Servis — {zadnji} · {do}"
+
+
 def _vozilo_za_gb(db, gb: str) -> Vozilo:
     """Dohvati (ili stvori minimalni) Vozilo za garažni broj — treba ga nalog."""
     voz = db.query(Vozilo).filter(Vozilo.gb == gb).first()
@@ -157,12 +171,15 @@ def tik(db) -> int:
                 RegistarVozila.kategorija == "kamion")
         .all()
     )
+    from .routers.vozila import _servis_info
     for r in vozila:
         # Samo NADOLAZEĆI rokovi (danas → +14 dana). Davno dospjele (stari/zaostali
         # datumi) namjerno preskačemo da ne poplave plan — hvatamo svaki ~2 tj. prije.
         dospjele = [(kat, opis, rok) for (kat, opis, fn) in VRSTE
                     if (rok := fn(r)) and danas <= rok <= prag]
-        if not dospjele:
+        si = _servis_info(r, danas)
+        servis_treba = si["status"] in ("dospjelo", "uskoro")   # dospio ili uskoro (vrijeme/km)
+        if not dospjele and not servis_treba:
             continue
         voz = _vozilo_za_gb(db, r.gb)
         nalog = _aktivni_nalog(db, voz, voditelj)
@@ -178,6 +195,14 @@ def tik(db) -> int:
             db.flush()
             dodano += 1
             promjena = True
+        # SERVIS (običan posao, NE pregledarov) — operacija u planu, bez dodijeljenog radnika.
+        if servis_treba and not _vec_na_aktivnom(db, voz.id, "SERVIS"):
+            op = Operacija(kategorija="SERVIS", redoslijed=len(nalog.operacije))
+            nalog.operacije.append(op)
+            op.zadaci.append(Zadatak(opis=_servis_opis(si), redoslijed=0))
+            db.flush()
+            dodano += 1
+            promjena = True
         # Dodijeli pregledara i postojećim pregled-operacijama bez radnika (npr. one iz ranije).
         if pregledar:
             for op in nalog.operacije:
@@ -186,8 +211,9 @@ def tik(db) -> int:
                         if " — rok " in (z.opis or "") and not z.radnici:
                             z.radnici = [pregledar]
                             promjena = True
-        # Da se VIDI U PLANU: ako nalog s našom pregled-operacijom nije u planu, dodaj ga na kraj.
-        if nalog.plan_rang is None and _ima_nasu_pregled(nalog):
+        # Da se VIDI U PLANU: ako nalog ima našu pregled- ili servis-operaciju, dodaj ga na kraj.
+        ima_servis = any(op.kategorija == "SERVIS" for op in nalog.operacije)
+        if nalog.plan_rang is None and (_ima_nasu_pregled(nalog) or ima_servis):
             nalog.plan_rang = sljedeci_rang
             sljedeci_rang += 1
             promjena = True

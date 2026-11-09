@@ -230,3 +230,23 @@ def test_bez_voditelja_ne_radi_nista():
     db.commit()
     assert pregledi_auto.tik(db) == 0
     assert db.query(Nalog).count() == 0
+
+
+def test_servis_dospio_dodaje_operaciju_u_plan():
+    """Kad servis dospije (zadnji + 12 mj prošlo), auto se doda operacija SERVIS u plan,
+    bez dodijeljenog radnika, s kratkim opisom (zadnji datum + koliko do servisa)."""
+    db = _session()
+    db.add(Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj))
+    _vozilo(db, "S1")
+    db.add(RegistarVozila(gb="S1", kategorija="kamion", status=StatusVozila.aktivno,
+                          servis_zadnji=date.today() - timedelta(days=400)))  # 12 mj prošlo → dospio
+    db.commit()
+
+    assert pregledi_auto.tik(db) == 1
+    n = db.query(Nalog).filter(Nalog.status.in_(pregledi_auto._AKTIVNI)).one()
+    op = next(o for o in n.operacije if o.kategorija == "SERVIS")
+    assert op.zadaci[0].opis.startswith("Servis — zadnji")
+    assert op.zadaci[0].radnici == []     # servis NIJE pregledarov posao (bez radnika)
+    assert n.plan_rang is not None         # u planu
+
+    assert pregledi_auto.tik(db) == 0      # drugi prolaz ne duplira
