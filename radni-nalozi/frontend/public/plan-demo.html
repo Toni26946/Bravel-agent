@@ -74,6 +74,10 @@
   .bonus-tab th,.bonus-tab td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
   .bonus-tab th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   .bonus-tab tr.b-cist td{background:#f0fdf4}
+  .b-prek{cursor:pointer;user-select:none;border-bottom:1px dashed currentColor}
+  .bonus-tab tr.b-det td{background:#fef2f2;white-space:normal}
+  .b-det-ul{margin:4px 0;padding-left:18px;color:var(--tekst);font-weight:400}
+  .b-det-ul li{margin:2px 0;font-size:12.5px}
   @media(min-width:1100px){
     body.view-pl .meh-idx{display:flex}
     body.view-pl main{padding-left:216px}
@@ -843,9 +847,18 @@
     if(!r.length){ h+='<div class="card" style="color:var(--muted)">Još nema podataka — bilježi se od sad (svako jutarnje slanje poveznice).</div>'; return h; }
     h+='<div class="card"><table class="bonus-tab"><thead><tr><th>#</th><th>Serviser</th><th>Jutara</th><th>Na vrijeme</th><th>Prekršaji</th><th>%</th><th>Bonus</th></tr></thead><tbody>';
     r.forEach(function(x){
+      var det=x.prekrsaji_detalji||[];
+      var pcell = x.prekrsaji>0
+        ? '<td style="color:var(--crveno);font-weight:700">'+
+            '<span class="b-prek" onclick="PLAN.toggleBonus('+x.radnik_id+')" title="Prikaži kad i zašto">'+x.prekrsaji+' ▾</span></td>'
+        : '<td>'+x.prekrsaji+'</td>';
       h+='<tr'+(x.prekrsaji===0?' class="b-cist"':'')+'><td>'+x.mjesto+'</td><td><b>'+esc(x.ime)+'</b></td><td>'+x.ocekivano+'</td><td>'+x.na_vrijeme+'</td>'+
-         '<td'+(x.prekrsaji>0?' style="color:var(--crveno);font-weight:700"':'')+'>'+x.prekrsaji+'</td><td>'+x.postotak+'%</td>'+
+         pcell+'<td>'+x.postotak+'%</td>'+
          '<td>'+(pool>0?(x.bonus_eur||0).toLocaleString('hr-HR')+' €':'—')+'</td></tr>';
+      if(det.length){
+        var li=det.map(function(p){return '<li><b>'+esc(p.datum)+'</b> — '+esc(p.razlog)+'</li>';}).join('');
+        h+='<tr class="b-det" id="bdet-'+x.radnik_id+'" hidden><td></td><td colspan="6"><ul class="b-det-ul">'+li+'</ul></td></tr>';
+      }
     });
     h+='</tbody></table></div>';
     return h;
@@ -919,7 +932,9 @@
       if(!confirm('Vratiti ovu operaciju u plan kao NIJE GOTOVO?')) return;
       api("/zadatak/"+zid+"/vrati","POST").then(function(){ toast("Vraćeno u plan"); pogled==="nap" ? ucitaj(true) : ucitaj(); })
         .catch(function(e){ toast(e.message||"Greška"); });
-    } };
+    },
+    // Klik-bonus: prikaži/sakrij popis prekršaja (datum + razlog) za jednog servisera.
+    toggleBonus:function(rid){ var el=document.getElementById("bdet-"+rid); if(el){ el.hidden=!el.hidden; } } };
 
   // tabs
   document.getElementById("tabs").addEventListener("click",function(e){

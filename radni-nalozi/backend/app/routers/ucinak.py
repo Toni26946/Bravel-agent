@@ -302,13 +302,22 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
         if not dani:
             continue
         nav = 0
-        for d in dani:
+        detalji: list[dict] = []
+        for d in sorted(dani, reverse=True):   # najnoviji prekršaj gore
             if d in rucno.get(m.id, ()):
+                detalji.append({"datum": d.strftime("%d.%m.%Y"),
+                                "razlog": "ručno prijavljen (dispečer umjesto njega)"})
                 continue   # ručno prijavljen tog dana → prekršaj (nije sam kliknuo)
             k = prvi.get(m.id, {}).get(d)
             if k is not None and (k.hour, k.minute) <= (dh, dm):
                 nav += 1
-        po[m.id] = {"ocekivano": len(dani), "na_vrijeme": nav, "prekrsaji": len(dani) - nav}
+            elif k is not None:
+                detalji.append({"datum": d.strftime("%d.%m.%Y"),
+                                "razlog": f"kliknuo u {k.hour:02d}:{k.minute:02d} — nakon {dh:02d}:{dm:02d}"})
+            else:
+                detalji.append({"datum": d.strftime("%d.%m.%Y"), "razlog": "nije kliknuo"})
+        po[m.id] = {"ocekivano": len(dani), "na_vrijeme": nav,
+                    "prekrsaji": len(dani) - nav, "detalji": detalji}
 
     # 5) Podjela poola: razmjerno disciplini; izgubljeni dio onima bez prekršaja.
     n = len(po)
@@ -326,6 +335,7 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
             "radnik_id": rid, "ime": imena.get(rid, "—"),
             "ocekivano": d["ocekivano"], "na_vrijeme": d["na_vrijeme"],
             "prekrsaji": d["prekrsaji"],
+            "prekrsaji_detalji": d["detalji"],
             "postotak": round(100 * d["na_vrijeme"] / d["ocekivano"]) if d["ocekivano"] else 0,
             "bonus_eur": round(bonus, 2),
         })
