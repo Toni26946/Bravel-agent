@@ -80,19 +80,6 @@ def aross_test(db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasnik
     return {"ok": True, "poruka": f"Spoj radi — dohvaćeno skladišta: {n}.", "skladista": n}
 
 
-@router.get("/aross/debug")
-def aross_debug(db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasnik)):
-    """Sirovi odgovori APROSS-a — za dijagnostiku strukture (vlasnik-only)."""
-    out = {}
-    for ime, fn in (("skladista", aross.skladista), ("artikli", aross.artikli),
-                    ("artikliStanje", aross.artikli_stanje)):
-        try:
-            out[ime] = fn(db)
-        except Exception as e:  # noqa: BLE001
-            out[ime] = {"GRESKA": str(e)}
-    return out
-
-
 def _na_broj(x):
     try:
         return float(x)
