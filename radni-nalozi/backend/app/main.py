@@ -18,7 +18,7 @@ from . import pregledi_auto
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migrate import migrate
-from .routers import auth, dijelovi, dispecer, evidencija, korisnici, nalozi, paznja, plan, poslovodja, prijave, primke, push, stete, ucinak, vozaci, vozila, zaduzenja
+from .routers import auth, dijelovi, dispecer, evidencija, integracije, korisnici, nalozi, paznja, plan, poslovodja, prijave, primke, push, stete, ucinak, vozaci, vozila, zaduzenja
 from .routers.vozaci import seed_vozaci
 from .norme import seed_norme, uskladi_norme
 from .obracun_radione import auto_sync_pri_pokretanju
@@ -204,6 +204,7 @@ app.include_router(flota_router.router, prefix="/api")
 app.include_router(imenik_router.router, prefix="/api")
 app.include_router(dispecer.router, prefix="/api")
 app.include_router(samostalno_router.router, prefix="/api")
+app.include_router(integracije.router, prefix="/api")
 # Login-less stranica mehaničara /z/<token> — registrirana PRIJE SPA catch-alla.
 app.include_router(dispecer.page_router)
 

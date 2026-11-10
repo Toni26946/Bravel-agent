@@ -203,6 +203,11 @@ export const api = {
   klikBonus: (dana = 30) => zahtjev(`/ucinak/klik-bonus?dana=${dana}`),
   klikPostavke: (izmjene) => zahtjev('/ucinak/klik-postavke', { method: 'POST', body: izmjene }),
 
+  // Integracije (vlasnik) — APROSS / Zagreb Data
+  arossStanje: () => zahtjev('/integracije/aross'),
+  arossSpremi: (b) => zahtjev('/integracije/aross', { method: 'POST', body: b }),
+  arossTest: () => zahtjev('/integracije/aross/test', { method: 'POST' }),
+
   // Šteta
   stete: () => zahtjev('/stete'),
   glasovniParseStete: (tekst, vozaci) =>

@@ -44,7 +44,7 @@ def test_primka_tijelo_racuna_ukupno(monkeypatch):
     """kreiraj_primku treba zbrojiti stavke u ukupanIznos i popuniti iznos kad fali."""
     poslano = {}
 
-    def fake_post(putanja, tijelo):
+    def fake_post(putanja, tijelo, db=None):
         poslano["putanja"] = putanja
         poslano["tijelo"] = tijelo
         return [{"webBrojPrimke": tijelo["brojPrimke"], "erpBrojPrimke": 2476}]
@@ -66,7 +66,7 @@ def test_primka_tijelo_racuna_ukupno(monkeypatch):
 
 def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):
     poslano = {}
-    monkeypatch.setattr(aross, "_post", lambda p, t: poslano.update(putanja=p, tijelo=t) or [])
+    monkeypatch.setattr(aross, "_post", lambda p, t, db=None: poslano.update(putanja=p, tijelo=t) or [])
     aross.kreiraj_artikl(id_artikla=27374, naziv="TEST ARTIKL", jmj="kom")
     t = poslano["tijelo"]
     assert t == {"idArtikla": 27374, "naziv": "TEST ARTIKL", "jmj": "kom"}  # bez katBroj/barkod

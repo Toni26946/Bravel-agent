@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Bedz, MikrofonGumb, Spinner } from '../ui'
 import { useT } from '../i18n'
+import { useAuth } from '../auth'
 import { MODULI, MODULI_ULOGA } from '../moduli'
 import { kljucImena, lijepBroj, useBrojeviIzImenika } from '../imenik'
 
@@ -22,16 +23,92 @@ const ULOGE = ['voditelj', 'poslovodja', 'radnik', 'skladistar', 'vozac']
 
 export default function Sifrarnik({ pocetniTab = 'vozila' }) {
   const { t } = useT()
+  const { korisnik } = useAuth()
   const [tab, setTab] = useState(pocetniTab)
+  const vlasnik = !!korisnik?.ai_poslovodja   // Integracije (ključevi) vidi samo vlasnik
   return (
     <Layout naslov={t('sif.title')}>
       <div className="chips">
         <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>{t('sif.vozila')}</span>
         <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
+        {vlasnik && <span className={`chip ${tab === 'integracije' ? 'akt' : ''}`} onClick={() => setTab('integracije')}>🔌 Integracije</span>}
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
+      {tab === 'integracije' && vlasnik && <Integracije />}
     </Layout>
+  )
+}
+
+// --- Integracije (vlasnik): APROSS / Zagreb Data — ključ se lijepi ovdje, bez terminala ---
+function Integracije() {
+  const [st, setSt] = useState(null)
+  const [kljuc, setKljuc] = useState('')
+  const [greska, setGreska] = useState('')
+  const [poruka, setPoruka] = useState('')
+  const [radi, setRadi] = useState(false)
+
+  const ucitaj = () => api.arossStanje().then(setSt).catch((e) => setGreska(e.message))
+  useEffect(() => { ucitaj() }, [])
+
+  const spremi = async () => {
+    setGreska(''); setPoruka(''); setRadi(true)
+    try {
+      const novo = await api.arossSpremi({ api_key: kljuc.trim() })
+      setSt(novo); setKljuc('')
+      setPoruka('Spremljeno.')
+    } catch (e) { setGreska(e.message) } finally { setRadi(false) }
+  }
+
+  const testiraj = async () => {
+    setGreska(''); setPoruka(''); setRadi(true)
+    try {
+      const r = await api.arossTest()
+      setPoruka(r.poruka || (r.ok ? 'Spoj radi.' : 'Spoj ne radi.'))
+    } catch (e) { setGreska(e.message) } finally { setRadi(false) }
+  }
+
+  const obrisi = async () => {
+    if (!confirm('Obrisati spremljeni APROSS ključ?')) return
+    setGreska(''); setPoruka(''); setRadi(true)
+    try { setSt(await api.arossSpremi({ api_key: '' })); setPoruka('Ključ obrisan.') }
+    catch (e) { setGreska(e.message) } finally { setRadi(false) }
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 560 }}>
+      <h3 style={{ marginTop: 0 }}>APROSS — skladišni dokumenti (Zagreb Data)</h3>
+      {greska && <p style={{ color: 'var(--crveno)' }}>{greska}</p>}
+      {poruka && <p style={{ color: 'var(--zelena, green)' }}>{poruka}</p>}
+
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0 }}>
+        Status:{' '}
+        {st?.povezano
+          ? <b style={{ color: 'var(--zelena, green)' }}>povezano ✓ (ključ {st.kljuc_kraj})</b>
+          : <b style={{ color: 'var(--crveno)' }}>nije povezano</b>}
+        {st && st.ima_basic ? ' · Basic Auth postavljen' : ''}
+      </p>
+
+      <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+        Zalijepi testni API-KEY (iz password.link maila):
+      </label>
+      <input
+        type="password"
+        value={kljuc}
+        onChange={(e) => setKljuc(e.target.value)}
+        placeholder="API-KEY…"
+        autoComplete="off"
+        style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn" disabled={radi || !kljuc.trim()} onClick={spremi}>💾 Spremi ključ</button>
+        <button className="btn ghost" disabled={radi || !st?.ima_kljuc} onClick={testiraj}>🔌 Testiraj spoj</button>
+        {st?.ima_kljuc && <button className="btn ghost" disabled={radi} onClick={obrisi} style={{ color: 'var(--crveno)' }}>Obriši</button>}
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 0 }}>
+        Ključ se sprema u bazu portala i ne prikazuje se natrag. Basic Auth (korisnik/lozinka) dodajemo kad ga Zagreb Data pošalje.
+      </p>
+    </div>
   )
 }
 
