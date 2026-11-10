@@ -6,6 +6,75 @@ import { useT } from '../i18n'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
+// --- Zalihe iz APROSS-a (uživo) — proširiva kartica na vrhu Skladišta ---
+function ZaliheAPROSS() {
+  const [otvoreno, setOtvoreno] = useState(false)
+  const [data, setData] = useState(null)
+  const [greska, setGreska] = useState('')
+  const [radi, setRadi] = useState(false)
+  const [q, setQ] = useState('')
+
+  const ucitaj = () => {
+    setGreska(''); setRadi(true)
+    api.arossZalihe().then((d) => setData(d)).catch((e) => setGreska(e.message)).finally(() => setRadi(false))
+  }
+  const prebaci = () => { const n = !otvoreno; setOtvoreno(n); if (n && data === null) ucitaj() }
+
+  const filtrirano = (arts) => {
+    const s = q.trim().toLowerCase()
+    if (!s) return arts
+    return arts.filter((a) => (a.naziv || '').toLowerCase().includes(s) || String(a.sifra).includes(s) || (a.kataloskiBroj || '').toLowerCase().includes(s))
+  }
+
+  return (
+    <div className="karta" style={{ marginBottom: 14 }}>
+      <div className="naslov-red" style={{ cursor: 'pointer' }} onClick={prebaci}>
+        <h3 style={{ margin: 0 }}>📦 Zalihe (APROSS) {otvoreno ? '▾' : '▸'}</h3>
+        {otvoreno && <button className="btn mali" onClick={(e) => { e.stopPropagation(); ucitaj() }} disabled={radi}>↻ Osvježi</button>}
+      </div>
+
+      {otvoreno && (
+        <div style={{ marginTop: 8 }}>
+          {greska && <div className="greska">{greska}</div>}
+          {radi && data === null && <Spinner />}
+          {data && data.povezano === false && <p className="meta">APROSS nije povezan. Postavi ključ u Šifrarnik → Integracije.</p>}
+          {data && data.povezano && data.skladista.length === 0 && <p className="meta">Nema zaliha za prikaz.</p>}
+          {data && data.povezano && data.skladista.length > 0 && (
+            <>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Traži artikl, šifru, kataloški broj…" style={{ marginBottom: 8 }} />
+              {data.skladista.map((s) => {
+                const arts = filtrirano(s.artikli)
+                return (
+                  <div key={s.sifra} style={{ marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, margin: '6px 0' }}>{s.naziv} <span className="meta">({arts.length})</span></div>
+                    {arts.length === 0 ? <p className="meta" style={{ margin: 0 }}>—</p> : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <tbody>
+                          {arts.map((a) => (
+                            <tr key={a.sifra} style={{ borderBottom: '1px solid var(--line, #eee)' }}>
+                              <td style={{ padding: '4px 6px' }}>
+                                {a.naziv}
+                                {a.kataloskiBroj ? <span className="meta"> · {a.kataloskiBroj}</span> : ''}
+                              </td>
+                              <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: a.stanje < 0 ? 'var(--crveno)' : 'inherit' }}>
+                                {a.stanje}{a.jmj ? ` ${a.jmj}` : ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Iznos retka = količina × cijena (null ako nema cijene).
 function redIznos(s) {
   const c = parseFloat(s.cijena); const k = parseFloat(s.kolicina)
@@ -356,6 +425,8 @@ export default function Skladiste() {
     <Layout naslov={t('skl.naslov')}>
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
+
+      <ZaliheAPROSS />
 
       {dijelovi.length > 0 && (
         <div className="karta" style={{ marginBottom: 14, borderLeft: '4px solid var(--narancasta, #b26a00)' }}>
