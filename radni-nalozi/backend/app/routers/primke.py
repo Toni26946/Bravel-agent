@@ -1,9 +1,9 @@
 """Primke robe — skladištar fotografira otpremnicu dobavljača (1+ stranica), AI izvuče stavke."""
 import os
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from ..ai import ai_dostupan, parsiraj_otpremnicu
@@ -23,6 +23,7 @@ from ..schemas import (
     StranicaOtpremnice,
 )
 from ..storage import spremi_sliku
+from .evidencija import _servisna_ovlast
 
 router = APIRouter(prefix="/primke", tags=["primke"])
 
@@ -168,6 +169,69 @@ def izvoz(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     for stupac, sirina in zip("ABCDEFGH", (26, 18, 12, 44, 10, 10, 13, 13)):
         ws.column_dimensions[stupac].width = sirina
     return _xlsx_odgovor(wb, "primke")
+
+
+# --- Trošak dijelova po vozilu (iz razduženja primki) ------------------------
+# Izvor istine za Flotu: koliko je dijelova (u €) otišlo na koji GB. Trošak stavke
+# na vozilo = razduženje.kolicina × stavka.cijena. Zamjenjuje Flotin REZERVNI
+# DIJELOVI.xlsx / rezervni_mjesecno.py.
+def _parse_d(s):
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(str(s)[:10])
+    except ValueError:
+        return None
+
+
+def _trosak_po_vozilu(db: Session, od: date | None = None, do: date | None = None) -> list[dict]:
+    agg: dict[str, dict] = {}
+    for p in db.query(Primka).all():
+        d = p.datum or (p.kreiran.date() if p.kreiran else None)
+        if od and d and d < od:
+            continue
+        if do and d and d > do:
+            continue
+        for s in (p.stavke or []):
+            try:
+                cij = float(s.get("cijena")) if s.get("cijena") not in (None, "") else None
+            except (TypeError, ValueError):
+                cij = None
+            for r in (s.get("razduzenja") or []):
+                gb = str(r.get("gb") or "").strip()
+                if not gb:
+                    continue
+                try:
+                    kol = float(r.get("kolicina") or 0)
+                except (TypeError, ValueError):
+                    kol = 0.0
+                iznos = round(kol * cij, 2) if cij is not None else None
+                a = agg.setdefault(gb, {"gb": gb, "iznos": 0.0, "stavki": 0, "stavke": []})
+                if iznos is not None:
+                    a["iznos"] = round(a["iznos"] + iznos, 2)
+                a["stavki"] += 1
+                a["stavke"].append({
+                    "artikl": s.get("artikl"), "kolicina": kol, "cijena": cij, "iznos": iznos,
+                    "datum": d.isoformat() if d else None, "primka_id": p.id, "dobavljac": p.dobavljac,
+                })
+    return sorted(agg.values(), key=lambda x: -x["iznos"])
+
+
+@router.get("/trosak-po-vozilu")
+def trosak_po_vozilu(od: str | None = Query(default=None), do: str | None = Query(default=None),
+                     _: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Trošak dijelova po vozilu (GB) iz razduženja primki. Opcijski raspon od/do (YYYY-MM-DD)."""
+    redovi = _trosak_po_vozilu(db, _parse_d(od), _parse_d(do))
+    ukupno = round(sum(r["iznos"] for r in redovi), 2)
+    return {"od": od, "do": do, "ukupno_eur": ukupno, "redovi": redovi}
+
+
+@router.get("/servis/trosak-po-vozilu")
+def servis_trosak_po_vozilu(od: str | None = Query(default=None), do: str | None = Query(default=None),
+                            _: bool = Depends(_servisna_ovlast), db: Session = Depends(get_db)):
+    """Trošak dijelova po vozilu — za Flota OS (M2M, X-Servis-Kljuc). Kompaktan oblik."""
+    redovi = _trosak_po_vozilu(db, _parse_d(od), _parse_d(do))
+    return [{"gb": r["gb"], "iznos_eur": r["iznos"], "stavki": r["stavki"]} for r in redovi]
 
 
 @router.get("/{primka_id}", response_model=PrimkaOut)

@@ -91,6 +91,60 @@ function ZaliheAPROSS() {
 }
 
 // Iznos retka = količina × cijena (null ako nema cijene).
+// --- Trošak dijelova po vozilu (iz razduženja) — proširiva kartica ---
+function TrosakPoVozilu() {
+  const [otvoreno, setOtvoreno] = useState(false)
+  const [data, setData] = useState(null)
+  const [greska, setGreska] = useState('')
+  const [radi, setRadi] = useState(false)
+  const [otv, setOtv] = useState({})
+
+  const ucitaj = () => { setGreska(''); setRadi(true); api.trosakPoVozilu().then(setData).catch((e) => setGreska(e.message)).finally(() => setRadi(false)) }
+  const prebaci = () => { const n = !otvoreno; setOtvoreno(n); if (n && data === null) ucitaj() }
+  const eur = (n) => (n == null ? '—' : Number(n).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
+
+  return (
+    <div className="karta" style={{ marginBottom: 14 }}>
+      <div className="naslov-red" style={{ cursor: 'pointer' }} onClick={prebaci}>
+        <h3 style={{ margin: 0 }}>💶 Trošak dijelova po vozilu {otvoreno ? '▾' : '▸'}</h3>
+        {otvoreno && <button className="btn mali" onClick={(e) => { e.stopPropagation(); ucitaj() }} disabled={radi}>↻ Osvježi</button>}
+      </div>
+      {otvoreno && (
+        <div style={{ marginTop: 8 }}>
+          {greska && <div className="greska">{greska}</div>}
+          {radi && data === null && <Spinner />}
+          {data && (data.redovi || []).length === 0 && <p className="meta">Još nema razduženih dijelova na vozila.</p>}
+          {data && (data.redovi || []).length > 0 && (
+            <>
+              <p className="meta" style={{ marginTop: 0 }}>Ukupno razduženo: <b>{eur(data.ukupno_eur)}</b> · izvor koji Flota čita za trošak po kamionu.</p>
+              {data.redovi.map((r) => (
+                <div key={r.gb} style={{ border: '1px solid var(--line, #eee)', borderRadius: 8, marginBottom: 6 }}>
+                  <div onClick={() => setOtv((p) => ({ ...p, [r.gb]: !p[r.gb] }))} style={{ cursor: 'pointer', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span>{otv[r.gb] ? '▾' : '▸'} 🚚 GB {r.gb}</span>
+                    <span>{eur(r.iznos)} <span className="meta" style={{ fontWeight: 400 }}>· {r.stavki} stavki</span></span>
+                  </div>
+                  {otv[r.gb] && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <tbody>
+                        {r.stavke.map((s, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid var(--line, #eee)' }}>
+                            <td style={{ padding: '4px 10px' }}>{s.artikl}<span className="meta"> · {s.datum || ''}{s.dobavljac ? ' · ' + s.dobavljac : ''}</span></td>
+                            <td style={{ padding: '4px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>{s.kolicina} × {eur(s.cijena)} = <b>{eur(s.iznos)}</b></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Generička tražilica s padajućim rezultatima (artikl / dobavljač iz Aprossa).
 // onKreiraj(q) — opcionalno: ponudi kreiranje novog zapisa (vrati kreirani objekt).
 function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '', onKreiraj }) {
@@ -597,6 +651,7 @@ export default function Skladiste() {
       {poruka && <div className="uspjeh">{poruka}</div>}
 
       <ZaliheAPROSS />
+      <TrosakPoVozilu />
 
       {dijelovi.length > 0 && (
         <div className="karta" style={{ marginBottom: 14, borderLeft: '4px solid var(--narancasta, #b26a00)' }}>
