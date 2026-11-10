@@ -10,7 +10,7 @@ from ..ai import ai_dostupan, parsiraj_otpremnicu
 from ..auth import zahtijevaj_uloge
 from ..config import settings
 from ..database import get_db
-from ..models import Korisnik, Primka, Uloga
+from ..models import Izdatnica, Korisnik, Primka, Uloga
 from ..schemas import (
     KorisnikOut,
     OtpremnicaProcitana,
@@ -213,7 +213,28 @@ def _trosak_po_vozilu(db: Session, od: date | None = None, do: date | None = Non
                 a["stavke"].append({
                     "artikl": s.get("artikl"), "kolicina": kol, "cijena": cij, "iznos": iznos,
                     "datum": d.isoformat() if d else None, "primka_id": p.id, "dobavljac": p.dobavljac,
+                    "izvor": "primka",
                 })
+    # Izdatnice (utrošeni dijelovi na nalozima) — vezane izravno na vozilo (GB).
+    for iz in db.query(Izdatnica).all():
+        d = iz.kreiran.date() if iz.kreiran else None
+        if od and d and d < od:
+            continue
+        if do and d and d > do:
+            continue
+        gb = (iz.vozilo_gb or "").strip()
+        if not gb:
+            continue
+        kol = float(iz.kolicina or 0)
+        iznos = round(kol * iz.cijena, 2) if iz.cijena is not None else None
+        a = agg.setdefault(gb, {"gb": gb, "iznos": 0.0, "stavki": 0, "stavke": []})
+        if iznos is not None:
+            a["iznos"] = round(a["iznos"] + iznos, 2)
+        a["stavki"] += 1
+        a["stavke"].append({
+            "artikl": iz.artikl_naziv, "kolicina": kol, "cijena": iz.cijena, "iznos": iznos,
+            "datum": d.isoformat() if d else None, "nalog_id": iz.nalog_id, "izvor": "izdatnica",
+        })
     return sorted(agg.values(), key=lambda x: -x["iznos"])
 
 

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
@@ -162,6 +162,9 @@ export default function NalogDetalj() {
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'} />
+
+      {/* Utrošeni dijelovi (izdatnice) → vozilo / trošak po vozilu */}
+      <IzdatniceBlok nalogId={n.id} gb={n.vozilo?.gb} naGresku={setGreska} />
 
       {/* Ispis naloga (vidljivo samo pri printanju) */}
       <NalogPrint n={n} servis={servis} pregled={pregled} />
@@ -553,5 +556,87 @@ function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
       <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => setOpis((v) => (v ? v + ' ' : '') + tekst)} />
       <button className="btn sekund mali" onClick={spremi} disabled={!opis.trim()}>{t('op.zadatak')}</button>
     </div>
+  )
+}
+
+// --- Utrošeni dijelovi (izdatnice) na nalogu → vozilo / trošak po vozilu ---
+function IzdatniceBlok({ nalogId, gb, naGresku }) {
+  const [lista, setLista] = useState(null)
+  const [artikl, setArtikl] = useState(null)
+  const [q, setQ] = useState('')
+  const [rez, setRez] = useState([])
+  const [open, setOpen] = useState(false)
+  const [kol, setKol] = useState('1')
+  const [cijena, setCijena] = useState('')
+  const [radi, setRadi] = useState(false)
+  const tref = useRef(null)
+
+  const ucitaj = () => api.izdatnice(nalogId).then(setLista).catch((e) => naGresku(e.message))
+  useEffect(() => { ucitaj() }, [nalogId])
+
+  const run = (v) => {
+    setQ(v); setArtikl(null); setOpen(true)
+    clearTimeout(tref.current)
+    tref.current = setTimeout(async () => { try { setRez(await api.arossArtikliTrazi(v)) } catch { setRez([]) } }, 300)
+  }
+  const kreirajNovi = async () => {
+    if (!q.trim()) return
+    try { const r = await api.arossKreirajArtikl({ naziv: q.trim() }); if (r && r.artikl) { setArtikl(r.artikl); setQ(r.artikl.naziv); setRez([]); setOpen(false) } }
+    catch (e) { naGresku(e.message) }
+  }
+  const dodaj = async () => {
+    if (!artikl) return naGresku('Odaberi artikl iz Aprossa.')
+    const k = Number(kol); if (!(k > 0)) return naGresku('Količina mora biti veća od 0.')
+    setRadi(true)
+    try {
+      await api.dodajIzdatnicu(nalogId, { artikl_sifra: artikl.sifra, artikl_naziv: artikl.naziv, kataloski: artikl.kataloskiBroj || null, jmj: artikl.jmj || 'kom', kolicina: k, cijena: cijena === '' ? null : Number(cijena) })
+      setArtikl(null); setQ(''); setRez([]); setKol('1'); setCijena(''); ucitaj()
+    } catch (e) { naGresku(e.message) } finally { setRadi(false) }
+  }
+  const obrisi = async (id) => { try { await api.obrisiIzdatnicu(nalogId, id); ucitaj() } catch (e) { naGresku(e.message) } }
+  const eur = (n) => (n == null ? '—' : Number(n).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
+  const ukupno = (lista || []).reduce((a, i) => a + (i.iznos || 0), 0)
+
+  return (
+    <>
+      <div className="sekcija-naslov">🧰 Utrošeni dijelovi {gb ? `· GB ${gb}` : ''}</div>
+      <div className="karta">
+        <div style={{ position: 'relative' }}>
+          <input value={q} placeholder="traži dio (Apross artikl / kat. broj)…" onChange={(e) => run(e.target.value)} onFocus={() => setOpen(true)} style={{ width: '100%', boxSizing: 'border-box' }} />
+          {open && q.trim() && (
+            <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
+              {rez.map((a, i) => (
+                <div key={i} onClick={() => { setArtikl(a); setQ(a.naziv); setOpen(false) }} style={{ padding: '6px 8px', cursor: 'pointer', borderTop: i ? '1px solid var(--line, #eee)' : 'none', fontSize: 13 }}>
+                  {a.naziv}{a.kataloskiBroj ? ` · ${a.kataloskiBroj}` : ''}
+                </div>
+              ))}
+              <div onClick={kreirajNovi} style={{ padding: '7px 8px', cursor: 'pointer', borderTop: '1px solid var(--line, #eee)', fontSize: 13, color: 'var(--plava, #2563eb)', fontWeight: 600 }}>➕ Kreiraj novi artikl: „{q.trim()}"</div>
+            </div>
+          )}
+        </div>
+        {artikl && <div className="meta" style={{ color: 'var(--zelena, green)', marginTop: 4 }}>✓ {artikl.naziv} (šifra {artikl.sifra})</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ flex: 1 }}><label className="meta">Količina</label><input type="number" step="any" value={kol} onChange={(e) => setKol(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} /></div>
+          <div style={{ flex: 1 }}><label className="meta">Cijena (EUR)</label><input type="number" step="any" value={cijena} onChange={(e) => setCijena(e.target.value)} placeholder="opcijski" style={{ width: '100%', boxSizing: 'border-box' }} /></div>
+          <div style={{ alignSelf: 'flex-end' }}><button className="btn mali" disabled={radi || !artikl} onClick={dodaj}>➕ Dodaj</button></div>
+        </div>
+        {!gb && <p className="meta" style={{ color: 'var(--crveno)' }}>Nalog nema vozilo — izdatnica se neće vezati na GB.</p>}
+
+        {lista === null ? <Spinner /> : lista.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema utrošenih dijelova.</p> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
+            <tbody>
+              {lista.map((i) => (
+                <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
+                  <td style={{ padding: '4px 6px' }}>{i.artikl_naziv}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>{i.kolicina} {i.jmj}{i.cijena != null ? ` × ${eur(i.cijena)} = ${eur(i.iznos)}` : ''}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right' }}><span className="x" style={{ cursor: 'pointer' }} onClick={() => obrisi(i.id)}>×</span></td>
+                </tr>
+              ))}
+              <tr><td style={{ padding: '6px', fontWeight: 700 }}>Ukupno</td><td style={{ padding: '6px', textAlign: 'right', fontWeight: 700 }}>{eur(ukupno)}</td><td /></tr>
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
   )
 }

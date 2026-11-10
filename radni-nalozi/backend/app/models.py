@@ -459,6 +459,30 @@ class Primka(Base):
 
 
 # ---------------------------------------------------------------------------
+# Izdatnica — utrošeni dio na radnom nalogu, vezan na vozilo (mjesto troška).
+# Puni „trošak dijelova po vozilu"; kasnije se šalje u Apross kad dobiju endpoint.
+# ---------------------------------------------------------------------------
+class Izdatnica(Base):
+    __tablename__ = "izdatnice"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nalog_id: Mapped[int] = mapped_column(ForeignKey("nalozi.id", ondelete="CASCADE"), index=True)
+    vozilo_gb: Mapped[str] = mapped_column(String(40), index=True)   # snimka GB vozila naloga
+    artikl_sifra: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Apross šifra
+    artikl_naziv: Mapped[str] = mapped_column(String(200))
+    kataloski: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    jmj: Mapped[str] = mapped_column(String(20), default="kom")
+    kolicina: Mapped[float] = mapped_column(Float, default=1)
+    cijena: Mapped[float | None] = mapped_column(Float, nullable=True)   # jedinična (EUR)
+    apross_broj: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ERP broj izdatnice
+    kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    nalog: Mapped["Nalog"] = relationship()
+    kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
+
+
+# ---------------------------------------------------------------------------
 # Povijest zamjene dijelova po kamionu (kada i zašto se dio mijenjao)
 # ---------------------------------------------------------------------------
 class ZamjenaDijela(Base):

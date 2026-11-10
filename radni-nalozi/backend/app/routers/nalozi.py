@@ -3,6 +3,7 @@ import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload, object_session, selectinload
 
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
@@ -11,6 +12,7 @@ from ..models import (
     Dio,
     Dodjela,
     Fotografija,
+    Izdatnica,
     Korisnik,
     Nalog,
     Operacija,
@@ -1292,4 +1294,65 @@ def obrisi_zadatak(
     _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
     db.delete(z)
+    db.commit()
+
+
+# --- Izdatnice (utrošeni dijelovi na nalogu → vozilo/mjesto troška) -----------
+class IzdatnicaIn(BaseModel):
+    artikl_sifra: int | None = None
+    artikl_naziv: str
+    kataloski: str | None = None
+    jmj: str = "kom"
+    kolicina: float = 1
+    cijena: float | None = None
+
+
+def _izd_out(i: Izdatnica) -> dict:
+    iznos = round((i.kolicina or 0) * i.cijena, 2) if i.cijena is not None else None
+    return {
+        "id": i.id, "artikl_sifra": i.artikl_sifra, "artikl_naziv": i.artikl_naziv,
+        "kataloski": i.kataloski, "jmj": i.jmj, "kolicina": i.kolicina,
+        "cijena": i.cijena, "iznos": iznos, "vozilo_gb": i.vozilo_gb,
+        "apross_broj": i.apross_broj,
+        "kreiran": i.kreiran.isoformat() if i.kreiran else None,
+        "kreirao": (i.kreirao.ime if i.kreirao else None),
+    }
+
+
+@router.get("/{nalog_id}/izdatnice")
+def izdatnice_popis(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik),
+                    db: Session = Depends(get_db)):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    red = (db.query(Izdatnica).filter(Izdatnica.nalog_id == nalog_id)
+           .order_by(Izdatnica.kreiran.desc()).all())
+    return [_izd_out(i) for i in red]
+
+
+@router.post("/{nalog_id}/izdatnice", status_code=201)
+def izdatnica_dodaj(nalog_id: int, p: IzdatnicaIn, korisnik: Korisnik = Depends(trenutni_korisnik),
+                    db: Session = Depends(get_db)):
+    nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
+    naziv = (p.artikl_naziv or "").strip()
+    if not naziv:
+        raise HTTPException(status_code=400, detail="Naziv artikla je obavezan.")
+    if (p.kolicina or 0) <= 0:
+        raise HTTPException(status_code=400, detail="Količina mora biti veća od 0.")
+    gb = (nalog.vozilo.gb if nalog.vozilo else "") or ""
+    i = Izdatnica(nalog_id=nalog_id, vozilo_gb=gb, artikl_sifra=p.artikl_sifra,
+                  artikl_naziv=naziv, kataloski=p.kataloski, jmj=(p.jmj or "kom"),
+                  kolicina=float(p.kolicina), cijena=p.cijena, kreirao_id=korisnik.id)
+    db.add(i)
+    db.commit()
+    db.refresh(i)
+    return _izd_out(i)
+
+
+@router.delete("/{nalog_id}/izdatnice/{izd_id}", status_code=204)
+def izdatnica_obrisi(nalog_id: int, izd_id: int, korisnik: Korisnik = Depends(trenutni_korisnik),
+                     db: Session = Depends(get_db)):
+    _dohvati_ovlasten(db, nalog_id, korisnik)
+    i = db.get(Izdatnica, izd_id)
+    if not i or i.nalog_id != nalog_id:
+        raise HTTPException(status_code=404, detail="Izdatnica ne postoji")
+    db.delete(i)
     db.commit()
