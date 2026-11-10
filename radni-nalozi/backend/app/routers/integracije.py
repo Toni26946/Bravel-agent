@@ -232,24 +232,35 @@ def aross_artikli(q: str = Query(default="", max_length=100),
 
 
 class ArtiklIn(BaseModel):
-    id_artikla: int
     naziv: str
     jmj: str = "kom"
     kat_broj: str | None = None
     barkod: str | None = None
+    id_artikla: int | None = None   # ako je prazno → dodijeli sljedeću slobodnu šifru
 
 
 @router.post("/aross/artikl")
 def aross_kreiraj_artikl(p: ArtiklIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
-    """Kreiraj novi artikl u Aprossu (kad dio s otpremnice još ne postoji)."""
+    """Kreiraj novi artikl u Aprossu (kad dio s otpremnice još ne postoji).
+    Šifru dodjeljujemo sami (zadnja + 1) ako nije poslana. Vraća kreirani artikl."""
     if not aross.konfigurirano(db):
         raise HTTPException(status_code=503, detail="APROSS nije povezan.")
+    if not (p.naziv or "").strip():
+        raise HTTPException(status_code=400, detail="Naziv artikla je obavezan.")
     try:
-        rez = aross.kreiraj_artikl(p.id_artikla, p.naziv, p.jmj, p.kat_broj, p.barkod, db=db)
+        mapa = _artikli_mapa(db, osvjezi=True)   # svjež popis da izračunamo sljedeću šifru
+        id_art = p.id_artikla
+        if not id_art:
+            brojevi = [int(s) for s in mapa.keys() if isinstance(s, int) or str(s).isdigit()]
+            id_art = (max(brojevi) + 1) if brojevi else 1
+        if id_art in mapa:
+            raise HTTPException(status_code=409, detail=f"Šifra {id_art} već postoji.")
+        aross.kreiraj_artikl(id_art, p.naziv.strip(), p.jmj or "kom", p.kat_broj, p.barkod, db=db)
     except aross.ArossGreska as e:
         raise HTTPException(status_code=502, detail=str(e))
-    _ART_KES["ts"] = 0.0   # poništi keš da se novi artikl odmah vidi
-    return {"ok": True, "rezultat": rez}
+    _ART_KES["ts"] = 0.0   # poništi keš da se novi artikl odmah vidi u pretrazi
+    return {"ok": True, "artikl": {"sifra": id_art, "naziv": p.naziv.strip(),
+                                   "kataloskiBroj": p.kat_broj, "jmj": p.jmj or "kom"}}
 
 
 class PrimkaStavkaIn(BaseModel):

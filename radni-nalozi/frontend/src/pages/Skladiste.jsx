@@ -92,11 +92,13 @@ function ZaliheAPROSS() {
 
 // Iznos retka = količina × cijena (null ako nema cijene).
 // Generička tražilica s padajućim rezultatima (artikl / dobavljač iz Aprossa).
-function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '' }) {
+// onKreiraj(q) — opcionalno: ponudi kreiranje novog zapisa (vrati kreirani objekt).
+function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '', onKreiraj }) {
   const [q, setQ] = useState(pocetni)
   const [rez, setRez] = useState([])
   const [open, setOpen] = useState(false)
   const [radi, setRadi] = useState(false)
+  const [kreiram, setKreiram] = useState(false)
   const tref = useRef(null)
   const run = (v) => {
     setQ(v); setOpen(true); setRadi(true)
@@ -104,6 +106,12 @@ function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '' }) {
     tref.current = setTimeout(async () => {
       try { setRez(await trazi(v)) } catch { setRez([]) } finally { setRadi(false) }
     }, 300)
+  }
+  const kreiraj = async () => {
+    if (!onKreiraj || !q.trim() || kreiram) return
+    setKreiram(true)
+    try { const it = await onKreiraj(q.trim()); if (it) { setQ(opis(it)); setOpen(false) } }
+    finally { setKreiram(false) }
   }
   return (
     <div style={{ position: 'relative' }}>
@@ -120,6 +128,12 @@ function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '' }) {
               {opis(it)}
             </div>
           ))}
+          {onKreiraj && q.trim() && (
+            <div onClick={kreiraj}
+              style={{ padding: '7px 8px', cursor: 'pointer', borderTop: '1px solid var(--line, #eee)', fontSize: 13, color: 'var(--plava, #2563eb)', fontWeight: 600 }}>
+              {kreiram ? 'Kreiram…' : `➕ Kreiraj novi artikl: „${q.trim()}"`}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -202,7 +216,12 @@ function PosaljiUApross({ primka, onPoslano }) {
               <Trazilica placeholder="traži Apross artikl (naziv / kat. broj)…" pocetni={s.artikl || ''}
                 trazi={(q) => api.arossArtikliTrazi(q)}
                 opis={(a) => `${a.naziv}${a.kataloskiBroj ? ' · ' + a.kataloskiBroj : ''}`}
-                onPick={(a) => postaviMapu(i, { artikl: a })} />
+                onPick={(a) => postaviMapu(i, { artikl: a })}
+                onKreiraj={async (naziv) => {
+                  const r = await api.arossKreirajArtikl({ naziv, jmj: s.jedinica || 'kom' })
+                  if (r && r.artikl) { postaviMapu(i, { artikl: r.artikl }); return r.artikl }
+                  return null
+                }} />
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <div style={{ flex: 1 }}>
                   <label className="meta">Količina</label>
