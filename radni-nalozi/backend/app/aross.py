@@ -93,9 +93,18 @@ def _json(r: httpx.Response):
     if r.status_code >= 400:
         raise ArossGreska(f"APROSS HTTP {r.status_code}: {(r.text or '')[:300]}")
     try:
-        return r.json()
+        data = r.json()
     except ValueError as e:
         raise ArossGreska(f"APROSS: odgovor nije JSON: {e}") from e
+    # APROSS vraća grešku kao HTTP 200 s tijelom [{"message": "..."}] (npr. "Unauthorized
+    # access" kad nedostaje Basic Auth). Prepoznaj i digni jasnu grešku.
+    el = data[0] if isinstance(data, list) and len(data) == 1 else (data if isinstance(data, dict) else None)
+    if isinstance(el, dict) and set(el.keys()) == {"message"}:
+        msg = str(el.get("message") or "").strip()
+        if "unauthor" in msg.lower():
+            raise ArossGreska(f"APROSS: {msg} — treba Basic Auth (korisnik i lozinka).")
+        raise ArossGreska(f"APROSS: {msg}")
+    return data
 
 
 # --- GET: šifrarnici i stanje -------------------------------------------------

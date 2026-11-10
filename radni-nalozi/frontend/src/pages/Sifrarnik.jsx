@@ -44,18 +44,24 @@ export default function Sifrarnik({ pocetniTab = 'vozila' }) {
 function Integracije() {
   const [st, setSt] = useState(null)
   const [kljuc, setKljuc] = useState('')
+  const [korisnik, setKorisnik] = useState('')
+  const [lozinka, setLozinka] = useState('')
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
   const [radi, setRadi] = useState(false)
 
-  const ucitaj = () => api.arossStanje().then(setSt).catch((e) => setGreska(e.message))
+  const ucitaj = () => api.arossStanje().then((s) => { setSt(s); setKorisnik(s?.korisnik || '') }).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
 
   const spremi = async () => {
     setGreska(''); setPoruka(''); setRadi(true)
     try {
-      const novo = await api.arossSpremi({ api_key: kljuc.trim() })
-      setSt(novo); setKljuc('')
+      const telo = {}
+      if (kljuc.trim()) telo.api_key = kljuc.trim()
+      telo.user = korisnik.trim()           // korisnik se uvijek šalje (može biti i prazan)
+      if (lozinka) telo.lozinka = lozinka
+      const novo = await api.arossSpremi(telo)
+      setSt(novo); setKljuc(''); setLozinka('')
       setPoruka('Spremljeno.')
     } catch (e) { setGreska(e.message) } finally { setRadi(false) }
   }
@@ -96,12 +102,31 @@ function Integracije() {
         type="password"
         value={kljuc}
         onChange={(e) => setKljuc(e.target.value)}
-        placeholder="API-KEY…"
+        placeholder={st?.ima_kljuc ? 'API-KEY (spremljen — upiši samo za promjenu)' : 'API-KEY…'}
+        autoComplete="off"
+        style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
+      />
+      <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+        Basic Auth — korisnik i lozinka (kad ih Zagreb Data pošalje):
+      </label>
+      <input
+        type="text"
+        value={korisnik}
+        onChange={(e) => setKorisnik(e.target.value)}
+        placeholder="korisnik"
+        autoComplete="off"
+        style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
+      />
+      <input
+        type="password"
+        value={lozinka}
+        onChange={(e) => setLozinka(e.target.value)}
+        placeholder={st?.ima_basic ? 'lozinka (spremljena — upiši samo za promjenu)' : 'lozinka'}
         autoComplete="off"
         style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
       />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn" disabled={radi || !kljuc.trim()} onClick={spremi}>💾 Spremi ključ</button>
+        <button className="btn" disabled={radi || (!kljuc.trim() && !korisnik.trim() && !lozinka)} onClick={spremi}>💾 Spremi</button>
         <button className="btn ghost" disabled={radi || !st?.ima_kljuc} onClick={testiraj}>🔌 Testiraj spoj</button>
         {st?.ima_kljuc && <button className="btn ghost" disabled={radi} onClick={obrisi} style={{ color: 'var(--crveno)' }}>Obriši</button>}
       </div>
