@@ -207,7 +207,7 @@ export const api = {
   arossStanje: () => zahtjev('/integracije/aross'),
   arossSpremi: (b) => zahtjev('/integracije/aross', { method: 'POST', body: b }),
   arossTest: () => zahtjev('/integracije/aross/test', { method: 'POST' }),
-  arossZalihe: () => zahtjev('/integracije/aross/zalihe'),
+  arossZalihe: ({ nule = 0, osvjezi = 0 } = {}) => zahtjev(`/integracije/aross/zalihe?nule=${nule}&osvjezi=${osvjezi}`),
 
   // Šteta
   stete: () => zahtjev('/stete'),

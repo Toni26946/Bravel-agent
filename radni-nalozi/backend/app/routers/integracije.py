@@ -6,9 +6,10 @@ ne vraća natrag klijentu; vraća se samo je li postavljen i zadnje 4 znaka.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -99,23 +100,48 @@ def _na_broj(x):
         return 0.0
 
 
+# Šifrarnik artikala je velik (~27k) i rijetko se mijenja → keširaj kratko da
+# svaki dohvat zaliha ne vuče cijeli popis (bez keša ~3 s po pozivu).
+_ART_KES: dict = {"ts": 0.0, "map": {}}
+_ART_TTL = 600  # 10 minuta
+
+
+def _artikli_mapa(db, osvjezi: bool = False) -> dict:
+    sad = time.time()
+    if not osvjezi and _ART_KES["map"] and (sad - _ART_KES["ts"]) < _ART_TTL:
+        return _ART_KES["map"]
+    art = aross.artikli(db)
+    _ART_KES["map"] = {a.get("sifra"): a for a in (art or [])}
+    _ART_KES["ts"] = sad
+    return _ART_KES["map"]
+
+
 @router.get("/aross/zalihe")
-def aross_zalihe(db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
+                 osvjezi: int = Query(default=0, ge=0, le=1),
+                 db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
     """Stanje zalihe po skladištima (uživo iz APROSS-a), s imenima artikala.
-    Vraća {povezano, skladista:[{sifra, naziv, artikli:[{sifra, naziv, kataloskiBroj, jmj, stanje}]}], osvjezeno}."""
+    `nule=0` (zadano) prikazuje samo artikle sa stanjem ≠ 0; `nule=1` i nule.
+    `osvjezi=1` zaobiđe keš šifrarnika artikala.
+    Vraća {povezano, skladista:[{sifra, naziv, ukupno, artikli:[…]}], osvjezeno}."""
     if not aross.konfigurirano(db):
         return {"povezano": False, "skladista": [], "osvjezeno": None}
     try:
-        art = aross.artikli(db)
+        imena = _artikli_mapa(db, osvjezi=bool(osvjezi))
         stanje = aross.artikli_stanje(db)
     except aross.ArossGreska as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    imena = {a.get("sifra"): a for a in (art or [])}
     skladista = []
     for s in (stanje or []):
         redovi = []
+        ima_ukupno = 0
         for a in (s.get("artikli") or []):
+            st = _na_broj(a.get("stanje"))
+            if st != 0:
+                ima_ukupno += 1
+            if not nule and st == 0:
+                continue
             sa = a.get("sifraArtikla")
             meta = imena.get(sa, {})
             redovi.append({
@@ -123,12 +149,13 @@ def aross_zalihe(db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)
                 "naziv": meta.get("naziv") or f"Artikl {sa}",
                 "kataloskiBroj": meta.get("kataloskiBroj"),
                 "jmj": meta.get("jmj"),
-                "stanje": _na_broj(a.get("stanje")),
+                "stanje": st,
             })
         redovi.sort(key=lambda r: (r["naziv"] or "").lower())
         skladista.append({
             "sifra": s.get("sifraSkladista"),
             "naziv": s.get("nazivSkladista") or f"Skladište {s.get('sifraSkladista')}",
+            "ukupno": ima_ukupno,          # koliko artikala ima stanje ≠ 0 (neovisno o filtru)
             "artikli": redovi,
         })
     skladista.sort(key=lambda s: (s["naziv"] or "").lower())

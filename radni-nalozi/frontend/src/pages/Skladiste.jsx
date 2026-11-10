@@ -13,15 +13,20 @@ function ZaliheAPROSS() {
   const [greska, setGreska] = useState('')
   const [radi, setRadi] = useState(false)
   const [q, setQ] = useState('')
+  const [nule, setNule] = useState(false)          // prikaži i artikle sa stanjem 0
+  const [otvSkl, setOtvSkl] = useState({})         // koja su skladišta proširena
 
-  const ucitaj = () => {
+  const ucitaj = (opt = {}) => {
     setGreska(''); setRadi(true)
-    api.arossZalihe().then((d) => setData(d)).catch((e) => setGreska(e.message)).finally(() => setRadi(false))
+    api.arossZalihe({ nule: nule ? 1 : 0, osvjezi: opt.osvjezi ? 1 : 0 })
+      .then((d) => setData(d)).catch((e) => setGreska(e.message)).finally(() => setRadi(false))
   }
   const prebaci = () => { const n = !otvoreno; setOtvoreno(n); if (n && data === null) ucitaj() }
+  const prebaciNule = () => { const n = !nule; setNule(n); setRadi(true); setGreska(''); api.arossZalihe({ nule: n ? 1 : 0 }).then(setData).catch((e) => setGreska(e.message)).finally(() => setRadi(false)) }
+  const prebaciSkl = (id) => setOtvSkl((p) => ({ ...p, [id]: !p[id] }))
 
+  const s = q.trim().toLowerCase()
   const filtrirano = (arts) => {
-    const s = q.trim().toLowerCase()
     if (!s) return arts
     return arts.filter((a) => (a.naziv || '').toLowerCase().includes(s) || String(a.sifra).includes(s) || (a.kataloskiBroj || '').toLowerCase().includes(s))
   }
@@ -30,7 +35,7 @@ function ZaliheAPROSS() {
     <div className="karta" style={{ marginBottom: 14 }}>
       <div className="naslov-red" style={{ cursor: 'pointer' }} onClick={prebaci}>
         <h3 style={{ margin: 0 }}>📦 Zalihe (APROSS) {otvoreno ? '▾' : '▸'}</h3>
-        {otvoreno && <button className="btn mali" onClick={(e) => { e.stopPropagation(); ucitaj() }} disabled={radi}>↻ Osvježi</button>}
+        {otvoreno && <button className="btn mali" onClick={(e) => { e.stopPropagation(); ucitaj({ osvjezi: true }) }} disabled={radi}>↻ Osvježi</button>}
       </div>
 
       {otvoreno && (
@@ -41,28 +46,38 @@ function ZaliheAPROSS() {
           {data && data.povezano && data.skladista.length === 0 && <p className="meta">Nema zaliha za prikaz.</p>}
           {data && data.povezano && data.skladista.length > 0 && (
             <>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Traži artikl, šifru, kataloški broj…" style={{ marginBottom: 8 }} />
-              {data.skladista.map((s) => {
-                const arts = filtrirano(s.artikli)
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Traži artikl, šifru, kataloški broj…" style={{ marginBottom: 6 }} />
+              <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={nule} onChange={prebaciNule} /> prikaži i artikle sa stanjem 0
+              </label>
+              {data.skladista.map((sk) => {
+                const arts = filtrirano(sk.artikli)
+                if (s && arts.length === 0) return null       // pri pretrazi skrij prazna skladišta
+                const open = !!otvSkl[sk.sifra] || !!s          // pretraga automatski proširi
                 return (
-                  <div key={s.sifra} style={{ marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700, margin: '6px 0' }}>{s.naziv} <span className="meta">({arts.length})</span></div>
-                    {arts.length === 0 ? <p className="meta" style={{ margin: 0 }}>—</p> : (
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                        <tbody>
-                          {arts.map((a) => (
-                            <tr key={a.sifra} style={{ borderBottom: '1px solid var(--line, #eee)' }}>
-                              <td style={{ padding: '4px 6px' }}>
-                                {a.naziv}
-                                {a.kataloskiBroj ? <span className="meta"> · {a.kataloskiBroj}</span> : ''}
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: a.stanje < 0 ? 'var(--crveno)' : 'inherit' }}>
-                                {a.stanje}{a.jmj ? ` ${a.jmj}` : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div key={sk.sifra} style={{ marginBottom: 6, border: '1px solid var(--line, #eee)', borderRadius: 8 }}>
+                    <div onClick={() => prebaciSkl(sk.sifra)} style={{ cursor: 'pointer', padding: '8px 10px', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{open ? '▾' : '▸'} {sk.naziv}</span>
+                      <span className="meta">{sk.ukupno} na stanju{s ? ` · ${arts.length} nađeno` : ''}</span>
+                    </div>
+                    {open && (
+                      arts.length === 0 ? <p className="meta" style={{ padding: '0 10px 8px' }}>—</p> : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <tbody>
+                            {arts.map((a) => (
+                              <tr key={a.sifra} style={{ borderTop: '1px solid var(--line, #eee)' }}>
+                                <td style={{ padding: '4px 10px' }}>
+                                  {a.naziv}
+                                  {a.kataloskiBroj ? <span className="meta"> · {a.kataloskiBroj}</span> : ''}
+                                </td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: a.stanje < 0 ? 'var(--crveno)' : 'inherit' }}>
+                                  {a.stanje}{a.jmj ? ` ${a.jmj}` : ''}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
                     )}
                   </div>
                 )
