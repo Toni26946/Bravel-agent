@@ -34,7 +34,9 @@ class ArossNijePovezan(ArossGreska):
 
 
 def konfigurirano() -> bool:
-    return bool(settings.aross_api_key and settings.aross_user and settings.aross_pass)
+    # API-KEY je obavezan; Basic Auth (korisnik/lozinka) je opcionalan — ZGData ga
+    # dodaje naknadno, a testno okruženje radi i samo s ključem u URL-u.
+    return bool(settings.aross_api_key)
 
 
 def _baza() -> str:
@@ -44,10 +46,11 @@ def _baza() -> str:
 
 def _client() -> httpx.Client:
     if not konfigurirano():
-        raise ArossNijePovezan("APROSS API nije povezan (nedostaje AROSS_API_KEY/USER/PASS).")
+        raise ArossNijePovezan("APROSS API nije povezan (nedostaje AROSS_API_KEY).")
+    auth = (settings.aross_user, settings.aross_pass) if (settings.aross_user and settings.aross_pass) else None
     return httpx.Client(
         base_url=_baza(),
-        auth=(settings.aross_user, settings.aross_pass),
+        auth=auth,
         timeout=_TIMEOUT,
         headers={"Accept": "application/json"},
     )

@@ -30,6 +30,16 @@ def test_bazni_url_sadrzi_kljuc(monkeypatch):
     assert aross._baza() == "https://bravel-api-test.zgdata.hr/api5/TAJNI-KLJUC"
 
 
+def test_samo_kljuc_bez_basic_je_dovoljno(monkeypatch):
+    """Basic Auth je opcionalan — samo API-KEY je dovoljan (ZGData ga dodaje kasnije)."""
+    monkeypatch.setattr(settings, "aross_api_key", "KLJUC", raising=False)
+    monkeypatch.setattr(settings, "aross_user", "", raising=False)
+    monkeypatch.setattr(settings, "aross_pass", "", raising=False)
+    assert aross.konfigurirano() is True
+    with aross._client() as c:   # ne diže ArossNijePovezan iako nema Basic Auth
+        assert c is not None
+
+
 def test_primka_tijelo_racuna_ukupno(monkeypatch):
     """kreiraj_primku treba zbrojiti stavke u ukupanIznos i popuniti iznos kad fali."""
     poslano = {}
