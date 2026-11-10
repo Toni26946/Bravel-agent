@@ -208,6 +208,11 @@ export const api = {
   arossSpremi: (b) => zahtjev('/integracije/aross', { method: 'POST', body: b }),
   arossTest: () => zahtjev('/integracije/aross/test', { method: 'POST' }),
   arossZalihe: ({ nule = 0, osvjezi = 0 } = {}) => zahtjev(`/integracije/aross/zalihe?nule=${nule}&osvjezi=${osvjezi}`),
+  arossSkladistaPopis: () => zahtjev('/integracije/aross/skladista'),
+  arossPartneri: (q = '') => zahtjev(`/integracije/aross/partneri?q=${encodeURIComponent(q)}`),
+  arossArtikliTrazi: (q = '') => zahtjev(`/integracije/aross/artikli?q=${encodeURIComponent(q)}`),
+  arossPosaljiPrimku: (b) => zahtjev('/integracije/aross/primka', { method: 'POST', body: b }),
+  arossKreirajArtikl: (b) => zahtjev('/integracije/aross/artikl', { method: 'POST', body: b }),
 
   // Šteta
   stete: () => zahtjev('/stete'),

@@ -91,6 +91,140 @@ function ZaliheAPROSS() {
 }
 
 // Iznos retka = količina × cijena (null ako nema cijene).
+// Generička tražilica s padajućim rezultatima (artikl / dobavljač iz Aprossa).
+function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '' }) {
+  const [q, setQ] = useState(pocetni)
+  const [rez, setRez] = useState([])
+  const [open, setOpen] = useState(false)
+  const [radi, setRadi] = useState(false)
+  const tref = useRef(null)
+  const run = (v) => {
+    setQ(v); setOpen(true); setRadi(true)
+    clearTimeout(tref.current)
+    tref.current = setTimeout(async () => {
+      try { setRez(await trazi(v)) } catch { setRez([]) } finally { setRadi(false) }
+    }, 300)
+  }
+  return (
+    <div style={{ position: 'relative' }}>
+      <input value={q} placeholder={placeholder}
+        onChange={(e) => run(e.target.value)} onFocus={() => { setOpen(true); if (!rez.length) run(q) }}
+        style={{ width: '100%', boxSizing: 'border-box' }} />
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
+          {radi && <div className="meta" style={{ padding: 8 }}>Tražim…</div>}
+          {!radi && rez.length === 0 && <div className="meta" style={{ padding: 8 }}>Nema rezultata.</div>}
+          {rez.map((it, i) => (
+            <div key={i} onClick={() => { onPick(it); setQ(opis(it)); setOpen(false) }}
+              style={{ padding: '6px 8px', cursor: 'pointer', borderTop: i ? '1px solid var(--line, #eee)' : 'none', fontSize: 13 }}>
+              {opis(it)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Slanje spremljene primke u Apross (mapiranje na prave šifre + primka/kreiraj).
+function PosaljiUApross({ primka, onPoslano }) {
+  const danas = new Date().toISOString().slice(0, 10)
+  const [skl, setSkl] = useState([])
+  const [sklId, setSklId] = useState('')
+  const [dob, setDob] = useState(null)
+  const [broj, setBroj] = useState(primka.broj_otpremnice || ('w' + primka.id))
+  const [datum, setDatum] = useState(primka.datum || danas)
+  const [mape, setMape] = useState(() => (primka.stavke || []).map((s) => ({ artikl: null, kolicina: s.kolicina || 1, cijena: s.cijena ?? '' })))
+  const [greska, setGreska] = useState('')
+  const [radi, setRadi] = useState(false)
+  const [otv, setOtv] = useState(false)
+
+  useEffect(() => { if (otv && skl.length === 0) api.arossSkladistaPopis().then((d) => setSkl(d || [])).catch(() => {}) }, [otv])
+
+  if (primka.apross_broj) {
+    return <div className="karta" style={{ marginTop: 10, borderLeft: '4px solid var(--zelena, green)' }}>
+      ✓ Poslano u Apross — primka <b>#{primka.apross_broj}</b>
+    </div>
+  }
+
+  const postaviMapu = (i, patch) => setMape((m) => m.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+
+  const posalji = async () => {
+    setGreska('')
+    const stavke = mape.filter((m) => m.artikl && Number(m.kolicina) > 0)
+      .map((m) => ({ sifraArtikla: m.artikl.sifra, kolicina: Number(m.kolicina), cijena: Number(m.cijena) || 0 }))
+    if (!sklId) return setGreska('Odaberi skladište.')
+    if (!dob) return setGreska('Odaberi dobavljača.')
+    if (!stavke.length) return setGreska('Poveži barem jednu stavku s artiklom iz Aprossa.')
+    setRadi(true)
+    try {
+      const r = await api.arossPosaljiPrimku({ broj_primke: broj, sifra_dobavljaca: dob.sifra, datum, sifra_skladista: Number(sklId), stavke, napomena: primka.napomena || null, primka_id: primka.id })
+      onPoslano && onPoslano(r.erp_broj_primke)
+    } catch (e) { setGreska(e.message) } finally { setRadi(false) }
+  }
+
+  return (
+    <div className="karta" style={{ marginTop: 10 }}>
+      <div className="naslov-red" style={{ cursor: 'pointer' }} onClick={() => setOtv(!otv)}>
+        <h3 style={{ margin: 0 }}>📤 Pošalji u Apross {otv ? '▾' : '▸'}</h3>
+      </div>
+      {otv && (
+        <div style={{ marginTop: 8 }}>
+          {greska && <div className="greska">{greska}</div>}
+          <label className="meta">Skladište</label>
+          <select value={sklId} onChange={(e) => setSklId(e.target.value)} style={{ width: '100%', marginBottom: 8 }}>
+            <option value="">— odaberi skladište —</option>
+            {skl.map((s) => <option key={s.sifra} value={s.sifra}>{s.naziv}</option>)}
+          </select>
+
+          <label className="meta">Dobavljač</label>
+          <div style={{ marginBottom: 8 }}>
+            <Trazilica placeholder="traži dobavljača…" pocetni={primka.dobavljac || ''}
+              trazi={(q) => api.arossPartneri(q)} opis={(p) => `${p.naziv}${p.mjesto ? ' · ' + p.mjesto : ''}`}
+              onPick={setDob} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label className="meta">Broj primke</label>
+              <input value={broj} onChange={(e) => setBroj(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="meta">Datum</label>
+              <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          <label className="meta">Stavke — poveži svaku s artiklom iz Aprossa</label>
+          {(primka.stavke || []).map((s, i) => (
+            <div key={i} style={{ border: '1px solid var(--line, #eee)', borderRadius: 8, padding: 8, marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.artikl} <span className="meta">({s.kolicina} {s.jedinica || 'kom'})</span></div>
+              <Trazilica placeholder="traži Apross artikl (naziv / kat. broj)…" pocetni={s.artikl || ''}
+                trazi={(q) => api.arossArtikliTrazi(q)}
+                opis={(a) => `${a.naziv}${a.kataloskiBroj ? ' · ' + a.kataloskiBroj : ''}`}
+                onPick={(a) => postaviMapu(i, { artikl: a })} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <div style={{ flex: 1 }}>
+                  <label className="meta">Količina</label>
+                  <input type="number" step="any" value={mape[i].kolicina} onChange={(e) => postaviMapu(i, { kolicina: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="meta">Cijena (EUR)</label>
+                  <input type="number" step="any" value={mape[i].cijena} onChange={(e) => postaviMapu(i, { cijena: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              {mape[i].artikl && <div className="meta" style={{ marginTop: 4, color: 'var(--zelena, green)' }}>✓ {mape[i].artikl.naziv} (šifra {mape[i].artikl.sifra})</div>}
+            </div>
+          ))}
+
+          <button className="btn" disabled={radi} onClick={posalji}>📤 Pošalji u Apross</button>
+          <p className="meta" style={{ marginBottom: 0 }}>Apross dodjeljuje broj primke i vraća ga; stavke bez povezanog artikla se preskaču.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function redIznos(s) {
   const c = parseFloat(s.cijena); const k = parseFloat(s.kolicina)
   if (isNaN(c)) return null
@@ -318,6 +452,8 @@ export default function Skladiste() {
             <button className="btn sekund mali" onClick={() => obrisi(detalj)}>{t('skl.obrisi')}</button>
           </div>
         </div>
+        <PosaljiUApross primka={detalj}
+          onPoslano={(erp) => { setDetalj({ ...detalj, apross_broj: erp }); setPoruka(`Poslano u Apross — primka #${erp}`); ucitaj() }} />
       </Layout>
     )
   }

@@ -161,3 +161,135 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
     skladista.sort(key=lambda s: (s["naziv"] or "").lower())
     return {"povezano": True, "skladista": skladista,
             "osvjezeno": datetime.now(timezone.utc).isoformat()}
+
+
+# --- Šifrarnici za odabir pri slanju primke ----------------------------------
+_PART_KES: dict = {"ts": 0.0, "lista": []}
+
+
+def _partneri(db, osvjezi: bool = False) -> list[dict]:
+    sad = time.time()
+    if not osvjezi and _PART_KES["lista"] and (sad - _PART_KES["ts"]) < _ART_TTL:
+        return _PART_KES["lista"]
+    _PART_KES["lista"] = aross.poslovni_partneri(db) or []
+    _PART_KES["ts"] = sad
+    return _PART_KES["lista"]
+
+
+@router.get("/aross/skladista")
+def aross_skladista(db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Popis skladišta (za odabir odredišta primke)."""
+    if not aross.konfigurirano(db):
+        return []
+    try:
+        return aross.skladista(db) or []
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/aross/partneri")
+def aross_partneri(q: str = Query(default="", max_length=100),
+                   limit: int = Query(default=30, ge=1, le=200),
+                   db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Pretraga poslovnih partnera (dobavljača) po nazivu/OIB-u."""
+    if not aross.konfigurirano(db):
+        return []
+    try:
+        svi = _partneri(db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    s = q.strip().lower()
+    if s:
+        svi = [p for p in svi if s in (p.get("naziv") or "").lower()
+               or s in str(p.get("oib") or "").lower() or s in (p.get("mjesto") or "").lower()]
+    svi = sorted(svi, key=lambda p: (p.get("naziv") or "").lower())[:limit]
+    return svi
+
+
+@router.get("/aross/artikli")
+def aross_artikli(q: str = Query(default="", max_length=100),
+                  limit: int = Query(default=30, ge=1, le=100),
+                  db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Pretraga artikala po nazivu/kataloškom broju/šifri (za odabir stavke primke)."""
+    if not aross.konfigurirano(db):
+        return []
+    try:
+        mapa = _artikli_mapa(db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    s = q.strip().lower()
+    out = []
+    for a in mapa.values():
+        if s and not (s in (a.get("naziv") or "").lower()
+                      or s in (a.get("kataloskiBroj") or "").lower()
+                      or s == str(a.get("sifra"))):
+            continue
+        out.append(a)
+        if len(out) >= limit * 3:
+            break
+    out.sort(key=lambda a: (a.get("naziv") or "").lower())
+    return out[:limit]
+
+
+class ArtiklIn(BaseModel):
+    id_artikla: int
+    naziv: str
+    jmj: str = "kom"
+    kat_broj: str | None = None
+    barkod: str | None = None
+
+
+@router.post("/aross/artikl")
+def aross_kreiraj_artikl(p: ArtiklIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Kreiraj novi artikl u Aprossu (kad dio s otpremnice još ne postoji)."""
+    if not aross.konfigurirano(db):
+        raise HTTPException(status_code=503, detail="APROSS nije povezan.")
+    try:
+        rez = aross.kreiraj_artikl(p.id_artikla, p.naziv, p.jmj, p.kat_broj, p.barkod, db=db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    _ART_KES["ts"] = 0.0   # poništi keš da se novi artikl odmah vidi
+    return {"ok": True, "rezultat": rez}
+
+
+class PrimkaStavkaIn(BaseModel):
+    sifraArtikla: int
+    kolicina: float
+    cijena: float
+
+
+class PrimkaIn(BaseModel):
+    broj_primke: str
+    sifra_dobavljaca: int
+    datum: str                    # yyyy-MM-dd
+    sifra_skladista: int
+    stavke: list[PrimkaStavkaIn]
+    napomena: str | None = None
+    primka_id: int | None = None  # lokalna primka (da zapišemo ERP broj natrag)
+
+
+@router.post("/aross/primka")
+def aross_posalji_primku(p: PrimkaIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Pošalji (kreiraj) primku u Apross. Vraća ERP broj primke i zapiše ga na lokalnu primku."""
+    if not aross.konfigurirano(db):
+        raise HTTPException(status_code=503, detail="APROSS nije povezan.")
+    if not p.stavke:
+        raise HTTPException(status_code=400, detail="Primka nema stavki.")
+    from ..models import Primka
+    lokalna = db.get(Primka, p.primka_id) if p.primka_id else None
+    if lokalna is not None and lokalna.apross_broj:
+        raise HTTPException(status_code=409, detail=f"Primka je već poslana u Apross (#{lokalna.apross_broj}).")
+    stavke = [{"sifraArtikla": s.sifraArtikla, "kolicina": s.kolicina, "cijena": s.cijena}
+              for s in p.stavke]
+    try:
+        rez = aross.kreiraj_primku(p.broj_primke, p.sifra_dobavljaca, p.datum,
+                                   p.sifra_skladista, stavke, p.napomena, db=db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    erp = None
+    if isinstance(rez, list) and rez and isinstance(rez[0], dict):
+        erp = rez[0].get("erpBrojPrimke")
+    if lokalna is not None and erp is not None:
+        lokalna.apross_broj = int(erp)
+        db.commit()
+    return {"ok": True, "erp_broj_primke": erp, "rezultat": rez}

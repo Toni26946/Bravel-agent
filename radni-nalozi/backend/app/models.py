@@ -451,6 +451,7 @@ class Primka(Base):
     fotografije: Mapped[list | None] = mapped_column(JSON, nullable=True)  # sve stranice otpremnice [web putanje]
     # [{artikl, kolicina, jedinica, cijena, narucio_id, razduzenja:[{gb, kolicina}]}]
     stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    apross_broj: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ERP broj primke kad je poslana u Apross
     kreirao_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 

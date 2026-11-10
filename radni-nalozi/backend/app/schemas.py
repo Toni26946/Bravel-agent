@@ -684,6 +684,7 @@ class PrimkaOut(ORM):
     foto_putanja: str | None = None
     fotografije: list[str] | None = None
     stavke: list[PrimkaStavka] | None = None
+    apross_broj: int | None = None
     kreirao: KorisnikOut | None = None
     kreiran: datetime
 
