@@ -395,6 +395,7 @@ class ZadatakOut(ORM):
     radnici: list[KorisnikOut] = []
     zapoceto: datetime | None = None
     zavrseno: datetime | None = None
+    zavrsio: KorisnikOut | None = None   # tko je kliknuo gotovo
     utroseno_sek: int = 0
     # Razrada vremena po radniku (tko je koliko radio na ovom zadatku).
     vremena: list[ZadatakRadnikVrijemeOut] = []

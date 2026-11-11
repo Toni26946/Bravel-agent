@@ -1222,9 +1222,11 @@ def azuriraj_zadatak(
         if podaci.gotovo:
             _zaustavi_mjerac(z)  # zaustavi mjerenje i zabilježi vrijeme završetka
             z.zavrseno = datetime.now(timezone.utc)
+            z.zavrsio_id = korisnik.id   # tko je kliknuo gotovo
             servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
+            z.zavrsio_id = None
             # Ako operacija ima dodijeljene radnike, nastavi mjerenje s njima
             # (osim ako nalog čeka dijelove) — da se ista operacija lako nastavi.
             if z.radnici and nalog.status != StatusNaloga.ceka_dijelove:

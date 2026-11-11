@@ -202,6 +202,7 @@ def gotovo(zid: int, k: Korisnik = Depends(_samo_samostalni), db: Session = Depe
     z.ceka_potvrdu = False
     z.gotovo = True
     z.zavrseno = datetime.now(timezone.utc)
+    z.zavrsio_id = k.id   # mehaničar sam kliknuo gotovo (samostalni način)
     z.razlog_prekida = None
     z.prekid_vrijeme = None
     db.flush()

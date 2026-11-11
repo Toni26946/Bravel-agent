@@ -505,6 +505,7 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
                 <span className="mj-gotovo">
                   ✓ {t('op.zavrsenoU')} {datumVrijeme(z.zavrseno)}
                   {osnova > 0 && <> · ⏱ {trajanje(osnova)}</>}
+                  {z.zavrsio && <> · <b>označio: {z.zavrsio.ime}</b></>}
                 </span>
               )}
               {z.vremena && z.vremena.length > 0 && (

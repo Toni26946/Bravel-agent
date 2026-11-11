@@ -431,6 +431,7 @@ def vrati_u_plan(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
         raise HTTPException(status_code=400, detail="Zadatak nije označen gotovim")
     z.gotovo = False
     z.zavrseno = None
+    z.zavrsio_id = None
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
@@ -1003,6 +1004,7 @@ def ocisti_vrijeme(p: OcistiVrijemeIn, korisnik: Korisnik = Depends(_samo_vlasni
         z.utroseno_sek = 0
         z.gotovo = False
         z.zavrseno = None
+        z.zavrsio_id = None
         z.zapoceto = None
         z.prekid_vrijeme = None
         z.ceka_potvrdu = False
@@ -1100,6 +1102,7 @@ def prekini(zid: int, p: PrekiniIn, korisnik: Korisnik = Depends(trenutni_korisn
     if p.razlog == "gotovo":
         z.gotovo = True
         z.zavrseno = datetime.now(timezone.utc)
+        z.zavrsio_id = korisnik.id   # tko je kliknuo gotovo (dispečer/voditelj u planu)
         z.razlog_prekida = None
         z.prekid_vrijeme = None
         servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila

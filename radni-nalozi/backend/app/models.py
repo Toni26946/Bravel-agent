@@ -641,6 +641,7 @@ class Zadatak(Base):
     # Mjerenje vremena rada na zadatku
     zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je mjerač pokrenut (None = ne mjeri)
     zavrseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # kad je označeno gotovo
+    zavrsio_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)  # tko je kliknuo gotovo
     utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)  # ukupno izmjereno vrijeme (sekunde)
     # Plan radione: čeka mehaničarevu potvrdu početka; razlog prekida; vrijeme prekida (za churn).
     ceka_potvrdu: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -652,7 +653,8 @@ class Zadatak(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")
-    zaduzeni: Mapped["Korisnik | None"] = relationship()
+    zaduzeni: Mapped["Korisnik | None"] = relationship(foreign_keys=[zaduzeni_id])
+    zavrsio: Mapped["Korisnik | None"] = relationship(foreign_keys=[zavrsio_id])
     # Svi radnici dodijeljeni ovom zadatku.
     radnici: Mapped[list["Korisnik"]] = relationship(secondary=zadatak_radnici, order_by="Korisnik.ime")
     # Izmjereno vrijeme po radniku (tko je koliko radio na ovom zadatku).

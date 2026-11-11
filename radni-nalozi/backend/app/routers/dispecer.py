@@ -395,6 +395,7 @@ def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(g
     z.ceka_potvrdu = False
     z.gotovo = True
     z.zavrseno = datetime.now(timezone.utc)
+    z.zavrsio_id = link.radnik.id   # mehaničar kliknuo gotovo preko svoje poveznice
     z.razlog_prekida = None
     z.prekid_vrijeme = None
     servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
@@ -421,6 +422,7 @@ def z_gotovo_stavka(token: str, p: StavkaIn, db: Session = Depends(get_db)):
     _zaustavi_mjerac(z)
     z.gotovo = True
     z.zavrseno = datetime.now(timezone.utc)
+    z.zavrsio_id = link.radnik.id   # pregledar kliknuo gotovo preko svoje poveznice
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
