@@ -56,6 +56,8 @@ def _plan_status(z: Zadatak) -> str:
         return "gotovo"
     if z.razlog_prekida == "dijelovi":
         return "dijelovi"
+    if z.razlog_prekida == "nedostupan":
+        return "nedostupan"            # vozilo nije dostupno (mehaničar označio) — ostaje u planu
     if not z.radnici:
         return "plan"              # nema radnika → natrag u plan
     if z.zapoceto:

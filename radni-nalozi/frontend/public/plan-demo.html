@@ -388,8 +388,8 @@
   function nalogZavrsen(n){ return n.ops.length>0 && n.ops.every(function(o){return o.status==="gotovo";}); }
   function brHitnih(){ return nalozi.filter(function(n){return n.hitno && !n.cekaDijelove;}).length; }
   function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
-  var CH = {plan:"c-plan",ceka:"c-ceka",radu:"c-radu",gotovo:"c-gotovo",dijelovi:"c-ceka",pauza:"c-ceka"};
-  var LBL = {plan:"Planirano",ceka:"Čeka potvrdu",radu:"U tijeku",gotovo:"Gotovo",dijelovi:"⛔ Čeka dio",pauza:"⏸ Nije gotovo"};
+  var CH = {plan:"c-plan",ceka:"c-ceka",radu:"c-radu",gotovo:"c-gotovo",dijelovi:"c-ceka",nedostupan:"c-ceka",pauza:"c-ceka"};
+  var LBL = {plan:"Planirano",ceka:"Čeka potvrdu",radu:"U tijeku",gotovo:"Gotovo",dijelovi:"⛔ Čeka dio",nedostupan:"🚫 Vozilo nedostupno",pauza:"⏸ Nije gotovo"};
   // Status operacije ZA KONKRETNOG radnika: „U tijeku" samo ako je NJEGOV mjerač pokrenut.
   // Ako operacija radi, ali on nije pokrenuo svoj dio → „Čeka potvrdu" (mora sam stisnuti).
   function mehStatus(o, rid){
@@ -487,7 +487,7 @@
   function brojUReduPoMeh(){
     var c={};
     nalozi.forEach(function(n){ n.ops.forEach(function(o){
-      if(o.status!=="gotovo" && o.status!=="dijelovi") (o.mehIds||[]).forEach(function(id){ c[id]=(c[id]||0)+1; });
+      if(o.status!=="gotovo" && o.status!=="dijelovi" && o.status!=="nedostupan") (o.mehIds||[]).forEach(function(id){ c[id]=(c[id]||0)+1; });
     }); });
     return c;
   }
@@ -709,11 +709,15 @@
     dij.forEach(function(x){
       h+='<div class="op-card"><div class="top"><span class="chip c-ceka">⛔ Čeka dio</span><span class="vozilo">GB '+esc(x.n.gb)+'</span></div><div>'+esc(x.o.naziv)+'</div><div class="vozilo">Javljeno skladištu — čeka dijelove.</div></div>';
     });
+    var ned=moje.filter(function(x){return x.o.status==="nedostupan";});
+    ned.forEach(function(x){
+      h+='<div class="op-card"><div class="top"><span class="chip c-ceka">🚫 Vozilo nedostupno</span><span class="vozilo">GB '+esc(x.n.gb)+'</span></div><div>'+esc(x.o.naziv)+'</div><div class="vozilo">Mehaničar označio nedostupnim — na kraju reda, ostaje u planu.</div></div>';
+    });
     var gotovo=moje.filter(function(x){return x.o.status==="gotovo";});
     gotovo.forEach(function(x){
       h+='<div class="op-card"><div class="top"><span class="chip c-gotovo">Gotovo</span><span class="vozilo">GB '+esc(x.n.gb)+'</span><span class="vozilo tnum" style="margin-left:auto">⏱ '+trajanje(x.o.akumSek)+'</span></div><div>'+esc(x.o.naziv)+'</div></div>';
     });
-    if(!cekaMe.length && !radu.length && !gotovo.length && !dij.length){
+    if(!cekaMe.length && !radu.length && !gotovo.length && !dij.length && !ned.length){
       h+='<div class="ph-prazno">Nema dodijeljenih operacija.<br><span class="vozilo">Poslovođa ti ih šalje iz plana.</span></div>';
     }
     h+='</div></div>';
@@ -739,7 +743,7 @@
     var map={};
     nalozi.forEach(function(n){
       n.ops.forEach(function(o){
-        if(o.status==="gotovo" || o.status==="dijelovi") return;   // gotovo i "čeka dio" nisu u redu
+        if(o.status==="gotovo" || o.status==="dijelovi" || o.status==="nedostupan") return;   // gotovo, "čeka dio" i "nedostupan" nisu u aktivnom redu
         (o.mehIds||[]).forEach(function(id){ (map[id]=map[id]||[]).push({n:n,o:o}); });
       });
     });
