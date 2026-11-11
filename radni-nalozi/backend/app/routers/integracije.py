@@ -122,11 +122,13 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
     skladista = []
     for s in (stanje or []):
         redovi = []
-        ima_ukupno = 0
+        broj_artikala = 0     # koliko RAZLIČITIH artikala ima stanje ≠ 0
+        zbroj_kolicina = 0.0  # ZBROJ svih količina na stanju (komadi/jmj) — pravo "na stanju"
         for a in (s.get("artikli") or []):
             st = _na_broj(a.get("stanje"))
             if st != 0:
-                ima_ukupno += 1
+                broj_artikala += 1
+                zbroj_kolicina += st
             if not nule and st == 0:
                 continue
             sa = a.get("sifraArtikla")
@@ -139,10 +141,14 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
                 "stanje": st,
             })
         redovi.sort(key=lambda r: (r["naziv"] or "").lower())
+        # Cijeli broj ako je zbroj cijeli (npr. 3044.0 → 3044); inače 1 decimala.
+        kol = int(zbroj_kolicina) if float(zbroj_kolicina).is_integer() else round(zbroj_kolicina, 1)
         skladista.append({
             "sifra": s.get("sifraSkladista"),
             "naziv": s.get("nazivSkladista") or f"Skladište {s.get('sifraSkladista')}",
-            "ukupno": ima_ukupno,          # koliko artikala ima stanje ≠ 0 (neovisno o filtru)
+            "kolicina": kol,               # ZBROJ količina na stanju (pravo "na stanju")
+            "artikala": broj_artikala,     # koliko različitih artikala (stanje ≠ 0)
+            "ukupno": broj_artikala,       # kompatibilnost sa starim frontendom
             "artikli": redovi,
         })
     skladista.sort(key=lambda s: (s["naziv"] or "").lower())

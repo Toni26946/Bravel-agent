@@ -58,7 +58,7 @@ function ZaliheAPROSS() {
                   <div key={sk.sifra} style={{ marginBottom: 6, border: '1px solid var(--line, #eee)', borderRadius: 8 }}>
                     <div onClick={() => prebaciSkl(sk.sifra)} style={{ cursor: 'pointer', padding: '8px 10px', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
                       <span>{open ? '▾' : '▸'} {sk.naziv}</span>
-                      <span className="meta">{sk.ukupno} na stanju{s ? ` · ${arts.length} nađeno` : ''}</span>
+                      <span className="meta">{(sk.kolicina ?? sk.ukupno)} na stanju · {(sk.artikala ?? sk.ukupno)} artikala{s ? ` · ${arts.length} nađeno` : ''}</span>
                     </div>
                     {open && (
                       arts.length === 0 ? <p className="meta" style={{ padding: '0 10px 8px' }}>—</p> : (
