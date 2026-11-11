@@ -131,6 +131,8 @@
   .nap-vrati:hover{border-color:var(--s-ceka);background:var(--s-ceka-bg)}
   .pl-top .brojac{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
   .brojac-btn{margin-left:auto;background:var(--plava-soft);color:var(--plava);border:0;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
+  .blizu-chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .blizu-chk input{width:15px;height:15px;cursor:pointer}
   .plan-maker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--plava-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
   .plan-maker .pm-lbl{font-size:11px;font-weight:700;color:var(--plava)}
   .plan-maker input{flex:1;min-width:110px;max-width:180px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:inherit;font-size:13px;font-weight:700;background:var(--card);color:var(--fg)}
@@ -309,6 +311,8 @@
   var promjene = 0;
   var logOtvoren = false;
   var _planMode = false;
+  var samoBlizu = false;       // filter: prikaži samo naloge čija su vozila ≤200 m od radione
+  var BLIZU_M = 200;
   var planZakljucan = false;   // stvarno stanje sa servera (zaključano za danas)
   var zakljucaoIme = "", zakljucanoTs = null;
   var autoSlanje = {ukljuceno:false, ura:"06:45", datum:null};   // jutarnje auto-slanje plana
@@ -452,6 +456,7 @@
     api("/zakljucaj","POST",{zakljucan:novo}).then(function(){ toast(novo?"🔒 Plan zaključan":"Plan otključan"); return ucitaj(); })
       .catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
   function toggleLog(){ logOtvoren=!logOtvoren; render(); }
+  function toggleBlizu(v){ samoBlizu=!!v; render(); }
   function toggleNaprav(){ napravOtvoren=!napravOtvoren; render(); }
   function _fokusGB(){ var e=document.getElementById("gb-unos"); if(e) e.focus(); }
   function planMode(on){
@@ -594,8 +599,10 @@
     h+='</div></div>';
     return h;
   }
+  function blizuRadione(n){ return n.udaljenostM!=null && n.udaljenostM<=BLIZU_M; }
   function renderPL(){
-    var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n) && n.rang!=null;});
+    var _f=function(n){ return !samoBlizu || blizuRadione(n); };
+    var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n) && n.rang!=null;}).filter(_f);
     var _cmp=function(a,b){
       var ar=(a.rang==null), br=(b.rang==null);
       if(ar!==br) return ar?1:-1;                 // u planu (ručni redoslijed) ide prvo
@@ -604,7 +611,7 @@
     };
     var hitni=aktSvi.filter(function(n){return n.hitno;}).sort(_cmp);
     var norm=aktSvi.filter(function(n){return !n.hitno;}).sort(_cmp);
-    var ceka=nalozi.filter(function(n){return n.cekaDijelove;});
+    var ceka=nalozi.filter(function(n){return n.cekaDijelove;}).filter(_f);
     var h='';
     h+='<div class="pl-top">'+
          (planZakljucan?'':'<button class="btn sm" onclick="PLAN.isplanirajSve()" title="Pošalji sve naloge iz plana odjednom — svakom mehaničaru njegov prvi zadatak">📨 Pošalji sve naloge</button>')+
@@ -612,7 +619,13 @@
          (planZakljucan?'':'<button class="btn ghost sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
+         '<label class="blizu-chk" title="Prikaži samo naloge čija su vozila trenutno ≤'+BLIZU_M+' m od radione (po GPS-u)"><input type="checkbox"'+(samoBlizu?' checked':'')+' onchange="PLAN.toggleBlizu(this.checked)"> 📍 Samo ≤'+BLIZU_M+' m od radione</label>'+
        '</div>';
+    if(samoBlizu){
+      var _uk=nalozi.filter(function(n){return !nalogZavrsen(n);}).length;
+      var _bl=nalozi.filter(function(n){return !nalogZavrsen(n) && blizuRadione(n);}).length;
+      h+='<div class="zak-traka" style="background:#0f3d2e;color:#d7f5e6">📍 Filter: prikazani samo nalozi ≤'+BLIZU_M+' m od radione — '+_bl+' od '+_uk+' (ostali su skriveni; prikolice/vozila bez svježeg GPS-a se ne prikazuju).</div>';
+    }
     // (Pregled „Napravljeno danas" je sad zaseban tab — vidi renderNAP.)
     if(planZakljucan){
       h+='<div class="zak-traka">🔒 Plan zaključan'+(zakljucaoIme?' · '+esc(zakljucaoIme):'')+(zakljucanoTs?' · '+vrijemeHM(zakljucanoTs):'')+' — sastav i redoslijed su zamrznuti. Dnevni rad (dodjela, slanje, štoperica) teče normalno.</div>';
@@ -958,7 +971,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleBlizu:toggleBlizu, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;

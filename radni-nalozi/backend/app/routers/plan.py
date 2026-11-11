@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from .. import flota
 from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
@@ -302,6 +303,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             "hitno": bool(n.plan_hitno),
             "cekaDijelove": n.status == StatusNaloga.ceka_dijelove,
             "usaoTs": _ms(n.kreiran),
+            "udaljenostM": flota.udaljenost_od_radione(_gb(n)),   # metri od radione (None ako nema GPS-a)
             "ops": ops,
         })
     danas = datetime.now(timezone.utc).date()
