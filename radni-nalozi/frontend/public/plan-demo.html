@@ -273,6 +273,7 @@
   <button class="tab" data-v="dash">👷 Radnici</button>
   <button class="tab" data-v="nap">✅ Napravljeno</button>
   <button class="tab" data-v="bonus">💶 Klik-bonus</button>
+  <button class="tab" data-v="povijest">🕑 Povijest klikanja</button>
   <span class="datum" id="datum"></span>
 </nav>
 
@@ -283,6 +284,7 @@
     <section id="v-dash" hidden></section>
     <section id="v-nap" hidden></section>
     <section id="v-bonus" hidden></section>
+    <section id="v-povijest" hidden></section>
     <div class="foot">Vidljivo samo vlasniku · osvježava se automatski.</div>
   </div>
 </main>
@@ -877,25 +879,28 @@
       }
     });
     h+='</tbody></table></div>';
-
-    // Povijest klikanja — tko je kaj kliknul, po danu (najnoviji gore).
+    return h;
+  }
+  // --- render: Povijest klikanja (zaseban tab) ---
+  function renderPOVIJEST(){
+    if(bonus===null){ return '<p class="hint">Učitavam…</p>'; }
     var pov=bonus.povijest||[];
-    if(pov.length){
-      h+='<div class="card"><h4 style="margin:0 0 8px">🕑 Povijest klikanja</h4>';
-      pov.forEach(function(dan){
-        h+='<div class="kb-dan"><div class="kb-datum">'+esc(dan.datum)+'</div>';
-        (dan.redovi||[]).forEach(function(z){
-          var ozn, boja;
-          if(z.status==='na_vrijeme'){ ozn='✅ '+esc(z.vrijeme||''); boja='var(--zelena, green)'; }
-          else if(z.status==='kasno'){ ozn='🟠 '+esc(z.vrijeme||'')+' (kasno)'; boja='var(--narancasta, #b26a00)'; }
-          else if(z.status==='rucno'){ ozn='✍️ ručno (dispečer)'; boja='var(--crveno)'; }
-          else { ozn='❌ nije kliknuo'; boja='var(--crveno)'; }
-          h+='<div class="kb-red"><span>'+esc(z.ime)+'</span><span style="color:'+boja+';font-weight:600;white-space:nowrap">'+ozn+'</span></div>';
-        });
-        h+='</div>';
+    var h='<p class="hint">Tko je kad kliknuo ujutro — po danu (najnoviji gore). Rok: do <b>'+esc(bonus.deadline||'07:10')+'</b>.</p>';
+    if(!pov.length){ h+='<div class="card" style="color:var(--muted)">Još nema povijesti — bilježi se od sad (svako jutarnje slanje poveznice).</div>'; return h; }
+    h+='<div class="card">';
+    pov.forEach(function(dan){
+      h+='<div class="kb-dan"><div class="kb-datum">'+esc(dan.datum)+'</div>';
+      (dan.redovi||[]).forEach(function(z){
+        var ozn, boja;
+        if(z.status==='na_vrijeme'){ ozn='✅ '+esc(z.vrijeme||''); boja='var(--zelena, green)'; }
+        else if(z.status==='kasno'){ ozn='🟠 '+esc(z.vrijeme||'')+' (kasno)'; boja='var(--narancasta, #b26a00)'; }
+        else if(z.status==='rucno'){ ozn='✍️ ručno (dispečer)'; boja='var(--crveno)'; }
+        else { ozn='❌ nije kliknuo'; boja='var(--crveno)'; }
+        h+='<div class="kb-red"><span>'+esc(z.ime)+'</span><span style="color:'+boja+';font-weight:600;white-space:nowrap">'+ozn+'</span></div>';
       });
       h+='</div>';
-    }
+    });
+    h+='</div>';
     return h;
   }
   function ucitajBonus(){
@@ -910,11 +915,13 @@
     document.getElementById("v-dash").innerHTML = renderDASH();
     document.getElementById("v-nap").innerHTML = renderNAP();
     document.getElementById("v-bonus").innerHTML = renderBONUS();
+    document.getElementById("v-povijest").innerHTML = renderPOVIJEST();
     document.getElementById("v-pl").hidden = pogled!=="pl";
     document.getElementById("v-meh").hidden = pogled!=="meh";
     document.getElementById("v-dash").hidden = pogled!=="dash";
     document.getElementById("v-nap").hidden = pogled!=="nap";
     document.getElementById("v-bonus").hidden = pogled!=="bonus";
+    document.getElementById("v-povijest").hidden = pogled!=="povijest";
     document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
     document.body.classList.toggle("view-dash", pogled==="dash");
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
@@ -978,7 +985,7 @@
     document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("akt",t===b);});
     render();
     if(pogled==="nap") ucitaj(true);   // „Napravljeno" se ne povlači u pozadini → osvježi pri otvaranju
-    if(pogled==="bonus") ucitajBonus(); // klik-bonus se povlači tek kad se otvori
+    if(pogled==="bonus"||pogled==="povijest") ucitajBonus(); // klik-bonus + povijest se povlače tek kad se otvore
   });
 
   // datum
