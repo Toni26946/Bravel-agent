@@ -294,6 +294,7 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
     # 4) Po radniku: očekivani dani (jutra kad je prisutan) / na vrijeme / prekršaji. Teren van.
     po: dict[int, dict] = {}
     imena: dict[int, str] = {}
+    povijest_map: dict = defaultdict(list)   # datum -> [{ime, vrijeme, status}] (SVE, ne samo prekršaji)
     for m in meh:
         imena[m.id] = m.ime
         if m.odsutnost_vrsta == "teren":
@@ -307,17 +308,29 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
             if d in rucno.get(m.id, ()):
                 detalji.append({"datum": d.strftime("%d.%m.%Y"),
                                 "razlog": "ručno prijavljen (dispečer umjesto njega)"})
+                povijest_map[d].append({"ime": m.ime, "vrijeme": None, "status": "rucno"})
                 continue   # ručno prijavljen tog dana → prekršaj (nije sam kliknuo)
             k = prvi.get(m.id, {}).get(d)
+            vr = f"{k.hour:02d}:{k.minute:02d}" if k is not None else None
             if k is not None and (k.hour, k.minute) <= (dh, dm):
                 nav += 1
+                povijest_map[d].append({"ime": m.ime, "vrijeme": vr, "status": "na_vrijeme"})
             elif k is not None:
                 detalji.append({"datum": d.strftime("%d.%m.%Y"),
-                                "razlog": f"kliknuo u {k.hour:02d}:{k.minute:02d} — nakon {dh:02d}:{dm:02d}"})
+                                "razlog": f"kliknuo u {vr} — nakon {dh:02d}:{dm:02d}"})
+                povijest_map[d].append({"ime": m.ime, "vrijeme": vr, "status": "kasno"})
             else:
                 detalji.append({"datum": d.strftime("%d.%m.%Y"), "razlog": "nije kliknuo"})
+                povijest_map[d].append({"ime": m.ime, "vrijeme": None, "status": "nije"})
         po[m.id] = {"ocekivano": len(dani), "na_vrijeme": nav,
                     "prekrsaji": len(dani) - nav, "detalji": detalji}
+
+    # Povijest klikanja po danu (najnoviji dan gore), unutar dana po vremenu/imenu.
+    _red_st = {"na_vrijeme": 0, "kasno": 1, "rucno": 2, "nije": 3}
+    povijest = []
+    for d in sorted(povijest_map.keys(), reverse=True):
+        redovi_d = sorted(povijest_map[d], key=lambda r: (_red_st.get(r["status"], 9), r["vrijeme"] or "99:99", r["ime"]))
+        povijest.append({"datum": d.strftime("%d.%m.%Y"), "redovi": redovi_d})
 
     # 5) Podjela poola: razmjerno disciplini; izgubljeni dio onima bez prekršaja.
     n = len(po)
@@ -344,7 +357,7 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
         r["mjesto"] = i + 1
     return {"dana": dana, "pool_eur": round(pool, 2),
             "cutoff": f"{ch:02d}:{cm:02d}", "deadline": f"{dh:02d}:{dm:02d}",
-            "redovi": redovi}
+            "redovi": redovi, "povijest": povijest}
 
 
 @router.get("/klik-bonus")

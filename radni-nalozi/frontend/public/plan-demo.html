@@ -78,6 +78,9 @@
   .bonus-tab tr.b-det td{background:#fef2f2;white-space:normal}
   .b-det-ul{margin:4px 0;padding-left:18px;color:var(--tekst);font-weight:400}
   .b-det-ul li{margin:2px 0;font-size:12.5px}
+  .kb-dan{margin-bottom:10px}
+  .kb-datum{font-weight:700;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
+  .kb-red{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)}
   @media(min-width:1100px){
     body.view-pl .meh-idx{display:flex}
     body.view-pl main{padding-left:216px}
@@ -874,6 +877,25 @@
       }
     });
     h+='</tbody></table></div>';
+
+    // Povijest klikanja — tko je kaj kliknul, po danu (najnoviji gore).
+    var pov=bonus.povijest||[];
+    if(pov.length){
+      h+='<div class="card"><h4 style="margin:0 0 8px">🕑 Povijest klikanja</h4>';
+      pov.forEach(function(dan){
+        h+='<div class="kb-dan"><div class="kb-datum">'+esc(dan.datum)+'</div>';
+        (dan.redovi||[]).forEach(function(z){
+          var ozn, boja;
+          if(z.status==='na_vrijeme'){ ozn='✅ '+esc(z.vrijeme||''); boja='var(--zelena, green)'; }
+          else if(z.status==='kasno'){ ozn='🟠 '+esc(z.vrijeme||'')+' (kasno)'; boja='var(--narancasta, #b26a00)'; }
+          else if(z.status==='rucno'){ ozn='✍️ ručno (dispečer)'; boja='var(--crveno)'; }
+          else { ozn='❌ nije kliknuo'; boja='var(--crveno)'; }
+          h+='<div class="kb-red"><span>'+esc(z.ime)+'</span><span style="color:'+boja+';font-weight:600;white-space:nowrap">'+ozn+'</span></div>';
+        });
+        h+='</div>';
+      });
+      h+='</div>';
+    }
     return h;
   }
   function ucitajBonus(){
