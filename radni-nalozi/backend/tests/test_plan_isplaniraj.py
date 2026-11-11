@@ -19,7 +19,8 @@ from app.database import Base
 from app.models import (
     Korisnik, MehanicarLink, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak,
 )
-from app.routers.plan import isplaniraj
+from app.routers.plan import _set_radnici, isplaniraj
+from app.routers.nalozi import _svi_radnici_gotovi
 
 
 def _session():
@@ -85,7 +86,33 @@ def test_isplaniraj_preskace_onog_koji_vec_radi():
     assert r["poslano"] == 0
 
 
+def test_voditelj_dodijeljiv_i_preskocen_u_dispatchu():
+    """Voditelj (vanjski servis) se smije dodijeliti na operaciju, ali dispatch ga
+    preskače (ne prima poveznicu) i ne blokira dovršetak operacije."""
+    db = _session()
+    meh = Korisnik(ime="Meh C", korisnicko_ime="meh.c", lozinka_hash="x", uloga=Uloga.radnik)
+    vod = Korisnik(ime="Vodi Tko", korisnicko_ime="vod.a", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add_all([meh, vod]); db.flush()
+    voz = Vozilo(gb="T999", marka="MAN"); db.add(voz); db.flush()
+    n = Nalog(broj="RN-P-9", vozilo_id=voz.id, naslov="T", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="VANJSKI SERVIS", redoslijed=1); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="kamion u vanjski servis"); db.add(z); db.flush()
+
+    _set_radnici(db, z, [vod.id])          # samo voditelj „vodi" nalog
+    db.commit(); db.refresh(z)
+    assert [r.id for r in z.radnici] == [vod.id]
+
+    req = types.SimpleNamespace(base_url="https://x/")
+    r = isplaniraj(n.id, req, korisnik=meh, db=db)
+    assert r["mehanicara"] == 0            # voditelj se NE broji kao mehaničar u dispatchu
+
+    # Voditelj nema gumb Gotovo → ne blokira „svi gotovi"; op zatvara portal (azuriraj_zadatak).
+    assert _svi_radnici_gotovi(z) is True
+
+
 if __name__ == "__main__":
     test_isplaniraj_salje_prvi_ostale_u_red()
     test_isplaniraj_preskace_onog_koji_vec_radi()
+    test_voditelj_dodijeljiv_i_preskocen_u_dispatchu()
     print("OK — isplaniraj testovi prošli")

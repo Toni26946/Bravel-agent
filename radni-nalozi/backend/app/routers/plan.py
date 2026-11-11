@@ -24,9 +24,14 @@ from ..models import (
 )
 from ..push import obavijesti_korisnika
 from .nalozi import (
-    _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _auto_status_naloga,
+    _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _UREDNICI, _auto_status_naloga,
     _sljedeci_broj, _sync_povijest, nalog_eager, servis_odradjen,
 )
+
+# Tko se smije dodijeliti na operaciju: mehaničari (rade rukama) + voditelji/poslovođe
+# (npr. kamion ide u VANJSKI servis → voditelj „vodi" nalog). Voditelji ne primaju
+# WhatsApp poveznicu, ne idu u klik-bonus i ne broje se kao mehaničari u planu.
+_DODJELJIVI = tuple(set(_SERVISERI) | set(_UREDNICI))
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 _samo_vlasnik = zahtijevaj_plan_pristup()   # vlasnik ILI tko ima modul '/plan'
@@ -132,8 +137,8 @@ def _set_radnici(db: Session, z: Zadatak, ids: list[int]) -> None:
     valjani: list[Korisnik] = []
     for rid in dict.fromkeys(ids):
         r = db.get(Korisnik, rid)
-        if not r or r.uloga not in _SERVISERI:
-            raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije mehaničar")
+        if not r or r.uloga not in _DODJELJIVI:
+            raise HTTPException(status_code=400, detail=f"Korisnik {rid} se ne može dodijeliti")
         valjani.append(r)
     z.radnici = valjani
 
@@ -323,9 +328,17 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             return False   # odsutnost istekla
         return True
 
+    # Voditelji/poslovođe — za padajući izbornik dodjele (kad kamion ide u vanjski
+    # servis, nalog „vodi" voditelj). NE ulaze u popis mehaničara ni u dispatch.
+    voditelji = (
+        db.query(Korisnik)
+        .filter(Korisnik.uloga.in_(_UREDNICI), Korisnik.aktivan.is_(True))
+        .order_by(Korisnik.ime).all()
+    )
     return {
         "mehanicari": [{"id": m.id, "ime": m.ime, "odsutan": _odsutan(m),
                         "odsutnost": (m.odsutnost_vrsta if _odsutan(m) else None)} for m in meh],
+        "voditelji": [{"id": v.id, "ime": v.ime} for v in voditelji],
         "nalozi": out_nal,
         "promjene": [{"t": _ms(p.vrijeme), "tekst": p.opis} for p in promjene],
         "zakljucan": zakljucan,
@@ -841,8 +854,8 @@ def isplaniraj(nalog_id: int, request: Request,
             if z.gotovo or z.razlog_prekida == "dijelovi":
                 continue
             for r in z.radnici:
-                if not r.prijavljuje_se:
-                    continue   # npr. pregledar (Karthik) — ne prima WhatsApp poveznice
+                if r.uloga not in _SERVISERI or not r.prijavljuje_se:
+                    continue   # voditelj (vanjski servis) / pregledar (Karthik) — ne primaju poveznice
                 mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0
@@ -888,8 +901,8 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
                 if z.gotovo or z.razlog_prekida == "dijelovi":
                     continue
                 for r in z.radnici:
-                    if not r.prijavljuje_se:
-                        continue   # pregledar (Karthik) — ne prima WhatsApp poveznice
+                    if r.uloga not in _SERVISERI or not r.prijavljuje_se:
+                        continue   # voditelj (vanjski servis) / pregledar (Karthik) — ne primaju poveznice
                     mehanicari.setdefault(r.id, r)
     poslano = 0
     preskoceno_rade = 0

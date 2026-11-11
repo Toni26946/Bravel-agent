@@ -1115,8 +1115,9 @@ def _zavrsi_radnika(z: Zadatak, rid: int) -> None:
 
 
 def _svi_radnici_gotovi(z: Zadatak) -> bool:
-    """Jesu li SVI dodijeljeni radnici označili svoj dio gotovim (za operaciju s 2+ radnika)."""
-    aktivni = [r.id for r in z.radnici]
+    """Jesu li SVI dodijeljeni radnici označili svoj dio gotovim (za operaciju s 2+ radnika).
+    Broje se samo mehaničari — voditelj (vanjski servis) nema gumb Gotovo pa ne blokira."""
+    aktivni = [r.id for r in z.radnici if r.uloga in _SERVISERI]
     if not aktivni:
         return True
     zapisi = {v.radnik_id: v for v in z.vremena}
