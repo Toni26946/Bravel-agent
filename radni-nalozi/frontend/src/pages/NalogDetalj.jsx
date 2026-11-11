@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout'
-import { api } from '../api'
+import { api, medijUrl } from '../api'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
 import {
@@ -162,6 +162,9 @@ export default function NalogDetalj() {
       {/* Operacije i zadaci */}
       <div className="sekcija-naslov">{t('nalog.operacijeIZadaci')}</div>
       <Operacije nalog={n} radnici={radnici} ucitaj={ucitaj} naGresku={setGreska} jeVoditelj={korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'} />
+
+      {/* Dijelovi za naručiti → kartica „Narudžbe" (skladištar) */}
+      <NarudzbeBlok nalogId={n.id} gb={n.vozilo?.gb} naGresku={setGreska} />
 
       {/* Utrošeni dijelovi (izdatnice) → vozilo / trošak po vozilu */}
       <IzdatniceBlok nalogId={n.id} gb={n.vozilo?.gb} naGresku={setGreska} />
@@ -561,6 +564,110 @@ function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
 }
 
 // --- Utrošeni dijelovi (izdatnice) na nalogu → vozilo / trošak po vozilu ---
+// Oznake statusa narudžbe (dio za naručiti)
+const NAR_STATUS = {
+  trazeno: { t: '🟠 za naručiti', c: '#b45309', b: '#fff2db' },
+  naruceno: { t: '🔵 naručeno', c: '#1d4ed8', b: '#e5edff' },
+  stiglo: { t: '🟢 stiglo', c: '#047857', b: '#dcfce7' },
+}
+function NarStatusBadge({ s }) {
+  const o = NAR_STATUS[s] || NAR_STATUS.trazeno
+  return <span style={{ fontSize: 11, fontWeight: 700, color: o.c, background: o.b, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{o.t}</span>
+}
+
+// Unos dijelova za naručiti iz radnog naloga (ide u karticu „Narudžbe" skladištara).
+function NarudzbeBlok({ nalogId, gb, naGresku }) {
+  const [lista, setLista] = useState(null)
+  const [naziv, setNaziv] = useState('')
+  const [kataloski, setKataloski] = useState('')
+  const [kol, setKol] = useState('1')
+  const [jmj, setJmj] = useState('kom')
+  const [napomena, setNapomena] = useState('')
+  const [fotke, setFotke] = useState([])
+  const [radi, setRadi] = useState(false)
+  const [slanjeSlike, setSlanjeSlike] = useState(false)
+  const fileRef = useRef(null)
+
+  const ucitaj = () => api.narudzbeNaloga(nalogId).then(setLista).catch((e) => naGresku(e.message))
+  useEffect(() => { ucitaj() }, [nalogId])
+
+  const dodajSliku = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setSlanjeSlike(true)
+    try {
+      for (const f of files) {
+        const fd = new FormData(); fd.append('slika', f)
+        const r = await api.narudzbaFoto(fd)
+        if (r && r.foto) setFotke((p) => [...p, r.foto])
+      }
+    } catch (err) { naGresku(err.message) } finally { setSlanjeSlike(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+  const makniSliku = (i) => setFotke((p) => p.filter((_, j) => j !== i))
+
+  const dodaj = async () => {
+    const nz = naziv.trim(); if (!nz) return naGresku('Upiši što treba naručiti.')
+    const k = Number(kol); if (!(k > 0)) return naGresku('Količina mora biti veća od 0.')
+    setRadi(true)
+    try {
+      await api.dodajNarudzbu(nalogId, { naziv: nz, kataloski: kataloski.trim() || null, kolicina: k, jmj: jmj.trim() || 'kom', napomena: napomena.trim() || null, fotografije: fotke })
+      setNaziv(''); setKataloski(''); setKol('1'); setJmj('kom'); setNapomena(''); setFotke([]); ucitaj()
+    } catch (e) { naGresku(e.message) } finally { setRadi(false) }
+  }
+  const obrisi = async (id) => { try { await api.obrisiNarudzbu(id); ucitaj() } catch (e) { naGresku(e.message) } }
+
+  return (
+    <>
+      <div className="sekcija-naslov">📦 Dijelovi za naručiti {gb ? `· GB ${gb}` : ''}</div>
+      <div className="karta">
+        <input value={naziv} placeholder="što treba naručiti (naziv dijela)…" onChange={(e) => setNaziv(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ flex: 2 }}><label className="meta">Kataloški broj</label><input value={kataloski} onChange={(e) => setKataloski(e.target.value)} placeholder="opcijski" style={{ width: '100%', boxSizing: 'border-box' }} /></div>
+          <div style={{ flex: 1 }}><label className="meta">Količina</label><input type="number" step="any" value={kol} onChange={(e) => setKol(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} /></div>
+          <div style={{ width: 70 }}><label className="meta">JMJ</label><input value={jmj} onChange={(e) => setJmj(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} /></div>
+        </div>
+        <input value={napomena} placeholder="napomena (opcijski)…" onChange={(e) => setNapomena(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple onChange={dodajSliku} style={{ display: 'none' }} />
+          <button className="btn mali" type="button" disabled={slanjeSlike} onClick={() => fileRef.current && fileRef.current.click()}>{slanjeSlike ? 'Učitavam…' : '📷 Poslikaj dio'}</button>
+          {fotke.map((f, i) => (
+            <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={medijUrl(f)} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line, #ddd)' }} />
+              <span onClick={() => makniSliku(i)} style={{ position: 'absolute', top: -6, right: -6, background: '#000', color: '#fff', borderRadius: 999, width: 18, height: 18, fontSize: 12, lineHeight: '18px', textAlign: 'center', cursor: 'pointer' }}>×</span>
+            </span>
+          ))}
+          <button className="btn mali" style={{ marginLeft: 'auto' }} disabled={radi} onClick={dodaj}>➕ Dodaj u narudžbe</button>
+        </div>
+
+        {lista === null ? <Spinner /> : lista.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema upisanih dijelova za naručiti.</p> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
+            <tbody>
+              {lista.map((i) => (
+                <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
+                  <td style={{ padding: '4px 6px' }}>
+                    {i.naziv}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}
+                    {i.napomena ? <div className="meta">{i.napomena}</div> : null}
+                    {(i.fotografije || []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                        {i.fotografije.map((f, j) => (
+                          <a key={j} href={medijUrl(f)} target="_blank" rel="noreferrer"><img src={medijUrl(f)} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--line, #ddd)' }} /></a>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>{i.kolicina} {i.jmj}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right' }}><NarStatusBadge s={i.status} /></td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{i.status === 'trazeno' ? <span className="x" style={{ cursor: 'pointer' }} onClick={() => obrisi(i.id)}>×</span> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
+}
+
 function IzdatniceBlok({ nalogId, gb, naGresku }) {
   const [lista, setLista] = useState(null)
   const [artikl, setArtikl] = useState(null)

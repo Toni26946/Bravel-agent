@@ -6,6 +6,72 @@ import { useT } from '../i18n'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
+// --- Narudžbe (dijelovi upisani iz naloga) — skladištar vidi i obrađuje ---
+const NAR_ST = {
+  trazeno: { t: '🟠 za naručiti', c: '#b45309', b: '#fff2db' },
+  naruceno: { t: '🔵 naručeno', c: '#1d4ed8', b: '#e5edff' },
+  stiglo: { t: '🟢 stiglo', c: '#047857', b: '#dcfce7' },
+}
+function NarBadge({ s }) {
+  const o = NAR_ST[s] || NAR_ST.trazeno
+  return <span style={{ fontSize: 11, fontWeight: 700, color: o.c, background: o.b, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{o.t}</span>
+}
+function NarudzbeSkladiste() {
+  const [data, setData] = useState(null)
+  const [sveStatuse, setSveStatuse] = useState(false)   // prikaži i stigle
+  const [greska, setGreska] = useState('')
+  const ucitaj = () => api.narudzbe().then(setData).catch((e) => setGreska(e.message))
+  useEffect(() => { ucitaj() }, [])
+  const postavi = async (id, status) => { try { await api.narudzbaStatus(id, status); ucitaj() } catch (e) { setGreska(e.message) } }
+
+  const svi = data || []
+  const vidljive = sveStatuse ? svi : svi.filter((n) => n.status !== 'stiglo')
+  const otvorene = svi.filter((n) => n.status === 'trazeno').length
+  const grupe = {}
+  vidljive.forEach((n) => { const g = n.vozilo_gb || '—'; (grupe[g] = grupe[g] || []).push(n) })
+  const gbs = Object.keys(grupe).sort()
+
+  return (
+    <div className="karta" style={{ marginBottom: 14, borderLeft: '4px solid #1d4ed8' }}>
+      <div className="naslov-red" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0 }}>📦 Narudžbe{otvorene ? ` (${otvorene} za naručiti)` : ''}</h3>
+        <label className="meta" style={{ cursor: 'pointer' }}><input type="checkbox" checked={sveStatuse} onChange={(e) => setSveStatuse(e.target.checked)} /> i stigle</label>
+      </div>
+      <p className="meta" style={{ marginTop: 2 }}>Dijelovi koje su mehaničari/voditelji upisali u naloge. Pritisni „Naručeno" kad pošalješ narudžbu, „Stiglo" kad dio dođe.</p>
+      {greska && <div className="greska">{greska}</div>}
+      {data === null ? <Spinner /> : vidljive.length === 0 ? <p className="meta">Nema otvorenih narudžbi.</p> : (
+        gbs.map((gb) => (
+          <div key={gb} className="karta" style={{ padding: 10, marginTop: 8 }}>
+            <div><strong>🚚 GB {gb}</strong>{grupe[gb][0].broj_naloga ? <span className="meta"> · nalog {grupe[gb][0].broj_naloga}</span> : ''}</div>
+            {grupe[gb].map((n) => (
+              <div key={n.id} style={{ borderTop: '1px solid var(--line,#eee)', paddingTop: 6, marginTop: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <div>
+                    <div><strong>{n.kolicina} {n.jmj}</strong> · {n.naziv}{n.kataloski ? <span className="meta"> · {n.kataloski}</span> : ''}</div>
+                    {n.napomena ? <div className="meta">{n.napomena}</div> : null}
+                    <div className="meta">tražio {n.trazio || '—'}{n.trazeno ? ` · ${new Date(n.trazeno).toLocaleDateString('hr-HR')}` : ''}</div>
+                    {(n.fotografije || []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                        {n.fotografije.map((f, j) => (<a key={j} href={medijUrl(f)} target="_blank" rel="noreferrer"><img src={medijUrl(f)} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--line,#ddd)' }} /></a>))}
+                      </div>
+                    )}
+                  </div>
+                  <NarBadge s={n.status} />
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  {n.status === 'trazeno' && <button className="btn mali" onClick={() => postavi(n.id, 'naruceno')}>🔵 Naručeno</button>}
+                  {n.status !== 'stiglo' && <button className="btn mali" onClick={() => postavi(n.id, 'stiglo')}>🟢 Stiglo</button>}
+                  {n.status !== 'trazeno' && <button className="btn sekund mali" onClick={() => postavi(n.id, 'trazeno')}>↩︎ Vrati</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
 // --- Zalihe iz APROSS-a (uživo) — proširiva kartica na vrhu Skladišta ---
 function ZaliheAPROSS() {
   const [otvoreno, setOtvoreno] = useState(false)
@@ -650,6 +716,7 @@ export default function Skladiste() {
       {greska && <div className="greska">{greska}</div>}
       {poruka && <div className="uspjeh">{poruka}</div>}
 
+      <NarudzbeSkladiste />
       <ZaliheAPROSS />
       <TrosakPoVozilu />
 

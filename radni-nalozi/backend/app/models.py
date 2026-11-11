@@ -483,6 +483,35 @@ class Izdatnica(Base):
 
 
 # ---------------------------------------------------------------------------
+# NarudzbaDio — dio koji treba NARUČITI, upisan iz radnog naloga.
+# Skladištar ih vidi skupno u kartici „Narudžbe" i označava naručeno/stiglo.
+# status: trazeno → naruceno → stiglo
+# ---------------------------------------------------------------------------
+class NarudzbaDio(Base):
+    __tablename__ = "narudzbe_dijelovi"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nalog_id: Mapped[int] = mapped_column(ForeignKey("nalozi.id", ondelete="CASCADE"), index=True)
+    vozilo_gb: Mapped[str] = mapped_column(String(40), index=True)   # snimka GB vozila naloga
+    naziv: Mapped[str] = mapped_column(String(200))                  # što treba naručiti
+    kataloski: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    kolicina: Mapped[float] = mapped_column(Float, default=1)
+    jmj: Mapped[str] = mapped_column(String(20), default="kom")
+    napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fotografije: Mapped[list | None] = mapped_column(JSON, nullable=True)  # slike dijela [web putanje]
+    status: Mapped[str] = mapped_column(String(20), default="trazeno", index=True)  # trazeno|naruceno|stiglo
+    trazio_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    trazeno: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    naruceno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stiglo: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    obradio_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)  # skladištar
+
+    nalog: Mapped["Nalog"] = relationship()
+    trazio: Mapped["Korisnik"] = relationship(foreign_keys=[trazio_id])
+    obradio: Mapped["Korisnik"] = relationship(foreign_keys=[obradio_id])
+
+
+# ---------------------------------------------------------------------------
 # Povijest zamjene dijelova po kamionu (kada i zašto se dio mijenjao)
 # ---------------------------------------------------------------------------
 class ZamjenaDijela(Base):

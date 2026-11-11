@@ -138,6 +138,13 @@ export const api = {
   izdatnice: (nalogId) => zahtjev(`/nalozi/${nalogId}/izdatnice`),
   dodajIzdatnicu: (nalogId, b) => zahtjev(`/nalozi/${nalogId}/izdatnice`, { method: 'POST', body: b }),
   obrisiIzdatnicu: (nalogId, id) => zahtjev(`/nalozi/${nalogId}/izdatnice/${id}`, { method: 'DELETE' }),
+  // Narudžbe (dijelovi za naručiti) — unos iz naloga + skupni popis za skladištara
+  narudzbeNaloga: (nalogId) => zahtjev(`/narudzbe/nalog/${nalogId}`),
+  dodajNarudzbu: (nalogId, b) => zahtjev(`/narudzbe/nalog/${nalogId}`, { method: 'POST', body: b }),
+  obrisiNarudzbu: (id) => zahtjev(`/narudzbe/${id}`, { method: 'DELETE' }),
+  narudzbaFoto: (fd) => zahtjev('/narudzbe/foto', { method: 'POST', form: fd }),
+  narudzbe: (status) => zahtjev(`/narudzbe${status ? `?status=${status}` : ''}`),
+  narudzbaStatus: (id, status) => zahtjev(`/narudzbe/${id}/status`, { method: 'POST', body: { status } }),
   kreirajNalog: (b) => zahtjev('/nalozi', { method: 'POST', body: b }),
   azurirajNalog: (id, b) => zahtjev(`/nalozi/${id}`, { method: 'PATCH', body: b }),
   obrisiNalog: (id) => zahtjev(`/nalozi/${id}`, { method: 'DELETE' }),
