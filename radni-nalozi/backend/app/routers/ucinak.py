@@ -284,12 +284,20 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
                 if cur is None or h < cur:
                     prvi[rid][h.date()] = h
 
-    # Dani kad je mehaničar RUČNO prijavljen (dispečer umjesto njega) → prekršaj, ne broji na vrijeme.
-    rucno: dict[int, set] = defaultdict(set)
-    for rid, ts in db.execute(
-        select(KlikRucno.radnik_id, KlikRucno.kreiran).where(KlikRucno.kreiran >= od)
-    ).all():
-        rucno[rid].add(_u_hr(ts).date())
+    # Dani kad je mehaničar RUČNO prijavljen (dispečer/voditelj umjesto njega) → prekršaj.
+    # Pamtimo i TKO ga je ručno prijavio (ime voditelja), po (radnik, dan).
+    rucno: dict[int, dict] = defaultdict(dict)   # rid -> {dan: ime_voditelja|None}
+    _rucno_rows = db.execute(
+        select(KlikRucno.radnik_id, KlikRucno.kreiran, KlikRucno.voditelj_id)
+        .where(KlikRucno.kreiran >= od)
+    ).all()
+    _vod_ids = {vid for _r, _t, vid in _rucno_rows if vid}
+    _vod_imena = {}
+    if _vod_ids:
+        _vod_imena = {k.id: k.ime for k in db.execute(
+            select(Korisnik).where(Korisnik.id.in_(_vod_ids))).scalars().all()}
+    for rid, ts, vid in _rucno_rows:
+        rucno[rid][_u_hr(ts).date()] = _vod_imena.get(vid)
 
     # 4) Po radniku: očekivani dani (jutra kad je prisutan) / na vrijeme / prekršaji. Teren van.
     po: dict[int, dict] = {}
@@ -305,10 +313,12 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
         nav = 0
         detalji: list[dict] = []
         for d in sorted(dani, reverse=True):   # najnoviji prekršaj gore
-            if d in rucno.get(m.id, ()):
-                detalji.append({"datum": d.strftime("%d.%m.%Y"),
-                                "razlog": "ručno prijavljen (dispečer umjesto njega)"})
-                povijest_map[d].append({"ime": m.ime, "vrijeme": None, "status": "rucno"})
+            if d in rucno.get(m.id, {}):
+                vod = rucno.get(m.id, {}).get(d)
+                razlog = (f"ručno prijavljen — {vod}" if vod
+                          else "ručno prijavljen (dispečer umjesto njega)")
+                detalji.append({"datum": d.strftime("%d.%m.%Y"), "razlog": razlog})
+                povijest_map[d].append({"ime": m.ime, "vrijeme": None, "status": "rucno", "voditelj": vod})
                 continue   # ručno prijavljen tog dana → prekršaj (nije sam kliknuo)
             k = prvi.get(m.id, {}).get(d)
             vr = f"{k.hour:02d}:{k.minute:02d}" if k is not None else None

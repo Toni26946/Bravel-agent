@@ -808,4 +808,7 @@ class KlikRucno(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
+    voditelj_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)  # tko je ručno prijavio
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    voditelj: Mapped["Korisnik | None"] = relationship(foreign_keys=[voditelj_id])

@@ -779,7 +779,7 @@ def prijavi_rucno(zid: int, p: PrijaviRucnoIn, korisnik: Korisnik = Depends(_sam
     z.razlog_prekida = None
     z.prekid_vrijeme = None
     _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=m.id)
-    db.add(KlikRucno(radnik_id=m.id))   # ručna prijava → prekršaj u klik-bonusu
+    db.add(KlikRucno(radnik_id=m.id, voditelj_id=korisnik.id))   # ručna prijava (tko ju je napravio) → prekršaj u klik-bonusu
     db.flush()
     _auto_status_naloga(db, n, korisnik)
     _log(db, korisnik, "rucna-prijava",

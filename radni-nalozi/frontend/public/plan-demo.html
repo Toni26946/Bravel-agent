@@ -894,7 +894,7 @@
         var ozn, boja;
         if(z.status==='na_vrijeme'){ ozn='✅ '+esc(z.vrijeme||''); boja='var(--zelena, green)'; }
         else if(z.status==='kasno'){ ozn='🟠 '+esc(z.vrijeme||'')+' (kasno)'; boja='var(--narancasta, #b26a00)'; }
-        else if(z.status==='rucno'){ ozn='✍️ ručno (dispečer)'; boja='var(--crveno)'; }
+        else if(z.status==='rucno'){ ozn='✍️ ručno'+(z.voditelj?(' — '+esc(z.voditelj)):' (dispečer)'); boja='var(--crveno)'; }
         else { ozn='❌ nije kliknuo'; boja='var(--crveno)'; }
         h+='<div class="kb-red"><span>'+esc(z.ime)+'</span><span style="color:'+boja+';font-weight:600;white-space:nowrap">'+ozn+'</span></div>';
       });

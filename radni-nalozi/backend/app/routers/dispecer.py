@@ -817,8 +817,11 @@ _HTML = """<!doctype html>
 <title>Bravel — zadatak</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f8;color:#1f2a37}
-.top{background:#0d47a1;color:#fff;padding:16px;font-weight:700;font-size:18px}
+.top{background:#0d47a1;color:#fff;padding:12px 16px;font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .who{font-weight:600;font-size:15px;opacity:.92}
+.langsel{margin-left:auto;display:flex;gap:4px}
+.langsel button.lang-b{background:rgba(255,255,255,.18);color:#fff;border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700}
+.langsel button.lang-b.on{background:#fff;color:#0d47a1}
 .wrap{padding:16px;max-width:560px;margin:0 auto}
 .kart{background:#fff;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .gb{font-size:34px;font-weight:800;line-height:1}
@@ -848,7 +851,8 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
   55%{box-shadow:0 0 0 7px #ffcf4d}100%{transform:none;opacity:1;box-shadow:0 1px 3px rgba(0,0,0,.08)}}
 </style></head>
 <body>
-<div class="top">BRAVEL · radni zadatak<span id="who" class="who"></span></div>
+<div class="top"><span>BRAVEL · <span id="zadnaslov">radni zadatak</span></span><span id="who" class="who"></span>
+<span class="langsel"><button class="lang-b" data-l="hr">HR</button><button class="lang-b" data-l="en">EN</button><button class="lang-b" data-l="uk">UK</button></span></div>
 <div class="wrap" id="app"><div class="info">Učitavam…</div></div>
 <script>
 // Mehaničarska stranica NIJE PWA — ako je na mobitelu zaostao service worker s portala,
@@ -866,34 +870,48 @@ async function api(akcija,extra){
 }
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
+// --- Jezici: HR / EN / UK (mehaničari su često s ukrajinskog govornog područja) ---
+var I18N={
+ hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače."},
+ en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual."},
+ uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди."}
+};
+var L=localStorage.getItem('bravel_jezik')||'hr'; if(!I18N[L])L='hr';
+function T(k,p){var s=(I18N[L]&&I18N[L][k])||I18N.hr[k]||k; if(p){for(var x in p){s=s.split('{'+x+'}').join(p[x]);}} return s;}
+var _lastD=null, _krajMode=false;
+function reRender(){ if(_krajMode){ krajPrompt(); } else if(_lastD){ render(_lastD); } else { ucitaj(); } }
+function updateChrome(){ var z=document.getElementById('zadnaslov'); if(z) z.textContent=T('zadatak');
+  document.querySelectorAll('.lang-b').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-l')===L); }); }
+function setLang(l){ if(!I18N[l])return; L=l; try{localStorage.setItem('bravel_jezik',l);}catch(_){ } updateChrome(); reRender(); }
 let busy=false, prevZid=null;
 function beep(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var a=new C();var o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.001,a.currentTime);g.gain.exponentialRampToValueAtTime(.4,a.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.5);o.start();o.stop(a.currentTime+.52);}catch(_){}}
 function najaviNovi(){try{if(navigator.vibrate)navigator.vibrate([220,110,220]);}catch(_){}beep();var b=document.getElementById('novibanner');if(b)setTimeout(function(){b.style.opacity='0';},3500);}
 function render(d){
   const app=document.getElementById('app');
+  _lastD=d; _krajMode=false;
   // Ime mehaničara gore — da svatko odmah vidi je li ovo NJEGOV popis (kriva poveznica = tuđe ime).
   var w=document.getElementById('who'); if(w) w.textContent = d.ime ? ('  ·  👤 '+d.ime) : '';
   if(d.greska){app.innerHTML='<div class="greska">'+esc(d.greska)+'</div>';return;}
-  if(d.nema){app.innerHTML='<div class="kart"><div class="info">Nemaš više zadataka.<br/>Javi poslovođi.</div></div>';return;}
-  if(d.gotov_za_danas){app.innerHTML='<div class="kart"><div class="info"><b>Gotov za danas.</b><br/>Vrijeme je spremljeno. Vidimo se sutra!</div></div>';return;}
-  if(d.parkirano){app.innerHTML='<div class="kart"><div class="info">Zabilježeno — zadatak <b>nije dovršen</b> (pauza).<br/>Vrijeme je spremljeno. Doviđenja!</div></div>';return;}
+  if(d.nema){app.innerHTML='<div class="kart"><div class="info">'+T('nemaVise')+'<br/>'+T('javiPoslovodji')+'</div></div>';return;}
+  if(d.gotov_za_danas){app.innerHTML='<div class="kart"><div class="info"><b>'+T('gotovDanas')+'</b><br/>'+T('spremljeno1')+'</div></div>';return;}
+  if(d.parkirano){app.innerHTML='<div class="kart"><div class="info">'+T('zabiljezeno')+'<br/>'+T('spremljeno2')+'</div></div>';return;}
   if(d.pregledar){ renderPopis(d); return; }
   let cij='';  // iznos norme skriven za sad (dok testiramo poruke)
   const radi=d.stanje==='radu';
   app.innerHTML=
-   (d._novi?'<div class="novibanner" id="novibanner">🆕 Stigao novi zadatak!</div>':'')
+   (d._novi?'<div class="novibanner" id="novibanner">'+T('noviZadatak')+'</div>':'')
    +'<div class="kart'+(d._novi?' novi':'')+'"><div class="gb">'+esc(d.gb)+'</div>'
    +'<div class="meta">'+esc([d.vozilo,d.reg].filter(Boolean).join(' · '))+'</div>'
    +'<div class="opis">'+esc(d.opis)+'</div>'+cij
-   +(radi?'<div class="stanje radi">▶ mjerač radi</div>':'')
-   +(d.preostalo>0?'<div class="stanje">još '+d.preostalo+' u redu</div>':'')
+   +(radi?'<div class="stanje radi">'+T('mjeracRadi')+'</div>':'')
+   +(d.preostalo>0?'<div class="stanje">'+T('uRedu',{n:d.preostalo})+'</div>':'')
    +'</div>'
    +'<div class="gumbi">'
-   +(radi?'':'<button class="b-poc">Počinjem</button>')
-   +'<button class="b-got">Gotovo</button>'
-   +'<button class="b-dij">Nemam dijelova</button>'
-   +'<button class="b-ned">Nedostupan'+(d.udaljenost_m!=null?' ('+udalj(d.udaljenost_m)+')':'')+'</button>'
-   +'<button class="b-nije">Nije gotovo</button>'
+   +(radi?'':'<button class="b-poc">'+T('poc')+'</button>')
+   +'<button class="b-got">'+T('got')+'</button>'
+   +'<button class="b-dij">'+T('dij')+'</button>'
+   +'<button class="b-ned">'+T('ned')+(d.udaljenost_m!=null?' ('+udalj(d.udaljenost_m)+')':'')+'</button>'
+   +'<button class="b-nije">'+T('nije')+'</button>'
    +'</div>';
   var bp=document.querySelector('.b-poc'); if(bp) bp.onclick=function(){akc('pocinjem')};
   var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
@@ -904,21 +922,22 @@ function render(d){
 }
 function renderPopis(d){
   const app=document.getElementById('app');
+  _lastD=d; _krajMode=false;
   const lista=d.popis||[];
-  if(!lista.length){app.innerHTML='<div class="kart"><div class="info"><b>Nema otvorenih pregleda.</b><br/>Sve je gotovo. 👍</div></div>';return;}
-  let h='<div class="pregbroj">Tvoji pregledi: '+lista.length+'</div>';
+  if(!lista.length){app.innerHTML='<div class="kart"><div class="info"><b>'+T('nemaPregleda')+'</b><br/>'+T('sveGotovo')+'</div></div>';return;}
+  let h='<div class="pregbroj">'+T('tvojiPregledi')+' '+lista.length+'</div>';
   for(const s of lista){
-    var rokLinija = (s.rok && !/rok/i.test(s.opis||'')) ? '<div class="rok">Rok: '+esc(s.rok)+'</div>' : '';
+    var rokLinija = (s.rok && !/rok/i.test(s.opis||'')) ? '<div class="rok">'+T('rok')+' '+esc(s.rok)+'</div>' : '';
     h+='<div class="kart"><div class="gb">'+esc(s.gb)+'</div>'
       +'<div class="meta">'+esc([s.vozilo,s.reg].filter(Boolean).join(' · '))+'</div>'
       +'<div class="opis">'+esc(s.opis)+'</div>'+rokLinija
-      +'<div class="gumbi"><button class="b-stavka" data-zid="'+s.zadatak_id+'" data-gb="'+esc(s.gb)+'">✓ Gotovo</button></div>'
+      +'<div class="gumbi"><button class="b-stavka" data-zid="'+s.zadatak_id+'" data-gb="'+esc(s.gb)+'">'+T('gotovoKv')+'</button></div>'
       +'</div>';
   }
   app.innerHTML=h;
   document.querySelectorAll('.b-stavka').forEach(function(b){
     b.onclick=function(){
-      if(!confirm('Označiti kao gotovo — GB '+b.getAttribute('data-gb')+'?'))return;
+      if(!confirm(T('oznaciGotovo',{gb:b.getAttribute('data-gb')})))return;
       gotovoStavka(parseInt(b.getAttribute('data-zid'),10), b);
     };
   });
@@ -931,16 +950,17 @@ async function gotovoStavka(zid, btn){
   if(status>=400){render({greska:(j.detail||'Greška')});return;}
   render(j);
 }
-async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||'Ova poveznica nije za tebe'});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
-async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||'Greška')});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
-async function dijelovi(){if(busy)return;const naziv=prompt('Koji dio nedostaje? (upiši naziv)');if(naziv===null)return;busy=true;const prije=prevZid;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||'Greška')});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||T('nijeZaTebe')});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function dijelovi(){if(busy)return;const naziv=prompt(T('kojiDio'));if(naziv===null)return;busy=true;const prije=prevZid;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
 function krajPrompt(){
   const app=document.getElementById('app');
+  _krajMode=true; _lastD=null;
   app.innerHTML=
-   '<div class="banner">Kraj radnog vremena.<br/>Jesi gotov za danas ili ostaješ dulje?</div>'
+   '<div class="banner">'+T('krajVremena')+'<br/>'+T('gotovIliOstajes')+'</div>'
    +'<div class="gumbi">'
-   +'<button class="b-ostaje">Ostajem dulje</button>'
-   +'<button class="b-kraj">Gotov za danas</button>'
+   +'<button class="b-ostaje">'+T('ostajem')+'</button>'
+   +'<button class="b-kraj">'+T('gotovDanas')+'</button>'
    +'</div>';
   document.querySelector('.b-ostaje').onclick=function(){smjena('ostajem')};
   document.querySelector('.b-kraj').onclick=function(){smjena('gotov')};
@@ -949,7 +969,7 @@ async function smjena(odg){
   if(busy)return;
   if(PROBA){
     if(odg==='gotov'){render({gotov_za_danas:true});}
-    else{document.getElementById('app').innerHTML='<div class="kart"><div class="info"><b>Ostajem dulje.</b><br/>(proba) Nastavljaš s radom kao inače.</div></div>';}
+    else{document.getElementById('app').innerHTML='<div class="kart"><div class="info">'+T('ostajemProba')+'</div></div>';}
     return;
   }
   busy=true;const {status,j}=await api('smjena',{odgovor:odg});busy=false;
@@ -959,6 +979,8 @@ async function smjena(odg){
 }
 const PARAMS=new URLSearchParams(location.search);
 const PROBA=PARAMS.get('proba')==='1';
+document.querySelectorAll('.lang-b').forEach(function(b){ b.onclick=function(){ setLang(b.getAttribute('data-l')); }; });
+updateChrome();
 if(PARAMS.get('kraj')==='1'){ krajPrompt(); } else { ucitaj(); }
 </script>
 </body></html>"""
