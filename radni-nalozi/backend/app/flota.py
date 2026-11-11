@@ -302,6 +302,20 @@ def _prestaro(vrijeme_iso: str | None) -> bool:
     return starost > settings.flota_max_starost_s
 
 
+def udaljenost_od_radione(gb: str | None) -> int | None:
+    """Udaljenost vozila od radione u metrima (iz keša GPS-a). None ako nije
+    konfigurirano, nema GB-a ili nema svježe pozicije (prikolice/šlepe nemaju GPS)."""
+    if not gb or not (settings.radiona_lat and settings.radiona_lon):
+        return None
+    p = _zadnje_pozicije.get(str(gb)) or _zadnje_pozicije.get(str(gb).lstrip("0") or str(gb))
+    if not p or p.get("zastarjelo") or _prestaro(p.get("vrijeme")):
+        return None
+    try:
+        return int(udaljenost_m(p["lat"], p["lon"], settings.radiona_lat, settings.radiona_lon))
+    except (KeyError, TypeError):
+        return None
+
+
 def je_u_krugu_radione(gb: str | None) -> bool:
     """Je li vozilo (po zadnjoj GPS poziciji) trenutno unutar geokruga radione.
 

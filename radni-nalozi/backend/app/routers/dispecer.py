@@ -23,7 +23,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import norme
+from .. import flota, norme
 from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
@@ -170,27 +170,36 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
             continue
         for op in n.operacije:
             for z in op.zadaci:
-                if z.gotovo or z.razlog_prekida == "dijelovi":
+                if z.gotovo:
                     continue
                 if not any(r.id == radnik.id for r in z.radnici):
                     continue
                 out.append((n, op, z))
 
+    def _ts(dt):
+        if dt is None:
+            return 0.0
+        return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
+
     def kljuc(t):
         n, op, z = t
         rang = n.plan_rang if n.plan_rang is not None else 9999
-        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo. Unutar „ostalog" vrijedi
-        # RUČNI red po mehaničaru (red_ruc, slaže se dragom u dashboardu); čeka-potvrdu i
-        # rang su samo tiebreak za zadatke bez ručnog reda. Mehaničar ne vidi da je hitno.
+        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo, 3 = odgođeno (nema dijelova /
+        # nedostupan) → uvijek na kraj reda, ali OSTAJE u planu. Unutar „ostalog" vrijedi
+        # RUČNI red po mehaničaru (red_ruc, drag u dashboardu); unutar „odgođenog" po
+        # vremenu prekida (najstarije odgođeno se prvo vrati). Mehaničar ne vidi da je hitno.
+        odgodjeno = (not z.zapoceto) and (z.razlog_prekida in ("dijelovi", "nedostupan"))
         if z.zapoceto:
             faza = 0
+        elif odgodjeno:
+            faza = 3
         elif n.plan_hitno:
             faza = 1
         else:
             faza = 2
         rr = z.red_ruc if z.red_ruc is not None else 10 ** 6
         cp = 0 if z.ceka_potvrdu else 1
-        return (faza, rr, cp, rang, op.redoslijed or 0, z.id)
+        return (faza, _ts(z.prekid_vrijeme), rr, cp, rang, op.redoslijed or 0, z.id)
 
     out.sort(key=kljuc)
     return out
@@ -292,6 +301,9 @@ def _stanje(db: Session, radnik: Korisnik) -> dict:
         "cijena": _cijena(db, op.kategorija),
         "stanje": _plan_status(z),   # ceka | radu | pauza | plan
         "preostalo": max(0, len(red) - 1),
+        # Udaljenost vozila od radione (m) — za gumb „Nedostupan". None za prikolice (nemaju GPS).
+        "udaljenost_m": flota.udaljenost_od_radione(_gb(n)),
+        "odgodjeno": z.razlog_prekida in ("dijelovi", "nedostupan"),
     }
 
 
@@ -443,7 +455,7 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     _zaustavi_mjerac(z)
     z.ceka_potvrdu = False
     z.razlog_prekida = "dijelovi"
-    z.prekid_vrijeme = None
+    z.prekid_vrijeme = datetime.now(timezone.utc)   # ide na kraj reda, ali OSTAJE u planu
     naziv = (p.naziv or "").strip()[:200]
     # Zahtjev skladištu (dio 3b — skladištarev prozorčić „Pridruži operaciji") dolazi
     # u sljedećem koraku; zasad bilježimo naziv dijela kao napomenu zadatka.
@@ -460,6 +472,27 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     )
     db.commit()
     _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
+    return _stanje(db, link.radnik)
+
+
+@router.post("/z/{token}/nedostupan")
+def z_nedostupan(token: str, p: UredjajIn, db: Session = Depends(get_db)):
+    """Vozilo trenutno nije dostupno (nije u radioni / predaleko) → zadatak ide na KRAJ
+    reda, ali OSTAJE u planu. Mehaničar se prebaci na sljedeći."""
+    link = _ucitaj(db, token, p.uredjaj)
+    red = _red(db, link.radnik)
+    if not red:
+        db.commit()
+        return {"nema": True, "ime": link.radnik.ime}
+    z = red[0][2]
+    _zaustavi_mjerac(z)
+    z.ceka_potvrdu = False
+    z.razlog_prekida = "nedostupan"
+    z.prekid_vrijeme = datetime.now(timezone.utc)   # ide na kraj reda, ostaje u planu
+    db.flush()
+    _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    db.commit()
+    _pripremi_sljedeci(db, link.radnik)
     return _stanje(db, link.radnik)
 
 
@@ -752,9 +785,9 @@ _HTML = """<!doctype html>
 .cijena{margin-top:12px;font-size:15px;color:#0d47a1;font-weight:700}
 .gumbi{display:flex;flex-direction:column;gap:12px;margin-top:8px}
 button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;color:#fff;cursor:pointer}
-.b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-nije{background:#5b6470}
+.b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-ned{background:#8a5a00} .b-nije{background:#5b6470}
 .b-ostaje{background:#1f7a39} .b-kraj{background:#5b6470}
-.b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-nije:disabled{opacity:.5}
+.b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-ned:disabled,.b-nije:disabled{opacity:.5}
 .b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
 .pregbroj{font-weight:800;font-size:18px;margin:2px 0 14px;color:#0d47a1}
 .rok{margin-top:8px;font-size:14px;font-weight:700;color:#b26a00}
@@ -790,6 +823,7 @@ async function api(akcija,extra){
   return {status:r.status,j};
 }
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
 let busy=false, prevZid=null;
 function beep(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var a=new C();var o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.001,a.currentTime);g.gain.exponentialRampToValueAtTime(.4,a.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.5);o.start();o.stop(a.currentTime+.52);}catch(_){}}
 function najaviNovi(){try{if(navigator.vibrate)navigator.vibrate([220,110,220]);}catch(_){}beep();var b=document.getElementById('novibanner');if(b)setTimeout(function(){b.style.opacity='0';},3500);}
@@ -816,11 +850,13 @@ function render(d){
    +(radi?'':'<button class="b-poc">Počinjem</button>')
    +'<button class="b-got">Gotovo</button>'
    +'<button class="b-dij">Nemam dijelova</button>'
+   +'<button class="b-ned">Nedostupan'+(d.udaljenost_m!=null?' ('+udalj(d.udaljenost_m)+')':'')+'</button>'
    +'<button class="b-nije">Nije gotovo</button>'
    +'</div>';
   var bp=document.querySelector('.b-poc'); if(bp) bp.onclick=function(){akc('pocinjem')};
   var bg=document.querySelector('.b-got'); if(bg) bg.onclick=function(){akc('gotovo')};
   var bd=document.querySelector('.b-dij'); if(bd) bd.onclick=function(){dijelovi()};
+  var bu=document.querySelector('.b-ned'); if(bu) bu.onclick=function(){akc('nedostupan')};
   var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){akc('nije-gotovo')};
   if(d._novi) najaviNovi();
 }
