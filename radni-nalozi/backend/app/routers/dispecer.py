@@ -693,6 +693,48 @@ def test_tok(request: Request, _: Korisnik = Depends(_samo_vlasnik), db: Session
     return {"ok": bool(rez.get("poslano")), "detalji": rez, "zadataka": len(opisi)}
 
 
+class TestTokLinkIn(BaseModel):
+    gb: str = _TEST_GB
+
+
+@router.post("/test-tok-link")
+def test_tok_link(request: Request, p: TestTokLinkIn, _: Korisnik = Depends(_samo_vlasnik),
+                  db: Session = Depends(get_db)):
+    """SIGURAN probni tok na ODABRANOM vozilu (GB) — vrati login-less URL (BEZ WhatsAppa).
+    Zaseban test mehaničar + test nalog s 3 probna zadatka; vlasnik otvori URL i vidi
+    kako mehaničaru izgleda stranica (naziv vozila, udaljenost, gumbi). Čisti se preko
+    /test-tok-stop. Ne dira prave naloge."""
+    gb = (p.gb or _TEST_GB).strip() or _TEST_GB
+    meh = _test_mehanicar(db)
+    link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == meh.id).first()
+    token = secrets.token_urlsafe(24)
+    if link:
+        link.token = token
+        link.uredjaj = None
+        link.aktivan = True
+        link.zadnje_koristeno = None
+        link.zadnji_uredjaj = None
+    else:
+        link = MehanicarLink(radnik_id=meh.id, token=token, aktivan=True)
+        db.add(link)
+    db.flush()
+    voz = db.query(Vozilo).filter(Vozilo.gb == gb).first()
+    if not voz:
+        voz = Vozilo(gb=gb, marka="TEST"); db.add(voz); db.flush()
+    _obrisi_test_nalog(db)
+    n = Nalog(broj=_TEST_RN, vozilo_id=voz.id, naslov=f"PROBNI TOK · GB {gb}",
+              kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    opisi = ["PROBNI 1 — zamjena pločica",
+             "PROBNI 2 — provjera kočnica",
+             "PROBNI 3 — ugradnja zračnog jastuka"]
+    for i, o in enumerate(opisi):
+        op = Operacija(nalog_id=n.id, kategorija="TEST", redoslijed=i + 1); db.add(op); db.flush()
+        z = Zadatak(operacija_id=op.id, opis=o, ceka_potvrdu=(i == 0)); z.radnici = [meh]; db.add(z)
+    db.commit()
+    return {"ok": True, "gb": gb, "url": _url_za(request, token)}
+
+
 @router.post("/test-tok-stop")
 def test_tok_stop(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     """Počisti probni tok: obriši test nalog i deaktiviraj test mehaničara + poveznicu."""
