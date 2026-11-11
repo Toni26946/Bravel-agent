@@ -599,9 +599,11 @@
     h+='</div></div>';
     return h;
   }
-  function blizuRadione(n){ return n.udaljenostM!=null && n.udaljenostM<=BLIZU_M; }
+  // „Daleko" = GPS POUZDANO kaže da je >200 m. Nepoznato (prikolice/šlepe bez GPS-a,
+  // zastarjela pozicija) se NE smatra dalekim → ostaje vidljivo kad je filter uključen.
+  function daleko(n){ return n.udaljenostM!=null && n.udaljenostM>BLIZU_M; }
   function renderPL(){
-    var _f=function(n){ return !samoBlizu || blizuRadione(n); };
+    var _f=function(n){ return !samoBlizu || !daleko(n); };
     var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n) && n.rang!=null;}).filter(_f);
     var _cmp=function(a,b){
       var ar=(a.rang==null), br=(b.rang==null);
@@ -619,12 +621,12 @@
          (planZakljucan?'':'<button class="btn ghost sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
-         '<label class="blizu-chk" title="Prikaži samo naloge čija su vozila trenutno ≤'+BLIZU_M+' m od radione (po GPS-u)"><input type="checkbox"'+(samoBlizu?' checked':'')+' onchange="PLAN.toggleBlizu(this.checked)"> 📍 Samo ≤'+BLIZU_M+' m od radione</label>'+
+         '<label class="blizu-chk" title="Sakrij naloge čija su vozila po GPS-u dalje od '+BLIZU_M+' m od radione. Prikolice i vozila bez GPS-a ostaju vidljiva."><input type="checkbox"'+(samoBlizu?' checked':'')+' onchange="PLAN.toggleBlizu(this.checked)"> 📍 Samo ≤'+BLIZU_M+' m od radione</label>'+
        '</div>';
     if(samoBlizu){
       var _uk=nalozi.filter(function(n){return !nalogZavrsen(n);}).length;
-      var _bl=nalozi.filter(function(n){return !nalogZavrsen(n) && blizuRadione(n);}).length;
-      h+='<div class="zak-traka" style="background:#0f3d2e;color:#d7f5e6">📍 Filter: prikazani samo nalozi ≤'+BLIZU_M+' m od radione — '+_bl+' od '+_uk+' (ostali su skriveni; prikolice/vozila bez svježeg GPS-a se ne prikazuju).</div>';
+      var _far=nalozi.filter(function(n){return !nalogZavrsen(n) && daleko(n);}).length;
+      h+='<div class="zak-traka" style="background:#0f3d2e;color:#d7f5e6">📍 Filter: skriveni nalozi čija su vozila po GPS-u >'+BLIZU_M+' m od radione ('+_far+' skriveno, prikazano '+(_uk-_far)+'). Prikolice i vozila bez GPS-a ostaju vidljiva.</div>';
     }
     // (Pregled „Napravljeno danas" je sad zaseban tab — vidi renderNAP.)
     if(planZakljucan){
