@@ -1068,6 +1068,19 @@ def dio_stigao(zid: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Dep
     return {"ok": True}
 
 
+@router.post("/zadatak/{zid}/vozilo-doslo")
+def vozilo_doslo(zid: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Vozilo opet dostupno — skini oznaku 'nedostupan' i vrati operaciju u plan
+    (dispečer je onda može slati/raditi normalno)."""
+    z = _zad(db, zid)
+    if z.razlog_prekida == "nedostupan":
+        z.razlog_prekida = None
+        z.prekid_vrijeme = None
+        z.ceka_potvrdu = False
+    db.commit()
+    return {"ok": True}
+
+
 # --- write: mehaničar (ili vlasnik) ---------------------------------------
 def _smije_meh(korisnik: Korisnik, z: Zadatak) -> bool:
     # Dispečer/voditelj (pristup Planu) smije kliknuti umjesto mehaničara, ILI sam mehaničar.

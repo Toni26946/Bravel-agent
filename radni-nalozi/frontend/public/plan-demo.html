@@ -446,6 +446,7 @@
   function pokaziDodaj(btn){ try{ btn.style.display='none'; var sel=btn.parentNode.querySelector('.meh-add-sel'); if(sel){ sel.style.display=''; sel.focus(); } }catch(e){} }
   function makniRadnika(opId){ act("/zadatak/"+opId+"/makni-radnika"); }
   function dioStigao(opId){ act("/zadatak/"+opId+"/dio-stigao"); }
+  function voziloDoslo(opId){ act("/zadatak/"+opId+"/vozilo-doslo"); }
   function hitno(nid){ var n=nalById(nid); if(!n||n.cekaDijelove) return;
     if(!n.hitno && brHitnih()>=MAX_HITNO){ toast("⚠️ Najviše "+MAX_HITNO+" hitna vozila — prvo makni jedno"); return; }
     api("/nalog/"+nid+"/hitno","PATCH",{hitno:!n.hitno}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); }); }
@@ -599,6 +600,7 @@
             +'</span>';
         }
         if(o.status==="dijelovi") h+=' <button class="btn ghost sm" onclick="PLAN.dioStigao('+o.id+')">📦 Dio stigao</button>';
+        if(o.status==="nedostupan") h+=' <button class="btn ghost sm" onclick="PLAN.voziloDoslo('+o.id+')">🚚 Vozilo došlo</button>';
       }
       h+='</span></div>';
     });
@@ -979,7 +981,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, toggleLog:toggleLog, toggleBlizu:toggleBlizu, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, voziloDoslo:voziloDoslo, toggleLog:toggleLog, toggleBlizu:toggleBlizu, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
