@@ -1099,6 +1099,36 @@ def _zaustavi_mjerac(z: Zadatak) -> None:
     _uskladi_radnicke_mjerace(z)
 
 
+def _zavrsi_radnika(z: Zadatak, rid: int) -> None:
+    """Označi JEDNOG radnika gotovim na zadatku: zaustavi njegov mjerač (čuva vrijeme)
+    i upiši da je svoj dio završio. Ne dira ostale radnike."""
+    sad = datetime.now(timezone.utc)
+    zr = next((v for v in z.vremena if v.radnik_id == rid), None)
+    if zr is None:
+        zr = ZadatakRadnikVrijeme(radnik_id=rid)
+        z.vremena.append(zr)
+    if zr.zapoceto:
+        zr.utroseno_sek = int(zr.utroseno_sek or 0) + max(
+            0, int((sad - _aware(zr.zapoceto)).total_seconds()))
+        zr.zapoceto = None
+    zr.gotovo = True
+
+
+def _svi_radnici_gotovi(z: Zadatak) -> bool:
+    """Jesu li SVI dodijeljeni radnici označili svoj dio gotovim (za operaciju s 2+ radnika)."""
+    aktivni = [r.id for r in z.radnici]
+    if not aktivni:
+        return True
+    zapisi = {v.radnik_id: v for v in z.vremena}
+    return all(zapisi.get(rid) is not None and zapisi[rid].gotovo for rid in aktivni)
+
+
+def _ponisti_gotovo_radnika(z: Zadatak) -> None:
+    """Pri ponovnom otvaranju zadatka — makni oznaku 'gotovo' sa svih radnika."""
+    for zr in z.vremena:
+        zr.gotovo = False
+
+
 def _zatvori_kao_nije_gotovo(z: Zadatak) -> None:
     """Zatvori zadatak kao NEDOVRŠEN: zaustavi mjerač (čuva utrošeno vrijeme) i
     makni oznake čekanja/prekida — zadatak ostaje u pauzi (NIJE gotov)."""
@@ -1223,10 +1253,13 @@ def azuriraj_zadatak(
             _zaustavi_mjerac(z)  # zaustavi mjerenje i zabilježi vrijeme završetka
             z.zavrseno = datetime.now(timezone.utc)
             z.zavrsio_id = korisnik.id   # tko je kliknuo gotovo
+            for zr in z.vremena:          # voditelj zatvara cijelu operaciju → svi radnici gotovi
+                zr.gotovo = True
             servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
         else:
             z.zavrseno = None   # ponovno otvoren — makni oznaku završetka
             z.zavrsio_id = None
+            _ponisti_gotovo_radnika(z)   # više nitko nije „gotov" na njemu
             # Ako operacija ima dodijeljene radnike, nastavi mjerenje s njima
             # (osim ako nalog čeka dijelove) — da se ista operacija lako nastavi.
             if z.radnici and nalog.status != StatusNaloga.ceka_dijelove:

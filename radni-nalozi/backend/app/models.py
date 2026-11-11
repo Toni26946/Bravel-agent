@@ -676,6 +676,7 @@ class ZadatakRadnikVrijeme(Base):
     radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"), index=True)
     utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)
     zapoceto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    gotovo: Mapped[bool] = mapped_column(Boolean, default=False)   # je li OVAJ radnik završio svoj dio
 
     zadatak: Mapped["Zadatak"] = relationship(back_populates="vremena")
     radnik: Mapped["Korisnik"] = relationship()

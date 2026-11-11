@@ -627,3 +627,38 @@ def test_pocinjem_pokrece_samo_tog_radnika():
     vr = {x.radnik_id: x for x in z.vremena}
     assert vr[a.id].zapoceto is not None
     assert vr[b.id].zapoceto is not None                 # sad i B radi
+
+
+def test_gotovo_dvojica_zavrsava_tek_kad_obojica():
+    """Zadatak s DVA radnika: jedan 'Gotovo' završi SAMO njegov dio (drugi i dalje
+    radi, NE odjavljuje se); operacija je gotova tek kad OBOJICA kliknu Gotovo."""
+    db = _session()
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    b = Korisnik(ime="B", korisnicko_ime="b", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T2", marka="MAN"); db.add_all([a, b, voz]); db.flush()
+    n = Nalog(broj="RN-T2", vozilo_id=voz.id, naslov="T2", kreirao_id=a.id,
+              status=StatusNaloga.u_radu, plan_rang=0)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="BLATOBRANI"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="posao", ceka_potvrdu=True); z.radnici = [a, b]
+    db.add(z)
+    db.add(MehanicarLink(radnik_id=a.id, token="tokA", aktivan=True))
+    db.add(MehanicarLink(radnik_id=b.id, token="tokB", aktivan=True))
+    db.commit()
+
+    z_pocinjem("tokA", UredjajIn(uredjaj="dA"), db=db)
+    z_pocinjem("tokB", UredjajIn(uredjaj="dB"), db=db)
+
+    # A stisne Gotovo → operacija NIJE gotova; A je svoj dio završio, B i dalje radi.
+    rA = z_gotovo("tokA", UredjajIn(uredjaj="dA"), request=_REQ, db=db)
+    db.refresh(z)
+    assert z.gotovo is False, "jedan Gotovo ne smije završiti cijelu operaciju"
+    vr = {x.radnik_id: x for x in z.vremena}
+    assert vr[a.id].gotovo is True and vr[a.id].zapoceto is None, "A završio svoj dio"
+    assert vr[b.id].gotovo is False and vr[b.id].zapoceto is not None, "B i dalje radi (nije odjavljen)"
+    assert rA.get("nema") is True, "A nema više zadataka"
+
+    # B stisne Gotovo → sad je cijela operacija gotova.
+    z_gotovo("tokB", UredjajIn(uredjaj="dB"), request=_REQ, db=db)
+    db.refresh(z)
+    assert z.gotovo is True, "kad obojica kliknu Gotovo, operacija je gotova"

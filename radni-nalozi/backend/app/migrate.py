@@ -52,6 +52,7 @@ _STUPCI = [
     ("primke", "fotografije", "JSON"),
     ("primke", "apross_broj", "INTEGER"),
     ("klik_rucno", "voditelj_id", "INTEGER"),
+    ("zadatak_radnik_vrijeme", "gotovo", "BOOLEAN DEFAULT FALSE"),
     ("fotografije", "steta_id", "INTEGER"),
     ("korisnici", "narucitelj", "BOOLEAN DEFAULT FALSE"),
     ("korisnici", "funkcija", "VARCHAR(60)"),

@@ -28,7 +28,8 @@ from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
 from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from ..push import obavijesti_korisnika, obavijesti_ulogu
-from .nalozi import _auto_status_naloga, _pokreni_mjerac, _zatvori_kao_nije_gotovo, _zaustavi_mjerac, nalog_eager, servis_odradjen
+from .nalozi import (_auto_status_naloga, _pokreni_mjerac, _svi_radnici_gotovi, _zatvori_kao_nije_gotovo,
+                     _zaustavi_mjerac, _zavrsi_radnika, nalog_eager, servis_odradjen)
 from .plan import _AKTIVNI, _SKRIVENI_GB, _gb, _plan_status
 
 log = logging.getLogger("dispecer")
@@ -173,6 +174,11 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
                 if z.gotovo:
                     continue
                 if not any(r.id == radnik.id for r in z.radnici):
+                    continue
+                # Operacija s 2+ radnika: ako je OVAJ radnik svoj dio već završio (čeka
+                # drugoga), ne prikazuj mu je više — vidi je samo onaj tko još nije gotov.
+                zr = next((v for v in z.vremena if v.radnik_id == radnik.id), None)
+                if zr is not None and zr.gotovo:
                     continue
                 out.append((n, op, z))
 
@@ -403,14 +409,18 @@ def z_gotovo(token: str, p: UredjajIn, request: Request, db: Session = Depends(g
         db.commit()
         return {"nema": True, "ime": link.radnik.ime}
     z = red[0][2]
-    _zaustavi_mjerac(z)
+    # Operacija s 2+ mehaničara: „Gotovo" završava SAMO njegov dio; cijela operacija je
+    # gotova tek kad SVI dodijeljeni kliknu Gotovo (dotad drugi i dalje radi — ne odjavljuje se).
+    _zavrsi_radnika(z, link.radnik.id)
     z.ceka_potvrdu = False
-    z.gotovo = True
-    z.zavrseno = datetime.now(timezone.utc)
-    z.zavrsio_id = link.radnik.id   # mehaničar kliknuo gotovo preko svoje poveznice
     z.razlog_prekida = None
     z.prekid_vrijeme = None
-    servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
+    if _svi_radnici_gotovi(z):
+        _zaustavi_mjerac(z)
+        z.gotovo = True
+        z.zavrseno = datetime.now(timezone.utc)
+        z.zavrsio_id = link.radnik.id   # tko je kliknuo zadnji (zatvorio operaciju)
+        servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     db.commit()

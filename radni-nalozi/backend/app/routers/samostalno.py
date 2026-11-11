@@ -21,7 +21,9 @@ from .nalozi import (
     _auto_status_naloga,
     _pokreni_mjerac,
     _sljedeci_broj,
+    _svi_radnici_gotovi,
     _zaustavi_mjerac,
+    _zavrsi_radnika,
 )
 
 router = APIRouter(prefix="/samostalno", tags=["samostalno"])
@@ -107,7 +109,13 @@ def stanje(kao: int | None = None, korisnik: Korisnik = Depends(trenutni_korisni
     else:
         raise HTTPException(status_code=403, detail="Nemate pristup samostalnom radu")
     svi = db.query(Zadatak).join(Zadatak.radnici).filter(Korisnik.id == k.id).all()
-    otvoreni = [z for z in svi if not z.gotovo and z.operacija.nalog.status != StatusNaloga.zatvoren]
+
+    def _ja_gotov(z):   # 2+ radnika: ovaj je svoj dio završio, čeka drugoga
+        zr = next((v for v in z.vremena if v.radnik_id == k.id), None)
+        return zr is not None and zr.gotovo
+
+    otvoreni = [z for z in svi if not z.gotovo and not _ja_gotov(z)
+                and z.operacija.nalog.status != StatusNaloga.zatvoren]
     otvoreni.sort(key=lambda z: (0 if z.zapoceto else 1, -(z.id)))
     danas = datetime.now(timezone.utc).date()
     gotovi = [z for z in svi if z.gotovo and z.zavrseno and _aware(z.zavrseno).date() == danas]
@@ -198,13 +206,16 @@ def pauza(zid: int, k: Korisnik = Depends(_samo_samostalni), db: Session = Depen
 @router.post("/{zid}/gotovo")
 def gotovo(zid: int, k: Korisnik = Depends(_samo_samostalni), db: Session = Depends(get_db)):
     z = _moj(db, k, zid)
-    _zaustavi_mjerac(z)
+    # 2+ radnika: završava se samo njegov dio; cijeli zadatak gotov tek kad svi kliknu.
+    _zavrsi_radnika(z, k.id)
     z.ceka_potvrdu = False
-    z.gotovo = True
-    z.zavrseno = datetime.now(timezone.utc)
-    z.zavrsio_id = k.id   # mehaničar sam kliknuo gotovo (samostalni način)
     z.razlog_prekida = None
     z.prekid_vrijeme = None
+    if _svi_radnici_gotovi(z):
+        _zaustavi_mjerac(z)
+        z.gotovo = True
+        z.zavrseno = datetime.now(timezone.utc)
+        z.zavrsio_id = k.id
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, k)
     db.commit()

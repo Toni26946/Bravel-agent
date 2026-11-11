@@ -434,6 +434,8 @@ def vrati_u_plan(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
     z.gotovo = False
     z.zavrseno = None
     z.zavrsio_id = None
+    for zr in z.vremena:
+        zr.gotovo = False
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
@@ -1007,6 +1009,8 @@ def ocisti_vrijeme(p: OcistiVrijemeIn, korisnik: Korisnik = Depends(_samo_vlasni
         z.gotovo = False
         z.zavrseno = None
         z.zavrsio_id = None
+        for zr in z.vremena:
+            zr.gotovo = False
         z.zapoceto = None
         z.prekid_vrijeme = None
         z.ceka_potvrdu = False
@@ -1105,6 +1109,8 @@ def prekini(zid: int, p: PrekiniIn, korisnik: Korisnik = Depends(trenutni_korisn
         z.gotovo = True
         z.zavrseno = datetime.now(timezone.utc)
         z.zavrsio_id = korisnik.id   # tko je kliknuo gotovo (dispečer/voditelj u planu)
+        for zr in z.vremena:          # dispečer zatvara cijelu operaciju → svi radnici gotovi
+            zr.gotovo = True
         z.razlog_prekida = None
         z.prekid_vrijeme = None
         servis_odradjen(db, z)   # servis gotov → upiši zadnji servis vozila
