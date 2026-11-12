@@ -18,7 +18,7 @@ import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -337,6 +337,7 @@ class UredjajIn(BaseModel):
 class DijeloviIn(BaseModel):
     uredjaj: str
     naziv: str | None = None
+    fotografije: list[str] = []   # web putanje slika dijela (poslikane na stranici)
 
 
 def _ucitaj(db: Session, token: str, uredjaj: str) -> MehanicarLink:
@@ -472,17 +473,31 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     if naziv:
         dodatak = f"[naručen dio: {naziv}]"
         z.opis = f"{z.opis} {dodatak}" if z.opis and dodatak not in (z.opis or "") else (z.opis or dodatak)
+    # Fotografije dijela (ako ih je mehaničar poslikao) — ostaju uz zadatak.
+    foto = [s for s in (p.fotografije or []) if isinstance(s, str) and s.startswith("/uploads/")][:6]
+    z.dijelovi_foto = foto or None
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
     # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (kartica na /skladiste).
     nlg = z.operacija.nalog
+    foto_oznaka = " 📷" if foto else ""
     obavijesti_ulogu(
         db, Uloga.skladistar, "Nedostaju dijelovi",
-        f"GB {_gb(nlg)} · {naziv or z.opis or ''}".strip(" ·"), url="/skladiste",
+        f"GB {_gb(nlg)} · {naziv or z.opis or ''}{foto_oznaka}".strip(" ·"), url="/skladiste",
     )
     db.commit()
     _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)
     return _stanje(db, link.radnik)
+
+
+@router.post("/z/{token}/dijelovi-foto")
+async def z_dijelovi_foto(token: str, uredjaj: str = Form(...),
+                          slika: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Mehaničar poslika dio koji nedostaje (sa stranice, bez prijave). Sprema sliku
+    i vraća web putanju; veže se uz zadatak kad klikne „Nemam dijelova"."""
+    _ucitaj(db, token, uredjaj)   # provjeri token/uređaj (baci 403 ako nije valjan)
+    from ..storage import spremi_sliku
+    return {"url": spremi_sliku(slika)}
 
 
 @router.post("/z/{token}/nedostupan")
@@ -792,6 +807,7 @@ def ceka_dijelove(gb: str | None = None, _: Korisnik = Depends(_skladiste), db: 
                     "opis": z.opis, "kategorija": op.kategorija,
                     "mehanicar": (z.radnici[0].ime if z.radnici else None),
                     "dio": _izvuci_dio(z.opis),
+                    "fotografije": z.dijelovi_foto or [],
                 })
     return out
 
@@ -882,9 +898,9 @@ function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;',
 function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
 // --- Jezici: HR / EN / UK (mehaničari su često s ukrajinskog govornog područja) ---
 var I18N={
- hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače."},
- en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual."},
- uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди."}
+ hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače.",slikaDio:"Slikaj dio",posalji:"Pošalji",odustani:"Odustani"},
+ en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual.",slikaDio:"Photograph part",posalji:"Send",odustani:"Cancel"},
+ uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди.",slikaDio:"Сфотографувати деталь",posalji:"Надіслати",odustani:"Скасувати"}
 };
 var L=localStorage.getItem('bravel_jezik')||'hr'; if(!I18N[L])L='hr';
 function T(k,p){var s=(I18N[L]&&I18N[L][k])||I18N.hr[k]||k; if(p){for(var x in p){s=s.split('{'+x+'}').join(p[x]);}} return s;}
@@ -962,7 +978,53 @@ async function gotovoStavka(zid, btn){
 }
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||T('nijeZaTebe')});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
 async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
-async function dijelovi(){if(busy)return;const naziv=prompt(T('kojiDio'));if(naziv===null)return;busy=true;const prije=prevZid;const {status,j}=await api('dijelovi',{naziv:naziv});busy=false;if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
+var _dijFotke=[];
+async function fotoUpload(file){
+  var fd=new FormData(); fd.append('uredjaj',uredjaj()); fd.append('slika',file);
+  const r=await fetch('/api/dispecer/z/'+TOKEN+'/dijelovi-foto',{method:'POST',body:fd});
+  let j={}; try{j=await r.json()}catch(e){}
+  if(r.status>=400||!j.url) throw new Error((j&&j.detail)||T('greska'));
+  return j.url;
+}
+function dijelovi(){
+  if(busy)return;
+  _dijFotke=[];
+  const app=document.getElementById('app');
+  app.innerHTML=''
+    +'<div class="kart">'
+    +'<div class="opis" style="margin-bottom:8px">'+T('kojiDio')+'</div>'
+    +'<input id="dij-naziv" style="width:100%;box-sizing:border-box;padding:12px;font-size:17px;border:1px solid #ccc;border-radius:10px" placeholder="'+T('kojiDio')+'">'
+    +'<div id="dij-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0"></div>'
+    +'<input id="dij-file" type="file" accept="image/*" capture="environment" style="display:none">'
+    +'<button class="b-foto" style="width:100%;margin-top:10px">📷 '+T('slikaDio')+'</button>'
+    +'</div>'
+    +'<div class="gumbi">'
+    +'<button class="b-posalji">'+T('posalji')+'</button>'
+    +'<button class="b-odustani">'+T('odustani')+'</button>'
+    +'</div>';
+  const fi=document.getElementById('dij-file');
+  document.querySelector('.b-foto').onclick=function(){ fi.click(); };
+  fi.onchange=async function(){
+    const f=fi.files&&fi.files[0]; fi.value=''; if(!f)return;
+    const btn=document.querySelector('.b-foto'); btn.disabled=true; btn.textContent='…';
+    try{
+      const url=await fotoUpload(f); _dijFotke.push(url);
+      document.getElementById('dij-thumbs').innerHTML+='<img src="'+esc(url)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #ccc">';
+    }catch(e){ alert(e.message||T('greska')); }
+    btn.disabled=false; btn.textContent='📷 '+T('slikaDio');
+  };
+  document.querySelector('.b-odustani').onclick=function(){ if(_lastD)render(_lastD); else ucitaj(); };
+  document.querySelector('.b-posalji').onclick=async function(){
+    if(busy)return; busy=true;
+    const naziv=((document.getElementById('dij-naziv')||{}).value||'').trim();
+    const prije=prevZid;
+    const {status,j}=await api('dijelovi',{naziv:naziv,fotografije:_dijFotke});
+    busy=false;
+    if(status>=400){render({greska:(j.detail||T('greska'))});return;}
+    if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;
+    render(j); prevZid=(j&&j.zadatak_id)||null;
+  };
+}
 function krajPrompt(){
   const app=document.getElementById('app');
   _krajMode=true; _lastD=null;

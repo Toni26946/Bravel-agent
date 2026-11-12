@@ -689,8 +689,10 @@ class Zadatak(Base):
     utroseno_sek: Mapped[int] = mapped_column(Integer, default=0)  # ukupno izmjereno vrijeme (sekunde)
     # Plan radione: čeka mehaničarevu potvrdu početka; razlog prekida; vrijeme prekida (za churn).
     ceka_potvrdu: Mapped[bool] = mapped_column(Boolean, default=False)
-    razlog_prekida: Mapped[str | None] = mapped_column(String(12), nullable=True)  # 'nije' | 'dijelovi'
+    razlog_prekida: Mapped[str | None] = mapped_column(String(12), nullable=True)  # 'nije' | 'dijelovi' | 'nedostupan'
     prekid_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Fotografije dijela koji nedostaje (mehaničar ih slika kad klikne „Nemam dijelova")
+    dijelovi_foto: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Ručni red zadataka po mehaničaru (dashboard drag). Manji = ranije; None = bez ručnog reda.
     # Zadatak "u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega.
     red_ruc: Mapped[int | None] = mapped_column(Integer, nullable=True)

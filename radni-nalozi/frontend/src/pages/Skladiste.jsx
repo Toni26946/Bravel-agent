@@ -739,6 +739,15 @@ export default function Skladiste() {
                 {o.mehanicar ? `🧑‍🔧 ${o.mehanicar}` : 'bez mehaničara'}
                 {o.dio ? ` · 🔧 naručeno: ${o.dio}` : ''}
               </div>
+              {Array.isArray(o.fotografije) && o.fotografije.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                  {o.fotografije.map((f, j) => (
+                    <a key={j} href={medijUrl(f)} target="_blank" rel="noreferrer">
+                      <img src={medijUrl(f)} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line,#ddd)' }} />
+                    </a>
+                  ))}
+                </div>
+              )}
               <div className="btn-red" style={{ marginTop: 8 }}>
                 <button className="btn mali" onClick={() => dioStigao(o.zadatak_id)}>✓ Dio stigao → vrati mehaničaru</button>
               </div>

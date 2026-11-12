@@ -73,6 +73,7 @@ _STUPCI = [
     ("zadaci", "razlog_prekida", "VARCHAR(12)"),
     ("zadaci", "prekid_vrijeme", "TIMESTAMP"),
     ("zadaci", "red_ruc", "INTEGER"),
+    ("zadaci", "dijelovi_foto", "JSON"),
     # Kraj smjene (pitanje "gotov za danas / ostaješ dulje")
     ("mehanicar_linkovi", "smjena_pitano", "TIMESTAMP"),
     ("mehanicar_linkovi", "smjena_odgovor", "VARCHAR(10)"),
