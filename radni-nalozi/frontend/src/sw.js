@@ -1,6 +1,6 @@
 // Prilagođeni service worker: precache aseta (offline) + svjež HTML + push obavijesti.
 import { clientsClaim } from 'workbox-core'
-import { precacheAndRoute } from 'workbox-precaching'
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst } from 'workbox-strategies'
 
@@ -8,6 +8,20 @@ import { NetworkFirst } from 'workbox-strategies'
 // inače PWA zna dugo posluživati staru verziju iz keša.
 self.skipWaiting()
 clientsClaim()
+
+// Počisti zastarjele workbox precache-eve (stari JS/CSS hash-evi).
+cleanupOutdatedCaches()
+
+// KLJUČNO protiv „bijelog ekrana": kad se NOVI SW aktivira (svaki deploy), OBRIŠI keš
+// navigacija. Inače je u 'html-navigacije' mogao ostati STARI index.html koji pokazuje
+// na obrisani JS hash → prazan ekran. Nakon brisanja prva navigacija povuče svjež index.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((kljucevi) => Promise.all(
+      kljucevi.filter((k) => k === 'html-navigacije').map((k) => caches.delete(k)),
+    )).then(() => self.clients.claim()),
+  )
+})
 
 // Precache hashirane asete (JS/CSS/slike/fontovi) — oni su immutable pa su sigurni za keš.
 // HTML NAMJERNO izostavljamo iz precachea: posluživao se cache-first, pa je nakon deploya
