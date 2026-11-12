@@ -176,8 +176,9 @@ def _parse_kocka(ime: str, data: bytes) -> list[dict]:
 
 
 def _cjenik_mapa(db) -> dict:
-    """{sifra: jedinicna_nabavna} iz baze (cijeli cjenik, ~3k redaka)."""
-    return {s: c for s, c in db.query(ArtiklCijena.sifra, ArtiklCijena.cijena).all()}
+    """{str(sifra): jedinicna_nabavna} iz baze (cijeli cjenik, ~3k redaka).
+    Ključ je tekst jer APROSS šifre znaju doći i kao broj i kao string."""
+    return {str(s): c for s, c in db.query(ArtiklCijena.sifra, ArtiklCijena.cijena).all()}
 
 
 @router.get("/cjenik")
@@ -259,7 +260,7 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
         for a in (s.get("artikli") or []):
             st = _na_broj(a.get("stanje"))
             sa = a.get("sifraArtikla")
-            cij = cjenik.get(sa)
+            cij = cjenik.get(str(sa)) if sa is not None else None
             vr = round(st * cij, 2) if cij is not None else None
             if st != 0:
                 broj_artikala += 1
