@@ -112,6 +112,7 @@
   .nhead.gb-head{cursor:pointer}
   .dcard{cursor:pointer}
   .vozilo{color:var(--muted);font-weight:600;font-size:12.5px}
+  .udalj{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
 
   /* --- Poslovođa --- */
   .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
@@ -513,7 +514,7 @@
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+' ('+bz+')</option>'; }); return s+vodOpts(null); };
     var mehOptsExcept=function(ids){ var set={}; (ids||[]).forEach(function(i){set[i]=1;}); var s='<option value="">— dodaj —</option>'; MEH.forEach(function(m){ if(set[m.id])return; var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'">'+esc(m.ime)+' ('+bz+')</option>'; }); return s+vodOpts(set); };
     var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" id="nalog-'+n.id+'" data-nid="'+n.id+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
-    h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
+    h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+udaljChip(n)+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     // Drag ručka — samo u planu („norm") i kad je otključan. Povuci za promjenu redoslijeda (miš + prst).
     if(lane==="norm" && !planZakljucan) h+='<button class="drag-h" title="Povuci za promjenu redoslijeda" aria-label="Premjesti redoslijed">⠿</button>';
@@ -610,6 +611,13 @@
   // „Daleko" = GPS POUZDANO kaže da je >200 m. Nepoznato (prikolice/šlepe bez GPS-a,
   // zastarjela pozicija) se NE smatra dalekim → ostaje vidljivo kad je filter uključen.
   function daleko(n){ return n.udaljenostM!=null && n.udaljenostM>BLIZU_M; }
+  // Udaljenost od radione + naziv mjesta (📍), za GB redak. Prazno ako nema GPS-a.
+  function udaljChip(n){
+    var b=[];
+    if(n.udaljenostM!=null){ var m=n.udaljenostM; b.push(m<1000?(m+" m"):((m/1000).toFixed(1).replace(".",",")+" km")); }
+    if(n.mjesto) b.push(esc(n.mjesto));
+    return b.length ? ' <span class="udalj" title="Udaljenost i mjesto vozila">📍 '+b.join(" · ")+'</span>' : '';
+  }
   function renderPL(){
     var _f=function(n){ return !samoBlizu || !daleko(n); };
     var aktSvi=nalozi.filter(function(n){return !n.cekaDijelove && !nalogZavrsen(n) && n.rang!=null;}).filter(_f);
@@ -668,7 +676,7 @@
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
         h+='<div class="card nalog dim"><div class="rang">—</div><div class="nbody">'+
-           '<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span> <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
+           '<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span>'+udaljChip(n)+' <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
         n.ops.forEach(function(o){ h+='<div class="op"><span class="opn">'+esc(o.naziv)+'</span></div>'; });
         h+='</div></div>';
       });

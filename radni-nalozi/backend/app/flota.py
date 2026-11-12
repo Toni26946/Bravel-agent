@@ -378,6 +378,78 @@ async def reverse_geocode(lat: float, lon: float) -> str | None:
     return ime
 
 
+# Grublji naziv mjesta (razina naselja) za prikaz u planu — zasebni keš da ne
+# diramo ulični reverse_geocode. Ključ zaokružen na 2 decimale (~1 km ćelija),
+# pa kamioni u istom mjestu dijele isti upit.
+_mjesto_kes: dict = {}       # (rlat2, rlon2) -> (monotonic_ts, ime|None)
+_MJ_MAX_PO_TICKU = 15        # najviše NOVIH upita po ciklusu (Nominatim ~1 zahtjev/s)
+
+
+async def _mjesto_grubo(lat: float, lon: float) -> str | None:
+    """Koordinate → naziv naselja (Nominatim, zoom 12). Keš 24 h po ~1 km ćeliji."""
+    try:
+        kljuc = (round(float(lat), 2), round(float(lon), 2))
+    except (TypeError, ValueError):
+        return None
+    sad = time.monotonic()
+    hit = _mjesto_kes.get(kljuc)
+    if hit and sad - hit[0] < _GEO_TTL:
+        return hit[1]
+    ime = None
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"format": "jsonv2", "lat": lat, "lon": lon, "zoom": 12, "accept-language": "hr"},
+                headers={"User-Agent": "BravelRadniNalozi/1.0 (radionica)"},
+            )
+            if r.status_code == 200:
+                ime = _kratko_mjesto(r.json())
+    except Exception as e:  # noqa: BLE001
+        log.warning("mjesto geokodiranje greška: %s", e)
+    _mjesto_kes[kljuc] = (sad, ime)
+    return ime
+
+
+async def _geokodiraj_pozicije(pozicije: dict) -> None:
+    """Dopuni svaku svježu poziciju nazivom mjesta (p['mjesto']). Iz keša odmah;
+    najviše _MJ_MAX_PO_TICKU novih Nominatim upita po ciklusu, uz throttle ~1/s.
+    Ostatak se geokodira u idućim ciklusima (24 h keš ih drži toplima)."""
+    if not pozicije:
+        return
+    novih = 0
+    for p in pozicije.values():
+        if p.get("zastarjelo"):
+            continue
+        lat, lon = p.get("lat"), p.get("lon")
+        if lat is None or lon is None:
+            continue
+        try:
+            kljuc = (round(float(lat), 2), round(float(lon), 2))
+        except (TypeError, ValueError):
+            continue
+        hit = _mjesto_kes.get(kljuc)
+        if hit and time.monotonic() - hit[0] < _GEO_TTL:
+            p["mjesto"] = hit[1]
+            continue
+        if novih >= _MJ_MAX_PO_TICKU:
+            continue   # ostatak u sljedećem ciklusu
+        p["mjesto"] = await _mjesto_grubo(lat, lon)
+        novih += 1
+        if novih < _MJ_MAX_PO_TICKU:
+            await asyncio.sleep(1.1)   # poštuj Nominatim ~1 zahtjev/s
+
+
+def mjesto_vozila(gb: str | None) -> str | None:
+    """Naziv mjesta gdje je vozilo (iz GPS keša; None ako nema svježe pozicije)."""
+    if not gb:
+        return None
+    p = _zadnje_pozicije.get(str(gb)) or _zadnje_pozicije.get(str(gb).lstrip("0") or str(gb))
+    if not p or p.get("zastarjelo"):
+        return None
+    return p.get("mjesto")
+
+
 async def lokacija_vozila(gb: str | None) -> dict:
     """Trenutna lokacija vozila po GPS-u: {lat, lon, udaljenost_m, mjesto}.
     Prazno (None vrijednosti) ako nema svježe pozicije. Nikad ne baca."""
@@ -443,6 +515,7 @@ async def petlja() -> None:
             pozicije = await dohvati_pozicije()
             _zabiljezi(pozicije, None if pozicije is not None else "dohvat pozicija nije uspio")
             if pozicije:
+                await _geokodiraj_pozicije(pozicije)   # dopuni nazive mjesta (keš u pozicijama)
                 await asyncio.to_thread(obradi_pozicije, pozicije)
         except asyncio.CancelledError:
             raise

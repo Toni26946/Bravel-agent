@@ -115,7 +115,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   })
   // Plan radione (grupa): dnevni radni pregledi. (Plan je zasebna direktna kartica iznad.)
   const grupaPlan = () => ({
-    grupa: 'plan', ikona: '📋', txt: 'Plan radione',
+    grupa: 'plan', ikona: '📋', txt: 'Pregled radova',
     djeca: [
       { do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') },
       { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },

@@ -309,6 +309,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             "cekaDijelove": n.status == StatusNaloga.ceka_dijelove,
             "usaoTs": _ms(n.kreiran),
             "udaljenostM": flota.udaljenost_od_radione(_gb(n)),   # metri od radione (None ako nema GPS-a)
+            "mjesto": flota.mjesto_vozila(_gb(n)),                 # naziv mjesta iz GPS-a (None ako nema)
             "ops": ops,
         })
     danas = datetime.now(timezone.utc).date()
