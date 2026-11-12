@@ -76,13 +76,17 @@ a { color: inherit; text-decoration: none; }
 /* Rail izbornik */
 .tabbar {
   grid-area: side; background: #fafbfc; border-right: 1px solid var(--rub);
-  display: flex; flex-direction: column; gap: 2px; padding: 10px 6px;
+  display: flex; flex-direction: column; gap: 1px; padding: 8px 6px;
   overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: #d2d7df transparent;
 }
+.tabbar::-webkit-scrollbar { width: 5px; }
+.tabbar::-webkit-scrollbar-track { background: transparent; }
+.tabbar::-webkit-scrollbar-thumb { background: #d2d7df; border-radius: 3px; }
 .tabbar a {
-  display: flex; flex-direction: row; align-items: center; gap: 12px;
-  padding: 11px 8px; border-radius: 10px; color: var(--sivo);
-  font-size: 14px; white-space: nowrap; text-decoration: none;
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 9px; color: var(--sivo);
+  font-size: 13px; white-space: nowrap; text-decoration: none;
 }
 .tabbar a.akt { background: #e9eef6; color: var(--plava); font-weight: 600; }
 /* Kartica traži pažnju voditelja (crveno + badge s brojem) */
@@ -100,16 +104,16 @@ a { color: inherit; text-decoration: none; }
   position: absolute; top: 3px; right: 3px; margin: 0;
   min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px;
 }
-.tabbar .ikona { font-size: 22px; line-height: 1; flex: none; width: 26px; text-align: center; }
+.tabbar .ikona { font-size: 18px; line-height: 1; flex: none; width: 22px; text-align: center; }
 .tabbar .txt { display: none; }
 .app.nav-open .tabbar .txt { display: inline; }
 /* Padajuća grupa u izborniku (npr. Vozila → Popis, Spremna/Slobodna, Servisi) */
-.tabbar .nav-grupa { display: flex; flex-direction: column; gap: 2px; }
+.tabbar .nav-grupa { display: flex; flex-direction: column; gap: 1px; }
 .app.nav-open .tabbar .nav-grupa.otv { background: rgba(37,99,235,.06); border-radius: 10px; padding-bottom: 2px; }
 .tabbar .nav-grupa-glava {
-  display: flex; flex-direction: row; align-items: center; gap: 12px;
-  padding: 11px 8px; border-radius: 10px; color: var(--sivo);
-  font-size: 14px; white-space: nowrap; text-align: left;
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 9px; color: var(--sivo);
+  font-size: 13px; white-space: nowrap; text-align: left;
   background: none; border: none; cursor: pointer; width: 100%; font-family: inherit;
 }
 .app.nav-open .tabbar .nav-grupa-glava { background: #eef1f5; }
@@ -122,8 +126,8 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .app:not(.nav-open) .tabbar .nav-strelica { display: none; }
-.app.nav-open .tabbar a.nav-dijete { padding-left: 24px; }
-.tabbar a.nav-dijete .ikona { font-size: 19px; }
+.app.nav-open .tabbar a.nav-dijete { padding-left: 22px; }
+.tabbar a.nav-dijete .ikona { font-size: 16px; }
 .nz-lokacija { margin-top: 2px; }
 .nz-nema-lok { opacity: .7; font-style: italic; }
 .nav-backdrop { display: none; }
@@ -136,8 +140,8 @@ a { color: inherit; text-decoration: none; }
   .app.nav-open { grid-template-columns: 1fr; }
   .app.nav-open .tabbar {
     display: flex;
-    position: fixed; top: 0; left: 0; height: 100%; width: 216px; z-index: 40;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25); padding-top: calc(max(env(safe-area-inset-top), 12px) + 8px);
+    position: fixed; top: 0; left: 0; height: 100%; width: 232px; z-index: 40;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25); padding-top: calc(max(env(safe-area-inset-top), 12px) + 6px);
   }
   .app.nav-open .tabbar .txt { display: inline; }
   .nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 35; }
@@ -618,8 +622,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .app { height: 100vh; overflow: hidden; box-shadow: 0 0 0 1px var(--rub); }
   .topbar { padding: 16px 28px; }
   .topbar h1 { font-size: 20px; }
-  .tabbar { padding: 16px 10px; gap: 4px; }
-  .tabbar a { padding: 12px 14px; font-size: 15px; }
+  .tabbar { padding: 10px 8px; gap: 2px; }
+  .tabbar a { padding: 8px 12px; font-size: 14px; }
 
   .sadrzaj {
     padding: 28px 28px 40px;
