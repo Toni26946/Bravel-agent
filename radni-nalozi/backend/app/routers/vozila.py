@@ -103,6 +103,11 @@ async def _sync_registar(db: Session) -> bool:
         r.tip = v.get("tip")
         r.kategorija = v.get("kategorija")
         r.mobilisis_status = v.get("status")
+        # Živi vozač iz Flota OS kompozicija (kad ga endpoint počne slati).
+        # Dok Flota ne vraća „vozac", zadrži postojeće ime (ne gazi s None).
+        vz = (v.get("vozac") or "").strip()
+        if vz:
+            r.vozac = vz
         # Prijedlog iz Mobilisisa vrijedi dok ga netko ručno ne promijeni.
         if not r.rucno and mob is not None:
             r.status = mob
