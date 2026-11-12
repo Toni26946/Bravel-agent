@@ -785,9 +785,9 @@
     });
     Object.keys(map).forEach(function(id){
       map[id].sort(function(a,b){
-        // isti red kao dispečer (_red/kljuc): u tijeku prvi, pa hitno, pa RUČNI red (o.red),
-        // pa čeka-potvrdu i rang kao tiebreak za one bez ručnog reda.
-        var ga=(a.o.status==="radu"?0:(a.n.hitno?1:2)), gb=(b.o.status==="radu"?0:(b.n.hitno?1:2)); if(ga!==gb) return ga-gb;
+        // isti red kao dispečer (_red/kljuc): u tijeku prvi, pa hitno, pa blizu radione,
+        // pa vozila daleko (>200 m, GPS-potvrđeno) NA KRAJ, pa RUČNI red (o.red).
+        var ga=(a.o.status==="radu"?0:(a.n.hitno?1:(daleko(a.n)?3:2))), gb=(b.o.status==="radu"?0:(b.n.hitno?1:(daleko(b.n)?3:2))); if(ga!==gb) return ga-gb;
         var ra=(a.o.red==null?1e6:a.o.red), rb=(b.o.red==null?1e6:b.o.red); if(ra!==rb) return ra-rb;
         var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
         var na=(a.n.rang==null?9999:a.n.rang), nb=(b.n.rang==null?9999:b.n.rang); if(na!==nb) return na-nb;
