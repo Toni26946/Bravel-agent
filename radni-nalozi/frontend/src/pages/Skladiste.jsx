@@ -96,6 +96,7 @@ function ZaliheAPROSS() {
     if (!s) return arts
     return arts.filter((a) => (a.naziv || '').toLowerCase().includes(s) || String(a.sifra).includes(s) || (a.kataloskiBroj || '').toLowerCase().includes(s))
   }
+  const eur = (n) => (n == null ? '' : Number(n).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
 
   return (
     <div className="karta" style={{ marginBottom: 14 }}>
@@ -112,6 +113,9 @@ function ZaliheAPROSS() {
           {data && data.povezano && data.skladista.length === 0 && <p className="meta">Nema zaliha za prikaz.</p>}
           {data && data.povezano && data.skladista.length > 0 && (
             <>
+              {data.ima_cjenik
+                ? <p className="meta" style={{ marginTop: 0, marginBottom: 6 }}>Vrijednost zaliha (nabavna): <b>{eur(data.vrijednost_ukupno)}</b></p>
+                : <p className="meta" style={{ marginTop: 0, marginBottom: 6 }}>Cjenik nije uvezen — vrijednost se ne prikazuje. (Šifrarnik → Integracije)</p>}
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Traži artikl, šifru, kataloški broj…" style={{ marginBottom: 6 }} />
               <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={nule} onChange={prebaciNule} /> prikaži i artikle sa stanjem 0
@@ -124,7 +128,7 @@ function ZaliheAPROSS() {
                   <div key={sk.sifra} style={{ marginBottom: 6, border: '1px solid var(--line, #eee)', borderRadius: 8 }}>
                     <div onClick={() => prebaciSkl(sk.sifra)} style={{ cursor: 'pointer', padding: '8px 10px', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
                       <span>{open ? '▾' : '▸'} {sk.naziv}</span>
-                      <span className="meta">{(sk.kolicina ?? sk.ukupno)} na stanju · {(sk.artikala ?? sk.ukupno)} artikala{s ? ` · ${arts.length} nađeno` : ''}</span>
+                      <span className="meta">{(sk.kolicina ?? sk.ukupno)} na stanju · {(sk.artikala ?? sk.ukupno)} artikala{data.ima_cjenik && sk.vrijednost != null ? ` · ${eur(sk.vrijednost)}` : ''}{s ? ` · ${arts.length} nađeno` : ''}</span>
                     </div>
                     {open && (
                       arts.length === 0 ? <p className="meta" style={{ padding: '0 10px 8px' }}>—</p> : (
@@ -135,6 +139,7 @@ function ZaliheAPROSS() {
                                 <td style={{ padding: '4px 10px' }}>
                                   {a.naziv}
                                   {a.kataloskiBroj ? <span className="meta"> · {a.kataloskiBroj}</span> : ''}
+                                  {data.ima_cjenik && a.vrijednost != null ? <span className="meta"> · {eur(a.vrijednost)}</span> : ''}
                                 </td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: a.stanje < 0 ? 'var(--crveno)' : 'inherit' }}>
                                   {a.stanje}{a.jmj ? ` ${a.jmj}` : ''}

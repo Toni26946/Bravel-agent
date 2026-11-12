@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
@@ -49,9 +49,26 @@ function Integracije() {
   const [greska, setGreska] = useState('')
   const [poruka, setPoruka] = useState('')
   const [radi, setRadi] = useState(false)
+  const [cjen, setCjen] = useState(null)        // status cjenika nabavnih cijena
+  const [cjenRadi, setCjenRadi] = useState(false)
+  const datRef = useRef(null)
 
   const ucitaj = () => api.arossStanje().then((s) => { setSt(s); setKorisnik(s?.korisnik || '') }).catch((e) => setGreska(e.message))
-  useEffect(() => { ucitaj() }, [])
+  const ucitajCjenik = () => api.cjenikStanje().then(setCjen).catch(() => {})
+  useEffect(() => { ucitaj(); ucitajCjenik() }, [])
+
+  const uveziCjenik = async (e) => {
+    const file = e.target.files?.[0]
+    if (datRef.current) datRef.current.value = ''   // dopusti ponovni odabir iste datoteke
+    if (!file) return
+    setGreska(''); setPoruka(''); setCjenRadi(true)
+    try {
+      const r = await api.cjenikUvoz(file)
+      setPoruka(`Cjenik uvezen — ${r.uneseno} artikala (ukupno ${r.ukupno_u_cjeniku}).`)
+      ucitajCjenik()
+    } catch (err) { setGreska(err.message) } finally { setCjenRadi(false) }
+  }
+  const datum = (iso) => { try { return new Date(iso).toLocaleDateString('hr-HR') } catch { return '' } }
 
   const spremi = async () => {
     setGreska(''); setPoruka(''); setRadi(true)
@@ -133,6 +150,24 @@ function Integracije() {
       <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 0 }}>
         Ključ se sprema u bazu portala i ne prikazuje se natrag. Basic Auth (korisnik/lozinka) dodajemo kad ga Zagreb Data pošalje.
       </p>
+
+      <hr style={{ margin: '18px 0', border: 0, borderTop: '1px solid var(--line, #eee)' }} />
+      <h3 style={{ marginTop: 0 }}>Nabavne cijene (vrijednost zaliha)</h3>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0 }}>
+        APROSS API ne daje cijenu, pa je uvozimo iz izvoza <b>„Kocka stanja"</b> (.xls/.xlsx).
+        Jedinična nabavna = Stanje NC ÷ Stanje robno. Osvježi po potrebi (npr. mjesečno).
+      </p>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0 }}>
+        Status:{' '}
+        {cjen?.artikala
+          ? <b style={{ color: 'var(--zelena, green)' }}>{cjen.artikala} artikala u cjeniku{cjen.azurirano ? ` · ${datum(cjen.azurirano)}` : ''}</b>
+          : <b style={{ color: 'var(--crveno)' }}>cjenik još nije uvezen</b>}
+      </p>
+      <input ref={datRef} type="file" accept=".xls,.xlsx,.xlsm" onChange={uveziCjenik}
+        disabled={cjenRadi} style={{ display: 'none' }} />
+      <button className="btn" disabled={cjenRadi} onClick={() => datRef.current?.click()}>
+        {cjenRadi ? 'Uvozim…' : '📥 Uvezi „Kocka stanja"'}
+      </button>
     </div>
   )
 }

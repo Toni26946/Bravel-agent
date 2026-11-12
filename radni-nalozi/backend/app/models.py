@@ -512,6 +512,21 @@ class NarudzbaDio(Base):
 
 
 # ---------------------------------------------------------------------------
+# ArtiklCijena — jedinična nabavna cijena po šifri artikla, uvezena iz APROSS
+# izvoza „Kocka stanja" (Stanje NC ÷ Stanje robno). Dok APROSS API ne daje
+# cijenu (Leo: komplicirano zbog različitih cijena), ovo puni vrijednost zaliha.
+# ---------------------------------------------------------------------------
+class ArtiklCijena(Base):
+    __tablename__ = "artikl_cijene"
+
+    sifra: Mapped[int] = mapped_column(Integer, primary_key=True)   # APROSS šifra artikla
+    naziv: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    jmj: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cijena: Mapped[float] = mapped_column(Float, default=0)         # jedinična nabavna (EUR)
+    azurirano: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+# ---------------------------------------------------------------------------
 # Povijest zamjene dijelova po kamionu (kada i zašto se dio mijenjao)
 # ---------------------------------------------------------------------------
 class ZamjenaDijela(Base):

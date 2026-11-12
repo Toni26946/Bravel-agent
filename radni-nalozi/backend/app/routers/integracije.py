@@ -6,17 +6,19 @@ ne vraća natrag klijentu; vraća se samo je li postavljen i zadnje 4 znaka.
 """
 from __future__ import annotations
 
+import io
+import re
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import aross
 from ..auth import zahtijevaj_ai_poslovodja, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, Uloga
+from ..models import ArtiklCijena, Korisnik, Uloga
 from ..norme import get_postavka, set_postavka
 
 router = APIRouter(prefix="/integracije", tags=["integracije"])
@@ -87,6 +89,132 @@ def _na_broj(x):
         return 0.0
 
 
+# --- Cjenik (nabavna cijena) iz APROSS izvoza „Kocka stanja" -----------------
+_SIFRA_RE = re.compile(r"\((\d+)\)\s*$")   # šifra je zadnja (broj) u nazivu artikla
+
+
+def _broj_hr(x) -> float:
+    """Broj iz ćelije (xls daje float; .xlsx isto). Podnosi i hrvatski zapis
+    '12.345,67' ili '12,5' ako se pojavi kao tekst."""
+    if x is None:
+        return 0.0
+    if isinstance(x, (int, float)):
+        return float(x)
+    s = str(x).strip()
+    if not s:
+        return 0.0
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _parse_kocka(ime: str, data: bytes) -> list[dict]:
+    """Pročitaj izvoz „Kocka stanja" (.xls ili .xlsx). Stupci: Artikl, JM,
+    Stanje robno, Stanje NC. Jedinična nabavna = |Stanje NC| ÷ |Stanje robno|.
+    Vrati [{sifra, naziv, jmj, cijena}]."""
+    low = (ime or "").lower()
+    rows: list[list] = []
+    if low.endswith(".xlsx") or low.endswith(".xlsm"):
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        ws = wb.active
+        for r in ws.iter_rows(values_only=True):
+            rows.append(list(r))
+        wb.close()
+    else:
+        import xlrd  # čita stari .xls (BIFF)
+        wb = xlrd.open_workbook(file_contents=data)
+        ws = wb.sheet_by_index(0)
+        rows = [ws.row_values(i) for i in range(ws.nrows)]
+
+    # Nađi redak zaglavlja (sadrži „Artikl" i „Stanje NC").
+    hi = None
+    for i, r in enumerate(rows[:30]):
+        txt = [str(c or "").strip().lower() for c in r]
+        if any(c == "artikl" for c in txt) and any("stanje nc" in c for c in txt):
+            hi = i
+            break
+    if hi is None:
+        raise ValueError("ne prepoznajem stupce (treba 'Artikl' i 'Stanje NC')")
+    zagl = [str(c or "").strip().lower() for c in rows[hi]]
+
+    def idx(*kand):
+        for k in kand:
+            for j, c in enumerate(zagl):
+                if c == k or k in c:
+                    return j
+        return None
+
+    i_art, i_jm = idx("artikl"), idx("jm")
+    i_rob, i_nc = idx("stanje robno"), idx("stanje nc")
+    if i_art is None or i_rob is None or i_nc is None:
+        raise ValueError("nedostaje stupac Artikl / Stanje robno / Stanje NC")
+
+    out: list[dict] = []
+    for r in rows[hi + 1:]:
+        art = str(r[i_art] or "").strip() if i_art < len(r) else ""
+        if not art or art.lower().startswith("ukupno"):
+            continue
+        m = _SIFRA_RE.search(art)
+        if not m:
+            continue
+        sifra = int(m.group(1))
+        naziv = _SIFRA_RE.sub("", art).strip()
+        jmj = (str(r[i_jm] or "").strip() if i_jm is not None and i_jm < len(r) else "")
+        robno = _broj_hr(r[i_rob]) if i_rob < len(r) else 0.0
+        nc = _broj_hr(r[i_nc]) if i_nc < len(r) else 0.0
+        if robno == 0:
+            continue
+        out.append({"sifra": sifra, "naziv": naziv[:200], "jmj": jmj[:20],
+                    "cijena": round(abs(nc) / abs(robno), 4)})
+    return out
+
+
+def _cjenik_mapa(db) -> dict:
+    """{sifra: jedinicna_nabavna} iz baze (cijeli cjenik, ~3k redaka)."""
+    return {s: c for s, c in db.query(ArtiklCijena.sifra, ArtiklCijena.cijena).all()}
+
+
+@router.get("/cjenik")
+def cjenik_stanje(db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasnik)):
+    """Status uvezenog cjenika nabavnih cijena."""
+    n = db.query(ArtiklCijena).count()
+    zadnje = (db.query(ArtiklCijena.azurirano)
+              .order_by(ArtiklCijena.azurirano.desc()).first())
+    return {"artikala": n, "azurirano": zadnje[0].isoformat() if zadnje and zadnje[0] else None}
+
+
+@router.post("/cjenik/uvoz")
+async def cjenik_uvoz(datoteka: UploadFile = File(...),
+                      db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasnik)):
+    """Uvezi „Kocka stanja" (.xls/.xlsx) → jedinične nabavne cijene po šifri.
+    Postojeće šifre se ažuriraju, nove dodaju (snimka cjenika)."""
+    data = await datoteka.read()
+    try:
+        redovi = _parse_kocka(datoteka.filename or "", data)
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Čitač .xls nije dostupan — spremi datoteku kao .xlsx.")
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Ne mogu pročitati datoteku: {e}")
+    if not redovi:
+        raise HTTPException(status_code=400, detail="Nijedan artikl s cijenom nije prepoznat.")
+    postoji = {c.sifra: c for c in db.query(ArtiklCijena).all()}
+    for r in redovi:
+        c = postoji.get(r["sifra"])
+        if c is None:
+            c = ArtiklCijena(sifra=r["sifra"])
+            db.add(c)
+            postoji[r["sifra"]] = c
+        c.naziv, c.jmj, c.cijena = r["naziv"], r["jmj"], r["cijena"]
+    db.commit()
+    return {"ok": True, "uneseno": len(redovi), "ukupno_u_cjeniku": len(postoji)}
+
+
 # Šifrarnik artikala je velik (~27k) i rijetko se mijenja → keširaj kratko da
 # svaki dohvat zaliha ne vuče cijeli popis (bez keša ~3 s po pozivu).
 _ART_KES: dict = {"ts": 0.0, "map": {}}
@@ -119,19 +247,29 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
     except aross.ArossGreska as e:
         raise HTTPException(status_code=502, detail=str(e))
 
+    cjenik = _cjenik_mapa(db)   # {sifra: jedinicna_nabavna}; prazno dok se ne uveze
     skladista = []
+    vrijednost_svih = 0.0
     for s in (stanje or []):
         redovi = []
         broj_artikala = 0     # koliko RAZLIČITIH artikala ima stanje ≠ 0
         zbroj_kolicina = 0.0  # ZBROJ svih količina na stanju (komadi/jmj) — pravo "na stanju"
+        vrijednost = 0.0      # vrijednost stanja po nabavnoj cijeni (EUR)
+        bez_cijene = 0        # artikli sa stanjem ≠ 0 kojima nemamo cijenu
         for a in (s.get("artikli") or []):
             st = _na_broj(a.get("stanje"))
+            sa = a.get("sifraArtikla")
+            cij = cjenik.get(sa)
+            vr = round(st * cij, 2) if cij is not None else None
             if st != 0:
                 broj_artikala += 1
                 zbroj_kolicina += st
+                if cij is not None:
+                    vrijednost += st * cij
+                else:
+                    bez_cijene += 1
             if not nule and st == 0:
                 continue
-            sa = a.get("sifraArtikla")
             meta = imena.get(sa, {})
             redovi.append({
                 "sifra": sa,
@@ -139,20 +277,27 @@ def aross_zalihe(nule: int = Query(default=0, ge=0, le=1),
                 "kataloskiBroj": meta.get("kataloskiBroj"),
                 "jmj": meta.get("jmj"),
                 "stanje": st,
+                "cijena": cij,         # jedinična nabavna ili None
+                "vrijednost": vr,      # stanje × cijena ili None
             })
         redovi.sort(key=lambda r: (r["naziv"] or "").lower())
         # Cijeli broj ako je zbroj cijeli (npr. 3044.0 → 3044); inače 1 decimala.
         kol = int(zbroj_kolicina) if float(zbroj_kolicina).is_integer() else round(zbroj_kolicina, 1)
+        vrijednost_svih += vrijednost
         skladista.append({
             "sifra": s.get("sifraSkladista"),
             "naziv": s.get("nazivSkladista") or f"Skladište {s.get('sifraSkladista')}",
             "kolicina": kol,               # ZBROJ količina na stanju (pravo "na stanju")
             "artikala": broj_artikala,     # koliko različitih artikala (stanje ≠ 0)
             "ukupno": broj_artikala,       # kompatibilnost sa starim frontendom
+            "vrijednost": round(vrijednost, 2),   # vrijednost zaliha po nabavnoj (EUR)
+            "bez_cijene": bez_cijene,      # koliko artikala nema cijenu u cjeniku
             "artikli": redovi,
         })
     skladista.sort(key=lambda s: (s["naziv"] or "").lower())
     return {"povezano": True, "skladista": skladista,
+            "ima_cjenik": bool(cjenik),
+            "vrijednost_ukupno": round(vrijednost_svih, 2),
             "osvjezeno": datetime.now(timezone.utc).isoformat()}
 
 
