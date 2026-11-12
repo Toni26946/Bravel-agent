@@ -182,7 +182,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   // Ako je postavljena: korisnik vidi TOČNO te kartice iz kataloga (može i dobiti
   // i izgubiti). Posebne stavke (grupe, Profil, evidencija, AI…) ostaju po ulozi.
   let vidljiviTabovi = tabovi
-  if (Array.isArray(korisnik?.moduli)) {
+  // „Samo Plan radione": korisniku je dodijeljen isključivo modul '/plan' →
+  // u izborniku vidi SAMO karticu Plan radione (bez grupa i ostalih kartica).
+  const planSamo = Array.isArray(korisnik?.moduli)
+    && korisnik.moduli.length === 1 && korisnik.moduli[0] === '/plan'
+  if (planSamo) {
+    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan')
+  } else if (Array.isArray(korisnik?.moduli)) {
     const kataloskiKljucevi = new Set(MODULI.map((m) => m.key))
     const dopusteni = new Set(korisnik.moduli)
     // '/plan' je izuzet iz filtra — njegovu vidljivost odlučuje gornji push (planPristup).
