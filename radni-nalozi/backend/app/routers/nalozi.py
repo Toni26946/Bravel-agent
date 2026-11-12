@@ -1165,13 +1165,16 @@ def _odjavi_iz_drugih(db: Session, z: Zadatak) -> None:
     rids = {r.id for r in z.radnici}
     if not rids:
         return
-    drugi = (
+    # NAPOMENA: bez SQL `DISTINCT` — Zadatak ima JSON stupac (dijelovi_foto), a Postgres
+    # ne zna usporediti `json` tip pa `SELECT DISTINCT *` puca. Join preko radnika može
+    # vratiti isti zadatak više puta (više dodijeljenih radnika) → dedupliciramo po id-u.
+    rows = (
         db.query(Zadatak)
         .join(Zadatak.radnici)
         .filter(Korisnik.id.in_(rids), Zadatak.id != z.id)
-        .distinct()
         .all()
     )
+    drugi = list({d.id: d for d in rows}.values())
     for d in drugi:
         if d.gotovo:
             continue
@@ -1189,14 +1192,16 @@ def _zaustavi_druge_mjerace(db: Session, z: Zadatak) -> None:
     rids = {r.id for r in z.radnici}
     if not rids:
         return
-    drugi = (
+    # Bez SQL `DISTINCT` (Postgres ne zna usporediti JSON stupac dijelovi_foto) →
+    # dedupliciramo po id-u u Pythonu.
+    rows = (
         db.query(Zadatak)
         .join(Zadatak.radnici)
         .filter(Korisnik.id.in_(rids), Zadatak.id != z.id,
                 Zadatak.gotovo.is_(False), Zadatak.zapoceto.isnot(None))
-        .distinct()
         .all()
     )
+    drugi = list({d.id: d for d in rows}.values())
     for d in drugi:
         _zaustavi_mjerac(d)   # akumulira vrijeme i zaustavi, ali zadrži radnike
 
