@@ -26,7 +26,8 @@ from sqlalchemy.orm import Session
 from .. import flota, norme
 from ..auth import zahtijevaj_plan_pristup, zahtijevaj_uloge
 from ..database import get_db
-from ..models import Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
+from ..models import (Fotografija, Korisnik, MehanicarLink, Nalog, NormaPosla, Operacija,
+                      StatusNaloga, Uloga, Vozilo, Zadatak)
 from ..push import obavijesti_korisnika, obavijesti_ulogu
 from .nalozi import (_auto_status_naloga, _pokreni_mjerac, _svi_radnici_gotovi, _zatvori_kao_nije_gotovo,
                      _zaustavi_mjerac, _zavrsi_radnika, nalog_eager, servis_odradjen)
@@ -478,8 +479,11 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     z.dijelovi_foto = foto or None
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
-    # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (kartica na /skladiste).
     nlg = z.operacija.nalog
+    # Slike dijela idu i u fotogaleriju naloga (evidencija vozila), ne samo skladištaru.
+    for url in foto:
+        db.add(Fotografija(nalog_id=nlg.id, putanja=url, postavio_id=link.radnik.id))
+    # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (kartica na /skladiste).
     foto_oznaka = " 📷" if foto else ""
     obavijesti_ulogu(
         db, Uloga.skladistar, "Nedostaju dijelovi",
@@ -979,8 +983,28 @@ async function gotovoStavka(zid, btn){
 async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||T('nijeZaTebe')});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
 async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
 var _dijFotke=[];
+// Smanji sliku u pregledniku prije slanja (dulji rub do 1600 px, JPEG ~0.82) —
+// da disk/podaci ostanu mali; ako ne uspije, šalje se original.
+function smanjiSliku(file){
+  return new Promise(function(res){
+    if(!file||(file.type||'').slice(0,6)!=='image/'){res(file);return;}
+    var url=URL.createObjectURL(file); var img=new Image();
+    img.onload=function(){
+      URL.revokeObjectURL(url);
+      var MAX=1600,w=img.width,h=img.height;
+      if(!w||!h||(w<=MAX&&h<=MAX)){res(file);return;}
+      var s=Math.min(MAX/w,MAX/h),cw=Math.round(w*s),ch=Math.round(h*s);
+      var c=document.createElement('canvas'); c.width=cw; c.height=ch;
+      try{ c.getContext('2d').drawImage(img,0,0,cw,ch); }catch(e){ res(file); return; }
+      c.toBlob(function(b){ res(b&&b.size?b:file); },'image/jpeg',0.82);
+    };
+    img.onerror=function(){ URL.revokeObjectURL(url); res(file); };
+    img.src=url;
+  });
+}
 async function fotoUpload(file){
-  var fd=new FormData(); fd.append('uredjaj',uredjaj()); fd.append('slika',file);
+  const slika=await smanjiSliku(file);
+  var fd=new FormData(); fd.append('uredjaj',uredjaj()); fd.append('slika',slika,'dio.jpg');
   const r=await fetch('/api/dispecer/z/'+TOKEN+'/dijelovi-foto',{method:'POST',body:fd});
   let j={}; try{j=await r.json()}catch(e){}
   if(r.status>=400||!j.url) throw new Error((j&&j.detail)||T('greska'));
