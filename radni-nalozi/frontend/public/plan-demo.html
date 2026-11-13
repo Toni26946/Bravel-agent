@@ -385,7 +385,7 @@
     return JSON.stringify({
       z:!!d.zakljucan, p:(d.promjene||[]).length, a:JSON.stringify(d.autoSlanje||{}),
       m:(d.mehanicari||[]).map(function(x){return x.id+'-'+(x.odsutnost||(x.odsutan?'o':''));}),
-      n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,
+      n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,n.prioritet,
           (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId];})];})
     });
   }
@@ -1082,11 +1082,11 @@
       var id=parseInt(sel.value,10);
       var ids=prioLista().map(function(n){ return n.id; });
       if(ids.indexOf(id)<0) ids.push(id);
-      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(); }).catch(function(e){ toast(e.message||"Greška"); });
+      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); });
     },
     makniPrio:function(id){
       var ids=prioLista().map(function(n){ return n.id; }).filter(function(x){ return x!==id; });
-      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(); }).catch(function(e){ toast(e.message||"Greška"); });
+      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); });
     } };
 
   // tabs
