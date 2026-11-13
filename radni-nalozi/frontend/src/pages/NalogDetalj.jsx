@@ -8,6 +8,7 @@ import {
   Bedz, KategorijaPicker, MikrofonGumb, Spinner, datum, datumVrijeme, useAutoOsvjezi, voziloLabel,
 } from '../ui'
 import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
+import SlikaEditor from '../SlikaEditor'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -586,23 +587,29 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
   const [fotke, setFotke] = useState([])
   const [radi, setRadi] = useState(false)
   const [slanjeSlike, setSlanjeSlike] = useState(false)
+  const [editorRed, setEditorRed] = useState([])   // poslikane fotke koje čekaju označavanje
   const fileRef = useRef(null)
 
   const ucitaj = () => api.narudzbeNaloga(nalogId).then(setLista).catch((e) => naGresku(e.message))
   useEffect(() => { ucitaj() }, [nalogId])
 
-  const dodajSliku = async (e) => {
+  // Nakon slikanja NE šaljemo odmah — prvo otvorimo editor da korisnik zaokruži što je slikao.
+  const dodajSliku = (e) => {
     const files = Array.from(e.target.files || [])
+    if (fileRef.current) fileRef.current.value = ''
     if (!files.length) return
+    setEditorRed(files)
+  }
+  const posaljiFajl = async (f) => {
     setSlanjeSlike(true)
     try {
-      for (const f of files) {
-        const fd = new FormData(); fd.append('slika', f)
-        const r = await api.narudzbaFoto(fd)
-        if (r && r.foto) setFotke((p) => [...p, r.foto])
-      }
-    } catch (err) { naGresku(err.message) } finally { setSlanjeSlike(false); if (fileRef.current) fileRef.current.value = '' }
+      const fd = new FormData(); fd.append('slika', f)
+      const r = await api.narudzbaFoto(fd)
+      if (r && r.foto) setFotke((p) => [...p, r.foto])
+    } catch (err) { naGresku(err.message) } finally { setSlanjeSlike(false) }
   }
+  const editorGotovo = async (f) => { await posaljiFajl(f); setEditorRed((red) => red.slice(1)) }
+  const editorPreskoci = () => setEditorRed((red) => red.slice(1))
   const makniSliku = (i) => setFotke((p) => p.filter((_, j) => j !== i))
 
   const dodaj = async () => {
@@ -618,6 +625,9 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
 
   return (
     <>
+      {editorRed.length > 0 && (
+        <SlikaEditor key={editorRed.length} file={editorRed[0]} onGotovo={editorGotovo} onOdustani={editorPreskoci} />
+      )}
       <div className="sekcija-naslov">📦 Dijelovi za naručiti {gb ? `· GB ${gb}` : ''}</div>
       <div className="karta">
         <input value={naziv} placeholder="što treba naručiti (naziv dijela)…" onChange={(e) => setNaziv(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
