@@ -301,6 +301,9 @@ class Nalog(Base):
     # Plan radione (pregled za vlasnika): ručni redoslijed i oznaka hitno.
     plan_rang: Mapped[int | None] = mapped_column(Integer, nullable=True)
     plan_hitno: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Popis prioriteta (zasebno od HITNO): pozicija na listi, 0 = najhitniji (prioritet 1).
+    # None = nije na listi prioriteta. U kartici „Radnici" se nalozi s liste oboje po trećinama.
+    prioritet_rang: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     vozilo: Mapped["Vozilo"] = relationship()
     kreirao: Mapped["Korisnik"] = relationship(foreign_keys=[kreirao_id])
