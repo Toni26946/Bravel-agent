@@ -248,6 +248,23 @@
   .rad-cell.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* Okvir prioriteta (kartica Radnici): gornjih 33% crveno, srednjih žuto, zadnjih zeleno */
+  .rad-cell.prio-c{box-shadow:0 0 0 3px #e5484d}
+  .rad-cell.prio-z{box-shadow:0 0 0 3px #e0a400}
+  .rad-cell.prio-g{box-shadow:0 0 0 3px #2e9e5b}
+  /* Kartica Prioriteti — lista */
+  .prio-add{margin:8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .prio-add select{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);max-width:100%}
+  .btn-mini{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 10px;font-size:13px}
+  .prio-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .prio-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+  .prio-row.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+  .prio-h{border:0;background:none;color:var(--muted);cursor:grab;touch-action:none;font-size:15px;line-height:1;padding:0 2px;font-family:inherit}
+  .prio-h:active{cursor:grabbing}
+  .prio-br{font-weight:800;color:var(--muted);min-width:24px}
+  .prio-gb{font-weight:800}
+  .prio-voz{color:var(--muted);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prio-x{border:0;background:none;color:var(--crveno);cursor:pointer;font-size:15px;padding:2px 6px;font-family:inherit}
 
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:20px 0 4px}
   .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
@@ -278,6 +295,7 @@
   <button class="tab" data-v="nap">✅ Napravljeno</button>
   <button class="tab" data-v="bonus">💶 Klik-bonus</button>
   <button class="tab" data-v="povijest">🕑 Povijest klikanja</button>
+  <button class="tab" data-v="prioritet">🎯 Prioriteti</button>
   <span class="datum" id="datum"></span>
 </nav>
 
@@ -289,6 +307,7 @@
     <section id="v-nap" hidden></section>
     <section id="v-bonus" hidden></section>
     <section id="v-povijest" hidden></section>
+    <section id="v-prioritet" hidden></section>
     <div class="foot">Vidljivo samo vlasniku · osvježava se automatski.</div>
   </div>
 </main>
@@ -802,6 +821,7 @@
   function renderDASH(){
     var PRAG=2;
     var map=redPoRadniku();
+    var PB=prioBandovi();   // nalog id -> traka prioriteta (c/z/g) za okvir kartice
     var saZad=[], slobodniPrisutni=[], slobodniOdsutni=[];
     MEH.forEach(function(m){
       // Odsutni (godišnji/bolovanje/odsutan) se NE prikazuju u redovima — samo u podnožju.
@@ -850,7 +870,7 @@
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
           var uTijeku=(st==="radu");
-          h+='<div class="rad-cell '+CH[st]+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
+          h+='<div class="rad-cell '+CH[st]+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
              (uTijeku?'':'<button class="rc-drag" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>')+
              '<span class="rc-poz">'+(i+1)+'</span>'+
              '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
@@ -942,6 +962,49 @@
       .catch(function(){ bonus={redovi:[]}; render(); });
   }
 
+  // --- Prioriteti ---------------------------------------------------------
+  // Nalozi na listi prioriteta, poredani (prvi = najhitniji).
+  function prioLista(){
+    return (nalozi||[]).filter(function(n){ return n.prioritet!=null; })
+      .sort(function(a,b){ return a.prioritet-b.prioritet; });
+  }
+  // Mapa nalogId -> traka ('c' crvena / 'z' žuta / 'g' zelena) po trećinama liste.
+  function prioBandovi(){
+    var lista=prioLista(), N=lista.length, map={};
+    lista.forEach(function(n,i){
+      var b = N<=0 ? 2 : Math.min(2, Math.floor(i/(N/3)));
+      map[n.id] = b===0?'c':(b===1?'z':'g');
+    });
+    return map;
+  }
+  function prioBoja(b){ return b==='c'?'#e5484d':(b==='z'?'#e0a400':'#2e9e5b'); }
+
+  // Kartica „Prioriteti": lista naloga po prioritetu + dodavanje/micanje/povlačenje.
+  function renderPRIO(){
+    var lista=prioLista(), N=lista.length;
+    var slobodni=(nalozi||[]).filter(function(n){ return n.prioritet==null; })
+      .sort(function(a,b){ return (""+(a.gb||"")).localeCompare(""+(b.gb||""),"hr",{numeric:true}); });
+    var h='';
+    h+='<p class="hint">Popis prioriteta naloga. Prvi je najhitniji (1), pa dalje. U kartici „Radnici" se nalozi s liste oboje: gornjih 33% <b style="color:#e5484d">crveno</b>, srednjih 33% <b style="color:#e0a400">žuto</b>, zadnjih 33% <b style="color:#2e9e5b">zeleno</b>. Povuci ⠿ za presloživanje.</p>';
+    h+='<div class="prio-add"><select id="prio-sel"><option value="">— izaberi nalog (GB) —</option>'+
+       slobodni.map(function(n){ return '<option value="'+n.id+'">GB '+esc(n.gb)+(n.vozilo?(' · '+esc(n.vozilo)):'')+'</option>'; }).join('')+
+       '</select><button class="btn-mini" onclick="PLAN.dodajPrio()">➕ Dodaj na listu</button></div>';
+    if(!N){ h+='<div class="card" style="color:var(--muted)">Lista je prazna — dodaj nalog gore.</div>'; return h; }
+    h+='<div id="prio-list" class="prio-list">';
+    lista.forEach(function(n,i){
+      var boja=prioBoja(N<=0?'g':(Math.min(2,Math.floor(i/(N/3)))===0?'c':(Math.min(2,Math.floor(i/(N/3)))===1?'z':'g')));
+      h+='<div class="prio-row" data-nid="'+n.id+'" style="border-left:6px solid '+boja+'">'+
+         '<button class="prio-h" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>'+
+         '<span class="prio-br">'+(i+1)+'.</span>'+
+         '<span class="prio-gb">GB '+esc(n.gb)+'</span>'+
+         '<span class="prio-voz">'+esc(n.vozilo||'')+'</span>'+
+         '<button class="prio-x" onclick="PLAN.makniPrio('+n.id+')" title="Makni s liste">✕</button>'+
+         '</div>';
+    });
+    h+='</div>';
+    return h;
+  }
+
   function render(){
     _brojMeh = brojUReduPoMeh();
     document.getElementById("v-pl").innerHTML = renderPL();
@@ -950,12 +1013,14 @@
     document.getElementById("v-nap").innerHTML = renderNAP();
     document.getElementById("v-bonus").innerHTML = renderBONUS();
     document.getElementById("v-povijest").innerHTML = renderPOVIJEST();
+    document.getElementById("v-prioritet").innerHTML = renderPRIO();
     document.getElementById("v-pl").hidden = pogled!=="pl";
     document.getElementById("v-meh").hidden = pogled!=="meh";
     document.getElementById("v-dash").hidden = pogled!=="dash";
     document.getElementById("v-nap").hidden = pogled!=="nap";
     document.getElementById("v-bonus").hidden = pogled!=="bonus";
     document.getElementById("v-povijest").hidden = pogled!=="povijest";
+    document.getElementById("v-prioritet").hidden = pogled!=="prioritet";
     document.body.classList.toggle("view-pl", pogled==="pl");   // bočni popis + prostor samo u plan pogledu
     document.body.classList.toggle("view-dash", pogled==="dash");
     // badge na tabu Mehaničar (koliko čeka potvrdu ukupno)
@@ -1010,7 +1075,19 @@
         .catch(function(e){ toast(e.message||"Greška"); });
     },
     // Klik-bonus: prikaži/sakrij popis prekršaja (datum + razlog) za jednog servisera.
-    toggleBonus:function(rid){ var el=document.getElementById("bdet-"+rid); if(el){ el.hidden=!el.hidden; } } };
+    toggleBonus:function(rid){ var el=document.getElementById("bdet-"+rid); if(el){ el.hidden=!el.hidden; } },
+    // Prioriteti: dodaj izabrani nalog na KRAJ liste (ili makni) pa spremi redoslijed.
+    dodajPrio:function(){
+      var sel=document.getElementById("prio-sel"); if(!sel||!sel.value) return;
+      var id=parseInt(sel.value,10);
+      var ids=prioLista().map(function(n){ return n.id; });
+      if(ids.indexOf(id)<0) ids.push(id);
+      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(); }).catch(function(e){ toast(e.message||"Greška"); });
+    },
+    makniPrio:function(id){
+      var ids=prioLista().map(function(n){ return n.id; }).filter(function(x){ return x!==id; });
+      api("/prioriteti","PUT",{redoslijed:ids}).then(function(){ ucitaj(); }).catch(function(e){ toast(e.message||"Greška"); });
+    } };
 
   // tabs
   document.getElementById("tabs").addEventListener("click",function(e){
@@ -1073,6 +1150,38 @@
     document.addEventListener("pointercancel",end,true);
   }
   document.getElementById("v-pl").addEventListener("pointerdown", _planDrag);
+
+  // --- Drag reorder liste prioriteta (isti princip, okomito) ---
+  function _prio_commit(){
+    var cont=document.getElementById("prio-list"); if(!cont) return;
+    var ids=[]; cont.querySelectorAll(".prio-row").forEach(function(r){ var id=parseInt(r.getAttribute("data-nid"),10); if(id) ids.push(id); });
+    if(!ids.length) return;
+    api("/prioriteti","PUT",{redoslijed:ids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+  }
+  function _prioDrag(e){
+    var h=e.target.closest(".prio-h"); if(!h) return;
+    var cont=document.getElementById("prio-list"); var row=h.closest(".prio-row");
+    if(!cont||!row) return;
+    e.preventDefault(); e.stopPropagation();
+    _drag=true; row.classList.add("dragging");
+    function onMove(ev){
+      if(ev.cancelable) ev.preventDefault();
+      var y=ev.clientY, rows=cont.querySelectorAll(".prio-row"), before=null;
+      for(var i=0;i<rows.length;i++){ var c=rows[i]; if(c===row) continue; var r=c.getBoundingClientRect(); if(y < r.top + r.height/2){ before=c; break; } }
+      if(before){ if(row.nextSibling!==before) cont.insertBefore(row, before); }
+      else if(cont.lastChild!==row){ cont.appendChild(row); }
+    }
+    function end(){
+      document.removeEventListener("pointermove",onMove,true);
+      document.removeEventListener("pointerup",end,true);
+      document.removeEventListener("pointercancel",end,true);
+      row.classList.remove("dragging"); _drag=false; _prio_commit();
+    }
+    document.addEventListener("pointermove",onMove,true);
+    document.addEventListener("pointerup",end,true);
+    document.addEventListener("pointercancel",end,true);
+  }
+  document.getElementById("v-prioritet").addEventListener("pointerdown", _prioDrag);
 
   // --- Drag redoslijed po mehaničaru (dashboard) — vodoravno; „u tijeku" nema ručku ---
   function _dash_commit(cont){

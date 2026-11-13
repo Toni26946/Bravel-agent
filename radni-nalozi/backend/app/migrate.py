@@ -69,6 +69,7 @@ _STUPCI = [
     # Plan radione
     ("nalozi", "plan_rang", "INTEGER"),
     ("nalozi", "plan_hitno", "BOOLEAN DEFAULT FALSE"),
+    ("nalozi", "prioritet_rang", "INTEGER"),
     ("zadaci", "ceka_potvrdu", "BOOLEAN DEFAULT FALSE"),
     ("zadaci", "razlog_prekida", "VARCHAR(12)"),
     ("zadaci", "prekid_vrijeme", "TIMESTAMP"),

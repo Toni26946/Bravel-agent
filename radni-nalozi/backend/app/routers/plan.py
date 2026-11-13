@@ -306,6 +306,7 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             "reg": (voz.registracija if voz else "") or "",
             "rang": n.plan_rang,
             "hitno": bool(n.plan_hitno),
+            "prioritet": n.prioritet_rang,   # pozicija na listi prioriteta (0 = najhitniji); None = nije na listi
             "cekaDijelove": n.status == StatusNaloga.ceka_dijelove,
             "usaoTs": _ms(n.kreiran),
             "udaljenostM": flota.udaljenost_od_radione(_gb(n)),   # metri od radione (None ako nema GPS-a)
@@ -401,6 +402,29 @@ def redoslijed(p: RedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
         n = db.get(Nalog, nid)
         if n:
             n.plan_rang = i
+    db.commit()
+    return {"ok": True}
+
+
+class PrioritetiIn(BaseModel):
+    redoslijed: list[int]   # id-evi naloga po prioritetu; prvi = najhitniji (prioritet 1)
+
+
+@router.put("/prioriteti")
+def prioriteti(p: PrioritetiIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Popis prioriteta naloga — ZASEBNO od HITNO i od redoslijeda plana.
+    `redoslijed` je lista nalog id-eva; prvi je najhitniji (prioritet 1). Nalozi koji
+    nisu na listi gube prioritet_rang (više nisu označeni). Ne ovisi o zaključavanju plana."""
+    nova = {nid: i for i, nid in enumerate(p.redoslijed)}
+    # Makni s liste one koji su bili, a više nisu.
+    for n in db.query(Nalog).filter(Nalog.prioritet_rang.isnot(None)).all():
+        if n.id not in nova:
+            n.prioritet_rang = None
+    # Postavi/ažuriraj poziciju za one na listi.
+    for nid, i in nova.items():
+        n = db.get(Nalog, nid)
+        if n:
+            n.prioritet_rang = i
     db.commit()
     return {"ok": True}
 
