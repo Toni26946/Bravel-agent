@@ -1,7 +1,8 @@
 name: Deploy Radni Nalozi
 
 # Deploya zasebnu aplikaciju "Bravel Radni Nalozi" (mapa radni-nalozi/) na fly.io.
-# Pokreće se na push u main kad se promijeni radni-nalozi/**, ili ručno.
+# Prvo vrti testove (SQLite + Postgres smoke); deploy ide SAMO ako testovi prođu.
+# Na pull requestu se vrte samo testovi (deploy se preskače) — za provjeru prije mergea.
 #
 # PREDUVJET (jednokratno, lokalno — jer fly token zbog SSO-a ne smije kreirati app):
 #   fly apps create bravel-radni-nalozi
@@ -15,14 +16,59 @@ on:
     paths:
       - 'radni-nalozi/**'
       - '.github/workflows/fly-deploy-radni-nalozi.yml'
+  pull_request:
+    paths:
+      - 'radni-nalozi/**'
+      - '.github/workflows/fly-deploy-radni-nalozi.yml'
   workflow_dispatch:
 
 env:
   FLY_APP: bravel-radni-nalozi
 
 jobs:
+  # Vrata prije deploya: testovi se vrte i na SQLiteu (brzo, izolirano) i na PRAVOM
+  # Postgresu (smoke, test_postgres_smoke.py). Produkcija je Postgres, a Postgres je
+  # stroži od SQLitea (npr. SELECT DISTINCT nad JSON stupcem puca) — ovo hvata tu klasu
+  # grešaka PRIJE objave, umjesto da mehaničar dobije 500 uživo.
+  testovi:
+    name: Testovi (SQLite + Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instaliraj ovisnosti
+        run: pip install -r radni-nalozi/backend/requirements.txt pytest
+
+      # TEST_DATABASE_URL uključuje Postgres smoke-test (test_postgres_smoke.py);
+      # ostali testovi i dalje rade na vlastitom in-memory SQLiteu.
+      - name: Pokreni testove
+        env:
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: python -m pytest radni-nalozi/backend/tests -q
+
   deploy:
     name: Deploy Radni Nalozi
+    needs: testovi
+    # Na pull requestu se ne deploya — samo testovi (gornji job).
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-radni-nalozi
     steps:
