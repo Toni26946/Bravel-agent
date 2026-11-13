@@ -20,7 +20,7 @@ from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
     Dodjela, KlikPoslano, KlikRucno, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
-    Prioritet, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
+    Prioritet, RegistarVozila, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
 from .nalozi import (
@@ -267,6 +267,16 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
     zad_ids = [z.id for n in nalozi for op in n.operacije for z in op.zadaci]
     radili = _radio_po_zadatku(db, zad_ids)   # tko je nakupio vrijeme na zadatku
+    # Naziv/registracija vozila: PRIMARNO iz matičnog popisa (RegistarVozila — ono što se
+    # uređuje na stranici „Vozila"), fallback na Vozilo (marka/model). GB se podudara
+    # izravno; probamo i bez vodećih nula (kao drugdje u kodu).
+    _gbs = {_gb(n) for n in nalozi if _gb(n)}
+    _gbs |= {g.lstrip("0") or g for g in list(_gbs)}
+    reg_map = {}
+    if _gbs:
+        for rv in db.query(RegistarVozila).filter(RegistarVozila.gb.in_(_gbs)).all():
+            reg_map[rv.gb] = rv
+            reg_map.setdefault(rv.gb.lstrip("0") or rv.gb, rv)
     out_nal = []
     for i, n in enumerate(nalozi):
         ops = []
@@ -299,11 +309,15 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     "startTs": _ms(z.zapoceto),
                 })
         voz = n.vozilo
+        gb = _gb(n)
+        rv = reg_map.get(gb) or reg_map.get(gb.lstrip("0") or gb)
+        ime_rv = (rv.vozilo.strip() if (rv and rv.vozilo) else "")
+        reg_rv = (rv.registracija.strip() if (rv and rv.registracija) else "")
         naziv = " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x)
         out_nal.append({
-            "id": n.id, "gb": _gb(n),
-            "vozilo": naziv or (n.naslov or ""),
-            "reg": (voz.registracija if voz else "") or "",
+            "id": n.id, "gb": gb,
+            "vozilo": ime_rv or naziv or (n.naslov or ""),
+            "reg": reg_rv or (voz.registracija if voz else "") or "",
             "rang": n.plan_rang,
             "hitno": bool(n.plan_hitno),
             "prioritet": n.prioritet_rang,   # pozicija na listi prioriteta (0 = najhitniji); None = nije na listi
