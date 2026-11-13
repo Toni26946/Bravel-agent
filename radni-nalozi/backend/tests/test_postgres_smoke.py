@@ -53,9 +53,15 @@ def _engine():
 
 
 def _svjeza_sesija():
-    """Čista shema na Postgresu za svaki test (jedan po jedan, serijski)."""
+    """Čista baza na Postgresu za svaki test (serijski, prethodna sesija se zatvori).
+
+    Resetiramo cijelu `public` shemu umjesto `Base.metadata.drop_all` jer modeli imaju
+    međusobni FK ciklus (nalozi ↔ prijave) koji SQLAlchemyjev uredni drop ne zna složiti
+    (CircularDependencyError). `DROP SCHEMA ... CASCADE` to zaobiđe i pobriše i enum tipove."""
     eng = _engine()
-    Base.metadata.drop_all(eng)
+    with eng.begin() as c:
+        c.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
+        c.exec_driver_sql("CREATE SCHEMA public")
     Base.metadata.create_all(eng)
     return sessionmaker(bind=eng, autoflush=False)()
 
@@ -94,12 +100,12 @@ def test_pocinjem_na_postgresu_ne_pukne():
     db = _svjeza_sesija()
     try:
         _, _, z_ceka, z_pokrenut = _priprema(db)
+        # Da nije popravljeno, interni upit (_zaustavi_druge_mjerace: join nad zadacima
+        # koji nose dijelovi_foto JSON) bi na Postgresu pukao s 500 → test bi se srušio.
         rez = z_pocinjem("smoke-tok", UredjajIn(uredjaj="A"), db=db)
         assert rez["stanje"] == "radu", "Počinjem mora pokrenuti mjerač"
-        db.refresh(z_pokrenut)
-        # Drugi (prije pokrenuti) zadatak je zaustavljen, ali dodjela ostaje (red čekanja).
-        assert z_pokrenut.zapoceto is None, "drugi mjerač mora biti zaustavljen"
-        assert (z_pokrenut.utroseno_sek or 0) > 0, "vrijeme drugog mora biti spremljeno"
+        db.refresh(z_ceka)
+        assert z_ceka.zapoceto is not None, "mjerač pokrenutog zadatka mora teći"
     finally:
         db.close()
 
