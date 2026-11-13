@@ -6,33 +6,42 @@ import { useEffect, useRef, useState } from 'react'
 // Bez vanjskih biblioteka — obično <canvas>.
 export default function SlikaEditor({ file, onGotovo, onOdustani }) {
   const platnoRef = useRef(null)
-  const imgRef = useRef(null)
+  const bazaRef = useRef(null)        // mala offscreen kopija slike (bez crteža) — štedi memoriju
   const crtaRef = useRef(false)
   const potezeRef = useRef([])        // povijest poteza (za „poništi"): svaki potez = niz točaka {x,y}
   const [spreman, setSpreman] = useState(false)
   const [salje, setSalje] = useState(false)
 
-  const MAX = 1280                     // najdulja stranica platna (server svejedno dodatno smanji)
+  const MAX = 1200                     // najdulja stranica platna (server svejedno dodatno smanji)
   const BOJA = '#ff2b2b'
 
   useEffect(() => {
+    // VAŽNO za mobitele: NE učitavamo punu fotku preko base64 (readAsDataURL) i NE
+    // držimo je u memoriji — to zna srušiti preglednik („nema dovoljno memorije").
+    // Umjesto toga: objectURL → skaliranu kopiju nacrtamo na malo offscreen platno,
+    // pa punu sliku ODMAH otpustimo (revoke + ispusti referencu). Crtamo onda iz te kopije.
+    const objURL = URL.createObjectURL(file)
     const img = new Image()
-    const r = new FileReader()
-    r.onload = () => { img.src = r.result }
     img.onload = () => {
       let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height
       const s = Math.min(1, MAX / Math.max(w, h))
       w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s))
+      const off = document.createElement('canvas')
+      off.width = w; off.height = h
+      off.getContext('2d').drawImage(img, 0, 0, w, h)   // skaliraj u malu kopiju
+      bazaRef.current = off
+      img.onload = null; img.src = ''                    // otpusti punu sliku iz memorije
+      URL.revokeObjectURL(objURL)
       const c = platnoRef.current
       if (!c) return
       c.width = w; c.height = h
-      imgRef.current = img
       potezeRef.current = []
       nacrtaj()
       setSpreman(true)
     }
-    r.onerror = () => onOdustani && onOdustani()
-    r.readAsDataURL(file)
+    img.onerror = () => { URL.revokeObjectURL(objURL); onOdustani && onOdustani() }
+    img.src = objURL
+    return () => { try { URL.revokeObjectURL(objURL) } catch (e) { /* već otpušten */ } }
   }, [file])
 
   const debljina = () => {
@@ -45,7 +54,7 @@ export default function SlikaEditor({ file, onGotovo, onOdustani }) {
     if (!c) return
     const g = c.getContext('2d')
     g.clearRect(0, 0, c.width, c.height)
-    if (imgRef.current) g.drawImage(imgRef.current, 0, 0, c.width, c.height)
+    if (bazaRef.current) g.drawImage(bazaRef.current, 0, 0, c.width, c.height)
     const lw = debljina()
     g.strokeStyle = BOJA; g.lineWidth = lw; g.lineCap = 'round'; g.lineJoin = 'round'
     for (const potez of potezeRef.current) {
