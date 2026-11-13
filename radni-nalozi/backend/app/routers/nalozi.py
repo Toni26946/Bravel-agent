@@ -541,9 +541,31 @@ def parking_lokacija(
     return nalog
 
 
+def _primijeni_maticni_naziv(db: Session, n: Nalog) -> None:
+    """Prikaži naziv/registraciju vozila iz matičnog popisa (RegistarVozila — ono što se
+    uređuje na stranici „Vozila") ako postoji; tako nalog pokazuje isto što i Vozila/Plan.
+    Mijenja SAMO u memoriji (za serijalizaciju) — endpoint ne radi commit, pa se ne sprema."""
+    voz = getattr(n, "vozilo", None)
+    gb = (voz.gb if voz else None)
+    if not voz or not gb:
+        return
+    rv = db.get(RegistarVozila, gb) or db.get(RegistarVozila, (gb.lstrip("0") or gb))
+    if not rv:
+        return
+    ime = (rv.vozilo or "").strip()
+    reg = (rv.registracija or "").strip()
+    if ime:
+        voz.marka = ime
+        voz.model = None
+    if reg:
+        voz.registracija = reg
+
+
 @router.get("/{nalog_id}", response_model=NalogOut)
 def detalj(nalog_id: int, korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
-    return _dohvati_ovlasten(db, nalog_id, korisnik)
+    n = _dohvati_ovlasten(db, nalog_id, korisnik)
+    _primijeni_maticni_naziv(db, n)
+    return n
 
 
 @router.get("/{nalog_id}/lokacija")
