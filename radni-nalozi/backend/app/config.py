@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Upload fotografija
     upload_dir: str = "./uploads"
     max_upload_mb: int = 15
+    # Smanjivanje slika pri uploadu (da se brzo otvaraju i manje zauzimaju):
+    # najdulja stranica slike se skalira na ovoliko px (0 = ne diraj), JPEG kvaliteta.
+    slika_max_px: int = 1600
+    slika_kvaliteta: int = 82
 
     # Izgrađeni frontend (PWA). Ako mapa postoji, backend je poslužuje na "/".
     frontend_dist: str = "./static"
