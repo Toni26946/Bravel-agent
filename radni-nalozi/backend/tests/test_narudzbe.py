@@ -49,6 +49,24 @@ def test_upis_i_skladistar_vidi():
     assert len(svi) == 1 and svi[0]["naziv"] == "Filter ulja"
 
 
+def test_naziv_nije_obavezan_ali_treba_nesto():
+    from fastapi import HTTPException
+    db = _session()
+    meh, skl, n = _postavi(db)
+    # Bez naziva, ali sa slikom → prolazi
+    r = dodaj(n.id, NarudzbaIn(naziv="", fotografije=["/uploads/x.jpg"]), korisnik=meh, db=db)
+    assert r["status"] == "trazeno" and r["naziv"] == "" and r["fotografije"] == ["/uploads/x.jpg"]
+    # Bez naziva, samo kataloški → prolazi
+    r2 = dodaj(n.id, NarudzbaIn(kataloski="W712"), korisnik=meh, db=db)
+    assert r2["kataloski"] == "W712"
+    # Sve prazno → 400
+    try:
+        dodaj(n.id, NarudzbaIn(), korisnik=meh, db=db)
+        assert False, "očekivan 400 za potpuno prazan unos"
+    except HTTPException as e:
+        assert e.status_code == 400
+
+
 def test_status_prelazi():
     db = _session()
     meh, skl, n = _postavi(db)

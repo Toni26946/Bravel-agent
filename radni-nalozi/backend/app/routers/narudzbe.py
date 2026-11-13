@@ -39,7 +39,7 @@ def _out(n: NarudzbaDio) -> dict:
 
 
 class NarudzbaIn(BaseModel):
-    naziv: str
+    naziv: str | None = None   # neobavezno — dio se može zadati i samo slikom/kataloškim brojem
     kataloski: str | None = None
     kolicina: float = 1
     jmj: str = "kom"
@@ -73,15 +73,19 @@ def dodaj(nalog_id: int, p: NarudzbaIn, korisnik: Korisnik = Depends(trenutni_ko
           db: Session = Depends(get_db)):
     nalog = _dohvati_ovlasten(db, nalog_id, korisnik)
     naziv = (p.naziv or "").strip()
-    if not naziv:
-        raise HTTPException(status_code=400, detail="Naziv dijela je obavezan.")
+    kataloski = (p.kataloski or "").strip() or None
+    napomena = (p.napomena or "").strip() or None
+    foto = [f for f in (p.fotografije or []) if f]
+    # Naziv više NIJE obavezan, ali mora postojati bar nešto (da ne ostane prazan unos).
+    if not (naziv or kataloski or napomena or foto):
+        raise HTTPException(status_code=400, detail="Upiši barem naziv, kataloški broj, napomenu ili dodaj sliku.")
     if (p.kolicina or 0) <= 0:
         raise HTTPException(status_code=400, detail="Količina mora biti veća od 0.")
     gb = (nalog.vozilo.gb if nalog.vozilo else "") or ""
     n = NarudzbaDio(
-        nalog_id=nalog_id, vozilo_gb=gb, naziv=naziv, kataloski=p.kataloski,
-        kolicina=float(p.kolicina), jmj=(p.jmj or "kom"), napomena=(p.napomena or None),
-        fotografije=([f for f in (p.fotografije or []) if f] or None),
+        nalog_id=nalog_id, vozilo_gb=gb, naziv=naziv, kataloski=kataloski,
+        kolicina=float(p.kolicina), jmj=(p.jmj or "kom"), napomena=napomena,
+        fotografije=(foto or None),
         status="trazeno", trazio_id=korisnik.id,
     )
     db.add(n)

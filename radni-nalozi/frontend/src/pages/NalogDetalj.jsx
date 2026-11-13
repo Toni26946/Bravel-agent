@@ -613,8 +613,11 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
   const makniSliku = (i) => setFotke((p) => p.filter((_, j) => j !== i))
 
   const dodaj = async () => {
-    const nz = naziv.trim(); if (!nz) return naGresku('Upiši što treba naručiti.')
+    const nz = naziv.trim()
     const k = Number(kol); if (!(k > 0)) return naGresku('Količina mora biti veća od 0.')
+    // Naziv nije obavezan — ali mora postojati bar nešto (naziv/kataloški/napomena/slika).
+    if (!nz && !kataloski.trim() && !napomena.trim() && fotke.length === 0)
+      return naGresku('Upiši barem naziv, kataloški broj, napomenu ili dodaj sliku.')
     setRadi(true)
     try {
       await api.dodajNarudzbu(nalogId, { naziv: nz, kataloski: kataloski.trim() || null, kolicina: k, jmj: jmj.trim() || 'kom', napomena: napomena.trim() || null, fotografije: fotke })
@@ -630,7 +633,7 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
       )}
       <div className="sekcija-naslov">📦 Dijelovi za naručiti {gb ? `· GB ${gb}` : ''}</div>
       <div className="karta">
-        <input value={naziv} placeholder="što treba naručiti (naziv dijela)…" onChange={(e) => setNaziv(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+        <input value={naziv} placeholder="što treba naručiti (naziv dijela, opcijski)…" onChange={(e) => setNaziv(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <div style={{ flex: 2 }}><label className="meta">Kataloški broj</label><input value={kataloski} onChange={(e) => setKataloski(e.target.value)} placeholder="opcijski" style={{ width: '100%', boxSizing: 'border-box' }} /></div>
           <div style={{ flex: 1 }}><label className="meta">Količina</label><input type="number" step="any" value={kol} onChange={(e) => setKol(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} /></div>
@@ -655,7 +658,7 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
               {lista.map((i) => (
                 <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
                   <td style={{ padding: '4px 6px' }}>
-                    {i.naziv}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}
+                    {i.naziv || <em className="meta">bez naziva</em>}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}
                     {i.napomena ? <div className="meta">{i.napomena}</div> : null}
                     {(i.fotografije || []).length > 0 && (
                       <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
