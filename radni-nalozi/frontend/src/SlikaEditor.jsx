@@ -30,7 +30,9 @@ export default function SlikaEditor({ file, onGotovo, onOdustani }) {
       off.width = w; off.height = h
       off.getContext('2d').drawImage(img, 0, 0, w, h)   // skaliraj u malu kopiju
       bazaRef.current = off
-      img.onload = null; img.src = ''                    // otpusti punu sliku iz memorije
+      // Otpusti punu sliku: makni rukovatelje i revoke URL. NE radimo img.src = '' —
+      // prazan URL okine img.onerror pa bi se editor odmah zatvorio (bljesne i nestane).
+      img.onload = null; img.onerror = null
       URL.revokeObjectURL(objURL)
       const c = platnoRef.current
       if (!c) return
