@@ -488,6 +488,9 @@
 
   // Klik na karticu naloga → otvori cijeli nalog u aplikaciji (preko roditeljskog okvira).
   function otvoriNalog(id){
+    // Zapamti karticu i poziciju da te „Natrag" iz naloga vrati tu gdje si bio
+    // (iframe se inače ponovno učita i skoči na zadanu karticu „Poslovođa").
+    try{ sessionStorage.setItem("plan_tab", pogled); sessionStorage.setItem("plan_scroll", String(window.scrollY||0)); }catch(e){}
     if(window.parent && window.parent!==window){
       try{ window.parent.postMessage({tip:"plan-otvori-nalog", id:id}, location.origin); return; }catch(e){}
     }
@@ -1013,6 +1016,7 @@
   document.getElementById("tabs").addEventListener("click",function(e){
     var b=e.target.closest(".tab"); if(!b) return;
     pogled=b.getAttribute("data-v");
+    try{ sessionStorage.setItem("plan_tab", pogled); }catch(_){}
     document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("akt",t===b);});
     render();
     if(pogled==="nap") ucitaj(true);   // „Napravljeno" se ne povlači u pozadini → osvježi pri otvaranju
@@ -1144,6 +1148,23 @@
     document.addEventListener("pointercancel",pu,true);
   }
   document.getElementById("v-dash").addEventListener("pointerdown", _dashStart);
+
+  // Vrati zadnju karticu (i približnu poziciju skrola) nakon povratka iz naloga.
+  try {
+    var _tab = sessionStorage.getItem("plan_tab");
+    var _tb = _tab && document.querySelector('.tab[data-v="'+_tab+'"]');
+    if(_tb){
+      pogled = _tab;
+      document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("akt", t===_tb); });
+      if(pogled==="bonus"||pogled==="povijest") ucitajBonus();
+    }
+    var _sy = parseInt(sessionStorage.getItem("plan_scroll")||"0",10);
+    if(_sy>0){
+      // sadržaj se dohvaća asinkrono → par puta pokušaj vratiti skrol dok ne naraste, pa stani.
+      var _pok=0, _it=setInterval(function(){ window.scrollTo(0,_sy); if(++_pok>=8) clearInterval(_it); }, 150);
+      window.addEventListener("pointerdown", function(){ clearInterval(_it); }, {once:true});
+    }
+  } catch(_){}
 
   render();
   ucitaj();                        // početni dohvat stvarnih podataka
