@@ -28,7 +28,9 @@ from ..schemas import (
 
 router = APIRouter(prefix="/zaduzenja", tags=["zaduzenja"])
 
-voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+# Pristup zaduženjima: voditelj, poslovođa i skladištar (npr. Akshay radi primopredaje).
+# Brisanje je i dalje samo voditelj (vidi dolje zahtijevaj_uloge(Uloga.voditelj)).
+voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja, Uloga.skladistar)
 
 
 # ---------------------------------------------------------------------------
