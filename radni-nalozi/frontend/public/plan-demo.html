@@ -1258,6 +1258,14 @@
   }
   document.getElementById("v-dash").addEventListener("pointerdown", _dashStart);
 
+  // MOBITEL: na „Radnici" se kartica hvata dugim pritiskom na CIJELU karticu (ne samo ⠿),
+  // a kartica nema touch-action:none. Kad se nakon dugog pritiska pomakne prst, preglednik
+  // gestu preuzme kao skrol, pošalje pointercancel i povlačenje se prekine (kartica se
+  // „vrati"). Dok traje povlačenje (_drag) zato blokiramo nativni skrol — mora passive:false.
+  document.addEventListener("touchmove", function(e){ if(_drag && e.cancelable) e.preventDefault(); }, {passive:false});
+  // Dugi pritisak ne smije otvoriti kontekstni izbornik preglednika na kartici.
+  document.addEventListener("contextmenu", function(e){ if(e.target && e.target.closest && e.target.closest("#v-dash .rad-cell")) e.preventDefault(); });
+
   // Vrati zadnju karticu (i približnu poziciju skrola) nakon povratka iz naloga.
   try {
     var _tab = sessionStorage.getItem("plan_tab");
