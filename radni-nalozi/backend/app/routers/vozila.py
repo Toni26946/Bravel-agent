@@ -58,6 +58,8 @@ _ASCII = str.maketrans({"č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d"})
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
 voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.radnik)
 voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
+# Prikapčanje (dnevnik) smije i skladištar (npr. Akshay) — ne samo voditelj/poslovođa.
+prikapcanje_pristup = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja, Uloga.skladistar)
 
 # Nalozi koji drže vozilo "u radionici" (za poveznicu na aktivan nalog).
 _AKTIVNI_STATUSI = (StatusNaloga.otvoren, StatusNaloga.u_radu, StatusNaloga.ceka_dijelove)
@@ -179,7 +181,7 @@ def _prikacene_prikolice(db: Session) -> set[str]:
 @router.post("/prikapcanje", response_model=DogadajOut, status_code=201)
 def dodaj_dogadaj(
     podaci: DogadajCreate,
-    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(prikapcanje_pristup), db: Session = Depends(get_db),
 ):
     """Zabilježi događaj prikačenja/otkačenja prikolice (naš dnevnik = evidencija).
 
@@ -224,7 +226,7 @@ def dodaj_dogadaj(
 @router.get("/prikapcanje", response_model=list[DogadajOut])
 def dnevnik(
     gb: str | None = None, vrsta: str | None = None, dana: int = 90, limit: int = 500,
-    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(prikapcanje_pristup), db: Session = Depends(get_db),
 ):
     """Dnevnik prikapčanja/otkapčanja (evidencija) — najnoviji prvi. Filtri gb/vrsta/dana."""
     q = db.query(DnevnikPrikapcanja)
@@ -244,7 +246,7 @@ def dnevnik(
 
 @router.get("/prikapcanje/trenutno")
 def prikapcanje_trenutno(
-    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+    korisnik: Korisnik = Depends(prikapcanje_pristup), db: Session = Depends(get_db),
 ):
     """Trenutno stanje — tko vozi koju prikolicu.
 

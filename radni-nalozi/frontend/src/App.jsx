@@ -78,7 +78,7 @@ export default function App() {
       <Route path="/spremne" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><SpremneSlepe /></Zasticeno>} />
       <Route path="/nezaduzena" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NezaduzenaVozila /></Zasticeno>} />
       <Route path="/parkiranje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Parkiranje /></Zasticeno>} />
-      <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><EvidencijaPrikapcanja /></Zasticeno>} />
+      <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><EvidencijaPrikapcanja /></Zasticeno>} />
       <Route path="/servisi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Servisi /></Zasticeno>} />
 
       {/* Nalozi: voditelj/poslovođa (svi, kreiranje/uređivanje) + radnik (dodijeljeni) */}
@@ -86,10 +86,10 @@ export default function App() {
       <Route path="/nalozi/novi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NoviNalog /></Zasticeno>} />
       <Route path="/nalozi/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']} modul="/nalozi"><NalogDetalj /></Zasticeno>} />
 
-      {/* Zaduženje kamiona/prikolica: voditelj + poslovođa */}
-      <Route path="/zaduzenja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Zaduzenja /></Zasticeno>} />
-      <Route path="/zaduzenja/novo" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj novo /></Zasticeno>} />
-      <Route path="/zaduzenja/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><ZaduzenjeDetalj /></Zasticeno>} />
+      {/* Zaduženje kamiona/prikolica: voditelj + poslovođa + skladištar (npr. Akshay) */}
+      <Route path="/zaduzenja" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><Zaduzenja /></Zasticeno>} />
+      <Route path="/zaduzenja/novo" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><ZaduzenjeDetalj novo /></Zasticeno>} />
+      <Route path="/zaduzenja/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><ZaduzenjeDetalj /></Zasticeno>} />
 
       {/* Šifrarnik vozača: voditelj + poslovođa */}
       <Route path="/vozaci" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozaci /></Zasticeno>} />
