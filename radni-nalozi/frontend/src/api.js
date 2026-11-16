@@ -247,7 +247,28 @@ export const api = {
   trosakPoVozilu: (od = '', do_ = '') => zahtjev(`/primke/trosak-po-vozilu?od=${od}&do=${do_}`),
   primka: (id) => zahtjev(`/primke/${id}`),
   uploadStranicaOtpremnice: (fd) => zahtjev('/primke/stranica', { method: 'POST', form: fd }),
-  procitajOtpremnicu: (fotke) => zahtjev('/primke/procitaj', { method: 'POST', body: { fotke } }),
+  // Čitanje u POZADINI: start vrati id posla, pa se stanje provjerava svake 2,5 s
+  // (duga otpremnica se čita i preko minute — jedan dugi zahtjev mobitel prekine).
+  procitajOtpremnicu: async (fotke) => {
+    const s = await zahtjev('/primke/procitaj/start', { method: 'POST', body: { fotke } })
+    if (!s.ai) return { ai: false }
+    const kraj = Date.now() + 6 * 60 * 1000
+    let greskeMreze = 0
+    while (Date.now() < kraj) {
+      await new Promise((r) => setTimeout(r, 2500))
+      let p
+      try { p = await zahtjev(`/primke/procitaj/posao/${s.posao_id}`) }
+      catch (e) {
+        // kratki prekid mreže (npr. mobitel mijenja signal) — probaj dalje; 404 = posao izgubljen
+        if (/nije pronađeno/.test(e.message || '') || ++greskeMreze > 10) throw e
+        continue
+      }
+      greskeMreze = 0
+      if (p.status === 'gotovo') return p.rezultat
+      if (p.status === 'greska') throw new Error(p.greska || 'AI nije uspio pročitati otpremnicu.')
+    }
+    throw new Error('Čitanje traje predugo (više od 6 min) — pokušaj ponovno s manje stranica.')
+  },
   kreirajPrimku: (b) => zahtjev('/primke', { method: 'POST', body: b }),
   azurirajPrimku: (id, b) => zahtjev(`/primke/${id}`, { method: 'PATCH', body: b }),
   obrisiPrimku: (id) => zahtjev(`/primke/${id}`, { method: 'DELETE' }),
