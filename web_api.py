@@ -253,6 +253,38 @@ async def handle_wa_posalji_mozak(request):
     return _json({"ok": False, "error": whatsapp.opisi_gresku(res)}, status=502)
 
 
+async def handle_wa_obavijest_mozak(request):
+    """POST /api/whatsapp/obavijest — moj-mozak šalje Tonijevu obavijest prijaviteljima kvarova
+    (npr. „kvarove pišite na ovaj broj"). Tijelo {"broj", "ime", "tekst"}; X-Api-Key = MOZAK_WA_KLJUC.
+    Ide kao odobreni predložak `poruka_dispecera` (radi i izvan 24 h prozora); broj se zapamti
+    pa mu mozak kasnije smije i odgovarati (whatsapp_mozak.dozvoljen)."""
+    import whatsapp
+    import whatsapp_mozak
+    if not whatsapp_mozak.ukljuceno():
+        return _json({"ok": False, "error": "MOZAK_WA_KLJUC nije postavljen."}, status=503)
+    if request.headers.get("X-Api-Key", "") != whatsapp_mozak.kljuc():
+        return _json({"ok": False, "error": "Neispravan X-Api-Key."}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "Neispravan JSON."}, status=400)
+    broj = whatsapp_mozak._norm(body.get("broj"))
+    ime = " ".join(str(body.get("ime") or "").split())[:60] or "kolega"
+    # parametar predloška ne smije imati novi red / tab / >4 razmaka (Meta pravilo)
+    tekst = " ".join(str(body.get("tekst") or "").split())[:900]
+    if not broj or not tekst:
+        return _json({"ok": False, "error": "Nedostaje broj ili tekst."}, status=400)
+    whatsapp_mozak._zapamti(broj)
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(None, lambda: whatsapp.send_template(
+        broj, "poruka_dispecera", "hr",
+        components=[{"type": "body", "parameters": [{"type": "text", "text": ime},
+                                                    {"type": "text", "text": tekst}]}]))
+    if res.get("ok"):
+        return _json({"ok": True})
+    return _json({"ok": False, "error": whatsapp.opisi_gresku(res)}, status=502)
+
+
 async def handle_benzinske(request):
     """GET /api/benzinske — registar benzinskih lanaca s lokacijama i zadnjim
     cijenama goriva + zabiljezena promjena. Stiti X-Api-Key. Cita iz baze
@@ -470,6 +502,7 @@ def _run():
         app.router.add_get("/privatnost", handle_privatnost)
         app.router.add_post("/api/vozac/nalog", handle_vozac_nalog)
         app.router.add_post("/api/whatsapp/posalji", handle_wa_posalji_mozak)
+        app.router.add_post("/api/whatsapp/obavijest", handle_wa_obavijest_mozak)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
