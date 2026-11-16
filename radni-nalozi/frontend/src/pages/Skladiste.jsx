@@ -408,6 +408,7 @@ export default function Skladiste() {
   const [citam, setCitam] = useState(false)       // AI čita
   const [spremam, setSpremam] = useState(false)
   const fileRef = useRef(null)
+  const galRef = useRef(null)   // „Iz galerije" (pune rezolucije, više stranica odjednom)
 
   const ucitaj = () => api.primke().then(setLista).catch((e) => setGreska(e.message))
   const ucitajDijelove = () => api.cekaDijelove().then((d) => setDijelovi(Array.isArray(d) ? d : [])).catch(() => {})
@@ -422,16 +423,26 @@ export default function Skladiste() {
   const zapocni = () => { setGreska(''); setPoruka(''); setDetalj(null); setNova(praznaPrimka()) }
   const odustani = () => { setNova(null); setCitam(false); setDodajem(false) }
 
+  // Jedna ili više stranica (kamera = 1, galerija = više odjednom, redom kako su odabrane).
   const dodajStranicu = async (e) => {
-    const file = e.target.files && e.target.files[0]
-    if (fileRef.current) fileRef.current.value = ''
-    if (!file) return
+    const files = Array.from((e.target.files) || [])
+    e.target.value = ''
+    if (!files.length) return
     setGreska(''); setDodajem(true)
+    const premale = []
     try {
-      const fd = new FormData()
-      fd.append('slika', file)
-      const r = await api.uploadStranicaOtpremnice(fd)
-      setNova((p) => ({ ...p, fotografije: [...p.fotografije, r.foto] }))
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('slika', file)
+        const r = await api.uploadStranicaOtpremnice(fd)
+        setNova((p) => ({ ...p, fotografije: [...p.fotografije, r.foto] }))
+        // Neki Androidi kamerom iz preglednika daju samo 480×640 — AI to ne može pročitati.
+        if (r.sirina && r.visina && Math.max(r.sirina, r.visina) < 1200) premale.push(`${r.sirina}×${r.visina}`)
+      }
+      if (premale.length) {
+        setGreska(`Slika je premale rezolucije (${premale.join(', ')}) — AI tablicu neće dobro pročitati. ` +
+          'Makni tu stranicu (✕), slikaj otpremnicu običnom kamerom mobitela pa je dodaj gumbom „🖼️ Iz galerije".')
+      }
     } catch (err) {
       setGreska(err.message)
     } finally {
@@ -613,6 +624,11 @@ export default function Skladiste() {
             ref={fileRef} type="file" accept="image/*" capture="environment"
             onChange={dodajStranicu} style={{ display: 'none' }}
           />
+          {/* Galerija: fotke iz obične kamere su pune rezolucije; može više stranica odjednom */}
+          <input
+            ref={galRef} type="file" accept="image/*" multiple
+            onChange={dodajStranicu} style={{ display: 'none' }}
+          />
           <label style={{ marginTop: 0 }}>{t('skl.stranice')} ({nova.fotografije.length})</label>
           <p className="meta" style={{ marginTop: 0 }}>{t('skl.straniceHint')}</p>
           {nova.fotografije.length > 0 && (
@@ -633,6 +649,9 @@ export default function Skladiste() {
           <div className="btn-red">
             <button className="btn sekund" onClick={() => fileRef.current && fileRef.current.click()} disabled={dodajem || citam}>
               {dodajem ? t('skl.dodajem') : t('skl.dodajStranicu')}
+            </button>
+            <button className="btn sekund" onClick={() => galRef.current && galRef.current.click()} disabled={dodajem || citam}>
+              🖼️ Iz galerije
             </button>
             <button className="btn" onClick={procitaj} disabled={citam || dodajem || !nova.fotografije.length}>
               {citam ? t('skl.citamVise', { n: nova.fotografije.length }) : t('skl.procitaj')}

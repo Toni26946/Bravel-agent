@@ -67,6 +67,19 @@ def test_nepoznat_posao_404():
     assert e.value.status_code == 404
 
 
+def test_stranica_vraca_dimenzije(monkeypatch, tmp_path):
+    """Upload stranice vrati širinu/visinu — ekran po tome upozori na 480×640 s mobitela."""
+    import io
+    from PIL import Image
+    from starlette.datastructures import Headers, UploadFile
+    from app.config import settings
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path), raising=False)
+    buf = io.BytesIO(); Image.new("RGB", (480, 640), "white").save(buf, format="JPEG"); buf.seek(0)
+    up = UploadFile(file=buf, filename="s.jpg", headers=Headers({"content-type": "image/jpeg"}))
+    r = primke.stranica(slika=up, _=None)
+    assert r.foto.startswith("/uploads/") and (r.sirina, r.visina) == (480, 640)
+
+
 def test_bez_ai_kljuca(monkeypatch):
     monkeypatch.setattr(primke, "ai_dostupan", lambda: False)
     assert primke.procitaj_start(OtpremnicaZahtjev(fotke=["/uploads/a.jpg"]), _=None) == {"ai": False}
