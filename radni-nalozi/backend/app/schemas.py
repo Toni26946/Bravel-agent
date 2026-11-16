@@ -642,6 +642,8 @@ class PrimkaStavka(BaseModel):
 class StranicaOtpremnice(BaseModel):
     """Odgovor na upload jedne stranice otpremnice."""
     foto: str
+    sirina: int | None = None    # px — da ekran upozori na premalu sliku (AI je ne pročita)
+    visina: int | None = None
 
 
 class OtpremnicaZahtjev(BaseModel):

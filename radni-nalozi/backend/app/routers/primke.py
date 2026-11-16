@@ -81,8 +81,18 @@ def _stavke(sirove) -> list[PrimkaStavka]:
 
 @router.post("/stranica", response_model=StranicaOtpremnice)
 def stranica(slika: UploadFile = File(...), _: Korisnik = Depends(skladiste)):
-    """Spremi jednu stranicu otpremnice (bez AI-ja). Vrati web putanju."""
-    return StranicaOtpremnice(foto=spremi_sliku(slika))
+    """Spremi jednu stranicu otpremnice (bez AI-ja). Vrati web putanju i dimenzije.
+    Neki Androidi kamerom iz preglednika vrate samo 480×640 — na tome AI izmišlja
+    stavke, pa ekran po dimenzijama upozori da treba slikati ponovno / iz galerije."""
+    foto = spremi_sliku(slika)
+    sirina = visina = None
+    try:
+        from PIL import Image
+        with Image.open(os.path.join(settings.upload_dir, os.path.basename(foto))) as im:
+            sirina, visina = im.size
+    except Exception:  # noqa: BLE001 — dimenzije su samo za upozorenje
+        pass
+    return StranicaOtpremnice(foto=foto, sirina=sirina, visina=visina)
 
 
 def _procitano(podaci: dict) -> OtpremnicaProcitana:
