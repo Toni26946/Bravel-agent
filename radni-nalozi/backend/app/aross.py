@@ -7,7 +7,7 @@ Dvostruka autentifikacija:
 
 GET  — šifrarnici (skladišta, artikli, poslovni partneri, mjesta troška = vozila)
        i trenutno stanje zalihe po skladištima.
-POST — kreiranje artikla i primke u ERP-u (JSON tijelo, Content-Type application/json).
+POST — kreiranje artikla, primke i izdatnice u ERP-u (JSON tijelo, Content-Type application/json).
 
 Pristupni podaci se čitaju PRVO iz baze (postavke `aross_api_key/user/pass`), a
 ako ih tamo nema — iz env/fly secreta (AROSS_*). Tako Toni ključ zalijepi izravno
@@ -181,3 +181,26 @@ def kreiraj_primku(broj_primke: str, sifra_dobavljaca: int, datum_dokumenta: str
     if napomena:
         tijelo["napomena"] = napomena
     return _post("/primka/kreiraj", tijelo, db=db)
+
+
+def kreiraj_izdatnicu(broj_izdatnice: str, datum_dokumenta: str, sifra_skladista: int,
+                      sifra_mjesta_troska: int, stavke: list[dict], napomena: str | None = None,
+                      db=None) -> list[dict]:
+    """Kreira izdatnicu u ERP-u (roba izlazi sa skladišta na teret mjesta troška = vozilo).
+
+    `stavke` = [{sifraArtikla, kolicina}] — ista šifra artikla se zbraja u jednu stavku.
+    Vraća [{webBrojIzdatnice, erpBrojIzdatnice, erpMjestoTroska}]."""
+    zbroj: dict[int, float] = {}
+    for s in stavke:
+        sif = int(s["sifraArtikla"])
+        zbroj[sif] = zbroj.get(sif, 0.0) + float(s["kolicina"])
+    tijelo = {
+        "brojIzdatnice": str(broj_izdatnice),
+        "datumDokumenta": datum_dokumenta,
+        "sifraSkladista": int(sifra_skladista),
+        "sifraMjestaTroska": int(sifra_mjesta_troska),
+        "stavke": [{"sifraArtikla": k, "kolicina": round(v, 4)} for k, v in zbroj.items()],
+    }
+    if napomena:
+        tijelo["napomena"] = napomena
+    return _post("/izdatnica/kreiraj", tijelo, db=db)

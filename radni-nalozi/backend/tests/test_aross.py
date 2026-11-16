@@ -64,6 +64,32 @@ def test_primka_tijelo_racuna_ukupno(monkeypatch):
     assert t["napomena"] == "Test"
 
 
+def test_izdatnica_tijelo_zbraja_iste_artikle(monkeypatch):
+    poslano = {}
+
+    def fake_post(putanja, tijelo, db=None):
+        poslano.update(putanja=putanja, tijelo=tijelo)
+        return [{"webBrojIzdatnice": tijelo["brojIzdatnice"], "erpBrojIzdatnice": 2029, "erpMjestoTroska": "457 - VOLVO"}]
+
+    monkeypatch.setattr(aross, "_post", fake_post)
+    rez = aross.kreiraj_izdatnicu("N5-1", "2026-11-16", 2, 457,
+                                  [{"sifraArtikla": 6781, "kolicina": 2}, {"sifraArtikla": 6781, "kolicina": 1.5},
+                                   {"sifraArtikla": 10, "kolicina": 1}], napomena="Nalog 5")
+    t = poslano["tijelo"]
+    assert poslano["putanja"] == "/izdatnica/kreiraj"
+    assert t["sifraMjestaTroska"] == 457 and t["sifraSkladista"] == 2
+    assert {s["sifraArtikla"]: s["kolicina"] for s in t["stavke"]} == {6781: 3.5, 10: 1.0}
+    assert t["napomena"] == "Nalog 5"
+    assert rez[0]["erpBrojIzdatnice"] == 2029
+
+
+def test_mjesto_troska_prepozna_registraciju():
+    from app.routers.integracije import _mt_registracije, _reg_norm
+    assert _reg_norm("zg-3495 fr") == "ZG3495FR"
+    assert _mt_registracije("ZG-4732-HC (prije DA681EC)") == {"ZG4732HC", "DA681EC"}
+    assert _mt_registracije("ZG-1467-FR") == {"ZG1467FR"}
+
+
 def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):
     poslano = {}
     monkeypatch.setattr(aross, "_post", lambda p, t, db=None: poslano.update(putanja=p, tijelo=t) or [])

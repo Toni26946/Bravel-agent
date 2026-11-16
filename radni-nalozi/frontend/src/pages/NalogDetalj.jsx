@@ -750,14 +750,103 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
                 <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
                   <td style={{ padding: '4px 6px' }}>{i.artikl_naziv}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}</td>
                   <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>{i.kolicina} {i.jmj}{i.cijena != null ? ` × ${eur(i.cijena)} = ${eur(i.iznos)}` : ''}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'right' }}><span className="x" style={{ cursor: 'pointer' }} onClick={() => obrisi(i.id)}>×</span></td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {i.apross_broj
+                      ? <span className="meta" style={{ color: 'var(--zelena, green)' }} title="Poslano u Apross">✓ #{i.apross_broj}</span>
+                      : <span className="x" style={{ cursor: 'pointer' }} onClick={() => obrisi(i.id)}>×</span>}
+                  </td>
                 </tr>
               ))}
               <tr><td style={{ padding: '6px', fontWeight: 700 }}>Ukupno</td><td style={{ padding: '6px', textAlign: 'right', fontWeight: 700 }}>{eur(ukupno)}</td><td /></tr>
             </tbody>
           </table>
         )}
+        {lista && lista.some((i) => !i.apross_broj) && (
+          <IzdatnicaApross nalogId={nalogId} brojNeposlanih={lista.filter((i) => !i.apross_broj).length} onPoslano={ucitaj} naGresku={naGresku} />
+        )}
       </div>
     </>
+  )
+}
+
+// Slanje neposlanih utrošenih dijelova u Apross kao JEDNE izdatnice na teret vozila
+// (mjesto troška se pronađe po registraciji; može se i ručno odabrati).
+function IzdatnicaApross({ nalogId, brojNeposlanih, onPoslano, naGresku }) {
+  const [otv, setOtv] = useState(false)
+  const [prip, setPrip] = useState(null)
+  const [skl, setSkl] = useState([])
+  const [sklId, setSklId] = useState('')
+  const [mt, setMt] = useState(null)
+  const [mtQ, setMtQ] = useState('')
+  const [mtRez, setMtRez] = useState([])
+  const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10))
+  const [radi, setRadi] = useState(false)
+  const [poruka, setPoruka] = useState('')
+
+  useEffect(() => {
+    if (!otv) return
+    api.arossIzdatnicaPriprema(nalogId).then((d) => { setPrip(d); if (d && d.mjesto_troska) setMt(d.mjesto_troska) }).catch((e) => naGresku(e.message))
+    if (skl.length === 0) api.arossSkladistaPopis().then((d) => {
+      setSkl(d || [])
+      // Zadano: skladište „Roba" (dijelovi), ako postoji.
+      const roba = (d || []).find((s) => (s.naziv || '').toLowerCase() === 'roba')
+      if (roba && !sklId) setSklId(String(roba.sifra))
+    }).catch(() => {})
+  }, [otv, nalogId])
+
+  const traziMt = async (v) => {
+    setMtQ(v)
+    if (!v.trim()) return setMtRez([])
+    try { setMtRez(await api.arossMjestaTroska(v)) } catch { setMtRez([]) }
+  }
+  const posalji = async () => {
+    if (!sklId) return naGresku('Odaberi skladište.')
+    if (!mt) return naGresku('Odaberi mjesto troška (vozilo).')
+    setRadi(true); setPoruka('')
+    try {
+      const r = await api.arossPosaljiIzdatnicu({ nalog_id: nalogId, sifra_skladista: Number(sklId), sifra_mjesta_troska: mt.sifra, datum })
+      setPoruka(`✓ Poslano u Apross — izdatnica #${r.erp_broj_izdatnice}${r.erp_mjesto_troska ? ' · ' + r.erp_mjesto_troska : ''}`)
+      setOtv(false); onPoslano && onPoslano()
+    } catch (e) { naGresku(e.message) } finally { setRadi(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--line, #eee)', paddingTop: 8 }}>
+      {poruka && <div className="meta" style={{ color: 'var(--zelena, green)', marginBottom: 6 }}>{poruka}</div>}
+      <div style={{ cursor: 'pointer', fontWeight: 700 }} onClick={() => setOtv(!otv)}>📤 Pošalji u Apross ({brojNeposlanih}) {otv ? '▾' : '▸'}</div>
+      {otv && (
+        <div style={{ marginTop: 8 }}>
+          {prip && !prip.povezano && <p className="meta" style={{ color: 'var(--crveno)' }}>Apross nije povezan (Šifrarnik → Integracije).</p>}
+          {prip && prip.bez_sifre > 0 && <p className="meta">{prip.bez_sifre} stavki nema Apross šifru — one se ne šalju.</p>}
+          <label className="meta">Skladište</label>
+          <select value={sklId} onChange={(e) => setSklId(e.target.value)} style={{ width: '100%', marginBottom: 8 }}>
+            <option value="">— odaberi skladište —</option>
+            {skl.map((s) => <option key={s.sifra} value={s.sifra}>{s.naziv}</option>)}
+          </select>
+          <label className="meta">Mjesto troška (vozilo)</label>
+          {mt
+            ? <div style={{ marginBottom: 8 }}><b>{mt.naziv}</b>{mt.sektor ? <span className="meta"> · {mt.sektor}</span> : ''} <span className="x" style={{ cursor: 'pointer', marginLeft: 6 }} onClick={() => { setMt(null); setMtQ('') }}>promijeni</span></div>
+            : (
+              <div style={{ position: 'relative', marginBottom: 8 }}>
+                {prip && prip.povezano && !prip.mjesto_troska && <p className="meta" style={{ color: 'var(--crveno)', margin: '0 0 4px' }}>Vozilo{prip.registracija ? ` ${prip.registracija}` : ''} nije pronađeno među mjestima troška — odaberi ručno.</p>}
+                <input value={mtQ} placeholder="traži registraciju…" onChange={(e) => traziMt(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+                {mtRez.length > 0 && (
+                  <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
+                    {mtRez.map((m) => (
+                      <div key={m.sifra} onClick={() => { setMt(m); setMtRez([]) }} style={{ padding: '6px 8px', cursor: 'pointer', borderTop: '1px solid var(--line, #eee)', fontSize: 13 }}>
+                        {m.naziv}{m.sektor ? ` · ${m.sektor}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          <label className="meta">Datum</label>
+          <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }} />
+          <button className="btn" disabled={radi || !sklId || !mt} onClick={posalji}>{radi ? 'Šaljem…' : '📤 Pošalji izdatnicu'}</button>
+          <p className="meta" style={{ marginBottom: 0 }}>Svi neposlani dijelovi idu kao jedna izdatnica; Apross vraća broj, a poslane stavke se više ne mogu brisati.</p>
+        </div>
+      )}
+    </div>
   )
 }

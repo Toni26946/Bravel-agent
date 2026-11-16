@@ -1417,5 +1417,7 @@ def izdatnica_obrisi(nalog_id: int, izd_id: int, korisnik: Korisnik = Depends(tr
     i = db.get(Izdatnica, izd_id)
     if not i or i.nalog_id != nalog_id:
         raise HTTPException(status_code=404, detail="Izdatnica ne postoji")
+    if i.apross_broj:
+        raise HTTPException(status_code=409, detail=f"Već poslano u Apross (izdatnica #{i.apross_broj}) — ne može se obrisati.")
     db.delete(i)
     db.commit()
