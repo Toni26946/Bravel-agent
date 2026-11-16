@@ -770,7 +770,7 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
 }
 
 // Slanje neposlanih utrošenih dijelova u Apross kao JEDNE izdatnice na teret vozila
-// (mjesto troška se pronađe po registraciji; može se i ručno odabrati).
+// (mjesto troška = garažni broj — šifra mjesta troška u Aprossu je GB; može se i ručno odabrati).
 function IzdatnicaApross({ nalogId, brojNeposlanih, onPoslano, naGresku }) {
   const [otv, setOtv] = useState(false)
   const [prip, setPrip] = useState(null)
@@ -825,16 +825,16 @@ function IzdatnicaApross({ nalogId, brojNeposlanih, onPoslano, naGresku }) {
           </select>
           <label className="meta">Mjesto troška (vozilo)</label>
           {mt
-            ? <div style={{ marginBottom: 8 }}><b>{mt.naziv}</b>{mt.sektor ? <span className="meta"> · {mt.sektor}</span> : ''} <span className="x" style={{ cursor: 'pointer', marginLeft: 6 }} onClick={() => { setMt(null); setMtQ('') }}>promijeni</span></div>
+            ? <div style={{ marginBottom: 8 }}><b>GB {mt.sifra} · {mt.naziv}</b>{mt.sektor ? <span className="meta"> · {mt.sektor}</span> : ''} <span className="x" style={{ cursor: 'pointer', marginLeft: 6 }} onClick={() => { setMt(null); setMtQ('') }}>promijeni</span></div>
             : (
               <div style={{ position: 'relative', marginBottom: 8 }}>
-                {prip && prip.povezano && !prip.mjesto_troska && <p className="meta" style={{ color: 'var(--crveno)', margin: '0 0 4px' }}>Vozilo{prip.registracija ? ` ${prip.registracija}` : ''} nije pronađeno među mjestima troška — odaberi ručno.</p>}
-                <input value={mtQ} placeholder="traži registraciju…" onChange={(e) => traziMt(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+                {prip && prip.povezano && !prip.mjesto_troska && <p className="meta" style={{ color: 'var(--crveno)', margin: '0 0 4px' }}>{prip.gb ? `GB ${prip.gb}` : 'Vozilo'} nije pronađen među mjestima troška u Aprossu — odaberi ručno.</p>}
+                <input value={mtQ} placeholder="traži GB ili registraciju…" onChange={(e) => traziMt(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                 {mtRez.length > 0 && (
                   <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
                     {mtRez.map((m) => (
                       <div key={m.sifra} onClick={() => { setMt(m); setMtRez([]) }} style={{ padding: '6px 8px', cursor: 'pointer', borderTop: '1px solid var(--line, #eee)', fontSize: 13 }}>
-                        {m.naziv}{m.sektor ? ` · ${m.sektor}` : ''}
+                        <b>GB {m.sifra}</b> · {m.naziv}{m.sektor ? ` · ${m.sektor}` : ''}
                       </div>
                     ))}
                   </div>

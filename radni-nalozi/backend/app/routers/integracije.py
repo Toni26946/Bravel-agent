@@ -500,7 +500,21 @@ def _registracije_naloga(db, nalog) -> set[str]:
 
 
 def _nadji_mjesto_troska(db, nalog) -> dict | None:
-    return _odaberi_mjesto_troska(_registracije_naloga(db, nalog), _mjesta_troska(db))
+    """Mjesto troška vozila naloga — po GARAŽNOM BROJU: šifra mjesta troška u Aprossu
+    JE garažni broj (GB 79 → šifra 79). Registracija se NE koristi (u Aprossu zna biti
+    novija/starija nego kod nas). Nema pogotka → korisnik bira ručno."""
+    gb = (nalog.vozilo.gb if nalog.vozilo else "") or ""
+    return _mjesto_po_gb(gb, _mjesta_troska(db))
+
+
+def _mjesto_po_gb(gb: str, mjesta: list[dict]) -> dict | None:
+    gb = (gb or "").strip()
+    if not gb.isdigit():
+        return None
+    for mt in mjesta:
+        if str(mt.get("sifra")).strip() == str(int(gb)):
+            return mt
+    return None
 
 
 def _odaberi_mjesto_troska(regs: set[str], mjesta: list[dict]) -> dict | None:
@@ -538,7 +552,8 @@ def aross_mjesta_troska(q: str = Query(default="", max_length=100),
     if s:
         svi = [m for m in svi if s in (m.get("naziv") or "").lower() or s in (m.get("sektor") or "").lower()
                or (sn and sn in _reg_norm(m.get("naziv"))) or s == str(m.get("sifra"))]
-    return sorted(svi, key=lambda m: (m.get("naziv") or "").lower())[:limit]
+    # Točan GB (šifra) uvijek prvi.
+    return sorted(svi, key=lambda m: (str(m.get("sifra")) != s, (m.get("naziv") or "").lower()))[:limit]
 
 
 @router.get("/aross/izdatnica/{nalog_id}")
@@ -551,7 +566,8 @@ def aross_izdatnica_priprema(nalog_id: int, db: Session = Depends(get_db), _: Ko
     red = db.query(Izdatnica).filter(Izdatnica.nalog_id == nalog_id, Izdatnica.apross_broj.is_(None)).all()
     out = {"povezano": aross.konfigurirano(db), "neposlane": sum(1 for i in red if i.artikl_sifra),
            "bez_sifre": sum(1 for i in red if not i.artikl_sifra), "mjesto_troska": None,
-           "registracija": (nalog.vozilo.registracija if nalog.vozilo else None)}
+           "registracija": (nalog.vozilo.registracija if nalog.vozilo else None),
+           "gb": (nalog.vozilo.gb if nalog.vozilo else None)}
     if out["povezano"]:
         try:
             out["mjesto_troska"] = _nadji_mjesto_troska(db, nalog)
