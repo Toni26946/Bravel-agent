@@ -223,6 +223,11 @@ function Korisnici() {
     try { await api.azurirajKorisnika(k.id, { narucitelj: !k.narucitelj }); ucitaj() }
     catch (e) { setGreska(e.message) }
   }
+  // Ne-mehaničar (npr. skladištar) kojeg se smije dodijeliti na nalog kao mehaničara.
+  const prebaciRadiNaNalozima = async (k) => {
+    try { await api.azurirajKorisnika(k.id, { radi_na_nalozima: !k.radi_na_nalozima }); ucitaj() }
+    catch (e) { setGreska(e.message) }
+  }
   const prebaciUlogu = async (k, nova) => {
     if (!nova || nova === k.uloga) return
     try { await api.azurirajKorisnika(k.id, { uloga: nova }); ucitaj() }
@@ -309,14 +314,14 @@ function Korisnici() {
       {lista.filter((k) => !samoPortal || ['voditelj', 'poslovodja', 'skladistar'].includes(k.uloga)).map((k) => (
         <KorisnikKartica key={k.id} k={k} ULOGE={ULOGE}
           prebaciAktivan={prebaciAktivan} prebaciUlogu={prebaciUlogu} prebaciPrijavu={prebaciPrijavu}
-          prebaciNarucitelja={prebaciNarucitelja} urediFunkciju={urediFunkciju} setGreska={setGreska}
+          prebaciNarucitelja={prebaciNarucitelja} prebaciRadiNaNalozima={prebaciRadiNaNalozima} urediFunkciju={urediFunkciju} setGreska={setGreska}
           imenik={izImenika[kljucImena(k.ime)]} />
       ))}
     </>
   )
 }
 
-function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, urediFunkciju, setGreska, imenik }) {
+function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijavu, prebaciNarucitelja, prebaciRadiNaNalozima, urediFunkciju, setGreska, imenik }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   return (
@@ -352,6 +357,12 @@ function KorisnikKartica({ k, ULOGE, prebaciAktivan, prebaciUlogu, prebaciPrijav
             {k.uloga === 'radnik' && (
               <button className="btn sekund mali" onClick={() => prebaciPrijavu(k)}>
                 {k.prijavljuje_se === false ? t('sif.postaviServiser') : t('sif.postaviNePrijavljuje')}
+              </button>
+            )}
+            {k.uloga !== 'radnik' && (
+              <button className={'btn mali ' + (k.radi_na_nalozima ? '' : 'sekund')} onClick={() => prebaciRadiNaNalozima(k)}
+                title="Može li se dodijeliti na nalog kao mehaničar">
+                {k.radi_na_nalozima ? '🔧 Radi na nalozima ✓' : '🔧 Radi na nalozima'}
               </button>
             )}
             <button className={'btn mali ' + (k.narucitelj ? '' : 'sekund')} onClick={() => prebaciNarucitelja(k)}>

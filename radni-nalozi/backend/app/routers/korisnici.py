@@ -1,5 +1,6 @@
 """Upravljanje korisnicima — samo voditelj."""
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..auth import hash_lozinka, trenutni_korisnik, zahtijevaj_uloge
@@ -58,7 +59,11 @@ def popis(
     if uloga:
         # Na operacije/naloge idu SAMO mehaničari (uloga radnik) — poslovođe/voditelji
         # dispečiraju, ne rade. (Prije je "radnik" vraćao i poslovođe.)
-        q = q.filter(Korisnik.uloga == uloga)
+        if uloga == Uloga.radnik:
+            # + ne-mehaničari označeni „radi na nalozima" (npr. skladištar Akshay)
+            q = q.filter(or_(Korisnik.uloga == Uloga.radnik, Korisnik.radi_na_nalozima.is_(True)))
+        else:
+            q = q.filter(Korisnik.uloga == uloga)
     return q.order_by(Korisnik.ime).all()
 
 
@@ -164,6 +169,10 @@ def azuriraj(
         k.prijavljuje_se = podaci.prijavljuje_se
     if podaci.narucitelj is not None:
         k.narucitelj = podaci.narucitelj
+    if podaci.radi_na_nalozima is not None:
+        k.radi_na_nalozima = podaci.radi_na_nalozima
+        if podaci.radi_na_nalozima:
+            k.prijavljuje_se = True   # inače ga popisi mehaničara (plan, poveznice) preskaču
     if podaci.lozinka:
         k.lozinka_hash = hash_lozinka(podaci.lozinka)
     db.commit()
