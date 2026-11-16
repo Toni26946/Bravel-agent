@@ -357,16 +357,26 @@ def aross_artikli(q: str = Query(default="", max_length=100),
     except aross.ArossGreska as e:
         raise HTTPException(status_code=502, detail=str(e))
     s = q.strip().lower()
+    # Unos po ŠIFRI: točna šifra uvijek prva, pa šifre koje počinju s upisanim, pa ostalo.
+    tocna = mapa.get(int(s)) if s.isdigit() else None
+    if tocna is None and s.isdigit():
+        tocna = next((a for a in mapa.values() if str(a.get("sifra")) == s), None)
     out = []
     for a in mapa.values():
+        if a is tocna:
+            continue
+        sif = str(a.get("sifra"))
         if s and not (s in (a.get("naziv") or "").lower()
                       or s in (a.get("kataloskiBroj") or "").lower()
-                      or s == str(a.get("sifra"))):
+                      or (s.isdigit() and sif.startswith(s))):
             continue
         out.append(a)
         if len(out) >= limit * 3:
             break
-    out.sort(key=lambda a: (a.get("naziv") or "").lower())
+    out.sort(key=lambda a: (not (s.isdigit() and str(a.get("sifra")).startswith(s)),
+                            (a.get("naziv") or "").lower()))
+    if tocna is not None:
+        out.insert(0, tocna)
     return out[:limit]
 
 

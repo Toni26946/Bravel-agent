@@ -723,12 +723,21 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
       <div className="sekcija-naslov">🧰 Utrošeni dijelovi {gb ? `· GB ${gb}` : ''}</div>
       <div className="karta">
         <div style={{ position: 'relative' }}>
-          <input value={q} placeholder="traži dio (Apross artikl / kat. broj)…" onChange={(e) => run(e.target.value)} onFocus={() => setOpen(true)} style={{ width: '100%', boxSizing: 'border-box' }} />
+          <input value={q} placeholder="šifra, naziv ili kat. broj dijela (Apross)…" onChange={(e) => run(e.target.value)} onFocus={() => setOpen(true)}
+            onKeyDown={(e) => {
+              // Enter = uzmi prvi pogodak (kod unosa po šifri to je točna šifra)
+              if (e.key !== 'Enter' || !rez.length) return
+              e.preventDefault()
+              const a = rez[0]
+              if (/^\d+$/.test(q.trim()) && String(a.sifra) !== q.trim()) return   // stari rezultati (još se traži)
+              setArtikl(a); setQ(a.naziv); setOpen(false)
+            }}
+            style={{ width: '100%', boxSizing: 'border-box' }} />
           {open && q.trim() && (
             <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
               {rez.map((a, i) => (
                 <div key={i} onClick={() => { setArtikl(a); setQ(a.naziv); setOpen(false) }} style={{ padding: '6px 8px', cursor: 'pointer', borderTop: i ? '1px solid var(--line, #eee)' : 'none', fontSize: 13 }}>
-                  {a.naziv}{a.kataloskiBroj ? ` · ${a.kataloskiBroj}` : ''}
+                  <b style={{ color: 'var(--muted, #666)', marginRight: 6 }}>{a.sifra}</b>{a.naziv}{a.kataloskiBroj ? ` · ${a.kataloskiBroj}` : ''}
                 </div>
               ))}
               <div onClick={kreirajNovi} style={{ padding: '7px 8px', cursor: 'pointer', borderTop: '1px solid var(--line, #eee)', fontSize: 13, color: 'var(--plava, #2563eb)', fontWeight: 600 }}>➕ Kreiraj novi artikl: „{q.trim()}"</div>

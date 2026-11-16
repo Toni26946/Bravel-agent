@@ -119,6 +119,20 @@ def test_odabir_mjesta_troska_prednost_trenutnoj_reg():
     assert _odaberi_mjesto_troska({"ZG0000XX"}, mjesta) is None
 
 
+def test_artikli_trazi_po_sifri(monkeypatch):
+    """Upis šifre: točna šifra prva (ispred naziva koji samo sadrže te znamenke)."""
+    from app.routers import integracije
+    mapa = {
+        125: {"sifra": 125, "naziv": "ŽARULJA H7", "kataloskiBroj": None},
+        1250: {"sifra": 1250, "naziv": "FILTER ZRAKA", "kataloskiBroj": None},
+        7: {"sifra": 7, "naziv": "BLATOBRAN 2125x670", "kataloskiBroj": "DK1685"},
+    }
+    monkeypatch.setattr(integracije, "_artikli_mapa", lambda db, osvjezi=False: mapa)
+    monkeypatch.setattr(integracije.aross, "konfigurirano", lambda db=None: True)
+    rez = integracije.aross_artikli(q="125", limit=30, db=None, _=None)
+    assert [a["sifra"] for a in rez] == [125, 1250, 7]
+
+
 def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):
     poslano = {}
     monkeypatch.setattr(aross, "_post", lambda p, t, db=None: poslano.update(putanja=p, tijelo=t) or [])
