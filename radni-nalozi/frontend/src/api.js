@@ -222,6 +222,9 @@ export const api = {
   arossPartneri: (q = '') => zahtjev(`/integracije/aross/partneri?q=${encodeURIComponent(q)}`),
   arossArtikliTrazi: (q = '') => zahtjev(`/integracije/aross/artikli?q=${encodeURIComponent(q)}`),
   arossPosaljiPrimku: (b) => zahtjev('/integracije/aross/primka', { method: 'POST', body: b }),
+  arossMjestaTroska: (q = '') => zahtjev(`/integracije/aross/mjesta-troska?q=${encodeURIComponent(q)}`),
+  arossIzdatnicaPriprema: (nalogId) => zahtjev(`/integracije/aross/izdatnica/${nalogId}`),
+  arossPosaljiIzdatnicu: (b) => zahtjev('/integracije/aross/izdatnica', { method: 'POST', body: b }),
   // Cjenik nabavnih cijena (uvoz iz „Kocka stanja")
   cjenikStanje: () => zahtjev('/integracije/cjenik'),
   cjenikUvoz: (file) => { const fd = new FormData(); fd.append('datoteka', file); return zahtjev('/integracije/cjenik/uvoz', { method: 'POST', form: fd }) },

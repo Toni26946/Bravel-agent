@@ -443,3 +443,141 @@ def aross_posalji_primku(p: PrimkaIn, db: Session = Depends(get_db), _: Korisnik
         lokalna.apross_broj = int(erp)
         db.commit()
     return {"ok": True, "erp_broj_primke": erp, "rezultat": rez}
+
+
+# --- Izdatnice (utrošeni dijelovi na nalogu → Apross, na teret vozila) --------
+_MT_KES: dict = {"ts": 0.0, "lista": []}
+
+
+def _mjesta_troska(db, osvjezi: bool = False) -> list[dict]:
+    sad = time.time()
+    if not osvjezi and _MT_KES["lista"] and (sad - _MT_KES["ts"]) < _ART_TTL:
+        return _MT_KES["lista"]
+    _MT_KES["lista"] = aross.mjesta_troska(db) or []
+    _MT_KES["ts"] = sad
+    return _MT_KES["lista"]
+
+
+def _reg_norm(s: str | None) -> str:
+    """Registracija bez crtica/razmaka, velikim slovima: 'ZG-3495-FR' → 'ZG3495FR'."""
+    return re.sub(r"[^A-Z0-9ČĆŠŽĐ]", "", (s or "").upper())
+
+
+def _mt_registracije(naziv: str) -> set[str]:
+    """Sve registracije iz naziva mjesta troška, npr. 'ZG-4732-HC (prije DA681EC)'
+    → {'ZG4732HC', 'DA681EC'}."""
+    out = set()
+    glavni = (naziv or "").split("(")[0]
+    if _reg_norm(glavni):
+        out.add(_reg_norm(glavni))
+    for m in re.findall(r"\(\s*prije\s+([^)]+)\)", naziv or "", flags=re.I):
+        if _reg_norm(m):
+            out.add(_reg_norm(m))
+    return out
+
+
+def _registracije_naloga(db, nalog) -> set[str]:
+    """Registracije vozila naloga: iz naloga i iz matičnog popisa (po GB-u)."""
+    from ..models import RegistarVozila
+    regs = set()
+    v = nalog.vozilo
+    if v is not None:
+        if _reg_norm(v.registracija):
+            regs.add(_reg_norm(v.registracija))
+        rv = db.get(RegistarVozila, v.gb) if v.gb else None
+        if rv is not None and _reg_norm(rv.registracija):
+            regs.add(_reg_norm(rv.registracija))
+    return regs
+
+
+def _nadji_mjesto_troska(db, nalog) -> dict | None:
+    regs = _registracije_naloga(db, nalog)
+    if not regs:
+        return None
+    for mt in _mjesta_troska(db):
+        if regs & _mt_registracije(str(mt.get("naziv") or "")):
+            return mt
+    return None
+
+
+@router.get("/aross/mjesta-troska")
+def aross_mjesta_troska(q: str = Query(default="", max_length=100),
+                        limit: int = Query(default=30, ge=1, le=200),
+                        db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Pretraga mjesta troška (vozila) po registraciji/nazivu/sektoru — za ručni odabir."""
+    if not aross.konfigurirano(db):
+        return []
+    try:
+        svi = _mjesta_troska(db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    s = q.strip().lower()
+    sn = _reg_norm(q)
+    if s:
+        svi = [m for m in svi if s in (m.get("naziv") or "").lower() or s in (m.get("sektor") or "").lower()
+               or (sn and sn in _reg_norm(m.get("naziv"))) or s == str(m.get("sifra"))]
+    return sorted(svi, key=lambda m: (m.get("naziv") or "").lower())[:limit]
+
+
+@router.get("/aross/izdatnica/{nalog_id}")
+def aross_izdatnica_priprema(nalog_id: int, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Što bi se poslalo: mjesto troška pronađeno po registraciji vozila + broj neposlanih stavki."""
+    from ..models import Izdatnica, Nalog
+    nalog = db.get(Nalog, nalog_id)
+    if not nalog:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    red = db.query(Izdatnica).filter(Izdatnica.nalog_id == nalog_id, Izdatnica.apross_broj.is_(None)).all()
+    out = {"povezano": aross.konfigurirano(db), "neposlane": sum(1 for i in red if i.artikl_sifra),
+           "bez_sifre": sum(1 for i in red if not i.artikl_sifra), "mjesto_troska": None,
+           "registracija": (nalog.vozilo.registracija if nalog.vozilo else None)}
+    if out["povezano"]:
+        try:
+            out["mjesto_troska"] = _nadji_mjesto_troska(db, nalog)
+        except aross.ArossGreska as e:
+            out["greska"] = str(e)
+    return out
+
+
+class IzdatnicaSlanjeIn(BaseModel):
+    nalog_id: int
+    sifra_skladista: int
+    sifra_mjesta_troska: int
+    datum: str                    # yyyy-MM-dd
+    napomena: str | None = None
+
+
+@router.post("/aross/izdatnica")
+def aross_posalji_izdatnicu(p: IzdatnicaSlanjeIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Pošalji sve NEPOSLANE utrošene dijelove naloga (koji imaju Apross šifru) kao jednu
+    izdatnicu na teret mjesta troška. ERP broj se zapiše na svaku poslanu stavku."""
+    from ..models import Izdatnica, Nalog
+    if not aross.konfigurirano(db):
+        raise HTTPException(status_code=503, detail="APROSS nije povezan.")
+    nalog = db.get(Nalog, p.nalog_id)
+    if not nalog:
+        raise HTTPException(status_code=404, detail="Nalog ne postoji")
+    red = (db.query(Izdatnica)
+           .filter(Izdatnica.nalog_id == p.nalog_id, Izdatnica.apross_broj.is_(None),
+                   Izdatnica.artikl_sifra.isnot(None))
+           .order_by(Izdatnica.id).all())
+    if not red:
+        raise HTTPException(status_code=400, detail="Nema neposlanih dijelova s Apross šifrom.")
+    gb = (nalog.vozilo.gb if nalog.vozilo else "") or ""
+    broj = f"N{nalog.id}-{red[0].id}"   # jedinstven web broj (nalog + prva stavka)
+    napomena = p.napomena or (f"Radni nalog #{nalog.id}" + (f", GB {gb}" if gb else ""))
+    try:
+        rez = aross.kreiraj_izdatnicu(broj, p.datum, p.sifra_skladista, p.sifra_mjesta_troska,
+                                      [{"sifraArtikla": i.artikl_sifra, "kolicina": i.kolicina} for i in red],
+                                      napomena, db=db)
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    erp = mt = None
+    if isinstance(rez, list) and rez and isinstance(rez[0], dict):
+        erp = rez[0].get("erpBrojIzdatnice")
+        mt = rez[0].get("erpMjestoTroska")
+    if erp is None:
+        raise HTTPException(status_code=502, detail=f"APROSS nije vratio broj izdatnice: {str(rez)[:200]}")
+    for i in red:
+        i.apross_broj = int(erp)
+    db.commit()
+    return {"ok": True, "erp_broj_izdatnice": erp, "erp_mjesto_troska": mt, "stavki": len(red)}
