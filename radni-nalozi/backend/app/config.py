@@ -64,7 +64,8 @@ class Settings(BaseSettings):
     obracun_uvoz_kljuc: str = ""         # OBRACUN_UVOZ_KLJUC — fly secret
     # Korisnička imena koja NISU radnici radione (uprava, korisnici portala) — ne idu u
     # evidenciju radnog vremena ni u izvoz za obračun. Zarezom odvojeno.
-    evidencija_bez: str = "toni,velimir.jendris"
+    # 16.11.2026. Toni: sakrij i Nikolu, Lauru (ured, samo skladište) i TEST mehaničara.
+    evidencija_bez: str = "toni,velimir.jendris,nikola.jendris,kraljicek.laura,test.meh.tok"
     # Imenik telefona — ČITANJE iz Flota OS-a (GET /api/imenik, zaglavlje X-Imenik-Kljuc).
     # Isti fly secret IMENIK_KLJUC i na Floti. Prazno = imenik prikazuje poruku „nije povezan".
     imenik_kljuc: str = ""               # IMENIK_KLJUC — fly secret
