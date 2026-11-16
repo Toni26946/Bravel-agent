@@ -133,6 +133,23 @@ def test_artikli_trazi_po_sifri(monkeypatch):
     assert [a["sifra"] for a in rez] == [125, 1250, 7]
 
 
+def test_predlozi_artikl_po_kataloskom_broju():
+    from app.routers.integracije import _kat_indeks, predlozi_artikl
+    mapa = {
+        10: {"sifra": 10, "naziv": "PLOČICE KOČIONE", "kataloskiBroj": "13.0460-2796.2"},
+        11: {"sifra": 11, "naziv": "FILTER ULJA", "kataloskiBroj": "W 712/75"},
+        12: {"sifra": 12, "naziv": "ŽARULJA A", "kataloskiBroj": "1987302"},
+        13: {"sifra": 13, "naziv": "ŽARULJA B", "kataloskiBroj": "1987-302"},   # isti broj, 2 artikla
+        14: {"sifra": 14, "naziv": "BEZ BROJA", "kataloskiBroj": None},
+    }
+    idx = _kat_indeks(mapa)
+    assert predlozi_artikl("Disk pločice (13.0460-2796.2)", idx)["sifra"] == 10
+    assert predlozi_artikl("Filter ulja W712/75 Mann", idx)["sifra"] == 11
+    assert predlozi_artikl("Žarulja (1987302)", idx) is None        # dvosmisleno → ručno
+    assert predlozi_artikl("Nešto nepoznato (999999)", idx) is None
+    assert predlozi_artikl("", idx) is None
+
+
 def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):
     poslano = {}
     monkeypatch.setattr(aross, "_post", lambda p, t, db=None: poslano.update(putanja=p, tijelo=t) or [])

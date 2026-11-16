@@ -280,6 +280,20 @@ function PosaljiUApross({ primka, onPoslano }) {
 
   useEffect(() => { if (otv && skl.length === 0) api.arossSkladistaPopis().then((d) => setSkl(d || [])).catch(() => {}) }, [otv])
 
+  // Kad se otvori: predloži Apross artikl po KATALOŠKOM BROJU za svaku stavku (samo
+  // jednoznačan pogodak). Ne dira stavke koje je korisnik već sam povezao.
+  const [predlozeno, setPredlozeno] = useState(null)   // broj predloženih; null dok traje
+  useEffect(() => {
+    if (!otv || predlozeno !== null) return
+    const tekstovi = (primka.stavke || []).map((s) => s.artikl || '')
+    if (!tekstovi.length) { setPredlozeno(0); return }
+    api.arossPredloziArtikle(tekstovi).then((r) => {
+      const pr = (r && r.prijedlozi) || []
+      setMape((m) => m.map((x, i) => (x.artikl || !pr[i] ? x : { ...x, artikl: pr[i], predlozen: true })))
+      setPredlozeno(pr.filter(Boolean).length)
+    }).catch(() => setPredlozeno(0))
+  }, [otv])
+
   if (primka.apross_broj) {
     return <div className="karta" style={{ marginTop: 10, borderLeft: '4px solid var(--zelena, green)' }}>
       ✓ Poslano u Apross — primka <b>#{primka.apross_broj}</b>
@@ -335,13 +349,17 @@ function PosaljiUApross({ primka, onPoslano }) {
           </div>
 
           <label className="meta">Stavke — poveži svaku s artiklom iz Aprossa</label>
+          <p className="meta" style={{ margin: '2px 0 8px' }}>
+            {predlozeno === null ? '🔎 Tražim artikle po kataloškom broju…'
+              : `🔎 Po kataloškom broju predloženo ${predlozeno} od ${(primka.stavke || []).length} — provjeri plave, ostale poveži ručno.`}
+          </p>
           {(primka.stavke || []).map((s, i) => (
             <div key={i} style={{ border: '1px solid var(--line, #eee)', borderRadius: 8, padding: 8, marginBottom: 8 }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.artikl} <span className="meta">({s.kolicina} {s.jedinica || 'kom'})</span></div>
               <Trazilica placeholder="traži Apross artikl (naziv / kat. broj)…" pocetni={s.artikl || ''}
                 trazi={(q) => api.arossArtikliTrazi(q)}
                 opis={(a) => `${a.naziv}${a.kataloskiBroj ? ' · ' + a.kataloskiBroj : ''}`}
-                onPick={(a) => postaviMapu(i, { artikl: a })}
+                onPick={(a) => postaviMapu(i, { artikl: a, predlozen: false })}
                 onKreiraj={async (naziv) => {
                   const r = await api.arossKreirajArtikl({ naziv, jmj: s.jedinica || 'kom' })
                   if (r && r.artikl) { postaviMapu(i, { artikl: r.artikl }); return r.artikl }
@@ -357,7 +375,13 @@ function PosaljiUApross({ primka, onPoslano }) {
                   <input type="number" step="any" value={mape[i].cijena} onChange={(e) => postaviMapu(i, { cijena: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
                 </div>
               </div>
-              {mape[i].artikl && <div className="meta" style={{ marginTop: 4, color: 'var(--zelena, green)' }}>✓ {mape[i].artikl.naziv} (šifra {mape[i].artikl.sifra})</div>}
+              {mape[i].artikl && (
+                <div className="meta" style={{ marginTop: 4, color: mape[i].predlozen ? 'var(--plava, #2563eb)' : 'var(--zelena, green)' }}>
+                  {mape[i].predlozen ? '🔎 Predloženo po kat. broju: ' : '✓ '}
+                  {mape[i].artikl.naziv} (šifra {mape[i].artikl.sifra}{mape[i].artikl.kataloskiBroj ? ' · ' + mape[i].artikl.kataloskiBroj : ''})
+                  {mape[i].predlozen && <span className="x" style={{ cursor: 'pointer', marginLeft: 8 }} onClick={() => postaviMapu(i, { artikl: null, predlozen: false })}>krivo ✕</span>}
+                </div>
+              )}
             </div>
           ))}
 

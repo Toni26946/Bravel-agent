@@ -380,6 +380,66 @@ def aross_artikli(q: str = Query(default="", max_length=100),
     return out[:limit]
 
 
+# --- Prijedlog Apross artikla po KATALOŠKOM BROJU (za stavke primke) ----------
+def _kat_norm(s) -> str:
+    """Kataloški broj bez razmaka/crtica/točaka/kosih crta, velikim slovima:
+    '13.0460-2796.2' → '1304602796 2'→'13046027962'."""
+    return re.sub(r"[^0-9A-Z]", "", str(s or "").upper())
+
+
+def _kandidati_kat(tekst: str) -> list[str]:
+    """Mogući kataloški brojevi iz teksta stavke s otpremnice. AI ih stavlja u zagradu
+    („Disk pločice (13.0460-2796.2)"), a znaju biti i u samom nazivu. Uzimamo sadržaj
+    zagrada pa riječi koje imaju barem 4 znamenke/znaka i bar jednu znamenku."""
+    t = str(tekst or "")
+    out: list[str] = []
+    for z in re.findall(r"\(([^()]+)\)", t):
+        n = _kat_norm(z)
+        if len(n) >= 4 and n not in out:
+            out.append(n)
+    for rijec in re.split(r"[\s,;()]+", t):
+        n = _kat_norm(rijec)
+        if len(n) >= 4 and re.search(r"\d", n) and n not in out:
+            out.append(n)
+    return out
+
+
+def _kat_indeks(mapa: dict) -> dict[str, list[dict]]:
+    """normalizirani kataloški broj → [artikli] (isti kat. broj zna imati više artikala)."""
+    idx: dict[str, list[dict]] = {}
+    for a in mapa.values():
+        n = _kat_norm(a.get("kataloskiBroj"))
+        if len(n) >= 4:
+            idx.setdefault(n, []).append(a)
+    return idx
+
+
+def predlozi_artikl(tekst: str, idx: dict[str, list[dict]]) -> dict | None:
+    """Jedan Apross artikl čiji kataloški broj TOČNO odgovara kandidatu iz teksta.
+    Ako isti broj ima više artikala ili ničega nema → None (korisnik bira ručno)."""
+    for k in _kandidati_kat(tekst):
+        pogodci = idx.get(k) or []
+        if len(pogodci) == 1:
+            return pogodci[0]
+    return None
+
+
+class PrijedloziIn(BaseModel):
+    stavke: list[str]
+
+
+@router.post("/aross/predlozi-artikle")
+def aross_predlozi_artikle(p: PrijedloziIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Za svaku stavku primke predloži Apross artikl po kataloškom broju (ili null)."""
+    if not aross.konfigurirano(db):
+        return {"prijedlozi": [None] * len(p.stavke)}
+    try:
+        idx = _kat_indeks(_artikli_mapa(db))
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"prijedlozi": [predlozi_artikl(s, idx) for s in p.stavke[:500]]}
+
+
 class ArtiklIn(BaseModel):
     naziv: str
     jmj: str = "kom"
