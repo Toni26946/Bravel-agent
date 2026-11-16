@@ -1061,7 +1061,7 @@
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
-      api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":"Spremljeno (WhatsApp nije poslan)"); ucitaj(); })
+      api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":("Spremljeno — WhatsApp nije poslan"+((res&&res.wa&&res.wa.razlog)?": "+res.wa.razlog:""))); ucitaj(); })
         .catch(function(err){ toast(err.message||"Greška"); }); },
     // Ručna prijava mehaničara na zadatak (umjesto da sam klikne) → broji se kao prekršaj.
     prijaviRucno:function(e,zid,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;

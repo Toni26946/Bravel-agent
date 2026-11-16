@@ -96,11 +96,13 @@ def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_ur
         # (opcionalno) kill-switch imena za vrijeme testa; prazno = svi mehaničari iz imenika
         imena = {x.strip().lower() for x in (settings.dispecer_wa_imena or "").split(",") if x.strip()}
         if imena and (radnik.ime or "").strip().lower() not in imena:
+            log.info("Dispečer: %s nije na allowlisti (DISPECER_WA_IMENA) — ne šaljem", radnik.ime)
             return {"poslano": False, "razlog": "mehaničar nije na allowlisti"}
         # Broj iz IMENIKA (Flota OS) po imenu — samo imena s jednim jednoznačnim brojem.
         from .. import imenik
         zapis = imenik.brojevi_po_imenu((imenik.dohvati().get("zapisi")) or []).get(imenik.kljuc_imena(radnik.ime))
         if not zapis or not zapis.get("broj"):
+            log.info("Dispečer: %s nema broj u imeniku — ne šaljem", radnik.ime)
             return {"poslano": False, "razlog": "mehaničar nema broj u imeniku"}
         body["vozac"] = radnik.ime
         body["broj"] = zapis["broj"]
@@ -611,6 +613,30 @@ def linkovi(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db))
             "vezan_uredjaj": bool(l and l.uredjaj),
             "zadnje": l.zadnje_koristeno.isoformat() if (l and l.zadnje_koristeno) else None,
         })
+    return out
+
+
+@router.get("/provjera/{radnik_id}")
+def provjera_slanja(radnik_id: int, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Bi li poveznica OVOM mehaničaru otišla na WhatsApp — BEZ slanja. Za dijagnozu
+    „mehaničaru ne dolazi poruka": prekidač, test-broj, allowlista imena, broj u imeniku."""
+    from ..config import settings
+    from .. import imenik
+    r = db.get(Korisnik, radnik_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Radnik ne postoji")
+    imena = {x.strip().lower() for x in (settings.dispecer_wa_imena or "").split(",") if x.strip()}
+    zapis = imenik.brojevi_po_imenu((imenik.dohvati().get("zapisi")) or []).get(imenik.kljuc_imena(r.ime))
+    broj = (zapis or {}).get("broj") or ""
+    out = {
+        "ime": r.ime,
+        "slanje_upaljeno": bool(settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc),
+        "test_mod": bool((settings.dispecer_test_broj or "").strip()),
+        "allowlista_postavljena": bool(imena),
+        "na_allowlisti": (not imena) or ((r.ime or "").strip().lower() in imena),
+        "broj_u_imeniku": (broj[:6] + "…" + broj[-3:]) if len(broj) > 9 else (broj or None),
+    }
+    out["salje_se"] = bool(out["slanje_upaljeno"] and (out["test_mod"] or (out["na_allowlisti"] and broj)))
     return out
 
 
