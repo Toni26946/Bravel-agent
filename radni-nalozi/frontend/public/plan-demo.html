@@ -509,7 +509,13 @@
   function otvoriNalog(id){
     // Zapamti karticu i poziciju da te „Natrag" iz naloga vrati tu gdje si bio
     // (iframe se inače ponovno učita i skoči na zadanu karticu „Poslovođa").
-    try{ sessionStorage.setItem("plan_tab", pogled); sessionStorage.setItem("plan_scroll", String(window.scrollY||0)); }catch(e){}
+    // Skrola se okvir <main> (ne prozor), pa pamtimo njegov scrollTop + broj naloga kao rezervu.
+    try{
+      var _m=document.querySelector("main");
+      sessionStorage.setItem("plan_tab", pogled);
+      sessionStorage.setItem("plan_scroll", String((_m&&_m.scrollTop)||window.scrollY||0));
+      sessionStorage.setItem("plan_nalog", String(id));
+    }catch(e){}
     if(window.parent && window.parent!==window){
       try{ window.parent.postMessage({tip:"plan-otvori-nalog", id:id}, location.origin); return; }catch(e){}
     }
@@ -1305,9 +1311,22 @@
       if(pogled==="bonus"||pogled==="povijest") ucitajBonus();
     }
     var _sy = parseInt(sessionStorage.getItem("plan_scroll")||"0",10);
-    if(_sy>0){
-      // sadržaj se dohvaća asinkrono → par puta pokušaj vratiti skrol dok ne naraste, pa stani.
-      var _pok=0, _it=setInterval(function(){ window.scrollTo(0,_sy); if(++_pok>=8) clearInterval(_it); }, 150);
+    var _nid = sessionStorage.getItem("plan_nalog");
+    sessionStorage.removeItem("plan_nalog");
+    if(_sy>0 || _nid){
+      // Sadržaj se dohvaća asinkrono → par puta pokušaj vratiti skrol okvira <main> dok ne naraste.
+      // Ako pozicija ne uspije (sadržaj se promijenio), skoči na karticu tog naloga.
+      var _main=document.querySelector("main");
+      var _pok=0, _it=setInterval(function(){
+        _pok++;
+        if(_main && _sy>0) _main.scrollTop=_sy;
+        var _ok = _main && _sy>0 && Math.abs(_main.scrollTop-_sy)<5;
+        if(!_ok && _nid && _pok>=6){
+          var _k=document.getElementById("nalog-"+_nid) || document.querySelector('[data-nid="'+_nid+'"]');
+          if(_k){ _k.scrollIntoView({block:"center"}); clearInterval(_it); return; }
+        }
+        if(_pok>=20) clearInterval(_it);
+      }, 150);
       window.addEventListener("pointerdown", function(){ clearInterval(_it); }, {once:true});
     }
   } catch(_){}
