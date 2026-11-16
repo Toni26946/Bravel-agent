@@ -76,17 +76,45 @@ def dozvoljen(broj):
     return bool(t) and time.time() - t < _TRAJANJE
 
 
+def _tekst_i_slika(msg):
+    """(tekst, media_id) — tekst poruke, ili slika (s opisom ili bez). Mozak sam odluči:
+    slike od NEPOZNATIH brojeva vrati (preuzeto=False) pa idu kao i dosad."""
+    tip = msg.get("type")
+    if tip == "text":
+        return ((msg.get("text") or {}).get("body") or "").strip(), None
+    if tip in ("image", "document"):
+        m = msg.get(tip) or {}
+        if tip == "document" and not str(m.get("mime_type") or "").startswith("image/"):
+            return "", None
+        if m.get("id"):
+            return (m.get("caption") or "").strip(), m["id"]
+    return "", None
+
+
+def _posalji_sliku(zid, media_id):
+    """Skini sliku s WhatsAppa i priloži je zadatku u mozgu (best-effort)."""
+    try:
+        import whatsapp
+        sadrzaj, mime = whatsapp.download_media(media_id)
+        url = _URL.rstrip("/") + f"/slika/{zid}"
+        requests.post(url, timeout=40, headers={"X-Mozak-WA": kljuc(), "Content-Type": mime},
+                      data=sadrzaj)
+    except Exception:
+        pass
+
+
 def ponudi(frm, ime, msg):
-    """Ponudi tekstualnu poruku mozgu. Vrati True ako ju je mozak preuzeo
+    """Ponudi poruku (tekst, ili sliku s opisom) mozgu. Vrati True ako ju je mozak preuzeo
     (tada je odgovor već poslan). Bilo kakva greška → False (bot nastavlja kao prije)."""
-    if not ukljuceno() or msg.get("type") != "text":
+    if not ukljuceno():
         return False
-    tekst = ((msg.get("text") or {}).get("body") or "").strip()
-    if not tekst:
+    tekst, media_id = _tekst_i_slika(msg)
+    if not tekst and not media_id:
         return False
     try:
         r = requests.post(_URL, timeout=25, headers={"X-Mozak-WA": kljuc()},
-                          json={"od": frm, "ime": ime, "tekst": tekst, "id": msg.get("id") or ""})
+                          json={"od": frm, "ime": ime, "tekst": tekst, "id": msg.get("id") or "",
+                                "slika": bool(media_id)})
         if r.status_code != 200:
             return False
         rez = r.json()
@@ -95,6 +123,8 @@ def ponudi(frm, ime, msg):
     if not rez.get("preuzeto"):
         return False
     _zapamti(frm)
+    if media_id and rez.get("zadatak"):
+        _posalji_sliku(rez["zadatak"], media_id)
     odgovor = (rez.get("odgovor") or "").strip()
     if odgovor:
         try:
