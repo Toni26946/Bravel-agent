@@ -74,10 +74,32 @@ class TestWhatsappMozak(unittest.TestCase):
         self.assertEqual(self.poslano, [])
         self.assertFalse(whatsapp_mozak.dozvoljen("385911112222"))
 
-    def test_slike_ne_idu_mozgu(self):
+    def test_slika_bez_opisa_nepoznat_broj_nije_preuzeta(self):
+        with mock.patch("requests.post", return_value=_Odg(200, {"preuzeto": False})) as p:
+            self.assertFalse(whatsapp_mozak.ponudi("385911112222", "Marko",
+                                                   {"type": "image", "id": "x", "image": {"id": "m1"}}))
+            self.assertEqual(p.call_args.kwargs["json"]["tekst"], "")
+            self.assertTrue(p.call_args.kwargs["json"]["slika"])
+
+    def test_glasovna_ne_ide_mozgu(self):
         with mock.patch("requests.post") as p:
-            self.assertFalse(whatsapp_mozak.ponudi("385911112222", "Marko", {"type": "image", "id": "x"}))
+            self.assertFalse(whatsapp_mozak.ponudi("385911112222", "Marko", {"type": "audio", "id": "x"}))
             p.assert_not_called()
+
+    def test_slika_s_opisom_ide_mozgu_i_prilozi_se(self):
+        msg = {"type": "image", "id": "w2", "image": {"id": "m1", "caption": "ovo mi izbaci u nalozima"}}
+        pozivi = []
+
+        def lazni_post(url, **kw):
+            pozivi.append((url, kw))
+            return _Odg(200, {"preuzeto": True, "odgovor": "Zaprimljeno", "zadatak": 77})
+        with mock.patch("requests.post", side_effect=lazni_post), \
+                mock.patch.object(whatsapp, "download_media", return_value=(b"JPG", "image/jpeg")):
+            self.assertTrue(whatsapp_mozak.ponudi("385911112222", "Marko", msg))
+        self.assertEqual(pozivi[0][1]["json"]["tekst"], "ovo mi izbaci u nalozima")
+        self.assertTrue(pozivi[0][1]["json"]["slika"])
+        self.assertTrue(pozivi[1][0].endswith("/slika/77"))
+        self.assertEqual(pozivi[1][1]["data"], b"JPG")
 
 
 if __name__ == "__main__":
