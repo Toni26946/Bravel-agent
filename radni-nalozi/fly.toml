@@ -29,6 +29,8 @@ primary_region = "ams"
   source = "nalozi_data"
   destination = "/app/data"
 
+# performance-1x (vlastita jezgra) od 16.11.2026. — na shared-cpu-1x je pod pollingom
+# Plana CPU bio prigušen: odgovori po 20+ s, liječnik restarta, start ~50 s → 502.
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  size = "performance-1x"
+  memory = "2048mb"
