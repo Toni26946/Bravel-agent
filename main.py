@@ -30,6 +30,7 @@ import whatsapp_racuni  # Faza 1: obrada računa/primki preko WhatsAppa (zaposle
 import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import whatsapp_paljenje  # potvrda vozača na paljenje kamiona (živa evidencija; iza flaga)
+import whatsapp_mozak  # prijave kvarova aplikacija → moj-mozak → agent u oblaku (iza MOZAK_WA_KLJUC)
 import dolasci    # obavijest vlasnicima kad kamion stigne na istovar (iza flaga DOLASCI_ON)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import podrska     # živi chat (podrška) za internu Flotu OS
@@ -2394,7 +2395,14 @@ def handle_wa_send(message):
 # Dolazna WhatsApp poruka (iz web_api webhooka).
 #  - ovlašteni zaposlenik (WHATSAPP_ALLOWED) -> obrada računa/primki na WhatsApp
 #  - ostali -> obavijest vlasnicima na Telegram (kao dosad)
+#  Prije svega: tekst o kvaru/izmjeni aplikacije od Tonijevih ljudi preuzme mozak
+#  (whatsapp_mozak.py; bez MOZAK_WA_KLJUC isključeno). Ne dira vozača usred slanja računa.
 def wa_dolazna_poruka(frm, ime, msg):
+    try:
+        if not whatsapp_racuni.zauzet(frm) and whatsapp_mozak.ponudi(frm, ime, msg):
+            return
+    except Exception as e:
+        monitoring.error("WhatsApp → mozak nije uspio", source="main", exc=e)
     try:
         if whatsapp_racuni.is_allowed(frm):
             # Ako čeka otvoreni upit o paljenju (a vozač nije usred slanja računa),
