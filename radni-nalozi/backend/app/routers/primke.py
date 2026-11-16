@@ -1,5 +1,8 @@
 """Primke robe — skladištar fotografira otpremnicu dobavljača (1+ stranica), AI izvuče stavke."""
 import os
+import threading
+import time
+import uuid
 from datetime import date, datetime
 from io import BytesIO
 
@@ -82,9 +85,76 @@ def stranica(slika: UploadFile = File(...), _: Korisnik = Depends(skladiste)):
     return StranicaOtpremnice(foto=spremi_sliku(slika))
 
 
+def _procitano(podaci: dict) -> OtpremnicaProcitana:
+    return OtpremnicaProcitana(
+        dobavljac=(podaci.get("dobavljac") or None),
+        broj_otpremnice=(podaci.get("broj_otpremnice") or None),
+        datum=_parse_datum(podaci.get("datum")),
+        stavke=_stavke(podaci.get("stavke")),
+        ai=True,
+    )
+
+
+# --- Čitanje u POZADINI ------------------------------------------------------
+# Duga otpremnica (6+ stranica) AI čita i preko minute; mobitel/proxy u međuvremenu
+# prekine vezu („Failed to fetch") iako AI uspije. Zato: /procitaj/start odmah vrati
+# id posla, čitanje teče u niti, a ekran svake 2-3 s pita /procitaj/posao/{id}.
+# Poslovi su u memoriji (jedan stroj); gotovi se čiste nakon 30 min.
+_POSLOVI: dict[str, dict] = {}
+_POSLOVI_LOCK = threading.Lock()
+_POSAO_TTL = 30 * 60
+
+
+def _pocisti_poslove() -> None:
+    sad = time.time()
+    with _POSLOVI_LOCK:
+        for k in [k for k, v in _POSLOVI.items() if sad - v["ts"] > _POSAO_TTL]:
+            _POSLOVI.pop(k, None)
+
+
+def _radi_posao(posao_id: str, slike: list) -> None:
+    try:
+        rez = _procitano(parsiraj_otpremnicu(slike))
+        stanje = {"status": "gotovo", "rezultat": rez.model_dump(mode="json")}
+    except Exception as e:  # noqa: BLE001
+        stanje = {"status": "greska", "greska": f"AI nije uspio pročitati otpremnicu: {e}"}
+    with _POSLOVI_LOCK:
+        if posao_id in _POSLOVI:
+            _POSLOVI[posao_id].update(stanje, ts=time.time())
+
+
+@router.post("/procitaj/start")
+def procitaj_start(zahtjev: OtpremnicaZahtjev, _: Korisnik = Depends(skladiste)):
+    """Pokreni AI čitanje u pozadini. Vraća {posao_id} ili {ai: false}."""
+    if not ai_dostupan():
+        return {"ai": False}
+    slike = [s for s in (_ucitaj_sliku(p) for p in zahtjev.fotke) if s]
+    if not slike:
+        raise HTTPException(status_code=400, detail="Nema slika za čitanje.")
+    _pocisti_poslove()
+    posao_id = uuid.uuid4().hex
+    with _POSLOVI_LOCK:
+        _POSLOVI[posao_id] = {"status": "radi", "ts": time.time(), "stranica": len(slike)}
+    threading.Thread(target=_radi_posao, args=(posao_id, slike), daemon=True).start()
+    return {"ai": True, "posao_id": posao_id}
+
+
+@router.get("/procitaj/posao/{posao_id}")
+def procitaj_posao(posao_id: str, _: Korisnik = Depends(skladiste)):
+    """Stanje pozadinskog čitanja: {status: radi|gotovo|greska, rezultat?, greska?}."""
+    with _POSLOVI_LOCK:
+        p = _POSLOVI.get(posao_id)
+        p = dict(p) if p else None
+    if not p:
+        raise HTTPException(status_code=404, detail="Čitanje nije pronađeno (server je možda restartan) — klikni Pročitaj ponovno.")
+    p.pop("ts", None)
+    return p
+
+
 @router.post("/procitaj", response_model=OtpremnicaProcitana)
 def procitaj(zahtjev: OtpremnicaZahtjev, _: Korisnik = Depends(skladiste)):
-    """AI pročita sve priložene stranice otpremnice (uzastopne stranice jednog dokumenta)."""
+    """AI pročita sve priložene stranice otpremnice (uzastopne stranice jednog dokumenta).
+    Stari, sinkroni put — ekran sad koristi /procitaj/start + /procitaj/posao."""
     if not ai_dostupan():
         return OtpremnicaProcitana(ai=False)
     slike = [s for s in (_ucitaj_sliku(p) for p in zahtjev.fotke) if s]
