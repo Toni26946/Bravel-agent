@@ -95,6 +95,16 @@ def test_mjesto_troska_prepozna_registraciju():
     assert _mt_registracije("ZG-8714-GM (prije DA-658-DN, bio DA-920 CZ)") == {"ZG8714GM", "DA658DN", "DA920CZ"}
 
 
+def test_mjesto_troska_po_gb():
+    """Šifra mjesta troška u Aprossu JE garažni broj — registracija se ne gleda."""
+    from app.routers.integracije import _mjesto_po_gb
+    mjesta = [{"sifra": 37, "naziv": "ZG9464KR"}, {"sifra": 79, "naziv": " Prikolica ZG-7234-FE"}]
+    assert _mjesto_po_gb("37", mjesta)["naziv"] == "ZG9464KR"
+    assert _mjesto_po_gb("079", mjesta)["sifra"] == 79
+    assert _mjesto_po_gb("467", mjesta) is None
+    assert _mjesto_po_gb("TEST", mjesta) is None
+
+
 def test_odabir_mjesta_troska_prednost_trenutnoj_reg():
     from app.routers.integracije import _odaberi_mjesto_troska
     mjesta = [
