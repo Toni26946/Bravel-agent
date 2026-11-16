@@ -73,6 +73,12 @@ _UREDNICI = (Uloga.voditelj, Uloga.poslovodja)
 _SERVISERI = (Uloga.radnik,)
 
 
+def je_serviser(k) -> bool:
+    """Smije li korisnik raditi na nalogu kao mehaničar: radnik, ILI ne-mehaničar
+    kojem je voditelj uključio „radi na nalozima" (npr. skladištar Akshay)."""
+    return bool(k) and (k.uloga in _SERVISERI or bool(getattr(k, "radi_na_nalozima", False)))
+
+
 # --- pomoćne funkcije --------------------------------------------------------
 def _sljedeci_broj(db: Session) -> str:
     """Sljedeći broj naloga = najveći postojeći + 1 (otporno na brisanja).
@@ -101,7 +107,7 @@ def _valjani_zaduzeni(db: Session, zad_id: int | None) -> int | None:
     if zad_id is None:
         return None
     r = db.get(Korisnik, zad_id)
-    return zad_id if (r and r.uloga == Uloga.radnik) else None
+    return zad_id if je_serviser(r) else None
 
 
 # Odvajač za spajanje više opisa u jedan (unutar operacije je samo jedan opis).
@@ -148,7 +154,7 @@ def _postavi_radnike(db: Session, z: Zadatak, ids: list[int], dozvoli_start: boo
     valjani: list[Korisnik] = []
     for rid in dict.fromkeys(ids):  # ukloni duplikate, zadrži redoslijed
         r = db.get(Korisnik, rid)
-        if not r or r.uloga not in _SERVISERI:
+        if not je_serviser(r):
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije mehaničar")
         valjani.append(r)
     z.radnici = valjani
@@ -266,7 +272,7 @@ def _postavi_dodjele(db: Session, nalog: Nalog, radnici_ids: list[int]) -> None:
     trazeni = set(radnici_ids)
     for rid in trazeni:
         r = db.get(Korisnik, rid)
-        if not r or r.uloga not in _SERVISERI:
+        if not je_serviser(r):
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} nije radnik")
     postojeci = {d.radnik_id: d for d in nalog.dodjele}
     # dodaj nove
@@ -1047,7 +1053,7 @@ def _dohvati_zadatak(db: Session, nalog_id: int, zadatak_id: int) -> Zadatak:
 
 def _provjeri_radnik(db: Session, rid: int) -> None:
     r = db.get(Korisnik, rid)
-    if not r or r.uloga not in _SERVISERI:
+    if not je_serviser(r):
         raise HTTPException(status_code=400, detail="Zaduženi nije valjan mehaničar")
 
 
@@ -1139,7 +1145,7 @@ def _zavrsi_radnika(z: Zadatak, rid: int) -> None:
 def _svi_radnici_gotovi(z: Zadatak) -> bool:
     """Jesu li SVI dodijeljeni radnici označili svoj dio gotovim (za operaciju s 2+ radnika).
     Broje se samo mehaničari — voditelj (vanjski servis) nema gumb Gotovo pa ne blokira."""
-    aktivni = [r.id for r in z.radnici if r.uloga in _SERVISERI]
+    aktivni = [r.id for r in z.radnici if je_serviser(r)]
     if not aktivni:
         return True
     zapisi = {v.radnik_id: v for v in z.vremena}

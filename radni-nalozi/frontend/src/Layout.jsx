@@ -163,11 +163,11 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/moj-ucinak', ikona: '🏆', txt: t('tab.mojUcinak') })
     tabovi.push({ do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') })
   }
-  // „Radno vrijeme" (evidencija) vidi samo Marina i Akshay — ne cijela uloga.
+  // „Radno vrijeme" (evidencija) vidi samo Marina, Akshay i vlasnik (Toni) — ne cijela uloga.
   {
     const un = (korisnik?.korisnicko_ime || '').toLowerCase()
     const im = (korisnik?.ime || '').toLowerCase()
-    if (im.includes('akshay') || un === 'akshay' || (im.includes('marina') && im.includes('pejkov'))) {
+    if (korisnik?.ai_poslovodja || im.includes('akshay') || un === 'akshay' || (im.includes('marina') && im.includes('pejkov'))) {
       tabovi.push({ do: '/evidencija', ikona: '🕒', txt: t('tab.evidencija') })
     }
   }

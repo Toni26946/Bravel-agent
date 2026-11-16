@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from .. import flota
@@ -25,7 +25,7 @@ from ..models import (
 from ..push import obavijesti_korisnika
 from .nalozi import (
     _aware, _pokreni_mjerac, _zaustavi_mjerac, _SERVISERI, _UREDNICI, _auto_status_naloga,
-    _sljedeci_broj, _sync_povijest, nalog_eager, servis_odradjen,
+    _sljedeci_broj, _sync_povijest, je_serviser, nalog_eager, servis_odradjen,
 )
 
 # Tko se smije dodijeliti na operaciju: mehaničari (rade rukama) + voditelji/poslovođe
@@ -137,7 +137,7 @@ def _set_radnici(db: Session, z: Zadatak, ids: list[int]) -> None:
     valjani: list[Korisnik] = []
     for rid in dict.fromkeys(ids):
         r = db.get(Korisnik, rid)
-        if not r or r.uloga not in _DODJELJIVI:
+        if not r or not (r.uloga in _DODJELJIVI or je_serviser(r)):
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} se ne može dodijeliti")
         valjani.append(r)
     z.radnici = valjani
@@ -255,8 +255,9 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     ))
     meh = (
         db.query(Korisnik)
-        .filter(Korisnik.uloga.in_(_SERVISERI), Korisnik.aktivan.is_(True),
-                Korisnik.prijavljuje_se.is_(True))   # samo stvarni mehaničari (ne npr. skladištar)
+        .filter(or_(Korisnik.uloga.in_(_SERVISERI), Korisnik.radi_na_nalozima.is_(True)),
+                Korisnik.aktivan.is_(True),
+                Korisnik.prijavljuje_se.is_(True))   # mehaničari + označeni „radi na nalozima" (npr. Akshay)
         .order_by(Korisnik.ime).all()
     )
     # Pregledar (Karthik) — vidljiv u Radnici/dropdownu da mu se vide dodijeljeni pregledi.
@@ -893,7 +894,7 @@ def isplaniraj(nalog_id: int, request: Request,
             if z.gotovo or z.razlog_prekida == "dijelovi":
                 continue
             for r in z.radnici:
-                if r.uloga not in _SERVISERI or not r.prijavljuje_se:
+                if not je_serviser(r) or not r.prijavljuje_se:
                     continue   # voditelj (vanjski servis) / pregledar (Karthik) — ne primaju poveznice
                 mehanicari.setdefault(r.id, r)
     poslano = 0
@@ -940,7 +941,7 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
                 if z.gotovo or z.razlog_prekida == "dijelovi":
                     continue
                 for r in z.radnici:
-                    if r.uloga not in _SERVISERI or not r.prijavljuje_se:
+                    if not je_serviser(r) or not r.prijavljuje_se:
                         continue   # voditelj (vanjski servis) / pregledar (Karthik) — ne primaju poveznice
                     mehanicari.setdefault(r.id, r)
     poslano = 0

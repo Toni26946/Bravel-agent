@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from .. import flota, norme
@@ -596,8 +597,8 @@ def linkovi(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db))
     """Popis mehaničara (serviseri) sa stanjem poveznice — za upravljanje."""
     radnici = (
         db.query(Korisnik)
-        .filter(Korisnik.uloga == Uloga.radnik, Korisnik.aktivan.is_(True),
-                Korisnik.prijavljuje_se.is_(True))
+        .filter(or_(Korisnik.uloga == Uloga.radnik, Korisnik.radi_na_nalozima.is_(True)),
+                Korisnik.aktivan.is_(True), Korisnik.prijavljuje_se.is_(True))
         .order_by(Korisnik.ime).all()
     )
     po_radniku = {l.radnik_id: l for l in db.query(MehanicarLink).all()}

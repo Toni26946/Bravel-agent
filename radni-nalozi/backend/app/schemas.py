@@ -69,6 +69,7 @@ class KorisnikUpdate(BaseModel):
     aktivan: bool | None = None
     prijavljuje_se: bool | None = None
     narucitelj: bool | None = None
+    radi_na_nalozima: bool | None = None
     lozinka: str | None = Field(default=None, min_length=8)
 
 
@@ -83,6 +84,7 @@ class KorisnikOut(ORM):
     aktivan: bool
     prijavljuje_se: bool = True
     narucitelj: bool = False
+    radi_na_nalozima: bool | None = False   # None = stari redak prije migracije → kao False
     odsutnost_vrsta: str | None = None   # 'godisnji' | 'bolovanje'
     odsutnost_od: date | None = None
     odsutnost_do: date | None = None
