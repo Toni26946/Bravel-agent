@@ -1345,10 +1345,12 @@ def odjava_radnika(
     nalog_id: int, zadatak_id: int,
     korisnik: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db),
 ):
-    """Odjavi radnike s operacije: makni ih i zaustavi mjerač (operacija NIJE gotova)."""
+    """Odjavi radnike s operacije: zaustavi mjerač (operacija NIJE gotova).
+    Radnici OSTAJU dodijeljeni — zadatak ostaje u njihovom redu u planu radione
+    (kartica Radnici), samo više nije „u tijeku". Prije su se brisali pa je nalog
+    nestajao iz reda kad bi poslovođa odjavio radnika koji je otišao doma (#285)."""
     _dohvati_ovlasten(db, nalog_id, korisnik)
     z = _dohvati_zadatak(db, nalog_id, zadatak_id)
-    z.radnici = []
     _zaustavi_mjerac(z)
     db.commit()
     db.refresh(z)
