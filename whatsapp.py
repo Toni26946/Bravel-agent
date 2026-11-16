@@ -78,6 +78,13 @@ def _dispecer_dozvoljen(to):
     rucni = {_samo_brojke(b) for b in os.getenv("WHATSAPP_DISPECER_BROJEVI", "").split(",") if b.strip()}
     if rucni and _samo_brojke(to) in rucni:
         return True
+    # odgovor mozga onome tko je upravo prijavio kvar aplikacije (whatsapp_mozak.py)
+    try:
+        import whatsapp_mozak
+        if whatsapp_mozak.dozvoljen(to):
+            return True
+    except Exception:
+        pass
     try:
         import imenik_flota
         brojevi = imenik_flota.brojevi_mehanicara()

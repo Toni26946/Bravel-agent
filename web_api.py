@@ -226,6 +226,33 @@ async def handle_vozac_nalog(request):
         return _json({"ok": False, "error": f"Greška: {e}"}, status=500)
 
 
+async def handle_wa_posalji_mozak(request):
+    """POST /api/whatsapp/posalji — moj-mozak javlja prijavitelju kvara da je riješeno.
+    Tijelo {"broj", "tekst"}; X-Api-Key = MOZAK_WA_KLJUC. Šalje SAMO brojevima koje je
+    mozak preuzeo u zadnjih 7 dana (whatsapp_mozak.dozvoljen) — nikome drugome."""
+    import whatsapp
+    import whatsapp_mozak
+    if not whatsapp_mozak.ukljuceno():
+        return _json({"ok": False, "error": "MOZAK_WA_KLJUC nije postavljen."}, status=503)
+    if request.headers.get("X-Api-Key", "") != whatsapp_mozak.kljuc():
+        return _json({"ok": False, "error": "Neispravan X-Api-Key."}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "Neispravan JSON."}, status=400)
+    broj = whatsapp_mozak._norm(body.get("broj"))
+    tekst = str(body.get("tekst") or "").strip()[:3500]
+    if not broj or not tekst:
+        return _json({"ok": False, "error": "Nedostaje broj ili tekst."}, status=400)
+    if not whatsapp_mozak.dozvoljen(broj):
+        return _json({"ok": False, "error": "Taj broj nije prijavio kvar mozgu (7 dana)."}, status=403)
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(None, lambda: whatsapp.send_text(broj, tekst))
+    if res.get("ok"):
+        return _json({"ok": True})
+    return _json({"ok": False, "error": whatsapp.opisi_gresku(res)}, status=502)
+
+
 async def handle_benzinske(request):
     """GET /api/benzinske — registar benzinskih lanaca s lokacijama i zadnjim
     cijenama goriva + zabiljezena promjena. Stiti X-Api-Key. Cita iz baze
@@ -442,6 +469,7 @@ def _run():
         app.router.add_post("/whatsapp/webhook", handle_wa_webhook_event)
         app.router.add_get("/privatnost", handle_privatnost)
         app.router.add_post("/api/vozac/nalog", handle_vozac_nalog)
+        app.router.add_post("/api/whatsapp/posalji", handle_wa_posalji_mozak)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
