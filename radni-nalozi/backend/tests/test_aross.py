@@ -88,6 +88,25 @@ def test_mjesto_troska_prepozna_registraciju():
     assert _reg_norm("zg-3495 fr") == "ZG3495FR"
     assert _mt_registracije("ZG-4732-HC (prije DA681EC)") == {"ZG4732HC", "DA681EC"}
     assert _mt_registracije("ZG-1467-FR") == {"ZG1467FR"}
+    # Pravi (neuredni) nazivi iz Aprossa
+    assert _mt_registracije(" Prikolica   ZG1239HJ (stara ZG-8284-FC)") == {"ZG1239HJ", "ZG8284FC"}
+    assert _mt_registracije("ZG5182HC( prijeDA-264-DB)") == {"ZG5182HC", "DA264DB"}
+    assert _mt_registracije(" Prikolica ZG-2012-EZ W09000335E0R23391") == {"ZG2012EZ"}
+    assert _mt_registracije("ZG-8714-GM (prije DA-658-DN, bio DA-920 CZ)") == {"ZG8714GM", "DA658DN", "DA920CZ"}
+
+
+def test_odabir_mjesta_troska_prednost_trenutnoj_reg():
+    from app.routers.integracije import _odaberi_mjesto_troska
+    mjesta = [
+        {"sifra": 1, "naziv": "ZG-3168-HD * PRODAN"},
+        {"sifra": 2, "naziv": "ZG5324KM bio ZG-3168-HD (bio DA-267-DB)"},
+        {"sifra": 3, "naziv": " Prikolica ZG-7234-FE"},
+        {"sifra": 4, "naziv": "ZG7234HF (stara ZG-4339-GH) VW Transporter 9s"},
+    ]
+    assert _odaberi_mjesto_troska({"ZG7234FE"}, mjesta)["sifra"] == 3
+    assert _odaberi_mjesto_troska({"ZG5324KM"}, mjesta)["sifra"] == 2
+    assert _odaberi_mjesto_troska({"ZG3168HD"}, mjesta)["sifra"] == 2   # aktivno vozilo ispred prodanog
+    assert _odaberi_mjesto_troska({"ZG0000XX"}, mjesta) is None
 
 
 def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):

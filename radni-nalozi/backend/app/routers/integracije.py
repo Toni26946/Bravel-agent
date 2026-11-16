@@ -463,17 +463,26 @@ def _reg_norm(s: str | None) -> str:
     return re.sub(r"[^A-Z0-9ČĆŠŽĐ]", "", (s or "").upper())
 
 
+# Registracija u slobodnom tekstu: 2 slova, 3–4 znamenke, 1–2 slova, s crticama/razmacima ili bez
+# (ZG-7234-FE, ZG7234HF, DA-920 CZ). Nazivi u Aprossu su neuredni: „ Prikolica   ZG1239HJ (stara
+# ZG-8284-FC)", „ZG5182HC( prijeDA-264-DB)", „ZG-3208-FF * PRODAN".
+_REG_RE = re.compile(r"([A-ZČĆŠŽĐ]{2})[\s-]*(\d{3,4})[\s-]*([A-ZČĆŠŽĐ]{1,2})(?![A-Z0-9ČĆŠŽĐ])")
+
+
+def _mt_registracije_lista(naziv: str) -> list[str]:
+    """Registracije iz naziva redom pojavljivanja (prva = trenutna, ostale = stare)."""
+    out: list[str] = []
+    for a, b, c in _REG_RE.findall((naziv or "").upper()):
+        r = a + b + c
+        if r not in out:
+            out.append(r)
+    return out
+
+
 def _mt_registracije(naziv: str) -> set[str]:
     """Sve registracije iz naziva mjesta troška, npr. 'ZG-4732-HC (prije DA681EC)'
     → {'ZG4732HC', 'DA681EC'}."""
-    out = set()
-    glavni = (naziv or "").split("(")[0]
-    if _reg_norm(glavni):
-        out.add(_reg_norm(glavni))
-    for m in re.findall(r"\(\s*prije\s+([^)]+)\)", naziv or "", flags=re.I):
-        if _reg_norm(m):
-            out.add(_reg_norm(m))
-    return out
+    return set(_mt_registracije_lista(naziv))
 
 
 def _registracije_naloga(db, nalog) -> set[str]:
@@ -491,13 +500,26 @@ def _registracije_naloga(db, nalog) -> set[str]:
 
 
 def _nadji_mjesto_troska(db, nalog) -> dict | None:
-    regs = _registracije_naloga(db, nalog)
+    return _odaberi_mjesto_troska(_registracije_naloga(db, nalog), _mjesta_troska(db))
+
+
+def _odaberi_mjesto_troska(regs: set[str], mjesta: list[dict]) -> dict | None:
+    """Najbolje mjesto troška za registracije vozila: prednost ima ono kojem je to
+    TRENUTNA (prva) registracija i koje nije prodano/rashodovano; stara reg. je rezerva."""
     if not regs:
         return None
-    for mt in _mjesta_troska(db):
-        if regs & _mt_registracije(str(mt.get("naziv") or "")):
-            return mt
-    return None
+    najbolje, bod = None, -1
+    for mt in mjesta:
+        naziv = str(mt.get("naziv") or "")
+        lista = _mt_registracije_lista(naziv)
+        if not regs.intersection(lista):
+            continue
+        b = 2 if lista and lista[0] in regs else 1
+        if not re.search(r"PRODAN|RASHOD", naziv.upper()):
+            b += 2
+        if b > bod:
+            najbolje, bod = mt, b
+    return najbolje
 
 
 @router.get("/aross/mjesta-troska")
