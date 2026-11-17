@@ -31,6 +31,7 @@ import whatsapp_meni  # WhatsApp izbornik/upravljačka ploča za vozače/radnike
 import whatsapp_podsjetnici  # automatski tjedni podsjetnici vozačima (predlošci)
 import whatsapp_paljenje  # potvrda vozača na paljenje kamiona (živa evidencija; iza flaga)
 import whatsapp_mozak  # prijave kvarova aplikacija → moj-mozak → agent u oblaku (iza MOZAK_WA_KLJUC)
+import whatsapp_dostava  # statusi isporuke WhatsApp poruka (neisporučeni nalozi → Telegram)
 import dolasci    # obavijest vlasnicima kad kamion stigne na istovar (iza flaga DOLASCI_ON)
 import benzinske   # registar benzinskih lanaca + praćenje cijena goriva
 import podrska     # živi chat (podrška) za internu Flotu OS
@@ -2423,6 +2424,16 @@ def wa_dolazna_poruka(frm, ime, msg):
         safe_send(uid, poruka)
 
 
+def _javi_neisporuceno(tekst):
+    """Neisporučene WhatsApp poruke (Meta status „failed") → vlasnicima na Telegram."""
+    for uid in ALLOWED_USERS:
+        safe_send(uid, tekst)
+
+
+# Skupi neuspjehe ~20 s pa javi jednom porukom (Flota šalje više naloga zaredom)
+_wa_neisporuceno = whatsapp_dostava.Skupljac(_javi_neisporuceno)
+
+
 # ==================== HANDLERS ====================
 
 @bot.message_handler(commands=['start', 'lista', 'list', 'podsjetnici', 'podsjetnik',
@@ -2743,7 +2754,8 @@ if __name__ == "__main__":
     podrska.set_on_zatvoreno(_podrska_zatvori)
     # Kad se netko spoji na Podršku, pošalji mu propuštene dolaske kamiona (backlog).
     podrska.set_on_open(dolasci.posalji_backlog)
-    web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_ai_odgovori)
+    web_api.start(on_incoming=wa_dolazna_poruka, on_support=_podrska_ai_odgovori,
+                  on_status=_wa_neisporuceno.dodaj)
 
     bot.delete_webhook(drop_pending_updates=True)
     threading.Thread(target=check_reminders, daemon=True).start()
