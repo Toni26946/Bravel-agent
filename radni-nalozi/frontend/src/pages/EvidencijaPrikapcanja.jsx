@@ -13,10 +13,11 @@ export default function EvidencijaPrikapcanja() {
   const [rows, setRows] = useState(null)
   const [vrsta, setVrsta] = useState('')
   const [q, setQ] = useState('')
+  const [parkinzi, setParkinzi] = useState([])
 
   const ucitajTrenutno = () => api.prikapcanjeTrenutno().then(setTrenutno).catch(() => setTrenutno([]))
   const ucitajDnevnik = (v = vrsta) => api.dnevnikPrikapcanja({ vrsta: v, dana: 180 }).then(setRows).catch(() => setRows([]))
-  useEffect(() => { ucitajTrenutno(); ucitajDnevnik('') }, [])
+  useEffect(() => { ucitajTrenutno(); ucitajDnevnik(''); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
   useAutoOsvjezi(() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }, 60000)
 
   const oznaka = (x) => (x.vrsta === 'prikaceno' ? `🔗 ${t('spremne.prikaceno')}` : `⛓️‍💥 ${t('spremne.otkaceno')}`)
@@ -27,7 +28,7 @@ export default function EvidencijaPrikapcanja() {
     <Layout naslov={t('tab.prikapcanje')}>
       <p className="meta" style={{ marginTop: 0 }}>{t('prikapcanje.opis')}</p>
 
-      <NovaPromjena trenutno={trenutno} onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
+      <NovaPromjena trenutno={trenutno} parkinzi={parkinzi} onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
 
       {/* Trenutno — tko vozi koju prikolicu */}
       {(() => {
@@ -58,16 +59,12 @@ export default function EvidencijaPrikapcanja() {
                 <table className="di-tab">
                   <thead>
                     <tr><th>{t('spremne.kamion')}</th><th>{t('spremne.prikolica')}</th>
-                      <th>{t('spremne.vozac')}</th><th>{t('spremne.od')}</th></tr>
+                      <th>{t('spremne.vozac')}</th><th>{t('spremne.od')}</th><th className="no-print"></th></tr>
                   </thead>
                   <tbody>
                     {filtrirano.map((x) => (
-                      <tr key={x.prikolica_gb}>
-                        <td><strong>🚚 {x.kamion_gb || '—'}</strong>{x.kamion_reg ? <span className="meta"> · {x.kamion_reg}</span> : ''}</td>
-                        <td>🛻 {x.prikolica_gb}{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
-                        <td>{x.vozac || '—'}</td>
-                        <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
-                      </tr>
+                      <RedakTrenutno key={x.prikolica_gb} x={x} parkinzi={parkinzi} datumKratko={datumKratko}
+                        onGotovo={() => { ucitajTrenutno(); ucitajDnevnik(vrsta) }} />
                     ))}
                   </tbody>
                 </table>
@@ -132,13 +129,14 @@ export default function EvidencijaPrikapcanja() {
 
 // Ručni unos promjene prikapčanja: odaberi prikolicu + (novi) kamion → Prikači/Otkači.
 // Vozila se biraju iz padajućih popisa (matični popis), da se ne tipka GB.
-function NovaPromjena({ trenutno, onGotovo }) {
+function NovaPromjena({ trenutno, parkinzi, onGotovo }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [vozila, setVozila] = useState(null)
   const [prikolicaGb, setPrikolicaGb] = useState('')
   const [kamionGb, setKamionGb] = useState('')
   const [vozac, setVozac] = useState('')
+  const [lokacija, setLokacija] = useState('')
   const [radi, setRadi] = useState(false)
   const [greska, setGreska] = useState('')
 
@@ -173,8 +171,10 @@ function NovaPromjena({ trenutno, onGotovo }) {
         vrsta,
         kamion_gb: vrsta === 'prikaceno' ? kamionGb : null,
         vozac: vozac.trim() || null,
+        // Parking se pamti samo kad se prikolica otkači (ostavi negdje).
+        lokacija: vrsta === 'otkaceno' ? (lokacija || null) : null,
       })
-      setPrikolicaGb(''); setKamionGb(''); setVozac(''); setOtvoren(false)
+      setPrikolicaGb(''); setKamionGb(''); setVozac(''); setLokacija(''); setOtvoren(false)
       onGotovo()
     } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
   }
@@ -206,6 +206,11 @@ function NovaPromjena({ trenutno, onGotovo }) {
               <label style={{ marginTop: 8 }}>{t('spremne.vozac')}</label>
               <input className="pretraga-input" placeholder={t('spremne.vozacOpc')}
                 value={vozac} onChange={(e) => setVozac(e.target.value)} />
+              <label style={{ marginTop: 8 }}>🅿️ {t('prikapcanje.parkingOtkaci')}</label>
+              <select className="pretraga-input" value={lokacija} onChange={(e) => setLokacija(e.target.value)}>
+                <option value="">{t('spremne.odaberiParking')}</option>
+                {(parkinzi || []).map((p) => <option key={p.id} value={p.naziv}>{p.naziv}</option>)}
+              </select>
               {greska && <div className="greska" style={{ marginTop: 6 }}>{greska}</div>}
               <div className="btn-red" style={{ marginTop: 10 }}>
                 <button className="btn" disabled={radi} onClick={() => posalji('prikaceno')}>🔗 {t('spremne.prikaceno')}</button>
@@ -217,5 +222,62 @@ function NovaPromjena({ trenutno, onGotovo }) {
         </div>
       )}
     </div>
+  )
+}
+
+// Redak „Trenutno": uz svaku prikačenu prikolicu gumb 🅿️ — otkači je i upiši na kojem
+// je parkingu ostavljena (npr. popravljena prikolica koja se vozi na parking).
+function RedakTrenutno({ x, parkinzi, datumKratko, onGotovo }) {
+  const { t } = useT()
+  const [otvoren, setOtvoren] = useState(false)
+  const [lok, setLok] = useState('')
+  const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
+
+  const spremi = async () => {
+    if (!lok) { setGreska(t('prikapcanje.trebaParking')); return }
+    setRadi(true); setGreska('')
+    try {
+      await api.zabiljeziPrikapcanje({
+        prikolica_gb: x.prikolica_gb, vrsta: 'otkaceno',
+        kamion_gb: x.kamion_gb || null, lokacija: lok,
+      })
+      setOtvoren(false); setLok('')
+      onGotovo()
+    } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+  }
+
+  return (
+    <>
+      <tr>
+        <td><strong>🚚 {x.kamion_gb || '—'}</strong>{x.kamion_reg ? <span className="meta"> · {x.kamion_reg}</span> : ''}</td>
+        <td>🛻 {x.prikolica_gb}{x.reg ? <span className="meta"> · {x.reg}</span> : ''}</td>
+        <td>{x.vozac || '—'}</td>
+        <td>{x.vrijeme ? datumKratko(x.vrijeme) : '—'}</td>
+        <td className="no-print">
+          <button className="btn sekund mali" onClick={() => setOtvoren((o) => !o)}>🅿️ {t('prikapcanje.naParking')}</button>
+        </td>
+      </tr>
+      {otvoren && (
+        <tr className="no-print">
+          <td colSpan={5}>
+            <div className="meta" style={{ marginBottom: 6 }}>
+              {t('prikapcanje.naParkingOpis', { prikolica: x.prikolica_gb, kamion: x.kamion_gb || '—' })}
+            </div>
+            {(parkinzi || []).length === 0 ? <div className="meta">{t('spremne.trebaParking')}</div> : (
+              <select className="pretraga-input" value={lok} onChange={(e) => setLok(e.target.value)} autoFocus>
+                <option value="">{t('spremne.odaberiParking')}</option>
+                {parkinzi.map((p) => <option key={p.id} value={p.naziv}>{p.naziv}</option>)}
+              </select>
+            )}
+            {greska && <div className="greska" style={{ marginTop: 6 }}>{greska}</div>}
+            <div className="btn-red" style={{ marginTop: 8 }}>
+              <button className="btn" disabled={radi || !lok} onClick={spremi}>⛓️‍💥 {t('prikapcanje.otkaciNaParking')}</button>
+              <button className="btn sekund" disabled={radi} onClick={() => setOtvoren(false)}>{t('prikapcanje.odustani')}</button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
