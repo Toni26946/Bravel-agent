@@ -310,15 +310,27 @@ function PosaljiUApross({ primka, onPoslano }) {
 
   const postaviMapu = (i, patch) => setMape((m) => m.map((x, j) => (j === i ? { ...x, ...patch } : x)))
 
+  // Stavke bez Apross artikla se pri slanju same otvore kao novi artikli (naziv + kat. broj
+  // s otpremnice) — opcija 2, Toni 17.11.2026.
+  const nepovezane = mape.map((m, i) => (!m.artikl && Number(m.kolicina) > 0 ? i : -1)).filter((i) => i >= 0)
+
   const posalji = async () => {
     setGreska('')
-    const stavke = mape.filter((m) => m.artikl && Number(m.kolicina) > 0)
-      .map((m) => ({ sifraArtikla: m.artikl.sifra, kolicina: Number(m.kolicina), cijena: Number(m.cijena) || 0 }))
     if (!sklId) return setGreska('Odaberi skladište.')
     if (!dob) return setGreska('Odaberi dobavljača.')
-    if (!stavke.length) return setGreska('Poveži barem jednu stavku s artiklom iz Aprossa.')
     setRadi(true)
     try {
+      let m2 = mape
+      if (nepovezane.length) {
+        const st = primka.stavke || []
+        const r = await api.arossNoviArtikli(nepovezane.map((i) => st[i]?.artikl || ''), nepovezane.map((i) => st[i]?.jedinica || 'kom'))
+        const novi = (r && r.artikli) || []
+        m2 = mape.map((x, i) => { const k = nepovezane.indexOf(i); return k >= 0 && novi[k] ? { ...x, artikl: novi[k], predlozen: false } : x })
+        setMape(m2)
+      }
+      const stavke = m2.filter((m) => m.artikl && Number(m.kolicina) > 0)
+        .map((m) => ({ sifraArtikla: m.artikl.sifra, kolicina: Number(m.kolicina), cijena: Number(m.cijena) || 0 }))
+      if (!stavke.length) { setGreska('Nema stavki za slanje.'); return }
       const r = await api.arossPosaljiPrimku({ broj_primke: broj, sifra_dobavljaca: dob.sifra, datum, sifra_skladista: Number(sklId), stavke, napomena: primka.napomena || null, primka_id: primka.id })
       onPoslano && onPoslano(r.erp_broj_primke)
     } catch (e) { setGreska(e.message) } finally { setRadi(false) }
@@ -398,8 +410,13 @@ function PosaljiUApross({ primka, onPoslano }) {
           })}
 
           {greska && <div className="greska" style={{ marginBottom: 8 }}>{greska}</div>}
+          {nepovezane.length > 0 && (
+            <p className="meta" style={{ margin: '6px 0' }}>
+              ➕ {nepovezane.length} {nepovezane.length === 1 ? 'stavka nije' : 'stavki nije'} u Apross-u — pri slanju otvorit će se kao novi artikli (naziv i kataloški broj s otpremnice).
+            </p>
+          )}
           <button className="btn" disabled={radi} onClick={posalji}>{radi ? '⏳ Šaljem…' : '📤 Pošalji u Apross'}</button>
-          <p className="meta" style={{ marginBottom: 0 }}>Apross dodjeljuje broj primke i vraća ga; stavke bez povezanog artikla se preskaču.</p>
+          <p className="meta" style={{ marginBottom: 0 }}>Apross dodjeljuje broj primke i vraća ga.</p>
         </div>
       )}
     </div>

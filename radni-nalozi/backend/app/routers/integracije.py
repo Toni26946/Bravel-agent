@@ -472,6 +472,62 @@ def aross_kreiraj_artikl(p: ArtiklIn, db: Session = Depends(get_db), _: Korisnik
                                    "kataloskiBroj": p.kat_broj, "jmj": p.jmj or "kom"}}
 
 
+def razdvoji_naziv_kat(tekst: str) -> tuple[str, str | None]:
+    """Stavka s otpremnice → (naziv za Apross, kataloški broj).
+    „Filter goriva (190199)" → („FILTER GORIVA", „190199"). Naziv velikim slovima
+    kao postojeći Apross artikli, najviše 60 znakova."""
+    t = " ".join(str(tekst or "").split())
+    zagrade = re.findall(r"\(([^()]+)\)", t)
+    kat = zagrade[-1].strip() if zagrade else None
+    naziv = " ".join(re.sub(r"\([^()]*\)", " ", t).split()).strip(" -·,") or t
+    return naziv.upper()[:60], (kat[:40] if kat else None)
+
+
+class NoviArtikliIn(BaseModel):
+    stavke: list[str]          # tekstovi stavki s otpremnice
+    jmj: list[str] = []        # jedinica po stavci (isti redoslijed), zadano „kom"
+
+
+@router.post("/aross/artikli/novi")
+def aross_novi_artikli(p: NoviArtikliIn, db: Session = Depends(get_db), _: Korisnik = Depends(skladiste)):
+    """Opcija 2 (Toni 17.11.2026.): stavke s otpremnice kojih nema u Aprossu otvori
+    kao nove artikle — naziv + kataloški broj s otpremnice, šifre redom (zadnja + 1).
+    Prije otvaranja još jednom provjeri točan kataloški broj (da ne nastane duplikat).
+    Vraća {artikli: [artikl|None, …]} istim redoslijedom kao stavke."""
+    if not aross.konfigurirano(db):
+        raise HTTPException(status_code=503, detail="APROSS nije povezan.")
+    try:
+        mapa = dict(_artikli_mapa(db, osvjezi=True))
+    except aross.ArossGreska as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    idx = _kat_indeks(mapa)
+    brojevi = [int(s) for s in mapa.keys() if isinstance(s, int) or str(s).isdigit()]
+    sljedeca = (max(brojevi) + 1) if brojevi else 1
+    out: list[dict | None] = []
+    for i, tekst in enumerate(p.stavke):
+        postoji = predlozi_artikl(tekst, idx)
+        if postoji:
+            out.append(postoji)
+            continue
+        naziv, kat = razdvoji_naziv_kat(tekst)
+        if not naziv:
+            out.append(None)
+            continue
+        jmj = ((p.jmj[i] if i < len(p.jmj) else "") or "kom").strip()[:10] or "kom"
+        try:
+            aross.kreiraj_artikl(sljedeca, naziv, jmj, kat, None, db=db)
+        except aross.ArossGreska as e:
+            raise HTTPException(status_code=502, detail=f"Artikl „{naziv}”: {e}")
+        novi = {"sifra": sljedeca, "naziv": naziv, "kataloskiBroj": kat, "jmj": jmj}
+        mapa[sljedeca] = novi
+        if kat and len(_kat_norm(kat)) >= 4:
+            idx.setdefault(_kat_norm(kat), []).append(novi)   # isti kat. broj dvaput → jedan artikl
+        out.append(novi)
+        sljedeca += 1
+    _ART_KES["ts"] = 0.0
+    return {"artikli": out}
+
+
 class PrimkaStavkaIn(BaseModel):
     sifraArtikla: int
     kolicina: float
