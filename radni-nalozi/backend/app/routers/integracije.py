@@ -689,3 +689,46 @@ def aross_posalji_izdatnicu(p: IzdatnicaSlanjeIn, db: Session = Depends(get_db),
         i.apross_broj = int(erp)
     db.commit()
     return {"ok": True, "erp_broj_izdatnice": erp, "erp_mjesto_troska": mt, "stavki": len(red)}
+
+
+# ================= GPS uređaji → GB (bravel-agent) =================
+# Lokacija vozila se veže SAMO po GB-u: bravel-agent pamti koji Mobilisis GPS
+# uređaj pripada kojem GB-u (preregistracija to ne mijenja). Ovdje se novi /
+# nepovezani uređaj jednom poveže s GB-om.
+
+def _agent(metoda: str, putanja: str, json: dict | None = None):
+    from ..config import settings
+    if not (settings.bravel_agent_url and settings.bravel_agent_kljuc):
+        raise HTTPException(status_code=503, detail="bravel-agent nije konfiguriran")
+    import httpx
+    try:
+        r = httpx.request(metoda, f"{settings.bravel_agent_url.rstrip('/')}{putanja}", json=json,
+                          headers={"X-Api-Key": settings.bravel_agent_kljuc}, timeout=30)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"bravel-agent ne odgovara: {e}")
+    try:
+        data = r.json()
+    except Exception:
+        data = {}
+    if r.status_code >= 300:
+        raise HTTPException(status_code=502, detail=data.get("error") or f"bravel-agent HTTP {r.status_code}")
+    return data
+
+
+@router.get("/gps-uredaji")
+def gps_uredaji(_: Korisnik = Depends(samo_vlasnik)):
+    return _agent("GET", "/api/gps-uredaji")
+
+
+class GpsVezaIn(BaseModel):
+    id: str
+    gb: str = ""
+    naziv: str = ""
+
+
+@router.post("/gps-uredaji")
+def gps_uredaj_veza(p: GpsVezaIn, _: Korisnik = Depends(samo_vlasnik)):
+    gb = (p.gb or "").strip()
+    if gb and not gb.isdigit():
+        raise HTTPException(status_code=400, detail="GB mora biti broj")
+    return _agent("POST", "/api/gps-uredaji", {"id": p.id, "gb": gb, "naziv": p.naziv})

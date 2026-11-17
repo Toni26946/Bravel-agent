@@ -31,12 +31,98 @@ export default function Sifrarnik({ pocetniTab = 'vozila' }) {
       <div className="chips">
         <span className={`chip ${tab === 'vozila' ? 'akt' : ''}`} onClick={() => setTab('vozila')}>{t('sif.vozila')}</span>
         <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
+        {vlasnik && <span className={`chip ${tab === 'gps' ? 'akt' : ''}`} onClick={() => setTab('gps')}>📡 GPS uređaji</span>}
         {vlasnik && <span className={`chip ${tab === 'integracije' ? 'akt' : ''}`} onClick={() => setTab('integracije')}>🔌 Integracije</span>}
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
+      {tab === 'gps' && vlasnik && <GpsUredaji />}
       {tab === 'integracije' && vlasnik && <Integracije />}
     </Layout>
+  )
+}
+
+// --- GPS uređaji (vlasnik): koji Mobilisis GPS uređaj pripada kojem GB-u ---
+// Lokacija se veže SAMO po GB-u. Veza se pamti po uređaju, pa je preregistracija
+// ne mijenja. Novi uređaj (bez GB-a) se ovdje poveže jednom.
+function GpsUredaji() {
+  const [lista, setLista] = useState(null)
+  const [greska, setGreska] = useState('')
+  const [unos, setUnos] = useState({})
+  const [trazi, setTrazi] = useState('')
+  const [busy, setBusy] = useState('')
+
+  const ucitaj = () => {
+    setGreska('')
+    api.gpsUredaji().then((d) => setLista(d.uredaji || [])).catch((e) => setGreska(e.message || 'Greška'))
+  }
+  useEffect(ucitaj, [])
+
+  const spremi = async (u, gb) => {
+    setBusy(u.id)
+    try {
+      await api.gpsPoveziUredaj({ id: u.id, gb: (gb || '').trim(), naziv: u.naziv })
+      setUnos((x) => ({ ...x, [u.id]: undefined }))
+      ucitaj()
+    } catch (e) {
+      setGreska(e.message || 'Greška')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (greska && !lista) return <div className="card" style={{ color: 'var(--crveno, #c62828)' }}>{greska}</div>
+  if (!lista) return <Spinner />
+  const q = _norm(trazi)
+  const vidljivi = lista.filter((u) => !q || _norm(u.naziv).includes(q) || String(u.gb || '').includes(q))
+  const bez = vidljivi.filter((u) => !u.gb)
+  const s = vidljivi.filter((u) => u.gb)
+
+  const red = (u) => {
+    const v = unos[u.id] ?? (u.gb || '')
+    return (
+      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--rub, #e5e7eb)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700 }}>{u.naziv || `uređaj ${u.id}`}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted, #6b7280)' }}>
+            uređaj {u.id}{u.izvor ? ` · ${u.izvor === 'rucno' ? 'ručno povezan' : 'automatski'}` : ''}
+          </div>
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>GB</span>
+        <input
+          value={v}
+          inputMode="numeric"
+          onChange={(e) => setUnos((x) => ({ ...x, [u.id]: e.target.value.replace(/\D/g, '') }))}
+          onKeyDown={(e) => { if (e.key === 'Enter') spremi(u, v) }}
+          style={{ width: 70, padding: '6px 8px', fontSize: 15 }}
+        />
+        <button className="btn" disabled={busy === u.id || String(v) === String(u.gb || '')} onClick={() => spremi(u, v)}>
+          {busy === u.id ? '…' : 'Spremi'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: 'var(--muted, #6b7280)', margin: '4px 0 10px' }}>
+        Lokacija vozila se veže samo po GB-u. Veza je spremljena po GPS uređaju, pa je promjena registracije ne mijenja.
+        Uređaju bez GB-a jednom upiši GB i spremi.
+      </p>
+      {greska && <div style={{ color: 'var(--crveno, #c62828)', marginBottom: 8 }}>{greska}</div>}
+      <input placeholder="🔎 Traži GB ili naziv uređaja" value={trazi} onChange={(e) => setTrazi(e.target.value)}
+        style={{ width: '100%', maxWidth: 360, padding: '7px 10px', marginBottom: 10 }} />
+      <div className="card" style={{ marginBottom: 12, padding: 12, border: "1px solid var(--rub, #e5e7eb)", borderRadius: 12 }}>
+        <div style={{ fontWeight: 800, color: bez.length ? 'var(--crveno, #c62828)' : undefined, marginBottom: 4 }}>
+          ⚠ Bez GB-a ({bez.length})
+        </div>
+        {bez.length ? bez.map(red) : <div style={{ color: 'var(--muted, #6b7280)' }}>Svi uređaji imaju GB.</div>}
+      </div>
+      <div className="card" style={{ padding: 12, border: "1px solid var(--rub, #e5e7eb)", borderRadius: 12 }}>
+        <div style={{ fontWeight: 800, marginBottom: 4 }}>Povezani ({s.length})</div>
+        {s.map(red)}
+      </div>
+    </div>
   )
 }
 
