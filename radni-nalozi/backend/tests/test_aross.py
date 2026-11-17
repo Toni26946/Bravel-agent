@@ -187,3 +187,20 @@ def test_sljedeca_sifra_preskace_posebne():
     from app.routers.integracije import sljedeca_sifra
     mapa = {27373: {}, 27374: {}, 200000: {}, 200003: {}, 200004: {}}
     assert sljedeca_sifra(mapa) == 27375
+
+
+def test_ne_spaja_po_viskoznosti_i_brojevima_iz_naziva():
+    """Primka FRENUM 17.11.2026.: „10W40 Total Quartz 7000 (TOTAL711)" spojila se s
+    TEROSON BRTVILO (kat. 7000), a „5W30 Total…" s 5W30 ELF (kat. 5W-30)."""
+    from app.routers.integracije import _kat_indeks, predlozi_artikl
+    mapa = {
+        1: {"sifra": 1, "naziv": "TEROSON BRTVILO", "kataloskiBroj": "7000"},
+        2: {"sifra": 2, "naziv": "5W30 ELF", "kataloskiBroj": "5W-30"},
+        3: {"sifra": 3, "naziv": "ULJE DIFERENCIJALA", "kataloskiBroj": "75W90"},
+        4: {"sifra": 4, "naziv": "SEMERING 27X47X7", "kataloskiBroj": "81-35552-00"},
+    }
+    idx = _kat_indeks(mapa)
+    assert predlozi_artikl("10W40 Total Quartz 7000 (1L) (TOTAL711)", idx) is None
+    assert predlozi_artikl("5W30 Total Quartz Ineo RCP (1L) (TOT231130)", idx) is None
+    assert predlozi_artikl("75W90 Pemco iPoid 595 GI-5 (1L) (PM0595-1)", idx) is None
+    assert predlozi_artikl("Semering 27X47X7 (81-35552-00)", idx)["sifra"] == 4
