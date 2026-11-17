@@ -875,6 +875,15 @@ def promijeni_status(
     stari = nalog.status
     if stari == podaci.status:
         return nalog
+    if podaci.status == StatusNaloga.zatvoren:
+        # Test kočnica bez vozila (Cartec) koji bi mogao biti ovog naloga → prvo ga veži.
+        from .cartec import blokira_zatvaranje
+        t = blokira_zatvaranje(db, nalog.id)
+        if t is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Nalog se ne može zatvoriti: test kočnica nije razvrstan — "
+                       "otvori „Testovi kočnica” i odaberi vozilo.")
     nalog.status = podaci.status
     if podaci.status in (StatusNaloga.gotov, StatusNaloga.zatvoren):
         nalog.zatvoren = datetime.now(timezone.utc)

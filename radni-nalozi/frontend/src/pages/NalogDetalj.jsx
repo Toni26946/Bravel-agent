@@ -9,6 +9,7 @@ import {
 } from '../ui'
 import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
 import SlikaEditor from '../SlikaEditor'
+import { TablicaMjerenja } from './TestoviKocnica'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -170,9 +171,31 @@ export default function NalogDetalj() {
       {/* Utrošeni dijelovi (izdatnice) → vozilo / trošak po vozilu */}
       <IzdatniceBlok nalogId={n.id} gb={n.vozilo?.gb} naGresku={setGreska} />
 
+      {/* Testovi kočnica s Cartec valjaka vezani uz ovaj nalog */}
+      <TestoviKocnicaBlok nalogId={n.id} />
+
       {/* Ispis naloga (vidljivo samo pri printanju) */}
       <NalogPrint n={n} servis={servis} pregled={pregled} />
     </Layout>
+  )
+}
+
+// --- Testovi kočnica (Cartec valjci) vezani uz nalog ---------------------------
+function TestoviKocnicaBlok({ nalogId }) {
+  const [testovi, setTestovi] = useState([])
+  useEffect(() => { api.testoviKocnica({ nalogId }).then(setTestovi).catch(() => setTestovi([])) }, [nalogId])
+  if (!testovi.length) return null
+  return (
+    <>
+      <div className="sekcija-naslov">🛞 Testovi kočnica</div>
+      {testovi.map((t) => (
+        <div key={t.id} className="card">
+          <b>{new Date(t.pocetak).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b>
+          {t.status !== 'vezan' && <span style={{ color: 'var(--crveno)', marginLeft: 8 }}>{t.napomena || 'čeka potvrdu'}</span>}
+          <TablicaMjerenja mjerenja={t.mjerenja} />
+        </div>
+      ))}
+    </>
   )
 }
 
