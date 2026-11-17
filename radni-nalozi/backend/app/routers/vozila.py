@@ -218,6 +218,14 @@ def dodaj_dogadaj(
         kreirao_id=korisnik.id,
     )
     db.add(d)
+    # Otkačena prikolica ostavljena na parkingu → zapamti gdje je (registar vozila),
+    # da se i na drugim ekranima (Spremna priključna vozila) zna gdje stoji.
+    if vrsta == VrstaDogadaja.otkaceno and d.lokacija:
+        r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
+            RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
+        if r is not None:
+            r.lokacija = d.lokacija
+            r.azurirao_id = korisnik.id
     db.commit()
     db.refresh(d)
     return d
@@ -520,8 +528,9 @@ def pregledi_uredi(
 
 
 @router.get("/parkinzi", response_model=list[ParkingOut])
-def parkinzi(korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
-    """Fiksni popis parkinga (aktivni) — za odabir lokacije spremne šlepe."""
+def parkinzi(korisnik: Korisnik = Depends(prikapcanje_pristup), db: Session = Depends(get_db)):
+    """Fiksni popis parkinga (aktivni) — za odabir lokacije spremne šlepe i
+    otkačene prikolice (Prikapčanje, smije i skladištar)."""
     return db.query(Parking).filter(Parking.aktivan.is_(True)).order_by(Parking.naziv).all()
 
 
