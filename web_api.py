@@ -29,6 +29,7 @@ import mobilisis
 import benzinske
 import podrska
 import monitoring
+import whatsapp_dostava
 
 # ---- Konfiguracija ----
 PORT = 8080
@@ -50,6 +51,7 @@ _DISPECER_KEY = os.getenv("DISPECER_KEY", "").strip()
 _WA_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip()
 _on_incoming = None
 _on_support = None   # callback za dolazne poruke iz živog chata (podrška)
+_on_status = None    # callback(neuspjele) — neisporučene WhatsApp poruke (whatsapp_dostava)
 
 # ---- Kes zadnjeg uspjesnog dohvata (dijeljen unutar jednog event loopa) ----
 #   ts   = time.monotonic() zadnjeg uspjesnog dohvata (za TTL)
@@ -217,8 +219,11 @@ async def handle_vozac_nalog(request):
                                                         {"type": "text", "text": poruka}]}]))
         maska = broj[:5] + "…" + broj[-3:] if len(broj) > 8 else broj
         if res.get("ok"):
-            _log(f"nalog vozaču {vozac} ({maska}) poslan")
-            return _json({"ok": True, "broj": maska, "kanal": "whatsapp"})
+            # Meta je samo PRIMILA poruku; isporuku javlja kasnije webhookom (whatsapp_dostava)
+            mid = whatsapp_dostava.id_iz_odgovora(res)
+            whatsapp_dostava.zapamti(mid, f"nalog vozaču {vozac}", broj)
+            _log(f"nalog vozaču {vozac} ({maska}) predan Meti")
+            return _json({"ok": True, "broj": maska, "kanal": "whatsapp", "id": mid})
         return _json({"ok": False, "broj": maska, "error": whatsapp.opisi_gresku(res)}, status=502)
     except Exception as e:
         _log(f"vozac/nalog GRESKA: {e}")
@@ -345,6 +350,19 @@ def _obradi_wa_event(data):
                 wa = c.get("wa_id")
                 if wa:
                     ime_po_broju[wa] = (c.get("profile") or {}).get("name")
+            # Statusi isporuke (sent/delivered/read/failed) — neuspjele javi vlasnicima
+            try:
+                neuspjele = whatsapp_dostava.obradi_statuse(value)
+            except Exception as e:
+                neuspjele = []
+                monitoring.warning(f"WhatsApp statusi nisu obrađeni: {e}", source="web_api")
+            for n in neuspjele:
+                _log(f"WhatsApp NIJE isporučeno: {n['opis']} ({n['maska']}): {n['greska']}")
+            if neuspjele and _on_status:
+                try:
+                    _on_status(neuspjele)
+                except Exception as e:
+                    monitoring.warning(f"Dojava neisporučenih poruka nije uspjela: {e}", source="web_api")
             for m in value.get("messages", []) or []:
                 frm = m.get("from")
                 ime = ime_po_broju.get(frm) or frm
@@ -519,7 +537,7 @@ def _run():
                          source="web_api", exc=e)
 
 
-def start(on_incoming=None, on_support=None):
+def start(on_incoming=None, on_support=None, on_status=None):
     """UVIJEK diže HTTP server u zasebnom daemon threadu. Server mora slušati
     na portu 8080 da Fly health/smoke check kod deploya prođe (fly.toml ima
     [http_service]) i da /zdrav odgovara. Ako FLOTA_OS_KEY nije postavljen,
@@ -534,8 +552,10 @@ def start(on_incoming=None, on_support=None):
 
     on_support(session_id, ime, tekst) — opcionalni callback za dolazne poruke
     iz živog chata (podrška); main.py javi vlasnicima na Telegram."""
-    global _on_incoming, _on_support
+    global _on_incoming, _on_support, _on_status
     _on_incoming = on_incoming
+    if on_status is not None:
+        _on_status = on_status
     if on_support is not None:
         _on_support = on_support
     try:
