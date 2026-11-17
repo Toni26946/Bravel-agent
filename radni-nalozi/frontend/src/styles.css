@@ -306,6 +306,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .prazno { text-align: center; color: var(--sivo); padding: 48px 16px; }
 .prazno .emo { font-size: 44px; display: block; margin-bottom: 12px; }
 .greska { background: #fdeaea; color: var(--crvena); padding: 12px; border-radius: 10px; font-size: 14px; margin: 10px 0; }
+/* Primka → Apross: jedna stavka u jednom retku */
+.primka-red { display: grid; grid-template-columns: 26px minmax(0, 1.3fr) minmax(0, 1.7fr) 64px 84px; gap: 6px; align-items: center; padding: 4px 2px; border-bottom: 1px solid var(--line, #eee); font-size: 13px; }
+.primka-red input { width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 13px; margin: 0; }
+.primka-zaglavlje { font-weight: 700; border-bottom: 2px solid var(--line, #ddd); }
+.primka-naziv { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) {
+  .primka-red { grid-template-columns: 22px minmax(0, 1fr) 54px 70px; }
+  .primka-red > :nth-child(3) { grid-column: 2 / -1; grid-row: 2; }
+}
 .uspjeh { background: #e8f5e9; color: var(--zelena); padding: 12px; border-radius: 10px; font-size: 14px; margin: 10px 0; }
 
 /* Servisni banner u nalogu */
