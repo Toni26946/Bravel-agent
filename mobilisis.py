@@ -269,8 +269,44 @@ def get_devices():
             continue
         did = d.get("Id", d.get("id"))
         if did is not None:
-            out.append({"Id": did, "Name": _txt(d.get("Name", d.get("name")))})
+            out.append({"Id": did, "Name": _txt(d.get("Name", d.get("name"))), "raw": d})
     return out
+
+
+# ==================== GB IZ NAZIVA VOZILA ====================
+# Toni (17.11.2026.): lokacija se veže SAMO po GB-u. U Mobilisisu svako vozilo ima
+# naziv tipa „DAF 406 Vinothkannan", „MAN 42 Najam Agroburza" — GB je samostalan
+# broj (1–4 znamenke) u nazivu. Registracija je samo rezerva dok vozilo nema GB u nazivu.
+_GB_U_NAZIVU = re.compile(r"(?:^|\s)(\d{1,4})(?=\s|$)")
+_PRESKOCI_KLJUCEVE = ("date", "time", "lat", "lon", "speed", "heading",
+                      "odometer", "ignition", "coordinate", "imei", "phone", "serial")
+_kljucevi_zapisani = False
+
+
+def gb_iz_teksta(tekst):
+    """'DAF 406 Vinothkannan' -> '406'; 'ZG1257HU' / 'Š 303040' / 'TGX 18.520' -> None."""
+    m = _GB_U_NAZIVU.search(_txt(tekst))
+    return norm_gb(m.group(1)) if m else None
+
+
+def gb_iz_naziva(*izvori):
+    """Prvi GB nađen u tekstualnim poljima uređaja/pozicije (naziv, opis, oznaka…).
+    Polja s 'desc/label/alias/title/vehicle/name' u imenu idu prva."""
+    polja = []
+    for raw in izvori:
+        if not isinstance(raw, dict):
+            continue
+        for k, v in raw.items():
+            kl = str(k).lower()
+            if not isinstance(v, str) or kl.endswith("id") or any(p in kl for p in _PRESKOCI_KLJUCEVE):
+                continue
+            prio = 0 if any(p in kl for p in ("desc", "label", "alias", "title", "vehicle", "note")) else 1
+            polja.append((prio, v))
+    for _, v in sorted(polja, key=lambda x: x[0]):
+        gb = gb_iz_teksta(v)
+        if gb:
+            return gb
+    return None
 
 
 def _parse_position(p):
@@ -286,6 +322,7 @@ def _parse_position(p):
         "ignition": p.get("ignitionState", p.get("IgnitionState")),
         "dateTime": p.get("dateTime", p.get("DateTime")),
         "odometer": _num_dot(p.get("odometer", p.get("Odometer"))),
+        "raw": p,
     }
 
 
@@ -617,17 +654,29 @@ def all_positions():
        vrijeme(ISO8601 UTC ili None), odometar}
     lat/lon/brzina/smjer/odometar su brojevi (ili None). Vozila bez GB
     mapiranja dobiju gb=None. Baca MobilisisError na gresku (login/API/mapiranje)."""
+    global _kljucevi_zapisani
     gb2reg, reg2gb, regs = _get_map()
     devices = get_devices()
     id2name = {str(d["Id"]): d.get("Name", "") for d in devices}
+    id2raw = {str(d["Id"]): d.get("raw") or {} for d in devices}
     positions = get_positions()
 
     out = []
+    po_nazivu = po_reg = bez = 0
     for p in positions:
         did = str(p.get("deviceId"))
         reg_display = _txt(id2name.get(did, ""))
         reg_norm = norm_reg(reg_display)
-        gb = reg2gb.get(reg_norm) if reg_norm else None
+        # GB iz naziva vozila u Mobilisisu (glavno); registracija samo kao rezerva.
+        gb = gb_iz_naziva(id2raw.get(did), p.get("raw"))
+        if gb:
+            po_nazivu += 1
+        else:
+            gb = reg2gb.get(reg_norm) if reg_norm else None
+            if gb:
+                po_reg += 1
+            else:
+                bez += 1
         dt = parse_utc(p.get("dateTime"))
         out.append({
             "gb": gb or None,
@@ -640,4 +689,12 @@ def all_positions():
             "vrijeme": dt.astimezone(timezone.utc).isoformat() if dt else None,
             "odometar": p.get("odometer"),
         })
+    if not _kljucevi_zapisani:
+        _kljucevi_zapisani = True
+        prvi_dev = next(iter(id2raw.values()), {})
+        prva_poz = (positions[0].get("raw") if positions else None) or {}
+        _log(f"polja uređaja: {sorted(prvi_dev.keys())}; polja pozicije: {sorted(prva_poz.keys())}")
+        primjeri = [{k: v for k, v in r.items() if isinstance(v, str)} for r in list(id2raw.values())[:3]]
+        _log(f"primjeri naziva: {primjeri}")
+        _log(f"GB: {po_nazivu} iz naziva, {po_reg} po registraciji (rezerva), {bez} bez GB-a")
     return out
