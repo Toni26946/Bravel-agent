@@ -47,6 +47,17 @@ def _izvuci_dio(opis: str | None) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def opis_s_operacijom(kategorija: str | None, opis: str | None) -> str:
+    """Opis zadatka s nazivom operacije ispred (npr. „Kočnice 3. osovina – lijevi kotač
+    blokira"). Mehaničar je prije dobivao samo opis, pa nije znao na kojoj je osovini
+    (WhatsApp prijava #298). „RAZNO" i naziv koji je već u opisu se ne ponavljaju."""
+    op = (kategorija or "").strip()
+    opis = (opis or "").strip()
+    if not op or op.upper() == "RAZNO" or op.lower() in opis.lower():
+        return opis
+    return f"{op} – {opis}" if opis else op
+
+
 def osiguraj_link(db: Session, radnik_id: int) -> MehanicarLink:
     """Dohvati aktivnu poveznicu mehaničara ili je stvori (bez diranja vezanog uređaja
     ako već postoji aktivna). Koristi se pri slanju iz Plana."""
@@ -859,8 +870,9 @@ def dio_stigao(zadatak_id: int, request: Request,
     m = z.radnici[0] if z.radnici else None
     wa = None
     if m:
-        obavijesti_korisnika(db, m.id, "Dio je stigao", f"{z.opis} · GB {_gb(n)}", "/moja-radiona")
-        wa = posalji_poveznicu(db, m, _gb(n), z.opis or "", str(request.base_url))
+        tekst = opis_s_operacijom(z.operacija.kategorija, z.opis)
+        obavijesti_korisnika(db, m.id, "Dio je stigao", f"{tekst} · GB {_gb(n)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(n), tekst, str(request.base_url))
     db.commit()
     return {"ok": True, "wa": wa}
 
@@ -884,6 +896,8 @@ _HTML = """<!doctype html>
 .gb{font-size:34px;font-weight:800;line-height:1}
 .meta{color:#5b6470;font-size:14px;margin-top:4px}
 .opis{font-size:18px;margin-top:14px;line-height:1.4}
+.operacija{font-size:16px;margin-top:14px;font-weight:800;color:#0d47a1;text-transform:uppercase;letter-spacing:.3px}
+.operacija+.opis{margin-top:4px}
 .cijena{margin-top:12px;font-size:15px;color:#0d47a1;font-weight:700}
 .gumbi{display:flex;flex-direction:column;gap:12px;margin-top:8px}
 button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;color:#fff;cursor:pointer}
@@ -926,6 +940,9 @@ async function api(akcija,extra){
   return {status:r.status,j};
 }
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+// Naziv operacije (npr. „Kočnice 3. osovina") iznad opisa — bez njega mehaničar ne zna
+// na kojoj osovini je „lijevi kotač" (#298). RAZNO i naziv koji je već u opisu se preskaču.
+function operacija(k,opis){k=(k||'').trim();if(!k||k.toUpperCase()==='RAZNO'||String(opis||'').toLowerCase().indexOf(k.toLowerCase())>=0)return'';return '<div class="operacija">'+esc(k)+'</div>';}
 function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
 // --- Jezici: HR / EN / UK (mehaničari su često s ukrajinskog govornog područja) ---
 var I18N={
@@ -959,7 +976,7 @@ function render(d){
    (d._novi?'<div class="novibanner" id="novibanner">'+T('noviZadatak')+'</div>':'')
    +'<div class="kart'+(d._novi?' novi':'')+'"><div class="gb">'+esc(d.gb)+'</div>'
    +'<div class="meta">'+esc([d.vozilo,d.reg].filter(Boolean).join(' · '))+'</div>'
-   +'<div class="opis">'+esc(d.opis)+'</div>'+cij
+   +operacija(d.kategorija,d.opis)+'<div class="opis">'+esc(d.opis)+'</div>'+cij
    +(radi?'<div class="stanje radi">'+T('mjeracRadi')+'</div>':'')
    +(d.preostalo>0?'<div class="stanje">'+T('uRedu',{n:d.preostalo})+'</div>':'')
    +'</div>'
@@ -987,7 +1004,7 @@ function renderPopis(d){
     var rokLinija = (s.rok && !/rok/i.test(s.opis||'')) ? '<div class="rok">'+T('rok')+' '+esc(s.rok)+'</div>' : '';
     h+='<div class="kart"><div class="gb">'+esc(s.gb)+'</div>'
       +'<div class="meta">'+esc([s.vozilo,s.reg].filter(Boolean).join(' · '))+'</div>'
-      +'<div class="opis">'+esc(s.opis)+'</div>'+rokLinija
+      +operacija(s.kategorija,s.opis)+'<div class="opis">'+esc(s.opis)+'</div>'+rokLinija
       +'<div class="gumbi"><button class="b-stavka" data-zid="'+s.zadatak_id+'" data-gb="'+esc(s.gb)+'">'+T('gotovoKv')+'</button></div>'
       +'</div>';
   }

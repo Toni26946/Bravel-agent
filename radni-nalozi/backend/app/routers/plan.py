@@ -808,11 +808,13 @@ def posalji(zid: int, request: Request, korisnik: Korisnik = Depends(_samo_vlasn
              nalog_id=n.id, zadatak_id=z.id, radnik_id=m.id)
     z.ceka_potvrdu = True
     z.razlog_prekida = None
-    obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(n)}", "/moja-radiona")
+    from .dispecer import opis_s_operacijom
+    tekst = opis_s_operacijom(z.operacija.kategorija, z.opis)   # s nazivom operacije (#298)
+    obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{tekst} · GB {_gb(n)}", "/moja-radiona")
     # Dispečer: pošalji login-less poveznicu mehaničaru na WhatsApp (GATED — ništa se
     # ne šalje dok se izričito ne upali i samo odobrenim brojevima). Ne ruši dodjelu.
     from .dispecer import posalji_poveznicu
-    wa = posalji_poveznicu(db, m, _gb(n), z.opis or "", str(request.base_url))
+    wa = posalji_poveznicu(db, m, _gb(n), tekst, str(request.base_url))
     db.commit()
     return {"ok": True, "wa": wa}
 
@@ -886,7 +888,7 @@ def isplaniraj(nalog_id: int, request: Request,
     n = db.get(Nalog, nalog_id)
     if not n:
         raise HTTPException(status_code=404, detail="Nalog ne postoji")
-    from .dispecer import _red, posalji_poveznicu
+    from .dispecer import _red, opis_s_operacijom, posalji_poveznicu
     # Mehaničari dodijeljeni na nezavršenim operacijama ovog naloga (bez onih koji čekaju dijelove).
     mehanicari: dict[int, Korisnik] = {}
     for op in n.operacije:
@@ -915,8 +917,9 @@ def isplaniraj(nalog_id: int, request: Request,
         z.razlog_prekida = None
         z.prekid_vrijeme = None
         nt = z.operacija.nalog
-        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
-        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", str(request.base_url))
+        tekst = opis_s_operacijom(z.operacija.kategorija, z.opis)   # s nazivom operacije (#298)
+        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{tekst} · GB {_gb(nt)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(nt), tekst, str(request.base_url))
         if wa.get("poslano"):
             poslano += 1
     db.commit()
@@ -929,7 +932,7 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
     poveznicu na njegov prvi zadatak u redu. Preskače: odsutne (godišnji/bolovanje),
     one koji već rade (mjerač teče) i one kojima je već poslano (ceka_potvrdu). Koristi
     je i ručni gumb i jutarnje auto-slanje (zato prima base_url umjesto Requesta)."""
-    from .dispecer import _red, posalji_poveznicu
+    from .dispecer import _red, opis_s_operacijom, posalji_poveznicu
     nalozi = (db.query(Nalog)
               .filter(Nalog.status.in_(_AKTIVNI), Nalog.plan_rang.isnot(None)).all())
     mehanicari: dict[int, Korisnik] = {}
@@ -966,8 +969,9 @@ def posalji_sve_plan(db: Session, base_url: str) -> dict:
         z.razlog_prekida = None
         z.prekid_vrijeme = None
         nt = z.operacija.nalog
-        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{z.opis} · GB {_gb(nt)}", "/moja-radiona")
-        wa = posalji_poveznicu(db, m, _gb(nt), z.opis or "", base_url)
+        tekst = opis_s_operacijom(z.operacija.kategorija, z.opis)   # s nazivom operacije (#298)
+        obavijesti_korisnika(db, m.id, "Potvrdi početak", f"{tekst} · GB {_gb(nt)}", "/moja-radiona")
+        wa = posalji_poveznicu(db, m, _gb(nt), tekst, base_url)
         if wa.get("poslano"):
             poslano += 1
             db.add(KlikPoslano(radnik_id=m.id))   # trag za klik-bonus (kad mu je poslano)
