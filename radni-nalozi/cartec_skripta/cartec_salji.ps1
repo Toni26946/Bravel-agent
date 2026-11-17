@@ -11,6 +11,8 @@
 # Pokretanje: instaliraj.bat (doda se u Startup, radi skriveno). Dnevnik: %LOCALAPPDATA%\BravelCartec\dnevnik.txt
 
 $ErrorActionPreference = 'Continue'
+# Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
+$Verzija   = '2'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -38,6 +40,41 @@ function Zapisi($tekst) {
     try {
         Add-Content -Path $Dnevnik -Value $red -Encoding UTF8
         if ((Get-Item $Dnevnik).Length -gt 2MB) { Move-Item $Dnevnik "$Dnevnik.staro" -Force }
+    } catch {}
+}
+
+function Dohvati($putanja, $token) {
+    # PowerShell 5.1 bez „charset" u odgovoru čita tekst kao Latin-1 i pokvari č/ć/š/ž → dekodiramo sami (UTF-8).
+    $odg = Invoke-WebRequest -Uri ($Baza + $putanja) -Method Get -Headers @{ 'X-Cartec-Token' = $token } -TimeoutSec 30 -UseBasicParsing
+    $tekst = [Text.Encoding]::UTF8.GetString($odg.RawContentStream.ToArray())
+    return $tekst | ConvertFrom-Json
+}
+
+function JaviStanje($token) {
+    # Verzija + zadnji redovi dnevnika u portal (Šifrarnik → Cartec valjci) — kvar se vidi bez AnyDeska.
+    if (-not $token) { return }
+    try {
+        $rep = ''
+        if (Test-Path $Dnevnik) { $rep = (Get-Content $Dnevnik -Tail 60 -Encoding UTF8) -join "`n" }
+        [void](Posalji '/cartec/stanje' @{ verzija = $Verzija; dnevnik = $rep } $token)
+    } catch {}
+}
+
+function Azuriraj($token) {
+    # Nova verzija s portala → prepiši ovu datoteku i izađi; pokretač (VBS) je pokrene ponovno.
+    if (-not $token) { return }
+    try {
+        $r = Dohvati '/cartec/skripta' $token
+        $nova = 0; $ova = 0
+        [void][int]::TryParse([string]$r.verzija, [ref]$nova)
+        [void][int]::TryParse($Verzija, [ref]$ova)
+        if ($nova -gt $ova -and $r.sadrzaj) {
+            $put = $PSCommandPath
+            [IO.File]::WriteAllText($put, [string]$r.sadrzaj, (New-Object Text.UTF8Encoding($true)))
+            Zapisi "Ažurirano s verzije $ova na $nova — ponovno pokretanje."
+            try { $mutex.ReleaseMutex() } catch {}
+            exit 0
+        }
     } catch {}
 }
 
@@ -127,11 +164,17 @@ if (Test-Path $PoslanoDat) { Get-Content $PoslanoDat | ForEach-Object { [void]$p
 $prviPut = -not (Test-Path $PoslanoDat)
 $pocetak = Get-Date
 $zadnjiPokusaj = @{}
-Zapisi "Pokrenuto ($env:COMPUTERNAME)."
+$zadnjeStanje = [datetime]::MinValue
+$zadnjeAzuriranje = [datetime]::MinValue
+$logsProvjera = Join-Path $CartecDir 'Logs'
+$brAxle = @(Get-ChildItem -Path $logsProvjera -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue).Count
+Zapisi "Pokrenuto v$Verzija ($env:COMPUTERNAME). Mapa Logs postoji: $(Test-Path $logsProvjera), AxleData datoteka: $brAxle, prvi put: $prviPut."
 
 while ($true) {
     try {
         $token = Token
+        if (((Get-Date) - $zadnjeStanje).TotalSeconds -ge 120) { JaviStanje $token; $zadnjeStanje = Get-Date }
+        if (((Get-Date) - $zadnjeAzuriranje).TotalMinutes -ge 10) { Azuriraj $token; $zadnjeAzuriranje = Get-Date }
         $logs = Join-Path $CartecDir 'Logs'
         $datoteke = Get-ChildItem -Path $logs -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue
         foreach ($dat in $datoteke) {
@@ -149,6 +192,7 @@ while ($true) {
             if (-not $token) { continue }
             if ($zadnjiPokusaj.ContainsKey($kljuc) -and ((Get-Date) - $zadnjiPokusaj[$kljuc]).TotalSeconds -lt 60) { continue }
             $zadnjiPokusaj[$kljuc] = Get-Date
+            Zapisi "Šaljem $($dat.Name) ($($dat.LastWriteTime.ToString('HH:mm:ss')))."
 
             $o = Ocitaj $dat
             if (-not $o) {                                                  # samo pokretanje valjaka, bez kočenja

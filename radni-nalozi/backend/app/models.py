@@ -882,6 +882,10 @@ class CartecUredjaj(Base):
     odobren: Mapped[bool] = mapped_column(Boolean, default=False)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     zadnji_kontakt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Što skripta javlja o sebi (verzija + zadnji redovi dnevnika) — vidi se u Šifrarniku.
+    verzija: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    stanje: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stanje_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TestKocnica(Base):
