@@ -98,6 +98,51 @@ def ping(x_cartec_token: str | None = Header(default=None), db: Session = Depend
     return {"id": u.id, "odobren": u.odobren}
 
 
+class StanjeIn(BaseModel):
+    verzija: str = Field(default="", max_length=20)
+    dnevnik: str = Field(default="", max_length=20000)   # zadnji redovi dnevnika skripte
+
+
+@router.post("/stanje")
+def javi_stanje(p: StanjeIn, x_cartec_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Skripta svakih par minuta javi verziju i dnevnik — da se kvar vidi bez AnyDeska.
+    Smije i neodobren uređaj (samo upis stanja, ništa drugo)."""
+    u = _uredjaj(db, x_cartec_token, mora_biti_odobren=False)
+    u.verzija = (p.verzija or "")[:20] or None
+    u.stanje = p.dnevnik[-20000:] or None
+    u.stanje_vrijeme = _sad()
+    db.commit()
+    return {"ok": True, "odobren": u.odobren}
+
+
+def _skripta_put():
+    from pathlib import Path
+    ovdje = Path(__file__).resolve()
+    for kand in (ovdje.parents[2] / "cartec_skripta" / "cartec_salji.ps1",     # Docker: /app/cartec_skripta
+                 ovdje.parents[3] / "cartec_skripta" / "cartec_salji.ps1"):    # repo: radni-nalozi/cartec_skripta
+        if kand.exists():
+            return kand
+    return None
+
+
+def _verzija_skripte(tekst: str) -> str:
+    import re
+    m = re.search(r"\$Verzija\s*=\s*'([^']+)'", tekst)
+    return m.group(1) if m else ""
+
+
+@router.get("/skripta")
+def skripta(x_cartec_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Najnovija skripta za samoažuriranje (samo odobreni uređaj)."""
+    _uredjaj(db, x_cartec_token)
+    db.commit()
+    put = _skripta_put()
+    if not put:
+        raise HTTPException(status_code=404, detail="Skripta nije u paketu")
+    tekst = put.read_text(encoding="utf-8-sig")
+    return {"verzija": _verzija_skripte(tekst), "sadrzaj": tekst}
+
+
 class MjerenjeIn(BaseModel):
     sesija: str | None = Field(default=None, max_length=40)  # vrijeme zadnjeg Cartec „novo vozilo"
     osovina: int = Field(ge=1, le=12)
@@ -361,7 +406,9 @@ def uredjaji(db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasnik))
     for u in db.query(CartecUredjaj).order_by(CartecUredjaj.kreiran.desc()).all():
         out.append({"id": u.id, "naziv": u.naziv, "odobren": u.odobren,
                     "kreiran": _utc(u.kreiran).isoformat(),
-                    "zadnji_kontakt": _utc(u.zadnji_kontakt).isoformat() if u.zadnji_kontakt else None})
+                    "zadnji_kontakt": _utc(u.zadnji_kontakt).isoformat() if u.zadnji_kontakt else None,
+                    "verzija": u.verzija, "stanje": u.stanje,
+                    "stanje_vrijeme": _utc(u.stanje_vrijeme).isoformat() if u.stanje_vrijeme else None})
     return out
 
 

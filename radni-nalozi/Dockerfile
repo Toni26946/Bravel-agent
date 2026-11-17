@@ -15,6 +15,8 @@ COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY backend/app ./app
+# Skripta za računalo s Cartec valjcima — portal je poslužuje za samoažuriranje.
+COPY cartec_skripta ./cartec_skripta
 COPY --from=frontend /fe/dist ./static
 
 ENV FRONTEND_DIST=/app/static \

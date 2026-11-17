@@ -129,3 +129,21 @@ def test_vise_osovina_nego_prosli_put_trazi_potvrdu():
                                   x_cartec_token=tok, db=db)
     assert r["status"] == "ceka_potvrdu"
     assert cartec.blokira_zatvaranje(db, n.id) is not None
+
+
+def test_stanje_i_skripta_za_samoazuriranje():
+    db = _db()
+    tok = cartec.prijava_uredjaja(PrijavaIn(), db=db)["token"]
+    # neodobren smije javiti stanje, ali ne smije dohvatiti skriptu
+    r = cartec.javi_stanje(cartec.StanjeIn(verzija="2", dnevnik="red1\nred2"), x_cartec_token=tok, db=db)
+    assert r == {"ok": True, "odobren": False}
+    with pytest.raises(HTTPException):
+        cartec.skripta(x_cartec_token=tok, db=db)
+    vod = Korisnik(ime="Toni", korisnicko_ime="toni", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add(vod)
+    db.commit()
+    cartec.odobri_uredjaj(1, OdobriIn(odobren=True), db=db, _=vod)
+    s = cartec.skripta(x_cartec_token=tok, db=db)
+    assert s["verzija"] and int(s["verzija"]) >= 2 and "AxleData" in s["sadrzaj"]
+    [u] = cartec.uredjaji(db=db, _=vod)
+    assert u["verzija"] == "2" and "red2" in u["stanje"]

@@ -79,6 +79,10 @@ _STUPCI = [
     # Kraj smjene (pitanje "gotov za danas / ostaješ dulje")
     ("mehanicar_linkovi", "smjena_pitano", "TIMESTAMP"),
     ("mehanicar_linkovi", "smjena_odgovor", "VARCHAR(10)"),
+    # Cartec skripta javlja svoju verziju i stanje (dnevnik) — dijagnoza bez AnyDeska
+    ("cartec_uredjaji", "verzija", "VARCHAR(20)"),
+    ("cartec_uredjaji", "stanje", "TEXT"),
+    ("cartec_uredjaji", "stanje_vrijeme", "TIMESTAMP"),
 ]
 
 

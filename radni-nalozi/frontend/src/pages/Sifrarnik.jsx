@@ -75,7 +75,15 @@ function CartecUredjaji() {
             <div style={{ fontWeight: 700 }}>{u.naziv}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
               {u.odobren ? '✅ odobren' : '⏳ čeka odobrenje'} · javio se {u.zadnji_kontakt ? kad(u.zadnji_kontakt) : 'nikad'}
+              {u.verzija ? ` · skripta v${u.verzija}` : ''}
+              {u.stanje_vrijeme ? ` · stanje ${kad(u.stanje_vrijeme)}` : ''}
             </div>
+            {u.stanje && (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 12, cursor: 'pointer' }}>Dnevnik skripte</summary>
+                <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto', background: 'var(--pozadina, #f6f7f9)', padding: 6, margin: '4px 0 0' }}>{u.stanje}</pre>
+              </details>
+            )}
           </div>
           {u.odobren
             ? <button className="btn ghost" style={{ width: 'auto', margin: 0 }} onClick={() => postavi(u, false)}>Isključi</button>
