@@ -865,3 +865,71 @@ class KlikRucno(Base):
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
     voditelj: Mapped["Korisnik | None"] = relationship(foreign_keys=[voditelj_id])
+
+
+# ---------------------------------------------------------------------------
+# Cartec valjci — testovi kočnica (računalo u radioni šalje svako mjerenje)
+# ---------------------------------------------------------------------------
+class CartecUredjaj(Base):
+    """Računalo s Cartec valjcima koje šalje mjerenja. Prijavi se samo (dobije
+    nasumičan token), a vlasnik ga jednom odobri u Šifrarnik → Integracije —
+    tako nitko ne mora prepisivati ključeve/lozinke."""
+    __tablename__ = "cartec_uredjaji"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    naziv: Mapped[str] = mapped_column(String(120))
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    odobren: Mapped[bool] = mapped_column(Boolean, default=False)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    zadnji_kontakt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TestKocnica(Base):
+    """Jedan test kočnica = jedno vozilo na valjcima (sva mjerenja istog vozila
+    unutar ~1 h, odnosno do Cartecovog „novo vozilo"). Veže se uz radni nalog
+    (pa preko njega uz GB). Bez naloga ostaje „nerazvrstan"."""
+    __tablename__ = "testovi_kocnica"
+    __table_args__ = (UniqueConstraint("uredjaj_id", "sesija", name="uq_test_sesija"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uredjaj_id: Mapped[int] = mapped_column(ForeignKey("cartec_uredjaji.id"), index=True)
+    # Oznaka vozila na Cartecu (vrijeme zadnjeg „deleteAll" iz dnevnika) — granica vozila.
+    sesija: Mapped[str] = mapped_column(String(40))
+    pocetak: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    kraj: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # 'vezan' | 'nerazvrstan' | 'ceka_potvrdu'
+    status: Mapped[str] = mapped_column(String(20), default="nerazvrstan", index=True)
+    nalog_id: Mapped[int | None] = mapped_column(ForeignKey("nalozi.id"), nullable=True, index=True)
+    gb: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Mogući nalozi (id-jevi zarezom) kad nije jasno koje je vozilo — za pitanje s gumbima.
+    kandidati: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    vezao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    mjerenja: Mapped[list["MjerenjeOsovine"]] = relationship(
+        back_populates="test", cascade="all, delete-orphan",
+        order_by="MjerenjeOsovine.vrijeme",
+    )
+
+
+class MjerenjeOsovine(Base):
+    """Jedno mjerenje jedne osovine (radna ili parkirna kočnica). Ponovljeno
+    mjerenje iste osovine dobije novi zapis; vrijedi zadnje (vazece=True),
+    ranija ostaju kao „ponovljeno"."""
+    __tablename__ = "mjerenja_osovina"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    test_id: Mapped[int] = mapped_column(ForeignKey("testovi_kocnica.id", ondelete="CASCADE"), index=True)
+    # Otisak sadržaja datoteke — isto mjerenje poslano dvaput se ne duplicira.
+    otisak: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    osovina: Mapped[int] = mapped_column(Integer)
+    vrsta: Mapped[str] = mapped_column(String(10))          # 'radna' | 'parkirna'
+    vrijeme: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sila_lijevo: Mapped[int] = mapped_column(Integer)       # N, najveća izmjerena
+    sila_desno: Mapped[int] = mapped_column(Integer)        # N
+    razlika_pct: Mapped[float] = mapped_column(Float)       # (veća-manja)/veća · 100
+    tezina: Mapped[int | None] = mapped_column(Integer, nullable=True)  # kg (ako vaga mjeri)
+    vazece: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    test: Mapped["TestKocnica"] = relationship(back_populates="mjerenja")

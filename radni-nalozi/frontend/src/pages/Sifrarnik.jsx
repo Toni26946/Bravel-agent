@@ -33,12 +33,57 @@ export default function Sifrarnik({ pocetniTab = 'vozila' }) {
         <span className={`chip ${tab === 'korisnici' ? 'akt' : ''}`} onClick={() => setTab('korisnici')}>{t('sif.korisnici')}</span>
         {vlasnik && <span className={`chip ${tab === 'gps' ? 'akt' : ''}`} onClick={() => setTab('gps')}>📡 GPS uređaji</span>}
         {vlasnik && <span className={`chip ${tab === 'integracije' ? 'akt' : ''}`} onClick={() => setTab('integracije')}>🔌 Integracije</span>}
+        {vlasnik && <span className={`chip ${tab === 'cartec' ? 'akt' : ''}`} onClick={() => setTab('cartec')}>🛞 Cartec valjci</span>}
       </div>
       {tab === 'korisnici' && <Korisnici />}
       {tab === 'vozila' && <Vozila />}
       {tab === 'gps' && vlasnik && <GpsUredaji />}
       {tab === 'integracije' && vlasnik && <Integracije />}
+      {tab === 'cartec' && vlasnik && <CartecUredjaji />}
     </Layout>
+  )
+}
+
+// --- Cartec valjci (vlasnik): računalo u radioni se samo prijavi, ovdje ga se odobri ---
+// Nitko ne prepisuje ključ: skripta dobije token pri prijavi, vlasnik je samo pusti.
+function CartecUredjaji() {
+  const [lista, setLista] = useState(null)
+  const [greska, setGreska] = useState('')
+  const ucitaj = () => api.cartecUredjaji().then(setLista).catch((e) => setGreska(e.message || 'Greška'))
+  useEffect(() => { ucitaj() }, [])
+  const postavi = async (u, odobren) => {
+    try { await api.cartecOdobri(u.id, odobren); ucitaj() } catch (e) { setGreska(e.message) }
+  }
+  const obrisi = async (u) => {
+    if (!confirm(`Ukloniti uređaj „${u.naziv}”?`)) return
+    try { await api.cartecObrisi(u.id); ucitaj() } catch (e) { setGreska(e.message) }
+  }
+  const kad = (iso) => { try { return new Date(iso).toLocaleString('hr-HR') } catch { return '' } }
+  if (!lista) return greska ? <div className="card" style={{ color: 'var(--crveno)' }}>{greska}</div> : <Spinner />
+  return (
+    <div className="card" style={{ maxWidth: 560 }}>
+      <h3 style={{ marginTop: 0 }}>Cartec valjci — računalo u radioni</h3>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0 }}>
+        Skripta na računalu s valjcima šalje svaki test kočnica. Kad se prvi put pokrene, ovdje se pojavi
+        kao novi uređaj — klikni <b>Odobri</b>. Testovi su pod „Pregled radova → Testovi kočnica”.
+      </p>
+      {greska && <p style={{ color: 'var(--crveno)' }}>{greska}</p>}
+      {!lista.length && <p style={{ color: 'var(--muted)' }}>Još se nijedno računalo nije javilo.</p>}
+      {lista.map((u) => (
+        <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--rub, #e5e7eb)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700 }}>{u.naziv}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {u.odobren ? '✅ odobren' : '⏳ čeka odobrenje'} · javio se {u.zadnji_kontakt ? kad(u.zadnji_kontakt) : 'nikad'}
+            </div>
+          </div>
+          {u.odobren
+            ? <button className="btn ghost" style={{ width: 'auto', margin: 0 }} onClick={() => postavi(u, false)}>Isključi</button>
+            : <button className="btn" style={{ width: 'auto', margin: 0 }} onClick={() => postavi(u, true)}>Odobri</button>}
+          <button className="btn ghost" style={{ width: 'auto', margin: 0, color: 'var(--crveno)' }} onClick={() => obrisi(u)}>✕</button>
+        </div>
+      ))}
+    </div>
   )
 }
 

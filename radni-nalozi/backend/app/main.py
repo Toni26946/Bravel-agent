@@ -25,6 +25,7 @@ from .obracun_radione import auto_sync_pri_pokretanju
 from .routers import flota as flota_router
 from .routers import imenik as imenik_router
 from .routers import samostalno as samostalno_router
+from .routers import cartec as cartec_router
 from .seed import (
     backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
@@ -206,6 +207,7 @@ app.include_router(dispecer.router, prefix="/api")
 app.include_router(samostalno_router.router, prefix="/api")
 app.include_router(integracije.router, prefix="/api")
 app.include_router(narudzbe.router, prefix="/api")
+app.include_router(cartec_router.router, prefix="/api")
 # Login-less stranica mehaničara /z/<token> — registrirana PRIJE SPA catch-alla.
 app.include_router(dispecer.page_router)
 

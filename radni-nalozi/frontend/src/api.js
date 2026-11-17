@@ -215,6 +215,18 @@ export const api = {
 
   // Integracije (vlasnik) — APROSS / Zagreb Data
   gpsUredaji: () => zahtjev('/integracije/gps-uredaji'),
+  cartecUredjaji: () => zahtjev('/cartec/uredjaji'),
+  cartecOdobri: (id, odobren) => zahtjev(`/cartec/uredjaji/${id}`, { method: 'POST', body: { odobren } }),
+  cartecObrisi: (id) => zahtjev(`/cartec/uredjaji/${id}`, { method: 'DELETE' }),
+  testoviKocnica: ({ status = '', nalogId = '', gb = '' } = {}) => {
+    const q = new URLSearchParams()
+    if (status) q.set('status', status)
+    if (nalogId) q.set('nalog_id', nalogId)
+    if (gb) q.set('gb', gb)
+    return zahtjev(`/cartec/testovi?${q.toString()}`)
+  },
+  cartecNaloziZaGb: (gb) => zahtjev(`/cartec/otvoreni-nalozi?gb=${encodeURIComponent(gb)}`),
+  testKocnicaVezi:(id, nalogId) => zahtjev(`/cartec/testovi/${id}/vezi`, { method: 'POST', body: { nalog_id: nalogId } }),
   gpsPoveziUredaj: (b) => zahtjev('/integracije/gps-uredaji', { method: 'POST', body: b }),
   arossStanje: () => zahtjev('/integracije/aross'),
   arossSpremi: (b) => zahtjev('/integracije/aross', { method: 'POST', body: b }),
