@@ -269,7 +269,7 @@ function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '', onKreiraj }
 function PosaljiUApross({ primka, onPoslano }) {
   const danas = new Date().toISOString().slice(0, 10)
   const [skl, setSkl] = useState([])
-  const [sklId, setSklId] = useState('')
+  const [sklId, setSklId] = useState('2')   // sve ide preko skladišta 2 „Roba" (Toni 17.11.2026.)
   const [dob, setDob] = useState(null)
   const [broj, setBroj] = useState(primka.broj_otpremnice || ('w' + primka.id))
   const [datum, setDatum] = useState(primka.datum || danas)
@@ -279,6 +279,14 @@ function PosaljiUApross({ primka, onPoslano }) {
   const [otv, setOtv] = useState(false)
 
   useEffect(() => { if (otv && skl.length === 0) api.arossSkladistaPopis().then((d) => setSkl(d || [])).catch(() => {}) }, [otv])
+
+  // Dobavljač: sam ga potraži u Aprossu po nazivu s otpremnice (npr. „FRENUM d.o.o.")
+  // i odaberi prvi pogodak — korisnik ga može promijeniti tražilicom.
+  useEffect(() => {
+    if (!otv || dob || !primka.dobavljac) return
+    const q = primka.dobavljac.replace(/\b(d\.?\s?o\.?\s?o\.?|j\.?d\.?o\.?o\.?|gmbh|s\.?r\.?o\.?)\b/gi, '').replace(/[.,]/g, ' ').trim()
+    api.arossPartneri(q || primka.dobavljac).then((l) => { if (Array.isArray(l) && l.length) setDob(l[0]) }).catch(() => {})
+  }, [otv])
 
   // Kad se otvori: predloži Apross artikl po KATALOŠKOM BROJU za svaku stavku (samo
   // jednoznačan pogodak). Ne dira stavke koje je korisnik već sam povezao.
@@ -335,6 +343,7 @@ function PosaljiUApross({ primka, onPoslano }) {
             <Trazilica placeholder="traži dobavljača…" pocetni={primka.dobavljac || ''}
               trazi={(q) => api.arossPartneri(q)} opis={(p) => `${p.naziv}${p.mjesto ? ' · ' + p.mjesto : ''}`}
               onPick={setDob} />
+            {dob && <div className="meta" style={{ marginTop: 4, color: 'var(--zelena, green)' }}>✓ {dob.naziv} (šifra {dob.sifra})</div>}
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -385,7 +394,8 @@ function PosaljiUApross({ primka, onPoslano }) {
             </div>
           ))}
 
-          <button className="btn" disabled={radi} onClick={posalji}>📤 Pošalji u Apross</button>
+          {greska && <div className="greska" style={{ marginBottom: 8 }}>{greska}</div>}
+          <button className="btn" disabled={radi} onClick={posalji}>{radi ? '⏳ Šaljem…' : '📤 Pošalji u Apross'}</button>
           <p className="meta" style={{ marginBottom: 0 }}>Apross dodjeljuje broj primke i vraća ga; stavke bez povezanog artikla se preskaču.</p>
         </div>
       )}
