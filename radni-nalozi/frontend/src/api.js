@@ -225,6 +225,7 @@ export const api = {
   arossArtikliTrazi: (q = '') => zahtjev(`/integracije/aross/artikli?q=${encodeURIComponent(q)}`),
   arossPosaljiPrimku: (b) => zahtjev('/integracije/aross/primka', { method: 'POST', body: b }),
   arossPredloziArtikle: (stavke) => zahtjev('/integracije/aross/predlozi-artikle', { method: 'POST', body: { stavke } }),
+  arossNoviArtikli: (stavke, jmj) => zahtjev('/integracije/aross/artikli/novi', { method: 'POST', body: { stavke, jmj } }),
   arossMjestaTroska: (q = '') => zahtjev(`/integracije/aross/mjesta-troska?q=${encodeURIComponent(q)}`),
   arossIzdatnicaPriprema: (nalogId) => zahtjev(`/integracije/aross/izdatnica/${nalogId}`),
   arossPosaljiIzdatnicu: (b) => zahtjev('/integracije/aross/izdatnica', { method: 'POST', body: b }),

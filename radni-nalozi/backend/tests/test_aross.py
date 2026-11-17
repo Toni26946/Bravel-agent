@@ -156,3 +156,28 @@ def test_kreiraj_artikl_izostavi_prazna_polja(monkeypatch):
     aross.kreiraj_artikl(id_artikla=27374, naziv="TEST ARTIKL", jmj="kom")
     t = poslano["tijelo"]
     assert t == {"idArtikla": 27374, "naziv": "TEST ARTIKL", "jmj": "kom"}  # bez katBroj/barkod
+
+
+def test_razdvoji_naziv_kat():
+    from app.routers.integracije import razdvoji_naziv_kat
+    assert razdvoji_naziv_kat("Filter goriva (190199)") == ("FILTER GORIVA", "190199")
+    assert razdvoji_naziv_kat("SVJETLO REGISTRACIJE AUDI PL DESNO (15-0273-00-9)") == ("SVJETLO REGISTRACIJE AUDI PL DESNO", "15-0273-00-9")
+    assert razdvoji_naziv_kat("Brtva bez broja") == ("BRTVA BEZ BROJA", None)
+
+
+def test_novi_artikli_redom_bez_duplikata(monkeypatch):
+    from app.routers import integracije as ig
+    postojeci = {100: {"sifra": 100, "naziv": "FILTER", "kataloskiBroj": "EFF005"}}
+    monkeypatch.setattr(ig.aross, "konfigurirano", lambda db=None: True)
+    monkeypatch.setattr(ig, "_artikli_mapa", lambda db, osvjezi=False: postojeci)
+    kreirani = []
+    monkeypatch.setattr(ig.aross, "kreiraj_artikl", lambda s, n, j, k, b, db=None: kreirani.append((s, n, k)))
+    r = ig.aross_novi_artikli(ig.NoviArtikliIn(stavke=[
+        "Filter goriva (EFF005)",          # postoji → ne otvara se
+        "Amortizer (A-123456)",            # novi → 101
+        "Amortizer drugi put (A-123456)",  # isti kat. broj → isti novi artikl, ne duplikat
+        "Brtva (999-777)",                 # novi → 102
+    ]), db=None, _=None)
+    sifre = [a["sifra"] for a in r["artikli"]]
+    assert sifre == [100, 101, 101, 102]
+    assert [k[0] for k in kreirani] == [101, 102]
