@@ -88,15 +88,17 @@ function GpsUredaji() {
             uređaj {u.id}{u.izvor ? ` · ${u.izvor === 'rucno' ? 'ručno povezan' : 'automatski'}` : ''}
           </div>
         </div>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>GB</span>
+        <span style={{ flex: 'none', fontSize: 13, fontWeight: 700 }}>GB</span>
         <input
           value={v}
           inputMode="numeric"
+          placeholder="—"
           onChange={(e) => setUnos((x) => ({ ...x, [u.id]: e.target.value.replace(/\D/g, '') }))}
           onKeyDown={(e) => { if (e.key === 'Enter') spremi(u, v) }}
-          style={{ width: 70, padding: '6px 8px', fontSize: 15 }}
+          style={{ flex: 'none', width: 80, minWidth: 0, padding: '6px 8px', fontSize: 15, margin: 0 }}
         />
-        <button className="btn" disabled={busy === u.id || String(v) === String(u.gb || '')} onClick={() => spremi(u, v)}>
+        <button className="btn" disabled={busy === u.id || String(v) === String(u.gb || '')} onClick={() => spremi(u, v)}
+          style={{ flex: 'none', width: 'auto', minWidth: 0, margin: 0, padding: '7px 14px', fontSize: 14 }}>
           {busy === u.id ? '…' : 'Spremi'}
         </button>
       </div>
