@@ -497,7 +497,12 @@
   function opOdgovara(o){ var f=_norm(filtOp).trim(); if(!f) return true; return _norm(o.kat).indexOf(f)>=0 || _norm(o.naziv).indexOf(f)>=0; }
   function katOpcije(){
     var vid={}, l=[];
-    nalozi.forEach(function(n){ (n.ops||[]).forEach(function(o){ var k=String(o.kat||"").trim(); if(o.status!=="gotovo" && k && !vid[k.toLowerCase()]){ vid[k.toLowerCase()]=1; l.push(k); } }); });
+    // Samo u ovom popisu: „X 1./2./3. OSOVINA" spoji u jedno „X" — filter traži dio teksta,
+    // pa „BLATOBRANI" pokaže sve osovine. Ostale kategorije ostaju kakve jesu.
+    nalozi.forEach(function(n){ (n.ops||[]).forEach(function(o){
+      var k=String(o.kat||"").replace(/\s*\d+\s*\.?\s*osovin[ae]\s*$/i,"").trim();
+      if(o.status!=="gotovo" && k && !vid[k.toLowerCase()]){ vid[k.toLowerCase()]=1; l.push(k); }
+    }); });
     l.sort(function(a,b){ return a.localeCompare(b,"hr"); });
     return l.map(function(k){ return '<option value="'+esc(k)+'">'; }).join("");
   }
