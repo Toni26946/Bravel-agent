@@ -371,7 +371,7 @@ function PosaljiUApross({ primka, onPoslano }) {
             return (
               <div key={i} className="primka-red" style={{ background: a ? (mape[i].predlozen ? 'rgba(37,99,235,.06)' : 'rgba(22,163,74,.06)') : undefined }}>
                 <span className="meta">{i + 1}</span>
-                <span className="primka-naziv" title={s.artikl}>{s.artikl} <span className="meta">· {broj(s.kolicina)} {s.jedinica || 'kom'}</span></span>
+                <span className="primka-naziv" title={s.artikl}>{s.artikl} <span className="meta">· {String(s.kolicina ?? '').replace('.', ',')} {s.jedinica || 'kom'}</span></span>
                 <span style={{ minWidth: 0 }}>
                   {a ? (
                     <span className="primka-naziv" title={a.naziv} style={{ color: mape[i].predlozen ? 'var(--plava, #2563eb)' : 'var(--zelena, green)' }}>
