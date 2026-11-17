@@ -181,3 +181,9 @@ def test_novi_artikli_redom_bez_duplikata(monkeypatch):
     sifre = [a["sifra"] for a in r["artikli"]]
     assert sifre == [100, 101, 101, 102]
     assert [k[0] for k in kreirani] == [101, 102]
+
+
+def test_sljedeca_sifra_preskace_posebne():
+    from app.routers.integracije import sljedeca_sifra
+    mapa = {27373: {}, 27374: {}, 200000: {}, 200003: {}, 200004: {}}
+    assert sljedeca_sifra(mapa) == 27375

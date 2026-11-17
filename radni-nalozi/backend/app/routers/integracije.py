@@ -440,6 +440,16 @@ def aross_predlozi_artikle(p: PrijedloziIn, db: Session = Depends(get_db), _: Ko
     return {"prijedlozi": [predlozi_artikl(s, idx) for s in p.stavke[:500]]}
 
 
+# Šifre od 100000 naviše u Aprossu su posebni knjigovodstveni artikli („Predujam primljen
+# od kupca" 200000–200003), ne dijelovi — nova šifra dijela ide iza najveće ispod toga.
+_SIFRA_POSEBNI_OD = 100000
+
+
+def sljedeca_sifra(mapa: dict) -> int:
+    brojevi = [int(s) for s in mapa.keys() if (isinstance(s, int) or str(s).isdigit()) and int(s) < _SIFRA_POSEBNI_OD]
+    return (max(brojevi) + 1) if brojevi else 1
+
+
 class ArtiklIn(BaseModel):
     naziv: str
     jmj: str = "kom"
@@ -460,8 +470,7 @@ def aross_kreiraj_artikl(p: ArtiklIn, db: Session = Depends(get_db), _: Korisnik
         mapa = _artikli_mapa(db, osvjezi=True)   # svjež popis da izračunamo sljedeću šifru
         id_art = p.id_artikla
         if not id_art:
-            brojevi = [int(s) for s in mapa.keys() if isinstance(s, int) or str(s).isdigit()]
-            id_art = (max(brojevi) + 1) if brojevi else 1
+            id_art = sljedeca_sifra(mapa)
         if id_art in mapa:
             raise HTTPException(status_code=409, detail=f"Šifra {id_art} već postoji.")
         aross.kreiraj_artikl(id_art, p.naziv.strip(), p.jmj or "kom", p.kat_broj, p.barkod, db=db)
@@ -501,8 +510,7 @@ def aross_novi_artikli(p: NoviArtikliIn, db: Session = Depends(get_db), _: Koris
     except aross.ArossGreska as e:
         raise HTTPException(status_code=502, detail=str(e))
     idx = _kat_indeks(mapa)
-    brojevi = [int(s) for s in mapa.keys() if isinstance(s, int) or str(s).isdigit()]
-    sljedeca = (max(brojevi) + 1) if brojevi else 1
+    sljedeca = sljedeca_sifra(mapa)
     out: list[dict | None] = []
     for i, tekst in enumerate(p.stavke):
         postoji = predlozi_artikl(tekst, idx)
