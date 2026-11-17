@@ -362,37 +362,40 @@ function PosaljiUApross({ primka, onPoslano }) {
             {predlozeno === null ? '🔎 Tražim artikle po kataloškom broju…'
               : `🔎 Po kataloškom broju predloženo ${predlozeno} od ${(primka.stavke || []).length} — provjeri plave, ostale poveži ručno.`}
           </p>
-          {(primka.stavke || []).map((s, i) => (
-            <div key={i} style={{ border: '1px solid var(--line, #eee)', borderRadius: 8, padding: 8, marginBottom: 8 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.artikl} <span className="meta">({s.kolicina} {s.jedinica || 'kom'})</span></div>
-              <Trazilica placeholder="traži Apross artikl (naziv / kat. broj)…" pocetni={s.artikl || ''}
-                trazi={(q) => api.arossArtikliTrazi(q)}
-                opis={(a) => `${a.naziv}${a.kataloskiBroj ? ' · ' + a.kataloskiBroj : ''}`}
-                onPick={(a) => postaviMapu(i, { artikl: a, predlozen: false })}
-                onKreiraj={async (naziv) => {
-                  const r = await api.arossKreirajArtikl({ naziv, jmj: s.jedinica || 'kom' })
-                  if (r && r.artikl) { postaviMapu(i, { artikl: r.artikl }); return r.artikl }
-                  return null
-                }} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <div style={{ flex: 1 }}>
-                  <label className="meta">Količina</label>
-                  <input type="number" step="any" value={mape[i].kolicina} onChange={(e) => postaviMapu(i, { kolicina: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label className="meta">Cijena (EUR)</label>
-                  <input type="number" step="any" value={mape[i].cijena} onChange={(e) => postaviMapu(i, { cijena: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
-                </div>
+          {/* Jedna stavka = jedan redak: s otpremnice | Apross artikl | količina | cijena */}
+          <div className="primka-red primka-zaglavlje meta">
+            <span>#</span><span>S otpremnice</span><span>Apross artikl</span><span>Kol.</span><span>Cijena €</span>
+          </div>
+          {(primka.stavke || []).map((s, i) => {
+            const a = mape[i].artikl
+            return (
+              <div key={i} className="primka-red" style={{ background: a ? (mape[i].predlozen ? 'rgba(37,99,235,.06)' : 'rgba(22,163,74,.06)') : undefined }}>
+                <span className="meta">{i + 1}</span>
+                <span className="primka-naziv" title={s.artikl}>{s.artikl} <span className="meta">· {broj(s.kolicina)} {s.jedinica || 'kom'}</span></span>
+                <span style={{ minWidth: 0 }}>
+                  {a ? (
+                    <span className="primka-naziv" title={a.naziv} style={{ color: mape[i].predlozen ? 'var(--plava, #2563eb)' : 'var(--zelena, green)' }}>
+                      {mape[i].predlozen ? '🔎 ' : '✓ '}<b>{a.sifra}</b> · {a.naziv}{a.kataloskiBroj ? ' · ' + a.kataloskiBroj : ''}
+                      <span className="x" style={{ cursor: 'pointer', marginLeft: 6 }} title="Makni i poveži drugi artikl"
+                        onClick={() => postaviMapu(i, { artikl: null, predlozen: false })}>✕</span>
+                    </span>
+                  ) : (
+                    <Trazilica placeholder="traži Apross artikl…" pocetni={s.artikl || ''}
+                      trazi={(q) => api.arossArtikliTrazi(q)}
+                      opis={(x) => `${x.sifra} · ${x.naziv}${x.kataloskiBroj ? ' · ' + x.kataloskiBroj : ''}`}
+                      onPick={(x) => postaviMapu(i, { artikl: x, predlozen: false })}
+                      onKreiraj={async (naziv) => {
+                        const r = await api.arossKreirajArtikl({ naziv, jmj: s.jedinica || 'kom' })
+                        if (r && r.artikl) { postaviMapu(i, { artikl: r.artikl }); return r.artikl }
+                        return null
+                      }} />
+                  )}
+                </span>
+                <input type="number" step="any" value={mape[i].kolicina} onChange={(e) => postaviMapu(i, { kolicina: e.target.value })} />
+                <input type="number" step="any" value={mape[i].cijena} onChange={(e) => postaviMapu(i, { cijena: e.target.value })} />
               </div>
-              {mape[i].artikl && (
-                <div className="meta" style={{ marginTop: 4, color: mape[i].predlozen ? 'var(--plava, #2563eb)' : 'var(--zelena, green)' }}>
-                  {mape[i].predlozen ? '🔎 Predloženo po kat. broju: ' : '✓ '}
-                  {mape[i].artikl.naziv} (šifra {mape[i].artikl.sifra}{mape[i].artikl.kataloskiBroj ? ' · ' + mape[i].artikl.kataloskiBroj : ''})
-                  {mape[i].predlozen && <span className="x" style={{ cursor: 'pointer', marginLeft: 8 }} onClick={() => postaviMapu(i, { artikl: null, predlozen: false })}>krivo ✕</span>}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
 
           {greska && <div className="greska" style={{ marginBottom: 8 }}>{greska}</div>}
           <button className="btn" disabled={radi} onClick={posalji}>{radi ? '⏳ Šaljem…' : '📤 Pošalji u Apross'}</button>
