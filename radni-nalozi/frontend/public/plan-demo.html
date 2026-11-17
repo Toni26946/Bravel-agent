@@ -245,6 +245,12 @@
   .rad-cell .rc-poz{position:absolute;top:5px;right:8px;font-size:10px;font-weight:800;color:var(--muted)}
   .rad-cell .rc-drag{position:absolute;top:3px;left:5px;border:0;background:none;color:var(--muted);cursor:grab;touch-action:none;font-size:13px;line-height:1;padding:0 2px;font-family:inherit}
   .rad-cell .rc-drag:active{cursor:grabbing}
+  .rad-cell .rc-str{display:flex;gap:6px;margin-top:2px}
+  .rad-cell .rc-str button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 0;font-size:13px;line-height:1;cursor:pointer;color:var(--plava);font-family:inherit}
+  .rad-cell .rc-str button:active{background:var(--plava-soft)}
+  .rad-zoom{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:13px;font-weight:700;color:var(--muted)}
+  .rad-zoom button{border:1px solid var(--line);background:var(--card);border-radius:8px;width:36px;height:32px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;color:var(--plava)}
+  .rad-zoom span{min-width:42px;text-align:center}
   .rad-cell.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -859,7 +865,8 @@
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
-      h+='<div class="rad-scroll"><div class="rad-tbl">';
+      h+='<div class="rad-zoom">Veličina: <button onclick="PLAN.zoom(-1)" aria-label="Smanji">−</button><span id="rad-zoom-l">'+Math.round(_radZoom*100)+'%</span><button onclick="PLAN.zoom(1)" aria-label="Povećaj">+</button></div>';
+      h+='<div class="rad-scroll" style="zoom:'+_radZoom+'"><div class="rad-tbl">';
       // Prisutni BEZ zadatka — na vrhu, crveno (hitno im dodijeliti posao).
       slobodniPrisutni.forEach(function(m){
         h+='<div class="rad-row"><div class="rad-ime slob-top"><div class="ri-top">⚠ <span class="ri-ime">'+esc(m.ime)+'</span><span class="rad-br">0</span></div></div>'+
@@ -881,7 +888,9 @@
              '<span class="rc-poz">'+(i+1)+'</span>'+
              '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
-             '<span class="chip '+CH[st]+'">'+LBL[st]+'</span></div>';
+             '<span class="chip '+CH[st]+'">'+LBL[st]+'</span>'+
+             (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button></div>')+
+             '</div>';
         });
         h+='</div></div>';
       });
@@ -1069,6 +1078,18 @@
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
       api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":("Spremljeno — WhatsApp nije poslan"+((res&&res.wa&&res.wa.razlog)?": "+res.wa.razlog:""))); ucitaj(); })
         .catch(function(err){ toast(err.message||"Greška"); }); },
+    // Strelice ◀ ▶ na kartici (Radnici): pomakni zadatak jedno mjesto u redu tog mehaničara.
+    pomakni:function(e,zid,smjer){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      if(planZakljucan){ toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); return; }
+      var card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
+      var cont=card.closest(".rad-cells"); if(!cont) return;
+      var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
+      var i=cells.indexOf(card), j=i+smjer;
+      if(j<0||j>=cells.length||!cells[j].querySelector(".rc-drag")){ toast(smjer<0?"Već je prvi":"Već je zadnji"); return; }
+      if(smjer<0) cont.insertBefore(card, cells[j]); else cont.insertBefore(card, cells[j].nextSibling);
+      _dash_commit(cont); },
+    // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
+    zoom:function(d){ _setRadZoom(Math.round((_radZoom+d*0.1)*10)/10, true); },
     // Ručna prijava mehaničara na zadatak (umjesto da sam klikne) → broji se kao prekršaj.
     prijaviRucno:function(e,zid,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
       if(!confirm("Ručno prijaviti mehaničara na zadatak? Broji se kao prekršaj (nije sam kliknuo).")) return;
@@ -1189,6 +1210,37 @@
   }
   document.getElementById("v-prioritet").addEventListener("pointerdown", _prioDrag);
 
+  // --- Veličina prikaza Radnici: gumbi −/+ i dva prsta (pinch). Aplikacija ima
+  // maximum-scale=1 pa preglednik sam ne zumira — skaliramo tablicu CSS zoomom.
+  var _ZMIN=0.4, _ZMAX=1.3;
+  var _radZoom=(function(){ var v=NaN; try{ v=parseFloat(localStorage.getItem("plan_rad_zoom")); }catch(_){}
+    if(!(v>=_ZMIN && v<=_ZMAX)) v=(window.innerWidth<700?0.7:1); return v; })();
+  function _setRadZoom(z, spremi){
+    _radZoom=Math.max(_ZMIN, Math.min(_ZMAX, z));
+    var s=document.querySelector("#v-dash .rad-scroll"); if(s) s.style.zoom=_radZoom;
+    var l=document.getElementById("rad-zoom-l"); if(l) l.textContent=Math.round(_radZoom*100)+"%";
+    if(spremi){ try{ localStorage.setItem("plan_rad_zoom", String(_radZoom)); }catch(_){} }
+  }
+  var _pinchOn=false;
+  (function(){
+    var pinch=null;
+    function dist(t){ var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy)||1; }
+    var v=document.getElementById("v-dash");
+    v.addEventListener("touchstart", function(e){
+      if(e.touches.length>=2) _pinchOn=true;
+      if(e.touches.length===2 && !_drag && e.target.closest(".rad-scroll")){ pinch={d:dist(e.touches), z:_radZoom}; }
+    }, {passive:true});
+    v.addEventListener("touchmove", function(e){
+      if(!pinch || e.touches.length!==2) return;
+      if(e.cancelable) e.preventDefault();
+      _setRadZoom(pinch.z*dist(e.touches)/pinch.d, false);
+    }, {passive:false});
+    function kraj(e){ if(!e.touches.length) _pinchOn=false;
+      if(pinch && e.touches.length<2){ pinch=null; _setRadZoom(Math.round(_radZoom*20)/20, true); } }
+    v.addEventListener("touchend", kraj, {passive:true});
+    v.addEventListener("touchcancel", kraj, {passive:true});
+  })();
+
   // --- Drag redoslijed po mehaničaru (dashboard) — vodoravno; „u tijeku" nema ručku ---
   function _dash_commit(cont){
     var rid=parseInt(cont.getAttribute("data-rid"),10);
@@ -1255,6 +1307,7 @@
     var card=e.target.closest(".rad-cell"); if(!card) return;
     var cont=card.closest(".rad-cells"); if(!cont) return;
     if(!card.querySelector(".rc-drag")) return;   // „u tijeku" / nepomična kartica
+    if(e.target.closest(".rc-str")) return;       // strelice ◀ ▶ — obični klik, ne povlačenje
     var naRucki=!!e.target.closest(".rc-drag");
     // Zaključan plan: server odbija promjenu redoslijeda → odmah reci, umjesto da se kartica
     // pomakne pa „skoči" natrag.
@@ -1280,7 +1333,8 @@
     var sx=e.clientX, sy=e.clientY, krenulo=false;
     card.classList.add("drag-arm");
     var timer=setTimeout(function(){
-      krenulo=true; cleanup();
+      krenulo=true; cleanup(); card.classList.remove("drag-arm");
+      if(_pinchOn) return;                 // dva prsta = zumiranje, ne povlačenje
       if(navigator.vibrate){ try{ navigator.vibrate(30); }catch(_){ } }
       _beginDashDrag(card, cont, true);
     }, 500);
