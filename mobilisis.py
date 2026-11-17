@@ -661,25 +661,31 @@ def all_positions():
     id2raw = {str(d["Id"]): d.get("raw") or {} for d in devices}
     positions = get_positions()
 
+    import gps_uredaji
+
     out = []
-    po_nazivu = po_reg = bez = 0
+    po_vezi = naucenih = bez = 0
     for p in positions:
         did = str(p.get("deviceId"))
         reg_display = _txt(id2name.get(did, ""))
         reg_norm = norm_reg(reg_display)
-        # GB iz naziva vozila u Mobilisisu (glavno); registracija samo kao rezerva.
-        gb = gb_iz_naziva(id2raw.get(did), p.get("raw"))
+        # GB = zapamćena veza uređaj → GB (stalna, preregistracija je ne mijenja).
+        gb = gps_uredaji.gb_za(did)
         if gb:
-            po_nazivu += 1
+            po_vezi += 1
         else:
-            gb = reg2gb.get(reg_norm) if reg_norm else None
+            # Novi uređaj: jednom ga poveži (GB u nazivu ili poklapanje imena s
+            # GARAŽNI BROJEVI) i zapamti zauvijek; inače čeka ručnu vezu.
+            gb = gb_iz_naziva(id2raw.get(did), p.get("raw")) or (reg2gb.get(reg_norm) if reg_norm else None)
             if gb:
-                po_reg += 1
+                gps_uredaji.zapamti_ako_nema(did, gb, "automatski", reg_display)
+                naucenih += 1
             else:
                 bez += 1
         dt = parse_utc(p.get("dateTime"))
         out.append({
             "gb": gb or None,
+            "uredaj_id": did,
             "registracija": reg_display or None,
             "lat": p.get("lat"),
             "lon": p.get("lon"),
@@ -689,12 +695,22 @@ def all_positions():
             "vrijeme": dt.astimezone(timezone.utc).isoformat() if dt else None,
             "odometar": p.get("odometer"),
         })
-    if not _kljucevi_zapisani:
+    if naucenih or not _kljucevi_zapisani:
         _kljucevi_zapisani = True
-        prvi_dev = next(iter(id2raw.values()), {})
-        prva_poz = (positions[0].get("raw") if positions else None) or {}
-        _log(f"polja uređaja: {sorted(prvi_dev.keys())}; polja pozicije: {sorted(prva_poz.keys())}")
-        primjeri = [{k: v for k, v in r.items() if isinstance(v, str)} for r in list(id2raw.values())[:3]]
-        _log(f"primjeri naziva: {primjeri}")
-        _log(f"GB: {po_nazivu} iz naziva, {po_reg} po registraciji (rezerva), {bez} bez GB-a")
+        _log(f"GPS→GB: {po_vezi} po zapamćenoj vezi, {naucenih} novo povezano, {bez} bez GB-a")
+    return out
+
+
+def uredaji_s_gb():
+    """Svi GPS uređaji iz Mobilisisa s vezom na GB (za ekran „📡 GPS uređaji").
+    [{id, naziv, gb, izvor, ts}] — nepovezani (gb=None) idu prvi."""
+    import gps_uredaji
+    veze = gps_uredaji.sve()
+    out = []
+    for d in get_devices():
+        did = str(d["Id"])
+        v = veze.get(did) or {}
+        out.append({"id": did, "naziv": d.get("Name") or "", "gb": v.get("gb"),
+                    "izvor": v.get("izvor"), "ts": v.get("ts")})
+    out.sort(key=lambda x: (x["gb"] is not None, x["naziv"]))
     return out

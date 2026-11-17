@@ -152,6 +152,42 @@ async def handle_pozicije(request):
     })
 
 
+async def handle_gps_uredaji(request):
+    """GET /api/gps-uredaji — svi GPS uređaji iz Mobilisisa i njihov GB (štiti X-Api-Key)."""
+    err = _check_key(request)
+    if err is not None:
+        return err
+    try:
+        loop = asyncio.get_event_loop()
+        lista = await loop.run_in_executor(None, mobilisis.uredaji_s_gb)
+    except Exception as e:  # noqa: BLE001
+        _log(f"gps-uredaji GRESKA: {e}")
+        return _json({"error": f"Mobilisis nedostupan: {e}"}, status=503)
+    return _json({"uredaji": lista})
+
+
+async def handle_gps_uredaj_veza(request):
+    """POST /api/gps-uredaji {id, gb, naziv?} — ručno poveži uređaj s GB-om (gb "" = odspoji)."""
+    err = _check_key(request)
+    if err is not None:
+        return err
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "Neispravan JSON."}, status=400)
+    uid = str(body.get("id") or "").strip()
+    gb = str(body.get("gb") or "").strip()
+    if not uid:
+        return _json({"ok": False, "error": "Nedostaje id uređaja."}, status=400)
+    if gb and not gb.isdigit():
+        return _json({"ok": False, "error": "GB mora biti broj."}, status=400)
+    import gps_uredaji
+    veza = gps_uredaji.zapamti(uid, gb, "rucno", str(body.get("naziv") or ""))
+    _cache["ts"] = 0.0   # da se nova veza odmah vidi u pozicijama
+    _log(f"gps-uredaj {uid} → GB {gb or '—'} (ručno)")
+    return _json({"ok": True, "veza": veza})
+
+
 async def handle_putanja(request):
     """Ruta (povijest kretanja) jednog vozila za zadnjih 'sati' sati.
     GET /api/putanja?reg=<registracija>&sati=<broj>  (štiti X-Api-Key)."""
@@ -512,6 +548,8 @@ def _run():
         app.router.add_get("/zdrav", handle_zdrav)
         app.router.add_get("/api/pozicije", handle_pozicije)
         app.router.add_get("/api/putanja", handle_putanja)
+        app.router.add_get("/api/gps-uredaji", handle_gps_uredaji)
+        app.router.add_post("/api/gps-uredaji", handle_gps_uredaj_veza)
         app.router.add_get("/api/benzinske", handle_benzinske)
         app.router.add_get("/api/podrska/ws", handle_podrska_ws)
         app.router.add_get("/api/podrska", handle_podrska_demo)
