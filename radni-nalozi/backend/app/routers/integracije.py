@@ -395,13 +395,27 @@ def _kandidati_kat(tekst: str) -> list[str]:
     out: list[str] = []
     for z in re.findall(r"\(([^()]+)\)", t):
         n = _kat_norm(z)
-        if len(n) >= 4 and n not in out:
+        if _dobar_kat(n) and n not in out:
             out.append(n)
+    # Broj u zagradi JE kataloški broj → riječi iz naziva se tada ne gledaju
+    # („10W40 Total Quartz 7000 (TOTAL711)" ne smije se spojiti po „7000" ili „10W40").
+    if out:
+        return out
     for rijec in re.split(r"[\s,;()]+", t):
         n = _kat_norm(rijec)
-        if len(n) >= 4 and re.search(r"\d", n) and n not in out:
+        if _dobar_kat(n) and re.search(r"\d", n) and n not in out:
             out.append(n)
     return out
+
+
+_VISKOZNOST = re.compile(r"^\d{1,2}W\d{2}$")          # 5W30, 10W40, 75W90 — vrsta ulja, ne artikl
+_PAKIRANJE = re.compile(r"^\d+(ML|L|KG|G|KOM|M)$")    # 200ML, 1L, 5KG — pakiranje
+
+
+def _dobar_kat(n: str) -> bool:
+    """Normalizirani kataloški broj koji smije služiti za spajanje (ne kratki broj,
+    ne viskoznost ulja, ne pakiranje)."""
+    return len(n) >= 5 and not _VISKOZNOST.match(n) and not _PAKIRANJE.match(n)
 
 
 def _kat_indeks(mapa: dict) -> dict[str, list[dict]]:
@@ -409,7 +423,7 @@ def _kat_indeks(mapa: dict) -> dict[str, list[dict]]:
     idx: dict[str, list[dict]] = {}
     for a in mapa.values():
         n = _kat_norm(a.get("kataloskiBroj"))
-        if len(n) >= 4:
+        if _dobar_kat(n):
             idx.setdefault(n, []).append(a)
     return idx
 
@@ -528,7 +542,7 @@ def aross_novi_artikli(p: NoviArtikliIn, db: Session = Depends(get_db), _: Koris
             raise HTTPException(status_code=502, detail=f"Artikl „{naziv}”: {e}")
         novi = {"sifra": sljedeca, "naziv": naziv, "kataloskiBroj": kat, "jmj": jmj}
         mapa[sljedeca] = novi
-        if kat and len(_kat_norm(kat)) >= 4:
+        if kat and _dobar_kat(_kat_norm(kat)):
             idx.setdefault(_kat_norm(kat), []).append(novi)   # isti kat. broj dvaput → jedan artikl
         out.append(novi)
         sljedeca += 1
