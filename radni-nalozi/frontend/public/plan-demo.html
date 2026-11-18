@@ -1119,7 +1119,7 @@
       if(planZakljucan){ toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); return; }
       var btn=e&&e.currentTarget&&e.currentTarget.tagName==="BUTTON"?e.currentTarget:(e&&e.target&&e.target.closest?e.target.closest("button"):null);
       var sad=Date.now(), a=window._strNaoruzano;
-      if(!(a&&a.zid===zid&&a.smjer===smjer&&sad-a.t<3000)){
+      if(!(a&&a.zid===zid&&a.smjer===smjer&&(!btn||a.btn===btn)&&sad-a.t<3000)){
         if(a&&a.btn) a.btn.classList.remove("naoruzano");
         if(a&&a.tmr) clearTimeout(a.tmr);
         if(btn) btn.classList.add("naoruzano");
@@ -1127,7 +1127,11 @@
         return;
       }
       if(a.tmr) clearTimeout(a.tmr); if(a.btn) a.btn.classList.remove("naoruzano"); window._strNaoruzano=null;
-      var card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
+      // Kartica se uzima iz KLIKNUTOG gumba: zadatak s više mehaničara se pojavljuje u više
+      // redaka s istim data-zid, pa bi querySelector našao karticu u tuđem retku (prijava #317).
+      var src=e&&(e.currentTarget&&e.currentTarget.closest?e.currentTarget:e.target);
+      var card=(src&&src.closest)?src.closest(".rad-cell"):null;
+      if(!card) card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
       var cont=card.closest(".rad-cells"); if(!cont) return;
       var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
       var i=cells.indexOf(card), j=i+smjer;
