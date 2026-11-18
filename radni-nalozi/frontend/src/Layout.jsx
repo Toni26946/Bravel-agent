@@ -48,11 +48,13 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   })
   // Klik na pravu karticu zatvori (skupi) izbornik — na svim širinama. Grupe
   // (padajući podizbornici) ga NE zatvaraju (vidi toggleGrupa dolje).
-  const zatvoriNav = () => setNavOtvoren((o) => {
-    if (!o) return o
+  // localStorage se piše ODMAH, ne u updateru: svaka stranica ima svoj <Layout>, pa se
+  // kod prelaska na drugu karticu stari odmontira prije nego mu se updater izvrši —
+  // nova stranica bi pročitala „otvoreno" i izbornik bi ostao (trebao je drugi klik, #319).
+  const zatvoriNav = () => {
     try { localStorage.setItem('nav_otvoren', '0') } catch (_) { /* */ }
-    return false
-  })
+    setNavOtvoren(false)
+  }
   // Otvorene grupe (padajući podizbornici) — pamti se.
   const [grupeOtvorene, setGrupeOtvorene] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav_grupe') || '{}') } catch (_) { return {} }
