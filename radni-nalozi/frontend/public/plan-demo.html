@@ -253,6 +253,8 @@
   .rad-cell .rc-str{display:flex;gap:6px;margin-top:2px}
   .rad-cell .rc-str button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 0;font-size:13px;line-height:1;cursor:pointer;color:var(--plava);font-family:inherit}
   .rad-cell .rc-str button:active{background:var(--plava-soft)}
+  .rad-cell .rc-str button.naoruzano{background:#f59e0b;border-color:#d97706;color:#fff;font-weight:700}
+  .rad-cell .rc-str button.naoruzano::after{content:" još jednom";font-size:11px}
   .rad-zoom{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:13px;font-weight:700;color:var(--muted)}
   .rad-zoom button{border:1px solid var(--line);background:var(--card);border-radius:8px;width:36px;height:32px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;color:var(--plava)}
   .rad-zoom span{min-width:42px;text-align:center}
@@ -890,7 +892,7 @@
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
        '<div class="kpi"><div class="n">'+slobodniPrisutni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak. Karticu možeš povući i u redak drugog mehaničara.</p>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak. Karticu možeš povući i u redak drugog mehaničara. Strelice ◀ ▶ pomiču zadatak tek na <b>drugi dodir</b> (zaštita od slučajnog dodira).</p>';
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
@@ -918,7 +920,7 @@
              '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
              '<span class="chip '+CH[st]+'">'+LBL[st]+'</span>'+
-             (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button></div>')+
+             (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije (dodirni dvaput)" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije (dodirni dvaput)" aria-label="Kasnije">▶</button></div>')+
              '</div>';
         });
         h+='</div></div>';
@@ -1111,8 +1113,20 @@
       api("/zadatak/"+zid+"/posalji","POST").then(function(res){ toast((res&&res.wa&&res.wa.poslano)?"📨 Poslano":("Spremljeno — WhatsApp nije poslan"+((res&&res.wa&&res.wa.razlog)?": "+res.wa.razlog:""))); ucitaj(); })
         .catch(function(err){ toast(err.message||"Greška"); }); },
     // Strelice ◀ ▶ na kartici (Radnici): pomakni zadatak jedno mjesto u redu tog mehaničara.
+    // Zaštita od slučajnog dodira (prijava 18.11.2026.): prvi dodir strelicu samo „naoruža"
+    // (narančasta, „još jednom"), zadatak se pomakne tek na DRUGI dodir iste strelice unutar 3 s.
     pomakni:function(e,zid,smjer){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
       if(planZakljucan){ toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); return; }
+      var btn=e&&e.currentTarget&&e.currentTarget.tagName==="BUTTON"?e.currentTarget:(e&&e.target&&e.target.closest?e.target.closest("button"):null);
+      var sad=Date.now(), a=window._strNaoruzano;
+      if(!(a&&a.zid===zid&&a.smjer===smjer&&sad-a.t<3000)){
+        if(a&&a.btn) a.btn.classList.remove("naoruzano");
+        if(a&&a.tmr) clearTimeout(a.tmr);
+        if(btn) btn.classList.add("naoruzano");
+        window._strNaoruzano={zid:zid,smjer:smjer,t:sad,btn:btn,tmr:setTimeout(function(){ if(btn) btn.classList.remove("naoruzano"); window._strNaoruzano=null; },3000)};
+        return;
+      }
+      if(a.tmr) clearTimeout(a.tmr); if(a.btn) a.btn.classList.remove("naoruzano"); window._strNaoruzano=null;
       var card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
       var cont=card.closest(".rad-cells"); if(!cont) return;
       var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
