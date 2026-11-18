@@ -38,6 +38,14 @@
   .tabs{display:flex;align-items:center;gap:6px;background:var(--plava);flex:none;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 11px;flex-wrap:wrap}
   .tab{border:0;background:rgba(255,255,255,.16);color:#fff;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px}
   .tab.akt{background:#fff;color:var(--plava)}
+  /* Prioriteti desno (do datuma); na njihovo mjesto ide gumb „✋ Drži" (WhatsApp prijava #320) */
+  .tabs .tab[data-v="prioritet"]{margin-left:auto}
+  .tabs .datum{margin-left:8px}
+  /* „✋ Drži": na MOBITELU se zadatak u kartici Radnici pomiče (◀ ▶ i povlačenje) samo dok
+     se ovaj gumb drži prstom druge ruke → nema pomicanja slučajnim dodirom. */
+  .drzi{display:none;border:2px dashed rgba(255,255,255,.75);background:rgba(255,255,255,.10);color:#fff;padding:7px 14px;border-radius:999px;font-weight:800;font-size:13px;font-family:inherit;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  body.dodir.view-dash .drzi{display:inline-block}
+  .drzi.on{background:#ffd23f;border-color:#ffd23f;border-style:solid;color:#1f2937}
 
   main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;padding-block:16px}
   .wrap{max-width:1040px;margin:0 auto}
@@ -306,6 +314,7 @@
   <button class="tab" data-v="nap">✅ Napravljeno</button>
   <button class="tab" data-v="bonus">💶 Klik-bonus</button>
   <button class="tab" data-v="povijest">🕑 Povijest klikanja</button>
+  <button type="button" class="drzi" id="drzi" title="Drži prstom lijeve ruke, a desnom pomiči zadatak" aria-label="Drži za pomicanje zadataka">✋ Drži</button>
   <button class="tab" data-v="prioritet">🎯 Prioriteti</button>
   <span class="datum" id="datum"></span>
 </nav>
@@ -1112,6 +1121,9 @@
         .catch(function(err){ toast(err.message||"Greška"); }); },
     // Strelice ◀ ▶ na kartici (Radnici): pomakni zadatak jedno mjesto u redu tog mehaničara.
     pomakni:function(e,zid,smjer){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      // Mobitel: strelicu je već obradio pointerdown (uz ✋) — klik koji slijedi se ignorira.
+      if(DODIR && e && e.type==="click" && Date.now()-_strDodir<1000) return;
+      if(e && e.type==="click" && DODIR && e.pointerType!=="mouse" && _treba_drzati()){ _poruka_drzi(); return; }
       if(planZakljucan){ toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); return; }
       // Kartica se uzima iz KLIKNUTOG gumba: zadatak s više mehaničara se pojavljuje u više
       // redaka s istim data-zid, pa bi querySelector našao karticu u tuđem retku (prijava #317).
@@ -1180,6 +1192,31 @@
 
   // --- Drag reorder plana (povuci ručku ⠿; radi mišem i prstom) ---
   var _drag=false;
+
+  // --- „✋ Drži za pomicanje" (WhatsApp prijava #320, Veljko) ---------------------------
+  // Na mobitelu se zadatak u kartici Radnici smije pomaknuti (◀ ▶ ili povlačenjem) SAMO dok
+  // se drži gumb ✋ (palac lijeve ruke), a desnom se pomiče. Slučajan dodir ne mijenja red.
+  // Računalo (miš) radi kao prije — mišem se ne mogu držati dvije stvari odjednom.
+  var _drzi=false;
+  var DODIR=!!(window.matchMedia && window.matchMedia("(pointer:coarse)").matches);
+  if(DODIR) document.body.classList.add("dodir");
+  function _naDrzi(t){ return !!(t && t.closest && t.closest("#drzi")); }
+  function _treba_drzati(){ return DODIR && !_drzi; }
+  function _poruka_drzi(){ toast("✋ Drži gumb „Drži” lijevim palcem, pa desnom pomakni zadatak"); }
+  (function(){
+    var b=document.getElementById("drzi"); if(!b) return;
+    var aktivni=null;
+    function pusti(e){ if(aktivni!=null && e && e.pointerId!==aktivni) return; aktivni=null; _drzi=false; b.classList.remove("on"); }
+    b.addEventListener("pointerdown", function(e){
+      e.preventDefault(); aktivni=e.pointerId; _drzi=true; b.classList.add("on");
+      if(navigator.vibrate){ try{ navigator.vibrate(15); }catch(_){ } }
+    });
+    b.addEventListener("pointerup", pusti);
+    b.addEventListener("pointercancel", pusti);
+    b.addEventListener("lostpointercapture", pusti);
+    b.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+    window.addEventListener("blur", function(){ pusti(); });
+  })();
   function _plan_commit_red(){
     var cont=document.getElementById("plan-norm"); if(!cont) return;
     var ids=[]; cont.querySelectorAll(".card.nalog").forEach(function(c){ var id=parseInt(c.getAttribute("data-nid"),10); if(id) ids.push(id); });
@@ -1263,16 +1300,18 @@
     function dist(t){ var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy)||1; }
     var v=document.getElementById("v-dash");
     v.addEventListener("touchstart", function(e){
-      if(e.touches.length>=2) _pinchOn=true;
-      if(e.touches.length===2 && !_drag && e.target.closest(".rad-scroll")){ pinch={d:dist(e.touches), z:_radZoom}; }
+      var t=_bezDrzi(e.touches);
+      if(t.length>=2) _pinchOn=true;
+      if(t.length===2 && !_drag && e.target.closest(".rad-scroll")){ pinch={d:dist(t), z:_radZoom}; }
     }, {passive:true});
     v.addEventListener("touchmove", function(e){
-      if(!pinch || e.touches.length!==2) return;
+      var t=_bezDrzi(e.touches);
+      if(!pinch || t.length!==2) return;
       if(e.cancelable) e.preventDefault();
-      _setRadZoom(pinch.z*dist(e.touches)/pinch.d, false);
+      _setRadZoom(pinch.z*dist(t)/pinch.d, false);
     }, {passive:false});
-    function kraj(e){ if(!e.touches.length) _pinchOn=false;
-      if(pinch && e.touches.length<2){ pinch=null; _setRadZoom(Math.round(_radZoom*20)/20, true); } }
+    function kraj(e){ var t=_bezDrzi(e.touches); if(!t.length) _pinchOn=false;
+      if(pinch && t.length<2){ pinch=null; _setRadZoom(Math.round(_radZoom*20)/20, true); } }
     v.addEventListener("touchend", kraj, {passive:true});
     v.addEventListener("touchcancel", kraj, {passive:true});
   })();
@@ -1284,6 +1323,9 @@
     if(!rid||!zids.length) return;
     api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
   }
+  // Dodir koji NIJE palac na ✋ (taj se ne računa ni u povlačenje ni u zumiranje).
+  function _prstNaKartici(lista){ for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) return lista[i]; } return null; }
+  function _bezDrzi(lista){ var r=[]; for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) r.push(lista[i]); } return r; }
   // Pokreni stvarno povlačenje kartice (zajedničko za desktop ručku i mobitel long-press).
   // viaTouch: na mobitelu pratimo TOUCH događaje, ne pointer — preglednik zna poslati
   // pointercancel (preuzme gestu kao skrol) pa pointer događaji prestanu, a touchmove
@@ -1295,7 +1337,7 @@
     card.style.pointerEvents="none";      // da elementFromPoint vidi redak ISPOD kartice
     function onMove(ev){
       if(ev.cancelable) ev.preventDefault();
-      var pt = ev.touches ? ev.touches[0] : ev; if(!pt) return;
+      var pt = ev.touches ? _prstNaKartici(ev.touches) : ev; if(!pt) return;
       // Kartica smije i u redak DRUGOG mehaničara (redak ispod prsta/miša).
       var pod=document.elementFromPoint(pt.clientX, pt.clientY);
       var red=pod && pod.closest(".rad-row"), novi=red && red.querySelector(".rad-cells[data-rid]");
@@ -1306,8 +1348,11 @@
       else if(cont.lastChild!==card){ cont.appendChild(card); }
       var ph=cont.querySelector(".rad-cell.prazno"); if(ph) ph.style.display="none";
     }
-    function end(){
-      if(gotovo) return; gotovo=true;
+    function end(ev){
+      if(gotovo) return;
+      // Na mobitelu se diže palac s ✋ — povlačenje traje dok se ne digne prst s kartice.
+      if(ev && ev.changedTouches && ev.type==="touchend" && !_prstNaKartici(ev.changedTouches)) return;
+      gotovo=true;
       document.removeEventListener("pointermove",onMove,true);
       document.removeEventListener("pointerup",end,true);
       document.removeEventListener("pointercancel",end,true);
@@ -1339,6 +1384,18 @@
       document.addEventListener("pointercancel",end,true);
     }
   }
+  // Strelice ◀ ▶ dodirom: obradi na pointerdown (dok drugi prst drži ✋ preglednik zna
+  // progutati „click"), a klik koji slijedi PLAN.pomakni ignorira (_strDodir).
+  var _strDodir=0;
+  document.getElementById("v-dash").addEventListener("pointerdown", function(e){
+    if(e.pointerType!=="touch") return;
+    var btn=e.target.closest(".rc-str button"); if(!btn) return;
+    _strDodir=Date.now();
+    e.preventDefault(); e.stopPropagation();
+    if(_treba_drzati()){ _poruka_drzi(); return; }
+    var m=(btn.getAttribute("onclick")||"").match(/,(-?\d+),(-?1)\)/); if(!m) return;
+    window.PLAN.pomakni({type:"pointerdown", currentTarget:btn, target:btn, stopPropagation:function(){}, preventDefault:function(){}}, parseInt(m[1],10), parseInt(m[2],10));
+  }, true);
   function _dashStart(e){
     var card=e.target.closest(".rad-cell"); if(!card) return;
     var cont=card.closest(".rad-cells"); if(!cont) return;
@@ -1358,6 +1415,11 @@
       _beginDashDrag(card, cont, false);
       return;
     }
+    // MOBITEL bez ✋: kartica se ne pomiče (zaštita od slučajnog dodira, prijava #320).
+    if(_treba_drzati()){
+      if(naRucki){ e.preventDefault(); _poruka_drzi(); }
+      return;
+    }
     // MOBITEL, prst na ručki ⠿ → kreni ODMAH (ručka ima touch-action:none, nema skrola).
     if(naRucki){
       e.preventDefault(); e.stopPropagation();
@@ -1374,8 +1436,8 @@
       if(navigator.vibrate){ try{ navigator.vibrate(30); }catch(_){ } }
       _beginDashDrag(card, cont, true);
     }, 500);
-    function pm(ev){ if(krenulo) return; if(Math.abs(ev.clientX-sx)>10 || Math.abs(ev.clientY-sy)>10){ clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); } }
-    function pu(){ clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); }
+    function pm(ev){ if(krenulo || ev.pointerId!==e.pointerId) return; if(Math.abs(ev.clientX-sx)>10 || Math.abs(ev.clientY-sy)>10){ clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); } }
+    function pu(ev){ if(ev && ev.pointerId!==e.pointerId) return; clearTimeout(timer); card.classList.remove("drag-arm"); cleanup(); }
     function cleanup(){ document.removeEventListener("pointermove",pm,true); document.removeEventListener("pointerup",pu,true); document.removeEventListener("pointercancel",pu,true); }
     document.addEventListener("pointermove",pm,true);
     document.addEventListener("pointerup",pu,true);
