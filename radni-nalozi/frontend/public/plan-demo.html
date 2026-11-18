@@ -1113,7 +1113,11 @@
     // Strelice ◀ ▶ na kartici (Radnici): pomakni zadatak jedno mjesto u redu tog mehaničara.
     pomakni:function(e,zid,smjer){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
       if(planZakljucan){ toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); return; }
-      var card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
+      // Kartica se uzima iz KLIKNUTOG gumba: zadatak s više mehaničara se pojavljuje u više
+      // redaka s istim data-zid, pa bi querySelector našao karticu u tuđem retku (prijava #317).
+      var src=e&&(e.currentTarget&&e.currentTarget.closest?e.currentTarget:e.target);
+      var card=(src&&src.closest)?src.closest(".rad-cell"):null;
+      if(!card) card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
       var cont=card.closest(".rad-cells"); if(!cont) return;
       var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
       var i=cells.indexOf(card), j=i+smjer;
