@@ -268,6 +268,7 @@
   .rad-zoom span{min-width:42px;text-align:center}
   .rad-cell.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
+  .rad-cell .rc-daleko{font-weight:600;font-size:10px;color:#b45309;background:#fef3c7;border-radius:6px;padding:0 4px;margin-left:4px;white-space:nowrap}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   /* Okvir prioriteta (kartica Radnici): gornjih 33% crveno, srednjih žuto, zadnjih zeleno */
   .rad-cell.prio-c{box-shadow:0 0 0 3px #e5484d}
@@ -945,10 +946,13 @@
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
           var uTijeku=(st==="radu");
-          h+='<div class="rad-cell '+CH[st]+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+'">'+
+          // Faza kao na serveru (dispecer.faza_zadatka): strelica ne može prebaciti karticu
+          // u drugu fazu (npr. vozilo izvan radione ispred onih u radioni) — WhatsApp #335.
+          var fz=uTijeku?0:((st==="dijelovi"||st==="nedostupan")?4:(x.n.hitno?1:(daleko(x.n)?3:2)));
+          h+='<div class="rad-cell '+CH[st]+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" data-faza="'+fz+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+(fz===3?' — vozilo nije u radioni (>200 m)':'')+'">'+
              (uTijeku?'':'<button class="rc-drag" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>')+
              '<span class="rc-poz">'+(i+1)+'</span>'+
-             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
+             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+(fz===3?' <span class="rc-daleko" title="Vozilo nije u radioni (GPS > 200 m) — ide iza vozila u radioni">📍 vani</span>':'')+'</span>'+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
              '<span class="chip '+CH[st]+'">'+LBL[st]+'</span>'+
              (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button></div>')+
@@ -1160,6 +1164,14 @@
       var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
       var i=cells.indexOf(card), j=i+smjer;
       if(j<0||j>=cells.length||!cells[j].querySelector(".rc-drag")){ toast(smjer<0?"Već je prvi":"Već je zadnji"); return; }
+      // Druga faza (WhatsApp #335): server bi karticu vratio natrag, a strelica „ne bi radila".
+      var fa=card.getAttribute("data-faza"), fb=cells[j].getAttribute("data-faza");
+      if(fa && fb && fa!==fb){
+        if(fa==="3"||fb==="3") toast(fa==="3"?"📍 Vozilo nije u radioni (>200 m) — ostaje iza vozila koja su u radioni":"📍 Iza je vozilo koje nije u radioni — ova kartica ne može iza njega");
+        else if(fa==="1"||fb==="1") toast("🔴 Hitni zadaci su uvijek ispred ostalih — makni oznaku hitno u planu");
+        else toast(smjer<0?"Već je prvi":"Već je zadnji");
+        return;
+      }
       if(smjer<0) cont.insertBefore(card, cells[j]); else cont.insertBefore(card, cells[j].nextSibling);
       _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); },
     // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
