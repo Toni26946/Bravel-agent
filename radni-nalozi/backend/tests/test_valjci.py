@@ -102,6 +102,16 @@ def test_shema_odabir_i_operacije_samo_za_lose():
     assert r2["status"] == "nerazvrstan"
 
 
+def test_valjci_imaju_svoj_manifest_u_html(tmp_path):
+    from app.main import _valjci_index
+    idx = tmp_path / "index.html"
+    idx.write_text('<head><meta name="theme-color" content="#0d47a1" /><link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />'
+                   '<title>Bravel Radni Nalozi</title><link rel="manifest" href="/manifest.webmanifest"></head>', encoding="utf-8")
+    html = _valjci_index(idx).body.decode("utf-8")
+    assert 'href="/valjci.webmanifest"' in html and "manifest.webmanifest" not in html
+    assert "<title>Valjci</title>" in html and "valjci-192.png" in html and "#e65100" in html
+
+
 def test_pristup_voditelj_ili_modul():
     assert valjci.ima_pristup(Korisnik(uloga=Uloga.voditelj, moduli=None))
     assert not valjci.ima_pristup(Korisnik(uloga=Uloga.radnik, moduli=["/nalozi"]))
