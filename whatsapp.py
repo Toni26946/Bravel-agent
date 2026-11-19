@@ -164,6 +164,23 @@ def send_text(to, text):
     return {"ok": ok, "status": status, "data": data}
 
 
+def send_image(to, link, caption=""):
+    """Pošalji sliku po javnom HTTPS linku (Meta je sama preuzme). Radi samo unutar
+    24 h prozora (kao send_text). Koristi mozak za screenshotove prijedloga izmjena."""
+    slika = {"link": str(link)}
+    if caption:
+        slika["caption"] = str(caption)[:1024]
+    status, data = _post(
+        f"{_phone_id()}/messages",
+        {"messaging_product": "whatsapp", "to": str(to), "type": "image", "image": slika},
+    )
+    ok = status == 200 and isinstance(data, dict) and "messages" in data
+    if not ok:
+        monitoring.warning(f"WhatsApp send_image nije uspio: HTTP {status} {data}",
+                           source="whatsapp")
+    return {"ok": ok, "status": status, "data": data}
+
+
 def download_media(media_id):
     """Preuzmi medij (npr. sliku računa) po media_id. Vrati (bytes, mime_type).
     Dvokorak: GET /{id} → {url, mime_type}; pa GET url (isti Bearer) → bajtovi."""
