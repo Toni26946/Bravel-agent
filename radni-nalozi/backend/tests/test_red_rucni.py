@@ -191,3 +191,31 @@ def test_premjesti_na_drugog_samo_pomaknuti_dobiva_mjesto():
                           redoslijed=[b1.id, s.id, b2.id]), request=_REQ, korisnik=vl, db=db)
     assert _opisi(db, b) == ["B1", "SELI", "B2"]
     assert b1.red_ruc is None and b2.red_ruc is None
+
+
+def test_pomak_ispred_poslanog_ostaje_i_kad_nova_poruka_ne_ode(monkeypatch):
+    """WhatsApp #339/#340 (Baranov, GB 110): ◀ na drugoj kartici ispred „Čeka potvrdu" —
+    ako nova poruka iz bilo kojeg razloga ne ode, kartica NE smije tiho skočiti natrag."""
+    from app.routers import plan as plan_mod
+    monkeypatch.setattr(plan_mod, "_novi_prvi_posalji", lambda *a, **k: False)
+    db = _session()
+    vl = _meh(db, "Vlasnik")
+    bar = _meh(db, "Baranov")
+    n = _nalog(db, "110", vl, plan_rang=3)
+    brav = _zad(db, n, "bravarija", [bar], ceka_potvrdu=True)
+    okr = _zad(db, n, "okretnica", [bar])
+    db.commit()
+    assert _opisi(db, bar) == ["bravarija", "okretnica"]
+    r = _pomakni(db, bar, okr.id, -1, vl)
+    assert _opisi(db, bar) == ["okretnica", "bravarija"], "ručni pomak ostaje"
+    assert r["red"] == [okr.id, brav.id]
+    assert brav.ceka_potvrdu is False
+    # Pomak koji NE stavlja karticu na prvo mjesto ne dira poslani zadatak
+    db2 = _session()
+    vl2 = _meh(db2, "V"); m = _meh(db2, "M")
+    n2 = _nalog(db2, "1", vl2, plan_rang=1)
+    a = _zad(db2, n2, "A", [m], ceka_potvrdu=True)
+    b = _zad(db2, n2, "B", [m]); c = _zad(db2, n2, "C", [m])
+    db2.commit()
+    _pomakni(db2, m, c.id, -1, vl2)
+    assert _opisi(db2, m) == ["A", "C", "B"] and a.ceka_potvrdu is True
