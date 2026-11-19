@@ -132,62 +132,21 @@ export function TablicaMjerenja({ mjerenja, sveVerzije = false }) {
   )
 }
 
-function KarticaTesta({ t, onVezano }) {
-  const [radi, setRadi] = useState(false)
-  const [greska, setGreska] = useState('')
+// Samo pregled rezultata (Toni 19.11.2026.: „tu hoću samo rezultate") — mjeri se u
+// zasebnoj aplikaciji Valjci (/valjci), tamo se upisuju i vozila.
+function KarticaTesta({ t }) {
   const [povijest, setPovijest] = useState(false)
-  const vezi = async (nalogId) => {
-    setRadi(true); setGreska('')
-    try { await api.testKocnicaVezi(t.id, nalogId); onVezano() } catch (e) { setGreska(e.message) } finally { setRadi(false) }
-  }
-  const otvoren = t.status !== 'vezan'
   const imaPonovljenih = t.mjerenja.some((m) => !m.vazece)
   return (
-    <div className="card" style={{ borderLeft: otvoren ? '4px solid var(--crveno, #c62828)' : undefined }}>
+    <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <b>Test kočnica u {vrijeme(t.pocetak)} · {dan(t.pocetak)}</b>
-        <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-          {t.osovina} osov. ·{' '}
-          <a href="#" onClick={async (e) => {
-            e.preventDefault()
-            try { const r = await api.testKocnicaPoveznica(t.id); window.open(r.putanja, '_blank') } catch (er) { setGreska(er.message) }
-          }}>🔗 poveznica</a>
-          {' · '}
-          <a href="#" onClick={async (e) => {
-            e.preventDefault()
-            try {
-              const r = await api.testKocnicaNaWhatsapp(t.id)
-              setGreska(r.poslano ? 'Poslano na tvoj WhatsApp.' : `Nije poslano: ${r.razlog || 'nepoznat razlog'}`)
-            } catch (er) { setGreska(er.message) }
-          }}>📱 na WhatsApp</a>
-        </span>
+        <span style={{ color: 'var(--muted)', fontSize: 13 }}>{t.osovina} osov.</span>
       </div>
-      {t.nalog && (
-        <div style={{ fontSize: 14, marginTop: 2 }}>
-          GB <b>{t.gb || '—'}</b> · <Link to={`/nalozi/${t.nalog.id}`}>{t.nalog.broj}</Link> {t.nalog.naslov}
-        </div>
-      )}
-      {otvoren && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontWeight: 700 }}>{t.status === 'ceka_potvrdu' ? 'Potvrdi vozilo:' : 'Koje vozilo?'}</div>
-          {t.napomena && <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t.napomena}</div>}
-          <div style={{ marginTop: 6 }}><OdabirNaloga disabled={radi} onOdaberi={vezi} /></div>
-          {t.kandidati.length > 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>ili odaberi nalog koji je u radu:</div>}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-            {t.status === 'ceka_potvrdu' && t.nalog && (
-              <button className="btn" disabled={radi} style={{ width: 'auto', margin: 0 }} onClick={() => vezi(t.nalog.id)}>
-                ✓ Da, GB {t.nalog.gb}
-              </button>
-            )}
-            {t.kandidati.filter((n) => n.id !== t.nalog?.id).map((n) => (
-              <button key={n.id} className="btn ghost" disabled={radi} style={{ width: 'auto', margin: 0 }} onClick={() => vezi(n.id)}>
-                GB {n.gb} · {n.broj}
-              </button>
-            ))}
-          </div>
-          {greska && <div style={{ color: 'var(--crveno)', fontSize: 13 }}>{greska}</div>}
-        </div>
-      )}
+      <div style={{ fontSize: 14, marginTop: 2 }}>
+        {t.gb ? <>GB <b>{t.gb}</b></> : <span style={{ color: 'var(--muted)' }}>vozilo nije upisano</span>}
+        {t.nalog && <> · <Link to={`/nalozi/${t.nalog.id}`}>{t.nalog.broj}</Link></>}
+      </div>
       <CrtezOsovina mjerenja={t.mjerenja} />
       {povijest && <TablicaMjerenja mjerenja={t.mjerenja} sveVerzije />}
       {imaPonovljenih && (
@@ -199,41 +158,14 @@ function KarticaTesta({ t, onVezano }) {
   )
 }
 
-// Ručni odabir bilo kojeg otvorenog naloga upisom GB-a (kad pravog vozila nema među gumbima).
-function OdabirNaloga({ onOdaberi, disabled }) {
-  const [gb, setGb] = useState('')
-  const [nalozi, setNalozi] = useState(null)
-  const trazi = async () => {
-    if (!gb.trim()) return
-    try {
-      const r = (await api.cartecNaloziZaGb(gb.trim())) || []
-      if (r.length === 1) { onOdaberi(r[0].id); return }       // jedan otvoren nalog → odmah veži
-      setNalozi(r)
-    } catch { setNalozi([]) }
-  }
-  return (
-    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-      <input value={gb} inputMode="numeric" placeholder="Upiši GB" onChange={(e) => { setGb(e.target.value.replace(/\D/g, '')); setNalozi(null) }}
-        onKeyDown={(e) => { if (e.key === 'Enter') trazi() }}
-        style={{ width: 130, margin: 0, padding: '10px 12px', fontSize: 20, fontWeight: 700 }} />
-      <button className="btn" disabled={disabled || !gb} style={{ width: 'auto', margin: 0 }} onClick={trazi}>Potvrdi</button>
-      {nalozi && !nalozi.length && <small style={{ color: 'var(--crveno, #c62828)' }}>GB {gb} nema otvoren nalog</small>}
-      {nalozi && nalozi.length > 1 && <small style={{ color: 'var(--muted)' }}>GB {gb} ima više naloga — odaberi:</small>}
-      {nalozi && nalozi.map((n) => (
-        <button key={n.id} className="btn" disabled={disabled} style={{ width: 'auto', margin: 0 }} onClick={() => onOdaberi(n.id)}>
-          {n.broj}
-        </button>
-      ))}
-    </span>
-  )
-}
-
 export default function TestoviKocnica() {
-  const [otvoreni, setOtvoreni] = useState(null)
-  const [zadnji, setZadnji] = useState(null)
+  const [testovi, setTestovi] = useState(null)
   const [greska, setGreska] = useState('')
   const ucitaj = () => Promise.all([api.testoviKocnica({ status: 'otvoreni' }), api.testoviKocnica({ status: 'vezan' })])
-    .then(([o, v]) => { setOtvoreni(o); setZadnji(v); setGreska('') })
+    .then(([o, v]) => {
+      setTestovi([...o, ...v].sort((a, b) => new Date(b.pocetak) - new Date(a.pocetak)))
+      setGreska('')
+    })
     .catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj() }, [])
   useAutoOsvjezi(ucitaj, 15000)
@@ -241,13 +173,8 @@ export default function TestoviKocnica() {
   return (
     <Layout naslov="Testovi kočnica" nazad={true}>
       {greska && <div className="card" style={{ color: 'var(--crveno)' }}>{greska}</div>}
-      {!otvoreni || !zadnji ? <Spinner /> : (
-        <>
-          {otvoreni.length > 0 && <h3 style={{ margin: '8px 0' }}>❓ Treba odabrati vozilo ({otvoreni.length})</h3>}
-          {otvoreni.map((t) => <KarticaTesta key={t.id} t={t} onVezano={ucitaj} />)}
-          <h3 style={{ margin: '14px 0 8px' }}>Zadnji testovi</h3>
-          {!zadnji.length ? <Prazno emo="🛞" tekst="Još nema testova s valjaka." /> : zadnji.map((t) => <KarticaTesta key={t.id} t={t} onVezano={ucitaj} />)}
-        </>
+      {!testovi ? <Spinner /> : (
+        !testovi.length ? <Prazno emo="🛞" tekst="Još nema testova s valjaka." /> : testovi.map((t) => <KarticaTesta key={t.id} t={t} />)
       )}
     </Layout>
   )

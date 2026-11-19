@@ -102,6 +102,12 @@ def test_shema_odabir_i_operacije_samo_za_lose():
     assert r2["status"] == "nerazvrstan"
 
 
+def test_pristup_voditelj_ili_modul():
+    assert valjci.ima_pristup(Korisnik(uloga=Uloga.voditelj, moduli=None))
+    assert not valjci.ima_pristup(Korisnik(uloga=Uloga.radnik, moduli=["/nalozi"]))
+    assert valjci.ima_pristup(Korisnik(uloga=Uloga.radnik, moduli=["/valjci"]))
+
+
 def test_nepoznata_vrsta_pita_broj_osovina():
     db = _db()
     vod, tok = _okolina(db)

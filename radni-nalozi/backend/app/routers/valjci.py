@@ -32,12 +32,28 @@ from ..models import (
     RegistarVozila,
     StatusNaloga,
     TestKocnica,
+    Uloga,
     ValjciSesija,
     Vozilo,
     Zadatak,
 )
 
-router = APIRouter(prefix="/valjci", tags=["valjci"])
+MODUL = "/valjci"
+
+
+def ima_pristup(k: Korisnik) -> bool:
+    """Voditelj/poslovođa ili korisnik kojem je dodijeljen modul /valjci (Toni bira tko)."""
+    mod = k.moduli if isinstance(k.moduli, (list, tuple)) else []
+    return k.uloga in (Uloga.voditelj, Uloga.poslovodja) or MODUL in mod
+
+
+def _korisnik_valjaka(k: Korisnik = Depends(trenutni_korisnik)) -> Korisnik:
+    if not ima_pristup(k):
+        raise HTTPException(status_code=403, detail="Nemaš pristup aplikaciji Valjci.")
+    return k
+
+
+router = APIRouter(prefix="/valjci", tags=["valjci"], dependencies=[Depends(_korisnik_valjaka)])
 
 LOSA_RAZLIKA_PCT = 25          # razlika L/D iznad ovoga = osovina nije dobra (isto kao crveno na crtežu)
 SESIJA_TRAJE_H = 4             # zaboravljena sesija se sama zatvori
