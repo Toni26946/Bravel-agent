@@ -1,7 +1,10 @@
 """Test dashboard povlačenja zadatka između mehaničara (/plan/premjesti)."""
 import os
 import sys
+import types
 from pathlib import Path
+
+_REQ = types.SimpleNamespace(base_url="https://x/")   # lažni Request
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
@@ -37,12 +40,39 @@ def test_premjesti_prebaci_na_drugog_i_slozi_red():
 
     # ispušteno između B1 i B2 u retku mehaničara B
     premjesti(PremjestiIn(zadatak_id=za.id, s_radnika=a.id, na_radnika=b.id,
-                          redoslijed=[zb1.id, za.id, zb2.id]), korisnik=a, db=db)
+                          redoslijed=[zb1.id, za.id, zb2.id]), request=_REQ, korisnik=a, db=db)
     db.refresh(za)
     assert [r.id for r in za.radnici] == [b.id], "zadatak mora prijeći na B"
     assert za.ceka_potvrdu is False, "novom mehaničaru se tek treba poslati"
     assert [t[2].opis for t in _red(db, b)] == ["B1", "SELI", "B2"]
     assert _red(db, a) == []
+
+
+def test_rucno_na_prvo_mjesto_salje_novu_poruku():
+    """Mehaničar čeka potvrdu poslanog; Toni strelicom stavi drugi na prvo mjesto →
+    stari se poništi, novi prvi ide na potvrdu (nova poruka)."""
+    from app.routers.plan import MehRedoslijedIn, meh_redoslijed
+    db = _session()
+    a = Korisnik(ime="Meh A", korisnicko_ime="meh.a", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T57", marka="MAN"); db.add_all([a, voz]); db.flush()
+    n = Nalog(broj="RN-P", vozilo_id=voz.id, naslov="T", kreirao_id=a.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="A"); db.add(op); db.flush()
+    z210 = Zadatak(operacija_id=op.id, opis="GB210", ceka_potvrdu=True); z210.radnici = [a]
+    z200 = Zadatak(operacija_id=op.id, opis="GB200"); z200.radnici = [a]
+    db.add_all([z210, z200]); db.commit()
+
+    r = meh_redoslijed(MehRedoslijedIn(radnik_id=a.id, zadaci=[z200.id, z210.id]),
+                       request=_REQ, korisnik=a, db=db)
+    db.refresh(z200); db.refresh(z210)
+    assert r["poslano"] is True
+    assert z200.ceka_potvrdu is True and z210.ceka_potvrdu is False
+    assert [t[2].opis for t in _red(db, a)] == ["GB200", "GB210"]
+
+    # isti prvi ostaje → nema nove poruke
+    r = meh_redoslijed(MehRedoslijedIn(radnik_id=a.id, zadaci=[z200.id, z210.id]),
+                       request=_REQ, korisnik=a, db=db)
+    assert r["poslano"] is False
 
 
 def test_vrati_u_plan_otvara_gotov_zadatak():
