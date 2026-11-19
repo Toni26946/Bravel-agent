@@ -869,19 +869,22 @@
         // pa LISTA PRIORITETA (1, 2, 3…), pa redoslijed plana.
         var ga=faza(a), gb=faza(b); if(ga!==gb) return ga-gb;
         var ra=(a.o.red==null?1e6:a.o.red), rb=(b.o.red==null?1e6:b.o.red); if(ra!==rb) return ra-rb;
-        var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
         var pa=prio(a), pb=prio(b); if(pa!==pb) return pa-pb;
+        var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
         var na=(a.n.rang==null?9999:a.n.rang), nb=(b.n.rang==null?9999:b.n.rang); if(na!==nb) return na-nb;
         return a.o.id-b.o.id;
       });
       // Ručni red pobjeđuje, ali zadaci bez ručnog mjesta (novo dodijeljeni) ulaze po
       // prioritetu — isto kao dispečer (spoji_rucni_i_prioritet).
-      var l=map[id], out=[], i=0;
-      function mk(x){ return x.o.status==="ceka"?-1:prio(x); }
+      // Ispred svih ostaje samo poslani zadatak koji mehaničar upravo vidi (ne radi ništa drugo).
+      var l=map[id], out=[], i=0, zak=null;
+      function mk(x){ return prio(x); }
+      if(l.length && (faza(l[0])===1||faza(l[0])===2)){ var f0=faza(l[0]); for(var k=0;k<l.length;k++){ if(faza(l[k])===f0 && l[k].o.status==="ceka"){ zak=l[k]; break; } } }
       while(i<l.length){
         var f=faza(l[i]), j=i; while(j<l.length && faza(l[j])===f) j++;
         var grp=l.slice(i,j);
         if(f===1||f===2){
+          if(zak && grp.indexOf(zak)>=0){ out.push(zak); grp=grp.filter(function(x){return x!==zak;}); }
           var ruc=grp.filter(function(x){return x.o.red!=null;}), ost=grp.filter(function(x){return x.o.red==null;}), a=0, b=0;
           while(a<ost.length||b<ruc.length){
             if(b>=ruc.length || (a<ost.length && mk(ost[a])<mk(ruc[b]))) out.push(ost[a++]); else out.push(ruc[b++]);

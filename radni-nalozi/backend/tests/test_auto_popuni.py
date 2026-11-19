@@ -185,6 +185,25 @@ def test_poslani_ostaje_prvi():
     assert [t[2].opis for t in _red(db, ana)] == ["poslan", "p1"]
 
 
+def test_stari_cekaju_potvrdu_ne_blokiraju_prioritet():
+    """Radi na nečemu → stare oznake „čeka potvrdu" ne smiju biti ispred prioriteta;
+    ne radi ništa → ispred ostaje samo JEDAN poslani (onaj koji vidi)."""
+    db = _session()
+    ana = _meh(db, "Ana")
+    n_p1 = _nalog(db, "51", ana, prioritet_rang=0)
+    n_a = _nalog(db, "52", ana, plan_rang=0)
+    n_b = _nalog(db, "53", ana, plan_rang=1)
+    n_r = _nalog(db, "54", ana, plan_rang=2)
+    _zad(db, n_a, "GUME", "staroA", radnici=[ana], ceka_potvrdu=True)
+    _zad(db, n_b, "GUME", "staroB", radnici=[ana], ceka_potvrdu=True)
+    _zad(db, n_p1, "GUME", "p1", radnici=[ana])
+    radi = _zad(db, n_r, "GUME", "radi", radnici=[ana], zapoceto=datetime.now(timezone.utc))
+    db.commit()
+    assert [t[2].opis for t in _red(db, ana)] == ["radi", "p1", "staroA", "staroB"]
+    radi.zapoceto = None; radi.gotovo = True; db.commit()
+    assert [t[2].opis for t in _red(db, ana)] == ["staroA", "p1", "staroB"]
+
+
 def test_jednokratno_ocisti_rucni_red():
     db = _session()
     ana = _meh(db, "Ana")
