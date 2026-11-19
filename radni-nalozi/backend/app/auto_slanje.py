@@ -120,4 +120,13 @@ async def petlja() -> None:
             raise
         except Exception as e:  # ne ruši petlju
             log.warning("Auto-slanje tik iznimka: %s", e)
+        # Automatsko popunjavanje reda mehaničara (neovisno o WhatsApp slanju).
+        try:
+            from .auto_popuni import popuni
+            with SessionLocal() as db:
+                popuni(db)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # ne ruši petlju
+            log.warning("Auto-popuni tik iznimka: %s", e)
         await asyncio.sleep(_INTERVAL)

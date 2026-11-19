@@ -204,6 +204,13 @@ def _norm_kat(kat: str | None) -> str:
 def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, int]:
     """Za svaku (normaliziranu) kategoriju posla vrati mehaničara među aktivnima
     koji je dosad najviše puta ZAVRŠIO operaciju te vrste — prijedlog po iskustvu."""
+    agg = _iskustvo_po_kategoriji(db, aktivni_ids)
+    return {nk: max(d, key=d.get) for nk, d in agg.items() if d}
+
+
+def _iskustvo_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, dict[int, int]]:
+    """Koliko je puta koji mehaničar ZAVRŠIO operaciju pojedine (normalizirane) vrste:
+    {kategorija: {radnik_id: broj}} — za prijedlog i automatsko popunjavanje reda."""
     if not aktivni_ids:
         return {}
     rows = (
@@ -221,7 +228,7 @@ def _preporuke_po_kategoriji(db: Session, aktivni_ids: list[int]) -> dict[str, i
             continue
         d = agg.setdefault(nk, {})
         d[rid] = d.get(rid, 0) + c
-    return {nk: max(d, key=d.get) for nk, d in agg.items() if d}
+    return agg
 
 
 def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, tuple[str, int]]:
@@ -362,7 +369,28 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
         "zakljucaoIme": (zak.ime if zak else None),
         "zakljucanoTs": (_ms(st.zakljucano) if zakljucan else None),
         "autoSlanje": _auto_slanje_stanje(db),
+        "autoPopuni": _auto_popuni_ukljuceno(db),
     }
+
+
+def _auto_popuni_ukljuceno(db: Session) -> bool:
+    from ..auto_popuni import ukljuceno
+    return ukljuceno(db)
+
+
+class AutoPopuniIn(BaseModel):
+    ukljuceno: bool
+
+
+@router.post("/auto-popuni")
+def auto_popuni_prekidac(p: AutoPopuniIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Upali/ugasi automatsko popunjavanje reda mehaničara (Radnici). Upaljeno → odmah popuni."""
+    from .. import norme
+    from ..auto_popuni import KLJUC, popuni
+    norme.set_postavka(db, KLJUC, "1" if p.ukljuceno else "0")
+    db.commit()
+    dodano = popuni(db) if p.ukljuceno else []
+    return {"ok": True, "ukljuceno": p.ukljuceno, "dodijeljeno": len(dodano)}
 
 
 # --- GET /plan/moje (radnik vidi SAMO svoje operacije) ---------------------
@@ -441,6 +469,8 @@ def prioriteti(p: PrioritetiIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
         if n:
             n.prioritet_rang = i
     db.commit()
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)   # novi prioriteti → odmah dopuni redove mehaničara
     return {"ok": True}
 
 
@@ -640,7 +670,9 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
         n.plan_rang = (n.plan_rang or 0) + 1
     nalog.plan_rang = 0
     db.commit()
-    return {"ok": True, "gb": _gb(nalog), "rang": nalog.plan_rang}
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)   # novi kamion u planu → odmah dopuni redove mehaničara
+    return {"ok": True, "gb": _gb(nalog), "rang": 0}
 
 
 @router.post("/ocisti")

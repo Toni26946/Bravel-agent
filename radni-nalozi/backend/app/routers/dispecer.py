@@ -202,27 +202,62 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
             return 0.0
         return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
 
+    def faza_od(t):
+        n, _op, z = t
+        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo, 3 = odgođeno (nema dijelova /
+        # nedostupan) → uvijek na kraj reda, ali OSTAJE u planu. Mehaničar ne vidi da je hitno.
+        if z.zapoceto:
+            return 0
+        if z.razlog_prekida in ("dijelovi", "nedostupan"):
+            return 3
+        return 1 if n.plan_hitno else 2
+
     def kljuc(t):
         n, op, z = t
         rang = n.plan_rang if n.plan_rang is not None else 9999
-        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo, 3 = odgođeno (nema dijelova /
-        # nedostupan) → uvijek na kraj reda, ali OSTAJE u planu. Unutar „ostalog" vrijedi
-        # RUČNI red po mehaničaru (red_ruc, drag u dashboardu); unutar „odgođenog" po
-        # vremenu prekida (najstarije odgođeno se prvo vrati). Mehaničar ne vidi da je hitno.
-        odgodjeno = (not z.zapoceto) and (z.razlog_prekida in ("dijelovi", "nedostupan"))
-        if z.zapoceto:
-            faza = 0
-        elif odgodjeno:
-            faza = 3
-        elif n.plan_hitno:
-            faza = 1
-        else:
-            faza = 2
+        # Unutar „hitnog" i „ostalog": RUČNI red (red_ruc, strelice/drag u Radnicima), pa
+        # LISTA PRIORITETA (1, 2, 3…), pa redoslijed plana. Unutar „odgođenog" po vremenu
+        # prekida (najstarije odgođeno se prvo vrati).
         rr = z.red_ruc if z.red_ruc is not None else 10 ** 6
         cp = 0 if z.ceka_potvrdu else 1
-        return (faza, _ts(z.prekid_vrijeme), rr, cp, rang, op.redoslijed or 0, z.id)
+        return (faza_od(t), _ts(z.prekid_vrijeme), rr, cp, _prio_naloga(n), rang, op.redoslijed or 0, z.id)
 
     out.sort(key=kljuc)
+    return spoji_rucni_i_prioritet(out, faza_od)
+
+
+def _prio_naloga(n: Nalog) -> int:
+    """Pozicija naloga na listi prioriteta (0 = najhitniji); izvan liste = na kraj."""
+    return n.prioritet_rang if n.prioritet_rang is not None else 10 ** 6
+
+
+def spoji_rucni_i_prioritet(red: list, faza_od) -> list:
+    """Ručni red uvijek pobjeđuje, ali zadaci BEZ ručnog mjesta (npr. novo dodijeljeni)
+    se umeću po prioritetu naloga: unutar faze hitno/ostalo spoji dva već poredana niza —
+    ručno složene (red_ruc) i ostale — tako da ostali uđu ispred prvog ručnog zadatka
+    lošijeg prioriteta. Već poslani zadatak (čeka potvrdu) ostaje ispred svih."""
+    def mk(t):
+        return -1 if t[2].ceka_potvrdu else _prio_naloga(t[0])
+
+    out, i = [], 0
+    while i < len(red):
+        f = faza_od(red[i])
+        j = i
+        while j < len(red) and faza_od(red[j]) == f:
+            j += 1
+        grupa = red[i:j]
+        if f in (1, 2):
+            rucni = [t for t in grupa if t[2].red_ruc is not None]
+            ostali = [t for t in grupa if t[2].red_ruc is None]
+            a = b = 0
+            while a < len(ostali) or b < len(rucni):
+                if b >= len(rucni) or (a < len(ostali) and mk(ostali[a]) < mk(rucni[b])):
+                    out.append(ostali[a]); a += 1
+                else:
+                    out.append(rucni[b]); b += 1
+        else:
+            out.extend(grupa)
+        i = j
     return out
 
 
@@ -366,6 +401,9 @@ def _ucitaj(db: Session, token: str, uredjaj: str) -> MehanicarLink:
 @router.post("/z/{token}/stanje")
 def z_stanje(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     link = _ucitaj(db, token, p.uredjaj)
+    db.commit()
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)   # otvorio poveznicu bez posla → možda ga čeka nešto iz plana
     rez = _stanje(db, link.radnik)
     db.commit()
     return rez
@@ -397,6 +435,8 @@ def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
     reda označi 'čeka potvrdu' da se odmah pokaže na ISTOJ stranici (animacija
     'Stigao novi zadatak'). NE šalje se nova WhatsApp poruka — dovoljan je prvi
     link; mehaničar preko njega vidi kamo dalje."""
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)   # ostalo mu je malo posla → odmah dodijeli sljedeće iz plana
     red = _red(db, radnik)
     if not red:
         return
@@ -409,12 +449,15 @@ def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
 def _nedovrseni_iza_hitnih(z: Zadatak, nz: Zadatak, preostali: list) -> None:
     """„Nije gotovo": nedovršeni zadatak ostaje mehaničaru u redu — iza HITNIH, a ispred
     svih ostalih (prvi sljedeći čim završi zadatak koji mu se upravo pokazao).
-    Hitni su ionako uvijek ispred (faza 1 u _red), pa se ručni red (red_ruc) prepisuje
-    samo za obične: [upravo prikazani, nedovršeni, ostali po dosadašnjem redu]."""
+    Hitni su ionako uvijek ispred (faza 1 u _red). Ručno mjesto (red_ruc) dobivaju SAMO
+    upravo prikazani i nedovršeni (ispred svih dosadašnjih ručnih) — ostali zadaci ostaju
+    kako su bili (po prioritetu ili ručno), da red i dalje prati listu prioriteta."""
     obicni = [t[2] for t in preostali if not t[0].plan_hitno and not t[2].zapoceto]
-    poredak = ([nz] if nz in obicni else []) + [z] + [x for x in obicni if x is not nz]
+    postojeci = [x.red_ruc for x in obicni if x.red_ruc is not None and x is not nz]
+    dno = min(postojeci) if postojeci else 0
+    poredak = ([nz] if nz in obicni else []) + [z]
     for i, x in enumerate(poredak):
-        x.red_ruc = i
+        x.red_ruc = dno - len(poredak) + i
 
 
 @router.post("/z/{token}/gotovo")
@@ -554,6 +597,9 @@ def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     _zatvori_kao_nije_gotovo(z)    # zabilježi vrijeme i zaustavi (ostaje u pauzi)
     db.flush()
     _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+    db.commit()
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)   # dopuni red iz plana prije nego se izabere sljedeći
     # Sljedeći = prvi iz reda koji NIJE upravo pauzirani; označi 'čeka potvrdu' da
     # iskoči ispred pauziranog i pokaže se na stranici (animacija).
     preostali = [t for t in _red(db, link.radnik) if t[2].id != z.id]
