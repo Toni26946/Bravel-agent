@@ -450,6 +450,7 @@
   // Status operacije ZA KONKRETNOG radnika: „U tijeku" samo ako je NJEGOV mjerač pokrenut.
   // Ako operacija radi, ali on nije pokrenuo svoj dio → „Čeka potvrdu" (mora sam stisnuti).
   function mehStatus(o, rid){
+    if((o.radiIds||[]).indexOf(rid)>=0) return "radu";   // isto kao dispečer (radi_na)
     var mv=(o.mehVremena||[]).find(function(v){return v.id===rid;});
     if(mv && mv.startTs) return "radu";
     if(o.status==="radu") return "ceka";
@@ -860,39 +861,31 @@
         (o.mehIds||[]).forEach(function(id){ (map[id]=map[id]||[]).push({n:n,o:o}); });
       });
     });
-    function faza(x){ return x.o.status==="radu"?0:(x.n.hitno?1:(daleko(x.n)?3:2)); }
-    function prio(x){ return x.n.prioritet==null?1e6:x.n.prioritet; }
+    // ISTI red kao dispečer (dispecer.slozi_red): on radi → hitno → ostalo → vozilo daleko
+    // (>200 m); unutar toga po KLJUČU REDA: ručni (o.red, samo pomaknuta kartica) ili
+    // prioritet (1 = 0, 2 = 1000…; izvan liste iza svih po redoslijedu plana).
+    function kljucReda(x){
+      if(x.o.red!=null) return x.o.red;
+      if(x.n.prioritet!=null) return x.n.prioritet*1000;
+      return 10000000+(x.n.rang!=null?x.n.rang:9999)*1000;
+    }
     Object.keys(map).forEach(function(id){
-      map[id].sort(function(a,b){
-        // isti red kao dispečer (_red/kljuc): u tijeku prvi, pa hitno, pa blizu radione,
-        // pa vozila daleko (>200 m, GPS-potvrđeno) NA KRAJ; unutar toga RUČNI red (o.red),
-        // pa LISTA PRIORITETA (1, 2, 3…), pa redoslijed plana.
+      var rid=+id;
+      function faza(x){ return (x.o.radiIds||[]).indexOf(rid)>=0?0:(x.n.hitno?1:(daleko(x.n)?3:2)); }
+      var l=map[id].slice().sort(function(a,b){
         var ga=faza(a), gb=faza(b); if(ga!==gb) return ga-gb;
-        var ra=(a.o.red==null?1e6:a.o.red), rb=(b.o.red==null?1e6:b.o.red); if(ra!==rb) return ra-rb;
-        var pa=prio(a), pb=prio(b); if(pa!==pb) return pa-pb;
-        var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
-        var na=(a.n.rang==null?9999:a.n.rang), nb=(b.n.rang==null?9999:b.n.rang); if(na!==nb) return na-nb;
+        var ka=kljucReda(a), kb=kljucReda(b); if(ka!==kb) return ka-kb;
         return a.o.id-b.o.id;
       });
-      // Ručni red pobjeđuje, ali zadaci bez ručnog mjesta (novo dodijeljeni) ulaze po
-      // prioritetu — isto kao dispečer (spoji_rucni_i_prioritet).
-      // Ispred svih ostaje samo poslani zadatak koji mehaničar upravo vidi (ne radi ništa drugo).
-      var l=map[id], out=[], i=0, zak=null;
-      function mk(x){ return prio(x); }
-      if(l.length && (faza(l[0])===1||faza(l[0])===2)){ var f0=faza(l[0]); for(var k=0;k<l.length;k++){ if(faza(l[k])===f0 && l[k].o.status==="ceka" && l[k].o.red==null){ zak=l[k]; break; } } }
-      while(i<l.length){
-        var f=faza(l[i]), j=i; while(j<l.length && faza(l[j])===f) j++;
-        var grp=l.slice(i,j);
-        if(f===1||f===2){
-          if(zak && grp.indexOf(zak)>=0){ out.push(zak); grp=grp.filter(function(x){return x!==zak;}); }
-          var ruc=grp.filter(function(x){return x.o.red!=null;}), ost=grp.filter(function(x){return x.o.red==null;}), a=0, b=0;
-          while(a<ost.length||b<ruc.length){
-            if(b>=ruc.length || (a<ost.length && mk(ost[a])<mk(ruc[b]))) out.push(ost[a++]); else out.push(ruc[b++]);
-          }
-        } else out=out.concat(grp);
-        i=j;
+      // Ne radi ništa → poslani („čeka potvrdu", onaj koji vidi na mobitelu) ostaje prvi.
+      if(l.length){
+        var f0=faza(l[0]);
+        if(f0===1||f0===2){
+          var pin=null; for(var k=0;k<l.length;k++){ if(faza(l[k])===f0 && l[k].o.status==="ceka"){ pin=l[k]; break; } }
+          if(pin) l=[pin].concat(l.filter(function(x){return x!==pin;}));
+        }
       }
-      map[id]=out;
+      map[id]=l;
     });
     return map;
   }
@@ -1168,7 +1161,7 @@
       var i=cells.indexOf(card), j=i+smjer;
       if(j<0||j>=cells.length||!cells[j].querySelector(".rc-drag")){ toast(smjer<0?"Već je prvi":"Već je zadnji"); return; }
       if(smjer<0) cont.insertBefore(card, cells[j]); else cont.insertBefore(card, cells[j].nextSibling);
-      _dash_commit(cont); },
+      _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); },
     // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
     zoom:function(d){ _setRadZoom(Math.round((_radZoom+d*0.1)*10)/10, true); },
     // Ručna prijava mehaničara na zadatak (umjesto da sam klikne) → broji se kao prekršaj.
@@ -1350,11 +1343,11 @@
   })();
 
   // --- Drag redoslijed po mehaničaru (dashboard) — vodoravno; „u tijeku" nema ručku ---
-  function _dash_commit(cont){
+  function _dash_commit(cont, pomaknut){
     var rid=parseInt(cont.getAttribute("data-rid"),10);
     var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
     if(!rid||!zids.length) return;
-    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(function(r){ if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka"); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids, pomaknut:(pomaknut||null)}).then(function(r){ if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka"); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
   }
   // Dodir koji NIJE palac na ✋ (taj se ne računa ni u povlačenje ni u zumiranje).
   function _prstNaKartici(lista){ for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) return lista[i]; } return null; }
@@ -1397,7 +1390,7 @@
       var eat=function(ev){ ev.preventDefault(); ev.stopPropagation(); document.removeEventListener("click",eat,true); };
       document.addEventListener("click",eat,true);
       setTimeout(function(){ document.removeEventListener("click",eat,true); }, 500);
-      if(cont===izvor){ _dash_commit(cont); return; }
+      if(cont===izvor){ _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); return; }
       // Preseljeno drugom mehaničaru → prebaci zadatak + složi njegov red.
       var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
       api("/premjesti","POST",{
