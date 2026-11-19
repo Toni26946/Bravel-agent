@@ -1103,9 +1103,11 @@
   }
 
   // --- toast ---
+  // pointer-events:none: i nevidljiva (opacity 0) poruka ostaje na dnu ekrana i GUTALA je dodire
+  // ispod sebe — na mobitelu ◀ ▶ i kartice nisu reagirale nakon prve poruke (prijava #320/#322).
   var toEl;
   function toast(msg){
-    if(!toEl){ toEl=document.createElement("div"); toEl.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);background:#111826;color:#fff;padding:9px 16px;border-radius:999px;font-weight:700;font-size:13px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:opacity .2s;opacity:0"; document.body.appendChild(toEl); }
+    if(!toEl){ toEl=document.createElement("div"); toEl.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);background:#111826;color:#fff;padding:9px 16px;border-radius:999px;font-weight:700;font-size:13px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:opacity .2s;opacity:0;pointer-events:none"; document.body.appendChild(toEl); }
     toEl.textContent=msg; toEl.style.opacity="1"; clearTimeout(toEl._t); toEl._t=setTimeout(function(){toEl.style.opacity="0";},1800);
   }
 
