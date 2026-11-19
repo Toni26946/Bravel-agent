@@ -418,6 +418,28 @@ def poveznica_testa(test_id: int, db: Session = Depends(get_db), k: Korisnik = D
     return {"putanja": f"/kocnice/{_poveznica(db, t)}"}
 
 
+def _broj_iz_zapisa(ime: str, zapisi: list[dict]) -> str | None:
+    """Broj iz imenika za korisnika portala. Točno ime; inače JEDINI zapis čije ime sadrži sve
+    riječi korisnikovog imena (portal: „Toni", imenik: „JENDRIŠ TONI"). Više takvih → ništa."""
+    from .. import imenik
+    tocno = imenik.brojevi_po_imenu(zapisi).get(imenik.kljuc_imena(ime))
+    if tocno and tocno.get("broj"):
+        return tocno["broj"]
+    rijeci = set(imenik.kljuc_imena(ime).split())
+    if not rijeci:
+        return None
+    brojevi = {z.get("broj") for z in zapisi
+               if z.get("broj") and rijeci <= set(imenik.kljuc_imena(z.get("ime")).split())}
+    return brojevi.pop() if len(brojevi) == 1 else None
+
+
+def _broj_korisnika(k: Korisnik) -> str | None:
+    if (k.telefon or "").strip():
+        return k.telefon.strip()
+    from .. import imenik
+    return _broj_iz_zapisa(k.ime, (imenik.dohvati().get("zapisi")) or [])
+
+
 def _wa_poveznica(db: Session, t: TestKocnica, primatelj: Korisnik, base_url: str) -> dict:
     """Pošalji poveznicu testa na WhatsApp JEDNOM korisniku (broj iz imenika, po imenu) preko
     bravel-agenta — isti put i ista pravila kao dispečer (dispecer_wa_on, test-broj)."""
@@ -435,11 +457,10 @@ def _wa_poveznica(db: Session, t: TestKocnica, primatelj: Korisnik, base_url: st
     if test:
         body["vozac"], body["broj"] = "test", test
     else:
-        from .. import imenik
-        zapis = imenik.brojevi_po_imenu((imenik.dohvati().get("zapisi")) or []).get(imenik.kljuc_imena(primatelj.ime))
-        if not zapis or not zapis.get("broj"):
-            return {"poslano": False, "razlog": f"{primatelj.ime} nema broj u imeniku"}
-        body["vozac"], body["broj"] = primatelj.ime, zapis["broj"]
+        broj = _broj_korisnika(primatelj)
+        if not broj:
+            return {"poslano": False, "razlog": f"{primatelj.ime} nema (jednoznačan) broj u imeniku"}
+        body["vozac"], body["broj"] = primatelj.ime, broj
     try:
         import httpx
         r = httpx.post(f"{settings.bravel_agent_url.rstrip('/')}/api/vozac/nalog", json=body,

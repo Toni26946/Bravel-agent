@@ -149,6 +149,15 @@ def test_poveznica_bez_prijave_upis_gb():
     assert (r4["test"]["status"], r4["test"]["gb"], r4["test"]["nalog"]) == ("nerazvrstan", None, None)
 
 
+def test_broj_iz_imenika_po_dijelu_imena():
+    zapisi = [{"ime": "JENDRIŠ TONI", "broj": "0911"}, {"ime": "JENDRIŠ NIKOLA", "broj": "0922"},
+              {"ime": "MARKO KOVAČ", "broj": "0933"}, {"ime": "MARKO HORVAT", "broj": "0944"}]
+    assert cartec._broj_iz_zapisa("Toni", zapisi) == "0911"
+    assert cartec._broj_iz_zapisa("Kovač Marko", zapisi) == "0933"
+    assert cartec._broj_iz_zapisa("Marko", zapisi) is None        # dvojica — ne pogađamo
+    assert cartec._broj_iz_zapisa("Pero", zapisi) is None
+
+
 def test_nova_sesija_je_novi_test():
     db = _db()
     vod, tok = _okolina(db)
