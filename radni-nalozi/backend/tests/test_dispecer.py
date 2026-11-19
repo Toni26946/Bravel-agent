@@ -382,6 +382,20 @@ def test_kraj_poruka_ima_gb_i_link():
     assert t.format(url="https://x/z/abc?kraj=1").endswith("https://x/z/abc?kraj=1")
 
 
+def test_kraj_tik_radi_u_15h():
+    """Petlja kraja smjene u 15:05 (radni dan) ne smije pući (stari bug: naive/aware)."""
+    from datetime import datetime as _dt, timezone as _tz
+    import app.kraj_smjene as ks
+    db = _session()
+    meh, z = _meh_s_pokrenutim(db)
+    staro = ks._hr_now
+    try:
+        ks._hr_now = lambda: _dt(2026, 11, 19, 15, 5, tzinfo=_tz.utc)   # četvrtak
+        ks._tik(db)
+    finally:
+        ks._hr_now = staro
+
+
 def test_kraj_sat_po_danu():
     from datetime import datetime
     from app.kraj_smjene import _kraj_sat

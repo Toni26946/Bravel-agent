@@ -69,7 +69,7 @@ def _poruka(db, r: Korisnik) -> str:
 def _tik(db) -> None:
     now = datetime.now(timezone.utc)
     hr = _hr_now()
-    offset = hr - now.replace(tzinfo=None)   # HR = UTC + offset (naive delta)
+    offset = hr.replace(tzinfo=None) - now.replace(tzinfo=None)   # HR = UTC + offset
     sat = _kraj_sat(hr)
     test_mod = bool((settings.dispecer_test_broj or "").strip())
 
