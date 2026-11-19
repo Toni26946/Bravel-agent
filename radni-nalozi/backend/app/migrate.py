@@ -85,7 +85,15 @@ _STUPCI = [
     ("cartec_uredjaji", "stanje_vrijeme", "TIMESTAMP"),
     ("testovi_kocnica", "poveznica", "VARCHAR(40)"),
     ("testovi_kocnica", "rucno_poveznicom", "BOOLEAN DEFAULT FALSE"),
+    ("testovi_kocnica", "obavijesteno", "TIMESTAMP"),
 ]
+
+
+# Jednokratno, samo u trenutku dodavanja stupca.
+_NAKON_DODAVANJA = {
+    # Testovi prije obavijesti „kraj testa" su već javljeni — da ne odu ponovno.
+    ("testovi_kocnica", "obavijesteno"): "UPDATE testovi_kocnica SET obavijesteno = kreiran",
+}
 
 
 def _postojeci_stupci(conn, tablica: str, dialect: str) -> set[str]:
@@ -110,3 +118,5 @@ def migrate(engine: Engine) -> None:
             if stupac not in postojeci:
                 conn.exec_driver_sql(f"ALTER TABLE {tablica} ADD COLUMN {stupac} {tip}")
                 log.info("Migracija: dodan stupac %s.%s", tablica, stupac)
+                if (tablica, stupac) in _NAKON_DODAVANJA:
+                    conn.exec_driver_sql(_NAKON_DODAVANJA[(tablica, stupac)])
