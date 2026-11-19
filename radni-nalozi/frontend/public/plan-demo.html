@@ -1361,6 +1361,21 @@
     if(!rid||!zids.length) return;
     api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids, pomaknut:(pomaknut||null)}).then(function(r){ if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka"); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
   }
+  // Je li novi redoslijed u retku protiv faza (isto kao dispecer.slozi_red: u tijeku → hitno →
+  // ostalo → vozilo izvan radione)? Vrati poruku za korisnika ili null ako je red u redu.
+  function _dash_krsi_fazu(cont, card){
+    var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
+    var fc=card.getAttribute("data-faza");
+    for(var i=1;i<cells.length;i++){
+      var a=parseInt(cells[i-1].getAttribute("data-faza"),10), b=parseInt(cells[i].getAttribute("data-faza"),10);
+      if(isNaN(a)||isNaN(b)||a<=b) continue;
+      if(a===3||b===3) return fc==="3" ? "📍 Vozilo nije u radioni (>200 m) — ostaje iza vozila koja su u radioni"
+                                       : "📍 Vozila koja nisu u radioni su uvijek iza — ova kartica ne može iza njih";
+      if(a===1||b===1) return "🔴 Hitni zadaci su uvijek ispred ostalih — makni oznaku hitno u planu";
+      return "Zadatak u tijeku je uvijek prvi";
+    }
+    return null;
+  }
   // Dodir koji NIJE palac na ✋ (taj se ne računa ni u povlačenje ni u zumiranje).
   function _prstNaKartici(lista){ for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) return lista[i]; } return null; }
   function _bezDrzi(lista){ var r=[]; for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) r.push(lista[i]); } return r; }
@@ -1402,7 +1417,13 @@
       var eat=function(ev){ ev.preventDefault(); ev.stopPropagation(); document.removeEventListener("click",eat,true); };
       document.addEventListener("click",eat,true);
       setTimeout(function(){ document.removeEventListener("click",eat,true); }, 500);
-      if(cont===izvor){ _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); return; }
+      if(cont===izvor){
+        // Povlačenje preko granice faze (npr. „📍 vani" ispred vozila u radioni) server bi
+        // tiho vratio — kartica bi „skočila" natrag bez objašnjenja (WhatsApp #336).
+        var krsi=_dash_krsi_fazu(cont, card);
+        if(krsi){ toast(krsi); ucitaj(true); return; }
+        _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); return;
+      }
       // Preseljeno drugom mehaničaru → prebaci zadatak + složi njegov red.
       var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
       api("/premjesti","POST",{
