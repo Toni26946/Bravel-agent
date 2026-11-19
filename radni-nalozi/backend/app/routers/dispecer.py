@@ -220,7 +220,7 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
         # prekida (najstarije odgođeno se prvo vrati).
         rr = z.red_ruc if z.red_ruc is not None else 10 ** 6
         cp = 0 if z.ceka_potvrdu else 1
-        return (faza_od(t), _ts(z.prekid_vrijeme), rr, cp, _prio_naloga(n), rang, op.redoslijed or 0, z.id)
+        return (faza_od(t), _ts(z.prekid_vrijeme), rr, _prio_naloga(n), cp, rang, op.redoslijed or 0, z.id)
 
     out.sort(key=kljuc)
     return spoji_rucni_i_prioritet(out, faza_od)
@@ -235,9 +235,16 @@ def spoji_rucni_i_prioritet(red: list, faza_od) -> list:
     """Ručni red uvijek pobjeđuje, ali zadaci BEZ ručnog mjesta (npr. novo dodijeljeni)
     se umeću po prioritetu naloga: unutar faze hitno/ostalo spoji dva već poredana niza —
     ručno složene (red_ruc) i ostale — tako da ostali uđu ispred prvog ručnog zadatka
-    lošijeg prioriteta. Već poslani zadatak (čeka potvrdu) ostaje ispred svih."""
+    lošijeg prioriteta. Ispred svih ostaje SAMO zadatak koji mehaničar upravo vidi
+    (poslan, a ne radi ništa drugo) — da mu se ne promijeni pod prstom. Ostale stare
+    oznake „čeka potvrdu" ne blokiraju prioritete."""
     def mk(t):
-        return -1 if t[2].ceka_potvrdu else _prio_naloga(t[0])
+        return _prio_naloga(t[0])
+
+    zakvacen = None
+    if red and faza_od(red[0]) in (1, 2):   # nitko u tijeku → mehaničar vidi poslani zadatak
+        f0 = faza_od(red[0])
+        zakvacen = next((t for t in red if faza_od(t) == f0 and t[2].ceka_potvrdu), None)
 
     out, i = [], 0
     while i < len(red):
@@ -247,6 +254,9 @@ def spoji_rucni_i_prioritet(red: list, faza_od) -> list:
             j += 1
         grupa = red[i:j]
         if f in (1, 2):
+            if zakvacen is not None and zakvacen in grupa:
+                out.append(zakvacen)
+                grupa = [t for t in grupa if t is not zakvacen]
             rucni = [t for t in grupa if t[2].red_ruc is not None]
             ostali = [t for t in grupa if t[2].red_ruc is None]
             a = b = 0
