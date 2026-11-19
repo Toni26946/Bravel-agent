@@ -174,6 +174,13 @@ def test_obavijest_tek_kad_vozilo_sidje(monkeypatch):
     # znak kraja bez svježeg testa (valjci vrtjeli prazni) — ništa
     r2 = cartec.kraj_testa(cartec.KrajIn(vrijeme=T0 + timedelta(hours=2)), x_cartec_token=tok, db=db)
     assert r2["test_id"] is None and len(poslano) == 1
+    # vozilo se vratilo na valjke (ista Cartec sesija) → nakon novog kraja opet poruka
+    t = db.get(_Test, r["test_id"])
+    t.obavijesteno = T0 + timedelta(minutes=3)
+    db.commit()
+    cartec.primi_mjerenje(_m(3, 500, 500, T0 + timedelta(minutes=10)), x_cartec_token=tok, db=db)
+    cartec.kraj_testa(cartec.KrajIn(vrijeme=T0 + timedelta(minutes=11)), x_cartec_token=tok, db=db)
+    assert len(poslano) == 2
 
 
 def test_rezervna_obavijest_bez_znaka_kraja(monkeypatch):

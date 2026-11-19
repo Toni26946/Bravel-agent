@@ -282,6 +282,9 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
         t.pocetak = vrijeme
     if vrijeme > _utc(t.kraj):
         t.kraj = vrijeme
+    # Nova osovina nakon poslane poruke = vozilo se vratilo / test se nastavio → na kraju opet poruka.
+    if t.obavijesteno is not None and vrijeme > _utc(t.obavijesteno) + timedelta(minutes=1):
+        t.obavijesteno = None
     db.flush()
     db.refresh(t)
     _ocijeni(db, t, novi_test)
