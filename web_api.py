@@ -52,6 +52,8 @@ _WA_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip()
 _on_incoming = None
 _on_support = None   # callback za dolazne poruke iz živog chata (podrška)
 _on_status = None    # callback(neuspjele) — neisporučene WhatsApp poruke (whatsapp_dostava)
+# Slike prijedloga izmjena smiju doći SAMO s mozga (potpisani javni link /wa/s/…)
+_MOZAK_SLIKE = os.getenv("MOZAK_SLIKE_PREFIKS", "https://moj-mozak.fly.dev/wa/s/").strip()
 
 # ---- Kes zadnjeg uspjesnog dohvata (dijeljen unutar jednog event loopa) ----
 #   ts   = time.monotonic() zadnjeg uspjesnog dohvata (za TTL)
@@ -289,6 +291,37 @@ async def handle_wa_posalji_mozak(request):
         return _json({"ok": False, "error": "Taj broj nije prijavio kvar mozgu (7 dana)."}, status=403)
     loop = asyncio.get_event_loop()
     res = await loop.run_in_executor(None, lambda: whatsapp.send_text(broj, tekst))
+    if res.get("ok"):
+        return _json({"ok": True})
+    return _json({"ok": False, "error": whatsapp.opisi_gresku(res)}, status=502)
+
+
+async def handle_wa_slika_mozak(request):
+    """POST /api/whatsapp/slika — moj-mozak šalje prijavitelju screenshot prijedloga izmjene.
+    Tijelo {"broj", "url", "opis"}; X-Api-Key = MOZAK_WA_KLJUC. url mora biti HTTPS slika s
+    moj-mozak.fly.dev (potpisani javni link). Isto ograničenje kao /posalji: samo brojevi
+    koje je mozak preuzeo u zadnjih 7 dana."""
+    import whatsapp
+    import whatsapp_mozak
+    if not whatsapp_mozak.ukljuceno():
+        return _json({"ok": False, "error": "MOZAK_WA_KLJUC nije postavljen."}, status=503)
+    if request.headers.get("X-Api-Key", "") != whatsapp_mozak.kljuc():
+        return _json({"ok": False, "error": "Neispravan X-Api-Key."}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "Neispravan JSON."}, status=400)
+    broj = whatsapp_mozak._norm(body.get("broj"))
+    url = str(body.get("url") or "").strip()
+    opis = str(body.get("opis") or "").strip()[:1000]
+    if not broj or not url:
+        return _json({"ok": False, "error": "Nedostaje broj ili url."}, status=400)
+    if not url.startswith(_MOZAK_SLIKE):
+        return _json({"ok": False, "error": "Dopuštene su samo slike s mozga."}, status=400)
+    if not whatsapp_mozak.dozvoljen(broj):
+        return _json({"ok": False, "error": "Taj broj nije prijavio kvar mozgu (7 dana)."}, status=403)
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(None, lambda: whatsapp.send_image(broj, url, opis))
     if res.get("ok"):
         return _json({"ok": True})
     return _json({"ok": False, "error": whatsapp.opisi_gresku(res)}, status=502)
@@ -559,6 +592,7 @@ def _run():
         app.router.add_post("/api/vozac/nalog", handle_vozac_nalog)
         app.router.add_post("/api/whatsapp/posalji", handle_wa_posalji_mozak)
         app.router.add_post("/api/whatsapp/obavijest", handle_wa_obavijest_mozak)
+        app.router.add_post("/api/whatsapp/slika", handle_wa_slika_mozak)
 
         runner = web.AppRunner(app)
         loop.run_until_complete(runner.setup())
