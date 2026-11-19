@@ -66,6 +66,9 @@ export default function App() {
   if (window.location.pathname.startsWith('/kocnice/')) {
     return <Routes><Route path="/kocnice/:oznaka" element={<KocniceJavno />} /></Routes>
   }
+  // Valjci su zasebna aplikacija — vlastita prijava, bez izbornika portala.
+  if (window.location.pathname.startsWith('/valjci')) return <Valjci />
+
   if (ucitavanje) return <Spinner />
 
   return (
@@ -88,9 +91,6 @@ export default function App() {
       <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><EvidencijaPrikapcanja /></Zasticeno>} />
       <Route path="/servisi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Servisi /></Zasticeno>} />
       <Route path="/testovi-kocnica" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><TestoviKocnica /></Zasticeno>} />
-      {/* Valjci: voditelji + svatko kome se dodijeli modul /valjci (Toni odlučuje tko) */}
-      <Route path="/valjci" element={<Zasticeno uloge={['voditelj', 'poslovodja']} modul="/valjci"><Valjci /></Zasticeno>} />
-
       {/* Nalozi: voditelj/poslovođa (svi, kreiranje/uređivanje) + radnik (dodijeljeni) */}
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']} modul="/nalozi"><Nalozi /></Zasticeno>} />
       <Route path="/nalozi/novi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NoviNalog /></Zasticeno>} />

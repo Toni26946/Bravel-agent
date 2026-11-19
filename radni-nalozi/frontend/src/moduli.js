@@ -23,6 +23,8 @@ export const MODULI = [
   { key: '/samostalno', ikona: '🛞', txt: 'Moj rad', literal: true },
   // Imenik telefona (samo čitanje, iz Flota OS-a) — po zadanom samo vlasnik; ostalima se dodjeljuje ovdje.
   { key: '/imenik', ikona: '☎️', txt: 'Imenik', literal: true },
+  // Valjci — ZASEBNA aplikacija za mjerenje kočnica (/valjci); ne dodaje karticu u izbornik portala.
+  { key: '/valjci', ikona: '🛞', txt: 'Valjci (aplikacija za mjerenje kočnica)', literal: true },
 ]
 
 // Koji moduli su relevantni (vidljivi po zadanom) za koju ulogu — za prikaz u uređivaču.

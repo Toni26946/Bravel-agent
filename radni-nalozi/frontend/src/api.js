@@ -31,7 +31,9 @@ async function zahtjev(putanja, { method = 'GET', body, form } = {}) {
   const res = await fetch(BASE + '/api' + putanja, { method, headers, body: telo })
   if (res.status === 401) {
     setToken(null)
-    if (!location.pathname.startsWith('/prijava')) location.href = '/prijava'
+    // Aplikacija Valjci ima svoju prijavu — ostaje na /valjci.
+    if (location.pathname.startsWith('/valjci')) location.reload()
+    else if (!location.pathname.startsWith('/prijava')) location.href = '/prijava'
     throw new Error('Sesija je istekla')
   }
   if (!res.ok) {

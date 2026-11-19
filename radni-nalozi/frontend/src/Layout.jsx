@@ -123,7 +123,6 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },
       { do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') },
       { do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') },
-      { do: '/valjci', ikona: '🛞', txt: 'Valjci (mjerenje)' },
       { do: '/testovi-kocnica', ikona: '🛞', txt: 'Testovi kočnica' },
     ],
   })
@@ -203,7 +202,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     vidljiviTabovi.forEach((x) => { if (x.do) prisutni.add(x.do); if (x.djeca) x.djeca.forEach((d) => prisutni.add(d.do)) })
     for (const m of MODULI) {
       // '/plan' i '/imenik' se dodaju gore (planPristup / korisnik.imenik), ne ovdje.
-      if (m.key === '/plan' || m.key === '/imenik') continue
+      if (m.key === '/plan' || m.key === '/imenik' || m.key === '/valjci') continue   // valjci = zasebna app
       if (dopusteni.has(m.key) && !prisutni.has(m.key)) {
         vidljiviTabovi.push({ do: m.key, ikona: m.ikona, txt: m.literal ? m.txt : t(m.txt) })
       }

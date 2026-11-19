@@ -6,6 +6,22 @@ import { AuthProvider } from './auth'
 import { JezikProvider } from './i18n'
 import './styles.css'
 
+// Valjci su ZASEBNA aplikacija (svoja ikona na mobitelu): na /valjci vlastiti manifest i naslov.
+if (window.location.pathname.startsWith('/valjci')) {
+  document.title = 'Valjci'
+  const postavi = () => {
+    const linkovi = document.querySelectorAll('link[rel="manifest"]')
+    if (!linkovi.length) {
+      const l = document.createElement('link'); l.rel = 'manifest'; l.href = '/valjci.webmanifest'
+      document.head.appendChild(l)
+      return
+    }
+    linkovi.forEach((l) => { if (!l.href.endsWith('/valjci.webmanifest')) l.href = '/valjci.webmanifest' })
+  }
+  postavi()
+  new MutationObserver(postavi).observe(document.head, { childList: true })   // ako PWA doda svoj kasnije
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

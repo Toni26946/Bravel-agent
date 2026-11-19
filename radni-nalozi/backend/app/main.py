@@ -226,7 +226,7 @@ _dist = Path(settings.frontend_dist)
 # (hashirane) assete → bijeli ekran. ETag/Last-Modified i dalje vrijede pa je
 # revalidacija jeftina (304 kad nema promjene). Hashirani /assets/* se smiju
 # keširati zauvijek jer im se ime mijenja svaki build.
-_BEZ_KESA = {"index.html", "sw.js", "registerSW.js", "manifest.webmanifest"}
+_BEZ_KESA = {"index.html", "sw.js", "registerSW.js", "manifest.webmanifest", "valjci.webmanifest"}
 
 
 def _spa_response(datoteka: Path) -> FileResponse:

@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import Layout from '../Layout'
 import { api } from '../api'
+import { useAuth } from '../auth'
 import { Spinner } from '../ui'
+
+// ZASEBNA aplikacija (/valjci, svoja ikona na mobitelu): bez izbornika portala,
+// prijava portalnim korisničkim imenom i lozinkom. Pristup: voditelj/poslovođa ili modul /valjci.
+const imaPristup = (k) => !!k && (['voditelj', 'poslovodja'].includes(k.uloga)
+  || (Array.isArray(k.moduli) && k.moduli.includes('/valjci')))
 
 // Valjci — mjerenje kočnica preko mobitela (Toni 19.11.2026.):
 // upišu se vozila → shema osovina → stisne se osovina koja se mjeri (i „Ručna") →
@@ -144,7 +148,53 @@ function Pocetak({ onKreni }) {
   )
 }
 
-export default function Valjci() {
+function Prijava() {
+  const { prijava } = useAuth()
+  const [ime, setIme] = useState('')
+  const [lozinka, setLozinka] = useState('')
+  const [greska, setGreska] = useState('')
+  const [radi, setRadi] = useState(false)
+  const posalji = async (e) => {
+    e.preventDefault()
+    setRadi(true); setGreska('')
+    try { await prijava(ime.trim(), lozinka) } catch (er) { setGreska(er.message || 'Prijava neuspješna') } finally { setRadi(false) }
+  }
+  return (
+    <form className="card" onSubmit={posalji}>
+      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 10 }}>Prijava</div>
+      <label style={{ fontSize: 13, color: 'var(--muted)' }}>Korisničko ime (kao u portalu)</label>
+      <input value={ime} autoFocus autoCapitalize="none" autoComplete="username" onChange={(e) => setIme(e.target.value)} />
+      <label style={{ fontSize: 13, color: 'var(--muted)', display: 'block', marginTop: 8 }}>Lozinka</label>
+      <input type="password" value={lozinka} autoComplete="current-password" onChange={(e) => setLozinka(e.target.value)} />
+      <button className="btn" type="submit" disabled={radi || !ime || !lozinka} style={{ marginTop: 12 }}>Prijavi se</button>
+      {greska && <div style={{ color: CRVENO, marginTop: 8 }}>{greska}</div>}
+    </form>
+  )
+}
+
+export default function ValjciApp() {
+  const { korisnik, ucitavanje, odjava } = useAuth()
+  return (
+    <div style={{ minHeight: '100vh' }}>
+      <div style={{ background: '#0d47a1', color: '#fff', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 20, fontWeight: 800 }}>🛞 Valjci</span>
+        {korisnik && (
+          <span style={{ fontSize: 13 }}>
+            {korisnik.ime}{' · '}
+            <a href="#" style={{ color: '#fff' }} onClick={(e) => { e.preventDefault(); odjava() }}>odjava</a>
+          </span>
+        )}
+      </div>
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: 12 }}>
+        {ucitavanje ? <Spinner /> : !korisnik ? <Prijava /> : !imaPristup(korisnik) ? (
+          <div className="card">Nemaš pristup aplikaciji Valjci. Pristup daje voditelj (Šifrarnik → korisnik → modul „Valjci").</div>
+        ) : <MjerenjeValjci />}
+      </div>
+    </div>
+  )
+}
+
+function MjerenjeValjci() {
   const [s, setS] = useState(undefined)          // undefined = učitavam, null = nema mjerenja
   const [greska, setGreska] = useState('')
   const [kraj, setKraj] = useState(null)         // popis upisanih operacija nakon završetka
@@ -180,11 +230,10 @@ export default function Valjci() {
     try { const r = await api.valjciZavrsi(s.id); setKraj(r.operacije || []); setS(r) } catch (e) { setGreska(e.message) } finally { setRadi(false) }
   }
 
-  if (s === undefined) return <Layout naslov="Valjci" nazad={true}><Spinner /></Layout>
+  if (s === undefined) return <Spinner />
 
   return (
-    <Layout naslov="Valjci — test kočnica" nazad={true}>
-      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+    <div>
         {!s ? <Pocetak onKreni={(n) => { setKraj(null); setS(n) }} /> : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 10px' }}>
@@ -200,7 +249,7 @@ export default function Valjci() {
               <div key={v.gb} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '0 0 6px' }}>
                   <span style={{ fontSize: 16, fontWeight: 800 }}>GB {v.gb}{v.vrsta ? ` · ${v.vrsta}` : ''}</span>
-                  {v.nalog && <Link to={`/nalozi/${v.nalog.id}`} style={{ fontSize: 13 }}>nalog {v.nalog.broj}{v.nalog.novi ? ' (novi)' : ''}</Link>}
+                  {v.nalog && <span style={{ fontSize: 13, color: 'var(--muted)' }}>nalog {v.nalog.broj}{v.nalog.novi ? ' (novi)' : ''}</span>}
                 </div>
                 {v.osovine.map((o) => {
                   const odabrana = vi === s.odabrano_vozilo && o.br === s.odabrana_osovina && !s.zavrsena
@@ -228,7 +277,6 @@ export default function Valjci() {
             {greska && <div style={{ color: CRVENO, marginTop: 8 }}>{greska}</div>}
           </>
         )}
-      </div>
-    </Layout>
+    </div>
   )
 }
