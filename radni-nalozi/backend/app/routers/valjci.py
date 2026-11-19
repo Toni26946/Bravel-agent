@@ -331,6 +331,38 @@ def odabir(sid: int, p: OdabirIn, db: Session = Depends(get_db), k: Korisnik = D
     return _out(db, s)
 
 
+@router.post("/sesija/{sid}/odustani")
+def odustani(sid: int, db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
+    """Toni 19.11.2026.: izađi iz mjerenja BEZ spremanja (krivo upisano / krivo stisnuto).
+    Brišu se testovi i mjerenja ove sesije; nalog otvoren samo zbog nje briše se ako je prazan."""
+    from ..models import ValjciUpozorenje
+    s = db.get(ValjciSesija, sid)
+    if s is None:
+        raise HTTPException(status_code=404, detail="Nema tog mjerenja.")
+    if s.zavrsena is not None:
+        raise HTTPException(status_code=409, detail="Test je već završen — rezultati su u nalogu.")
+    for v in _vozila(s):
+        t = db.get(TestKocnica, v.get("test_id"))
+        if t is None:
+            continue
+        nalog_id = t.nalog_id
+        db.query(ValjciUpozorenje).filter(ValjciUpozorenje.test_id == t.id).update({"test_id": None})
+        db.delete(t)
+        db.flush()
+        n = db.get(Nalog, nalog_id) if nalog_id else None
+        if n is None:
+            continue
+        if v.get("novi_nalog") and not (n.operacije or n.radni_sati or n.dijelovi or n.fotografije):
+            db.delete(n)
+        else:   # oznaka „🛞 valjci" ostaje samo ako ima drugih testova
+            ostali = [x for x in db.query(TestKocnica).filter(TestKocnica.nalog_id == n.id).all() if x.mjerenja]
+            n.valjci = max((_utc(x.kraj) for x in ostali), default=None)
+    s.zavrsena = _sad()
+    s.vozila = json.dumps([{**v, "otkazano": True} for v in _vozila(s)], ensure_ascii=False)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/sesija/{sid}/zavrsi")
 def zavrsi_sesiju(sid: int, db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
     s = db.get(ValjciSesija, sid)
