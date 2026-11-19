@@ -313,6 +313,16 @@ def _obavijesti_nerazvrstan(db: Session, t: TestKocnica) -> None:
                          url=f"/kocnice/{_poveznica(db, t)}")
     except Exception:  # noqa: BLE001 — obavijest nije bitna za spremanje mjerenja
         pass
+    # WhatsApp ide SAMO vlasniku (Toni 19.11.2026. „samo meni") — poruke se plaćaju.
+    try:
+        from ..config import settings
+        ime = (settings.ai_poslovodja_user or "").strip().lower()
+        vlasnik = next((k for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all()
+                        if (k.korisnicko_ime or "").strip().lower() == ime), None) if ime else None
+        if vlasnik:
+            _wa_poveznica(db, t, vlasnik, settings.javni_url)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # --- pregled i vezanje (portal) ---------------------------------------------
@@ -479,7 +489,8 @@ def posalji_test_na_whatsapp(test_id: int, request: Request, db: Session = Depen
     t = db.get(TestKocnica, test_id)
     if not t:
         raise HTTPException(status_code=404, detail="Test ne postoji")
-    return _wa_poveznica(db, t, k, str(request.base_url))
+    from ..config import settings
+    return _wa_poveznica(db, t, k, settings.javni_url or str(request.base_url))
 
 
 # --- poveznica bez prijave: crtež testa + upis GB-a ---------------------------
