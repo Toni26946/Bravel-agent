@@ -116,6 +116,10 @@ class Settings(BaseSettings):
     dispecer_zaliha: int = 2
     # Javni URL ovog portala (za poveznice iz pozadinskih zadataka, bez Requesta).
     javni_url: str = "https://bravel-radni-nalozi.fly.dev"
+    # Aplikacija Valjci (vlastita adresa) i tko dobiva WhatsApp kad valjci rade bez upisanog
+    # vozila (korisnička imena, zarezom) — Toni 19.11.2026.: Zvonimir Azinović i Dominik Bahal.
+    valjci_url: str = "https://bravel-valjci.fly.dev"
+    valjci_upozorenje_korisnici: str = "zvonimir.azinovic,dominik.bahal"
     # Verzija izgradnje (git SHA) — proslijedi je deploy preko `flyctl deploy --env APP_VERZIJA`.
     # Na promjenu verzije pri startu šaljemo voditeljima push „osvježi" (vidi obavijesti_osvjezi).
     # Prazno (lokalno/dev) → obavijest se ne šalje.

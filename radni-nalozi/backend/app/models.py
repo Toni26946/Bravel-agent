@@ -893,6 +893,18 @@ class CartecUredjaj(Base):
     uzivo_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ValjciUpozorenje(Base):
+    """Valjci su radili, a u aplikaciji Valjci nije bilo upisano vozilo → WhatsApp
+    poslovođama (Toni 19.11.2026.: „i zapisuj to nekam")."""
+    __tablename__ = "valjci_upozorenja"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uredjaj_id: Mapped[int] = mapped_column(ForeignKey("cartec_uredjaji.id"), index=True)
+    vrijeme: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    test_id: Mapped[int | None] = mapped_column(ForeignKey("testovi_kocnica.id"), nullable=True)
+    rezultat: Mapped[str | None] = mapped_column(String(500), nullable=True)   # kome poslano / zašto nije
+
+
 class ValjciSesija(Base):
     """Mjerenje kočnica preko aplikacije (/valjci): upišu se vozila (kamion + prikolica),
     app nacrta osovine, osoba u kamionu stisne osovinu koju mjeri — svako mjerenje s

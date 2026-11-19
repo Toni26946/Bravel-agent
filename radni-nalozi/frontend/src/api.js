@@ -238,6 +238,7 @@ export const api = {
   kocniceJavno: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}`),
   kocniceJavnoGb: (oznaka, gb, nalogId) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/gb`, { method: 'POST', body: { gb, nalog_id: nalogId || null } }),
   testKocnicaNaWhatsapp: (id) => zahtjev(`/cartec/testovi/${id}/posalji-wa`, { method: 'POST' }),
+  valjciUpozorenja: () => zahtjev('/cartec/upozorenja'),
   // Valjci — mjerenje kočnica preko mobitela
   valjciAktivna: () => zahtjev('/valjci/aktivna'),
   valjciNova: (podaci) => zahtjev('/valjci/sesija', { method: 'POST', body: podaci }),
