@@ -1,7 +1,7 @@
 """Automatsko popunjavanje reda mehaničara (Plan → Radnici).
 
-Čim nekom prisutnom mehaničaru ostane manje od `dispecer_zaliha` (2) zadataka u pripremi
-(nezapočetih i ne odgođenih), sam mu se dodijeli sljedeća NEDODIJELJENA operacija iz plana:
+Čim nekom prisutnom mehaničaru ostane manje od MIN_ZADATAKA (5) zadataka u redu
+(i onaj u tijeku; bez odgođenih), sam mu se dodijeli sljedeća NEDODIJELJENA operacija iz plana:
 - redom: HITNO → lista prioriteta (1, 2, 3…) → ostali po redoslijedu plana;
 - kome: mehaničaru (od onih kojima treba posla) koji je najviše puta završio tu vrstu
   posla; ako nitko nije ili su izjednačeni → onaj s najmanje zadataka.
@@ -27,6 +27,9 @@ log = logging.getLogger("auto_popuni")
 KLJUC = "plan_auto_popuni"
 KLJUC_RESET_RED = "plan_red_ruc_reset_v2"   # v2: red_ruc je od sada ključ reda (ne pozicija)
 BLIZU_M = 200
+# Svaki mehaničar ima barem ovoliko zadataka u redu (kartica u Radnicima, i ona u tijeku;
+# bez odgođenih) — Toni 19.11.2026. „min 5 zadataka svakom mehaničaru".
+MIN_ZADATAKA = 5
 _ODGODJENO = ("dijelovi", "nedostupan")
 
 
@@ -107,8 +110,8 @@ def popuni(db: Session) -> list[dict]:
                         if zr is not None and zr.gotovo:
                             continue   # svoj dio završio, čeka drugoga
                         ukupno[r.id] += 1
-                        if not z.zapoceto and z.razlog_prekida not in _ODGODJENO:
-                            ceka[r.id] += 1
+                        if z.razlog_prekida not in _ODGODJENO:
+                            ceka[r.id] += 1   # kartica u njegovom retku (i ona u tijeku)
                     continue
                 if not u_planu or n.status == StatusNaloga.ceka_dijelove:
                     continue
@@ -118,7 +121,7 @@ def popuni(db: Session) -> list[dict]:
                     continue   # preglede radi pregledar (popis), ne red mehaničara
                 kandidati.append((n, op, z))
 
-    prag = max(1, settings.dispecer_zaliha or 2)
+    prag = MIN_ZADATAKA
     trebaju = {rid for rid, c in ceka.items() if c < prag}
     if not trebaju or not kandidati:
         return []

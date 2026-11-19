@@ -890,7 +890,7 @@
     return map;
   }
   function renderDASH(){
-    var PRAG=2;
+    var PRAG=5;   // min zadataka u retku (auto_popuni.MIN_ZADATAKA)
     var map=redPoRadniku();
     var PB=prioBandovi();   // nalog id -> traka prioriteta (c/z/g) za okvir kartice
     var saZad=[], slobodniPrisutni=[], slobodniOdsutni=[];
@@ -910,7 +910,7 @@
     var ukupno=0, trebaDopunu=0;
     saZad.forEach(function(r){
       ukupno+=r.lista.length;
-      r.cekaju=r.lista.filter(function(x){return x.o.status==="plan"||x.o.status==="pauza";}).length;
+      r.cekaju=r.lista.length;   // sve kartice u retku (i ona u tijeku) — kao auto-popunjavanje
       if(r.cekaju<PRAG) trebaDopunu++;
     });
     var h='';
@@ -920,9 +920,9 @@
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
        '<div class="kpi"><div class="n">'+slobodniPrisutni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni): hitno → prioriteti 1, 2, 3… → ostalo. Ručni pomak (strelice/povlačenje) ima prednost. ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak.</p>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni): hitno → prioriteti 1, 2, 3… → ostalo. Ručni pomak (strelice/povlačenje) ima prednost. ⚠ = manje od '+PRAG+' zadataka. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak.</p>';
     h+='<div class="auto-pop'+(autoPopuni?' on':'')+'">'+(autoPopuni
-      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadatka sam dobiva sljedeći iz plana (po prioritetu, pa tko je to već radio). <button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
+      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadataka sam dobiva sljedeći iz plana (po prioritetu, pa tko je to već radio). <button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
       : '🤖 Automatsko popunjavanje je <b>ugašeno</b>. <button class="btn ghost sm" onclick="PLAN.autoPopuni(true)">Upali</button>')+'</div>';
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
