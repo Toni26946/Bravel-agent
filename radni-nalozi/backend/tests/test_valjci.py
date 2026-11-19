@@ -148,6 +148,22 @@ def test_pristup_voditelj_ili_modul():
     assert valjci.ima_pristup(Korisnik(uloga=Uloga.radnik, moduli=["/valjci"]))
 
 
+def test_odustani_ne_sprema_nista():
+    from app.models import TestKocnica
+    db = _db()
+    vod, tok = _okolina(db)
+    s = valjci.nova_sesija(valjci.SesijaIn(kamion_gb="425", prikolica_gb="200"), db=db, k=vod)
+    _koci(db, tok, 5000, 1000)
+    novi_nalozi = [v["nalog"]["id"] for v in s["vozila"]]
+    assert db.get(Nalog, novi_nalozi[0]).valjci is not None
+    valjci.odustani(s["id"], db=db, k=vod)
+    assert db.query(TestKocnica).count() == 0                       # rezultati obrisani
+    assert all(db.get(Nalog, i) is None for i in novi_nalozi)        # prazni novi nalozi obrisani
+    assert valjci.aktivna(db=db, k=vod) is None
+    r = _koci(db, tok, 100, 100)                                     # dalje ide starim putem
+    assert r["status"] == "nerazvrstan"
+
+
 def test_nepoznata_vrsta_pita_broj_osovina():
     db = _db()
     vod, tok = _okolina(db)

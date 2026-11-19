@@ -230,6 +230,13 @@ function MjerenjeValjci() {
     try { const r = await api.valjciZavrsi(s.id); setKraj(r.operacije || []); setS(r) } catch (e) { setGreska(e.message) } finally { setRadi(false) }
   }
 
+  // Izađi bez spremanja (krivo upisana vozila / krivo stisnuto) — rezultati ovog testa se brišu.
+  const odustani = async () => {
+    if (!window.confirm('Izaći bez spremanja? Rezultati ovog mjerenja se brišu i ne idu u nalog.')) return
+    setRadi(true)
+    try { await api.valjciOdustani(s.id); setKraj(null); setS(null) } catch (e) { setGreska(e.message) } finally { setRadi(false) }
+  }
+
   if (s === undefined) return <Spinner />
 
   return (
@@ -263,7 +270,12 @@ function MjerenjeValjci() {
               </div>
             ))}
             {!s.zavrsena ? (
-              <button className="btn" disabled={radi} style={{ fontSize: 17, padding: '14px 0' }} onClick={zavrsi}>Završi test</button>
+              <>
+                <button className="btn" disabled={radi} style={{ fontSize: 17, padding: '14px 0' }} onClick={zavrsi}>Završi test</button>
+                <button className="btn ghost" disabled={radi} style={{ marginTop: 10, color: CRVENO, borderColor: CRVENO }} onClick={odustani}>
+                  Odustani — ne spremaj
+                </button>
+              </>
             ) : (
               <div className="card">
                 <div style={{ fontSize: 16, fontWeight: 800 }}>Test završen</div>

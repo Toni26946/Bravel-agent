@@ -245,6 +245,7 @@ export const api = {
   valjciSesija: (id) => zahtjev(`/valjci/sesija/${id}`),
   valjciOdabir: (id, odabir) => zahtjev(`/valjci/sesija/${id}/odabir`, { method: 'POST', body: odabir }),
   valjciZavrsi: (id) => zahtjev(`/valjci/sesija/${id}/zavrsi`, { method: 'POST' }),
+  valjciOdustani: (id) => zahtjev(`/valjci/sesija/${id}/odustani`, { method: 'POST' }),
   kocniceJavnoPonisti: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/ponisti`, { method: 'POST' }),
   gpsPoveziUredaj: (b) => zahtjev('/integracije/gps-uredaji', { method: 'POST', body: b }),
   arossStanje: () => zahtjev('/integracije/aross'),
