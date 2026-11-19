@@ -909,6 +909,10 @@ class TestKocnica(Base):
     # Mogući nalozi (id-jevi zarezom) kad nije jasno koje je vozilo — za pitanje s gumbima.
     kandidati: Mapped[str | None] = mapped_column(String(300), nullable=True)
     vezao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
+    # Nasumična oznaka za poveznicu bez prijave (/kocnice/<oznaka>): crtež testa + upis GB-a.
+    poveznica: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True, index=True)
+    # GB upisan preko poveznice (bez prijavljenog korisnika) — ručni izbor, automatika ga ne dira.
+    rucno_poveznicom: Mapped[bool] = mapped_column(Boolean, default=False)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     mjerenja: Mapped[list["MjerenjeOsovine"]] = relationship(

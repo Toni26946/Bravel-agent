@@ -173,7 +173,8 @@ def _nadji_ili_kreiraj_test(db: Session, u: CartecUredjaj, p: MjerenjeIn, vrijem
         if t and timedelta(0) <= vrijeme - _utc(t.kraj) <= timedelta(minutes=SESIJA_BEZ_OZNAKE_MIN):
             return t
         sesija = "bez-" + vrijeme.strftime("%Y%m%d%H%M%S")
-    t = TestKocnica(uredjaj_id=u.id, sesija=sesija, pocetak=vrijeme, kraj=vrijeme, status="nerazvrstan")
+    t = TestKocnica(uredjaj_id=u.id, sesija=sesija, pocetak=vrijeme, kraj=vrijeme, status="nerazvrstan",
+                    poveznica=secrets.token_urlsafe(18))
     db.add(t)
     db.flush()
     return t
@@ -220,7 +221,7 @@ def _prethodni_broj_osovina(db: Session, t: TestKocnica) -> int | None:
 def _ocijeni(db: Session, t: TestKocnica, novi_test: bool) -> bool:
     """Postavi status testa. Vraća True kad treba pitati ljude (test je tek postao
     nerazvrstan / čeka potvrdu) — da se obavijest ne šalje za svaku osovinu."""
-    if t.vezao_id:          # čovjek je vezao — ne diramo
+    if t.vezao_id or t.rucno_poveznicom:          # čovjek je vezao — ne diramo
         return False
     stari = t.status
     if t.nalog_id is None:
@@ -295,12 +296,21 @@ def _lokalno(d: datetime) -> str:
         return _utc(d).strftime("%H:%M")
 
 
+def _poveznica(db: Session, t: TestKocnica) -> str:
+    """Oznaka za poveznicu bez prijave; stari testovi je dobiju pri prvom traženju."""
+    if not t.poveznica:
+        t.poveznica = secrets.token_urlsafe(18)
+        db.commit()
+    return t.poveznica
+
+
 def _obavijesti_nerazvrstan(db: Session, t: TestKocnica) -> None:
     try:
         from ..push import obavijesti_ulogu
         tekst = f"Test kočnica u {_lokalno(t.pocetak)} — upiši GB vozila."
-        for uloga in (Uloga.voditelj, Uloga.poslovodja):
-            obavijesti_ulogu(db, uloga, "Test kočnica", tekst, url="/testovi-kocnica")
+        # Poveznica vodi na samostalnu stranicu testa (crtež + upis GB-a), ne u aplikaciju.
+        obavijesti_ulogu(db, [Uloga.voditelj, Uloga.poslovodja], "Test kočnica", tekst,
+                         url=f"/kocnice/{_poveznica(db, t)}")
     except Exception:  # noqa: BLE001 — obavijest nije bitna za spremanje mjerenja
         pass
 
@@ -396,6 +406,70 @@ def vezi_test(test_id: int, p: VeziIn, db: Session = Depends(get_db), k: Korisni
     t.vezao_id = k.id
     db.commit()
     return _test_out(db, t)
+
+
+@router.get("/testovi/{test_id}/poveznica")
+def poveznica_testa(test_id: int, db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
+    """Poveznica bez prijave za ovaj test (za slanje voditelju na mobitel)."""
+    _smije_vezati(k)
+    t = db.get(TestKocnica, test_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Test ne postoji")
+    return {"putanja": f"/kocnice/{_poveznica(db, t)}"}
+
+
+# --- poveznica bez prijave: crtež testa + upis GB-a ---------------------------
+# Tko ima poveznicu (nasumična oznaka iz obavijesti), vidi JEDAN test i smije mu upisati GB.
+def _test_po_poveznici(db: Session, oznaka: str) -> TestKocnica:
+    t = db.query(TestKocnica).filter(TestKocnica.poveznica == (oznaka or "").strip()).first() if oznaka else None
+    if not t:
+        raise HTTPException(status_code=404, detail="Poveznica ne vrijedi")
+    return t
+
+
+def _javni_out(db: Session, t: TestKocnica) -> dict:
+    o = _test_out(db, t)
+    return {k: o[k] for k in ("status", "pocetak", "kraj", "gb", "nalog", "osovina", "mjerenja")}
+
+
+@router.get("/javno/{oznaka}")
+def javni_test(oznaka: str, db: Session = Depends(get_db)):
+    return _javni_out(db, _test_po_poveznici(db, oznaka))
+
+
+class JavnoGbIn(BaseModel):
+    gb: str = Field(min_length=1, max_length=40)
+    nalog_id: int | None = None      # kad GB ima više otvorenih naloga
+
+
+@router.post("/javno/{oznaka}/gb")
+def javni_upis_gb(oznaka: str, p: JavnoGbIn, db: Session = Depends(get_db)):
+    """Upis GB-a za test. Veže se uz otvoren nalog tog vozila; ako ih je više, vrati izbor.
+    Vozilo bez otvorenog naloga: test se veže samo uz GB (bez naloga)."""
+    from ..models import Vozilo
+    t = _test_po_poveznici(db, oznaka)
+    gb = p.gb.strip()
+    v = db.query(Vozilo).filter(Vozilo.gb == gb).first()
+    if not v:
+        raise HTTPException(status_code=404, detail=f"GB {gb} ne postoji u popisu vozila")
+    nalozi = (db.query(Nalog).filter(Nalog.vozilo_id == v.id, Nalog.status.in_(OTVORENI))
+              .order_by(Nalog.kreiran.desc()).all())
+    odabran = None
+    if p.nalog_id:
+        odabran = next((n for n in nalozi if n.id == p.nalog_id), None)
+        if not odabran:
+            raise HTTPException(status_code=400, detail="Taj nalog nije otvoren za ovaj GB")
+    elif len(nalozi) == 1:
+        odabran = nalozi[0]
+    elif len(nalozi) > 1:
+        return {"izbor": [{"id": n.id, "broj": n.broj, "naslov": n.naslov} for n in nalozi]}
+    t.nalog_id = odabran.id if odabran else None
+    t.gb = gb
+    t.status = "vezan"
+    t.napomena = None if odabran else "GB upisan ručno — vozilo tada nije imalo otvoren nalog."
+    t.rucno_poveznicom = True
+    db.commit()
+    return {"test": _javni_out(db, t)}
 
 
 def blokira_zatvaranje(db: Session, nalog_id: int) -> TestKocnica | None:
