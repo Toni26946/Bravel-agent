@@ -20,7 +20,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -416,6 +416,49 @@ def poveznica_testa(test_id: int, db: Session = Depends(get_db), k: Korisnik = D
     if not t:
         raise HTTPException(status_code=404, detail="Test ne postoji")
     return {"putanja": f"/kocnice/{_poveznica(db, t)}"}
+
+
+def _wa_poveznica(db: Session, t: TestKocnica, primatelj: Korisnik, base_url: str) -> dict:
+    """Pošalji poveznicu testa na WhatsApp JEDNOM korisniku (broj iz imenika, po imenu) preko
+    bravel-agenta — isti put i ista pravila kao dispečer (dispecer_wa_on, test-broj)."""
+    from ..config import settings
+    if not (settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc):
+        return {"poslano": False, "razlog": "WhatsApp slanje je isključeno"}
+    url = f"{base_url.rstrip('/')}/kocnice/{_poveznica(db, t)}"
+    try:
+        from zoneinfo import ZoneInfo
+        kad = _utc(t.pocetak).astimezone(ZoneInfo("Europe/Zagreb")).strftime("%d.%m. u %H:%M")
+    except Exception:  # noqa: BLE001
+        kad = _utc(t.pocetak).strftime("%d.%m. u %H:%M")
+    body = {"poruka": f"Test kočnica {kad} — upiši GB vozila: {url}"}
+    test = (settings.dispecer_test_broj or "").strip()
+    if test:
+        body["vozac"], body["broj"] = "test", test
+    else:
+        from .. import imenik
+        zapis = imenik.brojevi_po_imenu((imenik.dohvati().get("zapisi")) or []).get(imenik.kljuc_imena(primatelj.ime))
+        if not zapis or not zapis.get("broj"):
+            return {"poslano": False, "razlog": f"{primatelj.ime} nema broj u imeniku"}
+        body["vozac"], body["broj"] = primatelj.ime, zapis["broj"]
+    try:
+        import httpx
+        r = httpx.post(f"{settings.bravel_agent_url.rstrip('/')}/api/vozac/nalog", json=body,
+                       headers={"X-Api-Key": settings.bravel_agent_kljuc}, timeout=10)
+        ok = r.status_code < 300 and bool(r.json().get("ok"))
+        return {"poslano": ok} if ok else {"poslano": False, "razlog": f"bravel-agent {r.status_code}: {r.text[:150]}"}
+    except Exception as e:  # noqa: BLE001
+        return {"poslano": False, "razlog": str(e)}
+
+
+@router.post("/testovi/{test_id}/posalji-wa")
+def posalji_test_na_whatsapp(test_id: int, request: Request, db: Session = Depends(get_db),
+                             k: Korisnik = Depends(trenutni_korisnik)):
+    """Voditelj si pošalje poveznicu testa na svoj WhatsApp (broj iz imenika)."""
+    _smije_vezati(k)
+    t = db.get(TestKocnica, test_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Test ne postoji")
+    return _wa_poveznica(db, t, k, str(request.base_url))
 
 
 # --- poveznica bez prijave: crtež testa + upis GB-a ---------------------------
