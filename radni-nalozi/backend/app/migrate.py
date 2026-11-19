@@ -87,6 +87,7 @@ _STUPCI = [
     ("testovi_kocnica", "rucno_poveznicom", "BOOLEAN DEFAULT FALSE"),
     ("testovi_kocnica", "obavijesteno", "TIMESTAMP"),
     ("cartec_uredjaji", "uzivo", "TEXT"),
+    ("nalozi", "valjci", "TIMESTAMP"),
     ("cartec_uredjaji", "uzivo_vrijeme", "TIMESTAMP"),
 ]
 
@@ -95,6 +96,10 @@ _STUPCI = [
 _NAKON_DODAVANJA = {
     # Testovi prije obavijesti „kraj testa" su već javljeni — da ne odu ponovno.
     ("testovi_kocnica", "obavijesteno"): "UPDATE testovi_kocnica SET obavijesteno = kreiran",
+    # Nalozi koji već imaju izmjeren test s valjaka dobiju oznaku odmah.
+    ("nalozi", "valjci"): ("UPDATE nalozi SET valjci = (SELECT MAX(t.kraj) FROM testovi_kocnica t "
+                           "WHERE t.nalog_id = nalozi.id AND EXISTS (SELECT 1 FROM mjerenja_osovina m "
+                           "WHERE m.test_id = t.id))"),
 }
 
 

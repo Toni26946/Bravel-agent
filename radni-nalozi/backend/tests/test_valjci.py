@@ -87,6 +87,8 @@ def test_shema_odabir_i_operacije_samo_za_lose():
     r = cartec.kraj_testa(cartec.KrajIn(vrijeme=datetime.now(timezone.utc)), x_cartec_token=tok, db=db)
     assert r["zavrseno"] is False
 
+    db.refresh(stari)
+    assert stari.valjci is not None            # nalog označen „🛞 valjci"
     kraj = valjci.zavrsi_sesiju(sid, db=db, k=vod)
     assert kraj["zavrsena"] and len(kraj["operacije"]) == 2
     db.refresh(stari)
