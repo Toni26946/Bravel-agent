@@ -34,6 +34,20 @@ def ukljuceno(db: Session) -> bool:
     return norme.get_postavka(db, KLJUC) != "0"
 
 
+def _iskljuceni_kimena() -> set[str]:
+    """Korisnici koji NIKAD ne dobivaju posao automatski: oni izvan evidencije (vlasnici,
+    🧪 TEST Mehaničar za probni tok…) — isti popis kao `evidencija_bez`."""
+    return {x.strip().lower() for x in (settings.evidencija_bez or "").split(",") if x.strip()}
+
+
+def _je_testni_nalog(n: Nalog) -> bool:
+    return (n.broj or "").upper().startswith("RN-TEST") or _gb_naloga(n).upper() == "TEST"
+
+
+def _gb_naloga(n: Nalog) -> str:
+    return (n.vozilo.gb if n and n.vozilo else "") or ""
+
+
 def _prio(n: Nalog) -> int:
     return n.prioritet_rang if n.prioritet_rang is not None else 10 ** 6
 
@@ -59,14 +73,16 @@ def popuni(db: Session) -> list[dict]:
         _je_odsutan, _log, _norm_kat, _set_radnici,
     )
 
+    iskljuceni = _iskljuceni_kimena()
     meh = [
         m for m in db.query(Korisnik)
         .filter(or_(Korisnik.uloga.in_(_SERVISERI), Korisnik.radi_na_nalozima.is_(True)),
                 Korisnik.aktivan.is_(True),
                 Korisnik.prijavljuje_se.is_(True))
         .all()
-        if not _je_odsutan(m)
+        if not _je_odsutan(m) and (m.korisnicko_ime or "").lower() not in iskljuceni
     ]
+    _vrati_krivo_dodijeljene(db, iskljuceni)
     if not meh:
         return []
     po_id = {m.id: m for m in meh}
@@ -75,7 +91,7 @@ def popuni(db: Session) -> list[dict]:
     kandidati = []
     nalozi = db.query(Nalog).options(*nalog_eager()).filter(Nalog.status.in_(_AKTIVNI)).all()
     for n in nalozi:
-        if _gb(n) in _SKRIVENI_GB:
+        if _gb(n) in _SKRIVENI_GB or _je_testni_nalog(n):
             continue
         u_planu = bool(n.plan_hitno) or n.plan_rang is not None or n.prioritet_rang is not None
         for op in n.operacije:
@@ -142,6 +158,29 @@ def popuni(db: Session) -> list[dict]:
         log.info("Auto-popuni: %s dodjela (%s)", len(out),
                  ", ".join(f"GB {d['gb']}→{d['radnik']}" for d in out))
     return out
+
+
+def _vrati_krivo_dodijeljene(db: Session, iskljuceni: set[str]) -> None:
+    """Zadatke koje je auto-popunjavanje dalo isključenom korisniku (npr. 🧪 TEST
+    Mehaničaru), a još nisu započeti, vrati u plan — dobit će ih pravi mehaničar."""
+    from .models import PlanDogadaj
+    ids = [k.id for k in db.query(Korisnik).all() if (k.korisnicko_ime or "").lower() in iskljuceni]
+    if not ids:
+        return
+    vraceno = 0
+    for d in (db.query(PlanDogadaj)
+              .filter(PlanDogadaj.tip == "auto-dodjela", PlanDogadaj.radnik_id.in_(ids)).all()):
+        z = db.get(Zadatak, d.zadatak_id) if d.zadatak_id else None
+        if z is None or z.gotovo or z.zapoceto:
+            continue
+        ostali = [r for r in z.radnici if r.id != d.radnik_id]
+        if len(ostali) != len(z.radnici):
+            z.radnici = ostali
+            z.ceka_potvrdu = False
+            vraceno += 1
+    if vraceno:
+        db.commit()
+        log.info("Auto-popuni: %s zadataka vraćeno s isključenih korisnika u plan.", vraceno)
 
 
 def popuni_tiho(db: Session) -> None:

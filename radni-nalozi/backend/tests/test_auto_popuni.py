@@ -111,6 +111,26 @@ def test_popuni_preskace():
         assert not z.radnici
 
 
+def test_testni_mehanicar_ne_dobiva_i_vraca_se():
+    from app.models import PlanDogadaj
+    db = _session()
+    test = Korisnik(ime="🧪 TEST Mehaničar", korisnicko_ime="test.meh.tok", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(test); db.flush()
+    ana = _meh(db, "Ana")
+    n = _nalog(db, "12", ana, prioritet_rang=0)
+    # ranije (prije popravka) krivo dano testnom
+    z_krivo = _zad(db, n, "GUME", "krivo", radnici=[test])
+    db.add(PlanDogadaj(tip="auto-dodjela", opis="x", nalog_id=n.id, zadatak_id=z_krivo.id, radnik_id=test.id))
+    n_test = _nalog(db, "TEST", ana, prioritet_rang=1)
+    n_test.broj = "RN-TEST-TOK"
+    z_test = _zad(db, n_test, "GUME", "probni")
+    db.commit()
+    out = popuni(db)
+    assert [r.id for r in z_krivo.radnici] == [ana.id], "vraćen s testnog i dan pravom"
+    assert not z_test.radnici, "probni nalog se ne dodjeljuje"
+    assert all(d["radnik_id"] != test.id for d in out)
+
+
 def test_popuni_ugaseno():
     db = _session()
     ana = _meh(db, "Ana")
