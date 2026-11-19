@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '4'
+$Verzija   = '5'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -58,8 +58,52 @@ function JaviStanje($token) {
     try {
         $rep = ''
         if (Test-Path $Dnevnik) { $rep = (Get-Content $Dnevnik -Tail 60 -Encoding UTF8) -join "`n" }
-        [void](Posalji '/cartec/stanje' @{ verzija = $Verzija; dnevnik = $rep } $token)
+        if ($rep.Length -gt 11000) { $rep = $rep.Substring($rep.Length - 11000) }
+        $dij = ''
+        try { $dij = Dijagnoza } catch { $dij = "dijagnoza: $($_.Exception.Message)" }
+        if ($dij.Length -gt 8500) { $dij = $dij.Substring(0, 8500) }
+        [void](Posalji '/cartec/stanje' @{ verzija = $Verzija; dnevnik = ($rep + "`n===== CARTEC =====`n" + $dij) } $token)
     } catch {}
+}
+
+function Dijagnoza {
+    # Za dijagnozu bez AnyDeska: što je u datotekama osovina i tijek stanja valjaka (zadnjih ~40).
+    $out = New-Object System.Collections.ArrayList
+    foreach ($dat in @(Get-ChildItem -Path (Join-Path $CartecDir 'Logs') -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue)) {
+        try {
+            $t = ProcitajDijeljeno $dat.FullName
+            $faze = @{}; $n = 0; $prvi = ''; $zadnji = ''; $maxL = 0; $maxD = 0
+            foreach ($red in $t -split "`n") {
+                $s = $red.Trim().Split(';')
+                if ($s.Count -lt 9 -or $s[0] -eq 'TimeStamp') { continue }
+                $n++; if (-not $prvi) { $prvi = $s[0] }; $zadnji = $s[0]
+                $faze[$s[8]] = 1 + [int]$faze[$s[8]]
+                $l = 0; $d = 0; [void][int]::TryParse($s[2], [ref]$l); [void][int]::TryParse($s[3], [ref]$d)
+                if ($l -gt $maxL) { $maxL = $l }; if ($d -gt $maxD) { $maxD = $d }
+            }
+            $f = ($faze.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ','
+            [void]$out.Add("$($dat.Name) $($t.Length)zn redova=$n $prvi..$zadnji maxL=$maxL maxD=$maxD [$f]")
+        } catch { [void]$out.Add("$($dat.Name): $($_.Exception.Message)") }
+    }
+    $sad = Get-Date
+    $tp = Join-Path $CartecDir ('Logs\' + $sad.ToString('yyyyMMdd') + '_TestProcedure.log')
+    if (Test-Path $tp) {
+        $faze = Faze (RepDatoteke $tp 2000000) $sad
+        $tijek = New-Object System.Collections.ArrayList
+        $bilo = ''
+        for ($i = 0; $i -lt $faze.Count; $i++) {
+            $fz = $faze[$i].Faza
+            $do = if ($i + 1 -lt $faze.Count) { $faze[$i + 1].Kad } else { $sad }
+            $traje = ($do - $faze[$i].Kad).TotalSeconds
+            if ($fz -eq 'IDLE BRAKE' -and $traje -lt 3) { continue }        # titranje praznih valjaka
+            if ($fz -eq 'IDLE' -and $bilo -eq 'IDLE') { continue }          # prazni valjci — samo prvi put
+            $bilo = $fz
+            [void]$tijek.Add($faze[$i].Kad.ToString('HH:mm:ss') + ' ' + $fz + ' ' + [int]$traje + 's')
+        }
+        $od = [Math]::Max(0, $tijek.Count - 70)
+        for ($i = $od; $i -lt $tijek.Count; $i++) { [void]$out.Add($tijek[$i]) }
+    }
+    return ($out -join "`n")
 }
 
 function Azuriraj($token) {
