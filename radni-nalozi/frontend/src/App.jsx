@@ -16,6 +16,7 @@ import SpremneSlepe from './pages/SpremneSlepe'
 import EvidencijaPrikapcanja from './pages/EvidencijaPrikapcanja'
 import Servisi from './pages/Servisi'
 import TestoviKocnica from './pages/TestoviKocnica'
+import KocniceJavno from './pages/KocniceJavno'
 import Parkiranje from './pages/Parkiranje'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
@@ -60,6 +61,10 @@ function Zasticeno({ uloge, modul, children }) {
 
 export default function App() {
   const { korisnik, ucitavanje } = useAuth()
+  // Poveznica na test kočnica radi BEZ prijave (otvara se iz obavijesti) — ne čeka ni provjeru prijave.
+  if (window.location.pathname.startsWith('/kocnice/')) {
+    return <Routes><Route path="/kocnice/:oznaka" element={<KocniceJavno />} /></Routes>
+  }
   if (ucitavanje) return <Spinner />
 
   return (

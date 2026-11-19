@@ -146,7 +146,13 @@ function KarticaTesta({ t, onVezano }) {
     <div className="card" style={{ borderLeft: otvoren ? '4px solid var(--crveno, #c62828)' : undefined }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <b>Test kočnica u {vrijeme(t.pocetak)} · {dan(t.pocetak)}</b>
-        <span style={{ color: 'var(--muted)', fontSize: 13 }}>{t.osovina} osov.</span>
+        <span style={{ color: 'var(--muted)', fontSize: 13 }}>
+          {t.osovina} osov. ·{' '}
+          <a href="#" onClick={async (e) => {
+            e.preventDefault()
+            try { const r = await api.testKocnicaPoveznica(t.id); window.open(r.putanja, '_blank') } catch (er) { setGreska(er.message) }
+          }}>🔗 poveznica</a>
+        </span>
       </div>
       {t.nalog && (
         <div style={{ fontSize: 14, marginTop: 2 }}>

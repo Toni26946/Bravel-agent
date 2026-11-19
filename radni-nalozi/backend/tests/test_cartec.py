@@ -115,6 +115,37 @@ def test_vise_mogucih_vozila_nerazvrstan_i_blokira_zatvaranje():
     assert (t2.status, t2.gb) == ("vezan", "156")
 
 
+def test_poveznica_bez_prijave_upis_gb():
+    db = _db()
+    vod, tok = _okolina(db)
+    a = _nalog(db, vod, "458", "RN-1", u_radu=True)
+    _nalog(db, vod, "156", "RN-2", u_radu=True)
+    cartec.primi_mjerenje(_m(1, 500, 500), x_cartec_token=tok, db=db)
+    [t] = _lista(db, vod, "otvoreni")
+    oznaka = cartec.poveznica_testa(t["id"], db=db, k=vod)["putanja"].rsplit("/", 1)[1]
+    assert len(oznaka) >= 20
+    j = cartec.javni_test(oznaka, db=db)
+    assert j["status"] == "nerazvrstan" and len(j["mjerenja"]) == 1 and "kandidati" not in j
+    # Kriva oznaka i nepoznat GB se odbijaju.
+    for poziv in (lambda: cartec.javni_test("nema-takve", db=db),
+                  lambda: cartec.javni_upis_gb(oznaka, cartec.JavnoGbIn(gb="99999"), db=db)):
+        try:
+            poziv()
+            assert False
+        except HTTPException as e:
+            assert e.status_code == 404
+    r = cartec.javni_upis_gb(oznaka, cartec.JavnoGbIn(gb="458"), db=db)
+    assert (r["test"]["status"], r["test"]["gb"], r["test"]["nalog"]["id"]) == ("vezan", "458", a.id)
+    # Ručni upis je konačan — iduća osovina ga ne mijenja.
+    r2 = cartec.primi_mjerenje(_m(2, 600, 600), x_cartec_token=tok, db=db)
+    assert (r2["status"], r2["gb"]) == ("vezan", "458")
+    # Vozilo bez otvorenog naloga: veže se samo uz GB.
+    db.add(Vozilo(gb="777"))
+    db.commit()
+    r3 = cartec.javni_upis_gb(oznaka, cartec.JavnoGbIn(gb="777"), db=db)
+    assert (r3["test"]["gb"], r3["test"]["nalog"]) == ("777", None)
+
+
 def test_nova_sesija_je_novi_test():
     db = _db()
     vod, tok = _okolina(db)
