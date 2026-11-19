@@ -89,6 +89,9 @@ _STUPCI = [
     ("cartec_uredjaji", "uzivo", "TEXT"),
     ("nalozi", "valjci", "TIMESTAMP"),
     ("cartec_uredjaji", "uzivo_vrijeme", "TIMESTAMP"),
+    # Razduženje kamiona/prikolice (povratni obrazac uz zaduženje)
+    ("zaduzenja", "vrsta", "VARCHAR(20) DEFAULT 'zaduzenje'"),
+    ("zaduzenja", "zaduzenje_id", "INTEGER"),
 ]
 
 

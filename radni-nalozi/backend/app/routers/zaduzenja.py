@@ -163,7 +163,9 @@ def kreiraj(
     if nedostaje:
         raise HTTPException(status_code=400, detail="Obavezna polja nedostaju: " + ", ".join(nedostaje))
     stavke = [s.model_dump() for s in podaci.stavke] if podaci.stavke is not None else _predlozak_stavke()
+    vrsta = "razduzenje" if (podaci.vrsta or "").strip().lower() == "razduzenje" else "zaduzenje"
     z = Zaduzenje(
+        vrsta=vrsta,
         kamion_registracija=kamion,
         kamion_gb=(podaci.kamion_gb or "").strip() or None,
         prikolica_registracija=prikolica,
@@ -181,7 +183,60 @@ def kreiraj(
     db.add(z)
     db.commit()
     db.refresh(z)
-    return z
+    return _out(db, z)
+
+
+def _razduzenje_od(db: Session, zaduzenje_id: int) -> Zaduzenje | None:
+    return db.execute(
+        select(Zaduzenje).where(Zaduzenje.vrsta == "razduzenje", Zaduzenje.zaduzenje_id == zaduzenje_id)
+        .order_by(Zaduzenje.id.desc())
+    ).scalars().first()
+
+
+def _out(db: Session, z: Zaduzenje) -> ZaduzenjeOut:
+    """ZaduzenjeOut + veza na razduženje (za zaduženje) — za gumb „Razduženje"."""
+    out = ZaduzenjeOut.model_validate(z)
+    if (z.vrsta or "zaduzenje") != "razduzenje":
+        r = _razduzenje_od(db, z.id)
+        out.razduzenje_id = r.id if r else None
+    return out
+
+
+@router.post("/{zaduzenje_id}/razduzenje", response_model=ZaduzenjeOut, status_code=201)
+def razduzi(zaduzenje_id: int, db: Session = Depends(get_db),
+            korisnik: Korisnik = Depends(voditelj_ili_poslovodja)):
+    """Razduženje (vozač vraća kamion/prikolicu): novi obrazac s istim vozilima, vozačem i
+    popisom opreme. Uz svaku stavku ostaje što je bilo PREDANO kod zaduženja, a +/- se
+    sada bilježi što je VRAĆENO — što je predano, a nije vraćeno, vidi se kao „Fali".
+    Ako razduženje za ovo zaduženje već postoji, vrati njega (nema duplikata)."""
+    z = db.get(Zaduzenje, zaduzenje_id)
+    if not z:
+        raise HTTPException(status_code=404, detail="Zaduženje ne postoji")
+    if (z.vrsta or "zaduzenje") == "razduzenje":
+        raise HTTPException(status_code=400, detail="Ovo je već razduženje")
+    postojece = _razduzenje_od(db, z.id)
+    if postojece:
+        return _out(db, postojece)
+    stavke = []
+    for s in (z.stavke or _predlozak_stavke()):
+        stavke.append({
+            "br": s.get("br"), "grupa": s.get("grupa") or "kamion", "oprema": s.get("oprema") or "",
+            "kom": s.get("kom") or 1,
+            "predano_stanje": s.get("stanje") or "", "predano_kolicina": s.get("kolicina"),
+            "stanje": "", "kolicina": None, "napomena": None,
+        })
+    r = Zaduzenje(
+        vrsta="razduzenje", zaduzenje_id=z.id,
+        kamion_registracija=z.kamion_registracija, kamion_gb=z.kamion_gb,
+        prikolica_registracija=z.prikolica_registracija, prikolica_gb=z.prikolica_gb,
+        vozac=z.vozac, datum=date.today(),
+        predao=z.vozac,   # kod razduženja vozilo predaje vozač
+        status="u_tijeku", stavke=stavke, kreirao_id=korisnik.id,
+    )
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    return _out(db, r)
 
 
 @router.get("/{zaduzenje_id}", response_model=ZaduzenjeOut)
@@ -189,7 +244,7 @@ def dohvati(zaduzenje_id: int, db: Session = Depends(get_db), _: Korisnik = Depe
     z = db.get(Zaduzenje, zaduzenje_id)
     if not z:
         raise HTTPException(status_code=404, detail="Zaduženje ne postoji")
-    return z
+    return _out(db, z)
 
 
 @router.patch("/{zaduzenje_id}", response_model=ZaduzenjeOut)
@@ -220,7 +275,7 @@ def azuriraj(
         z.status = podaci["status"]
     db.commit()
     db.refresh(z)
-    return z
+    return _out(db, z)
 
 
 @router.delete("/{zaduzenje_id}", status_code=204)

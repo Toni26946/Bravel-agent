@@ -627,7 +627,12 @@ class Zaduzenje(Base):
     preuzeo: Mapped[str | None] = mapped_column(String(120), nullable=True)   # tko je preuzeo (vozač)
     napomena: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="u_tijeku", index=True)  # u_tijeku | zavrseno
-    # Snimka obrasca: [{br, grupa, oprema, kom, stanje, kolicina, napomena}]
+    # „zaduzenje" (vozač preuzima) | „razduzenje" (vozač vraća — provjera što je vraćeno)
+    vrsta: Mapped[str] = mapped_column(String(20), default="zaduzenje", index=True)
+    # Razduženje: na koje se zaduženje odnosi (None = samostalno, npr. zaduženo na papiru)
+    zaduzenje_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # Snimka obrasca: [{br, grupa, oprema, kom, stanje, kolicina, napomena,
+    #                  (razduženje) predano_stanje, predano_kolicina}]
     stavke: Mapped[list | None] = mapped_column(JSON, nullable=True)
     kreirao_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

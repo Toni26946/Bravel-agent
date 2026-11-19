@@ -740,6 +740,9 @@ class ZaduzenjeStavka(BaseModel):
     stanje: str = ""                      # '' (neprovjereno) | 'da' (+) | 'ne' (-)
     kolicina: int | None = None           # stvarno predana količina (opcionalno)
     napomena: str | None = None
+    # Razduženje: što je bilo PREDANO kod zaduženja (snimka); stanje/količina gore = VRAĆENO
+    predano_stanje: str | None = None
+    predano_kolicina: int | None = None
 
 
 class ZaduzenjeStavkaGrupa(BaseModel):
@@ -759,6 +762,7 @@ class ZaduzenjeCreate(BaseModel):
     preuzeo: str | None = None
     napomena: str | None = None
     status: str | None = None             # default 'u_tijeku'
+    vrsta: str | None = None              # 'zaduzenje' (zadano) | 'razduzenje'
     stavke: list[ZaduzenjeStavka] | None = None  # ako se izostavi, uzima se predložak
 
 
@@ -785,6 +789,8 @@ class ZaduzenjeListItem(ORM):
     datum: date | None = None
     preuzeo: str | None = None
     status: str
+    vrsta: str | None = "zaduzenje"
+    zaduzenje_id: int | None = None
     kreiran: datetime
 
 
@@ -801,6 +807,9 @@ class ZaduzenjeOut(ORM):
     preuzeo: str | None = None
     napomena: str | None = None
     status: str
+    vrsta: str | None = "zaduzenje"
+    zaduzenje_id: int | None = None       # razduženje → izvorno zaduženje
+    razduzenje_id: int | None = None      # zaduženje → njegovo razduženje (ako postoji)
     stavke: list[ZaduzenjeStavka] = []
     kreiran: datetime
     azuriran: datetime

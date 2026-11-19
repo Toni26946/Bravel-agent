@@ -100,6 +100,7 @@ export default function App() {
       {/* Zaduženje kamiona/prikolica: voditelj + poslovođa + skladištar (npr. Akshay) */}
       <Route path="/zaduzenja" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><Zaduzenja /></Zasticeno>} />
       <Route path="/zaduzenja/novo" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><ZaduzenjeDetalj novo /></Zasticeno>} />
+      <Route path="/zaduzenja/novo-razduzenje" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><ZaduzenjeDetalj novo vrsta="razduzenje" key="novo-razd" /></Zasticeno>} />
       <Route path="/zaduzenja/:id" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><ZaduzenjeDetalj /></Zasticeno>} />
 
       {/* Šifrarnik vozača: voditelj + poslovođa */}
