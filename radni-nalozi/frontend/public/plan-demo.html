@@ -879,7 +879,7 @@
       // Ispred svih ostaje samo poslani zadatak koji mehaničar upravo vidi (ne radi ništa drugo).
       var l=map[id], out=[], i=0, zak=null;
       function mk(x){ return prio(x); }
-      if(l.length && (faza(l[0])===1||faza(l[0])===2)){ var f0=faza(l[0]); for(var k=0;k<l.length;k++){ if(faza(l[k])===f0 && l[k].o.status==="ceka"){ zak=l[k]; break; } } }
+      if(l.length && (faza(l[0])===1||faza(l[0])===2)){ var f0=faza(l[0]); for(var k=0;k<l.length;k++){ if(faza(l[k])===f0 && l[k].o.status==="ceka" && l[k].o.red==null){ zak=l[k]; break; } } }
       while(i<l.length){
         var f=faza(l[i]), j=i; while(j<l.length && faza(l[j])===f) j++;
         var grp=l.slice(i,j);

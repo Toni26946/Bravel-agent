@@ -244,7 +244,9 @@ def spoji_rucni_i_prioritet(red: list, faza_od) -> list:
     zakvacen = None
     if red and faza_od(red[0]) in (1, 2):   # nitko u tijeku → mehaničar vidi poslani zadatak
         f0 = faza_od(red[0])
-        zakvacen = next((t for t in red if faza_od(t) == f0 and t[2].ceka_potvrdu), None)
+        # Samo ako nije ručno složen — ručni pomak (strelice/povlačenje) uvijek pobjeđuje.
+        zakvacen = next((t for t in red if faza_od(t) == f0 and t[2].ceka_potvrdu
+                         and t[2].red_ruc is None), None)
 
     out, i = [], 0
     while i < len(red):

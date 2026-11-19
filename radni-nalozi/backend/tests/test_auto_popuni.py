@@ -220,6 +220,18 @@ def test_stari_cekaju_potvrdu_ne_blokiraju_prioritet():
     assert [t[2].opis for t in _red(db, ana)] == ["staroA", "p1", "staroB"]
 
 
+def test_rucni_pomak_pobjeduje_poslani():
+    """Toni strelicom stavi drugi zadatak ispred poslanog („čeka potvrdu") → vrijedi ručni red."""
+    db = _session()
+    ana = _meh(db, "Ana")
+    n1 = _nalog(db, "71", ana, prioritet_rang=1)
+    n2 = _nalog(db, "72", ana, prioritet_rang=5)
+    _zad(db, n1, "GUME", "poslan210", radnici=[ana], ceka_potvrdu=True, red_ruc=1)
+    _zad(db, n2, "GUME", "gb200", radnici=[ana], red_ruc=0)
+    db.commit()
+    assert [t[2].opis for t in _red(db, ana)] == ["gb200", "poslan210"]
+
+
 def test_jednokratno_ocisti_rucni_red():
     db = _session()
     ana = _meh(db, "Ana")
