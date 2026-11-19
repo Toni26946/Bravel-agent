@@ -116,9 +116,14 @@ def obradi_statuse(value):
             for k in [k for k, v in _poslano.items() if sad - v["ts"] > _TRAJANJE_S]:
                 _poslano.pop(k, None)
         if st != "failed":
+            # trag u logu (fly logs) za naše poruke — da se vidi je li stvarno stiglo
+            if z is not None and st in ("delivered", "read"):
+                print(f"[dostava] {z['opis']} ({z['maska']}): {st}", flush=True)
             continue
         errs = s.get("errors") or [{}]
         greska = "; ".join(opis_greske(e) for e in errs)
+        print(f"[dostava] NEUSPJELO {(z or {}).get('opis', 'poruka')} "
+              f"({(z or {}).get('maska') or maska(s.get('recipient_id'))}): {greska}", flush=True)
         with _lock:
             z = _poslano.get(mid)
             if z is not None:
