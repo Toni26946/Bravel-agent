@@ -283,6 +283,9 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
     else:
         t = _nadji_ili_kreiraj_test(db, u, p, vrijeme)
         osovina, vrsta = p.osovina, p.vrsta
+        if s is None:   # kočilo se bez upisanog vozila u aplikaciji Valjci
+            db.flush()
+            upozori_bez_vozila(db, u, t.id)
     novi_test = not t.mjerenja
     # Ponovljeno mjerenje iste osovine: ranija više ne vrijede.
     for m in t.mjerenja:
@@ -328,7 +331,70 @@ def primi_uzivo(p: UzivoIn, x_cartec_token: str | None = Header(default=None), d
     u.uzivo = json.dumps(p.model_dump())
     u.uzivo_vrijeme = _sad()
     db.commit()
+    from .valjci import aktivna_sesija
+    if aktivna_sesija(db, u) is None:
+        upozori_bez_vozila(db, u)
     return {"ok": True}
+
+
+UPOZORENJE_RAZMAK_MIN = 15   # najviše jedno upozorenje u 15 min (poruke se plaćaju)
+
+
+def upozori_bez_vozila(db: Session, u: CartecUredjaj, test_id: int | None = None) -> bool:
+    """Toni 19.11.2026.: valjci rade, a u aplikaciji Valjci nije upisano vozilo → WhatsApp
+    poslovođama (settings.valjci_upozorenje_korisnici) + zapis u valjci_upozorenja."""
+    from ..config import settings
+    from ..models import ValjciUpozorenje
+    sad = _sad()
+    zadnje = (db.query(ValjciUpozorenje).filter(ValjciUpozorenje.uredjaj_id == u.id)
+              .order_by(ValjciUpozorenje.vrijeme.desc()).first())
+    if zadnje and sad - _utc(zadnje.vrijeme) < timedelta(minutes=UPOZORENJE_RAZMAK_MIN):
+        if test_id and not zadnje.test_id:
+            zadnje.test_id = test_id
+            db.commit()
+        return False
+    imena = [x.strip().lower() for x in (settings.valjci_upozorenje_korisnici or "").split(",") if x.strip()]
+    primatelji = [k for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all()
+                  if (k.korisnicko_ime or "").strip().lower() in imena]
+    try:
+        from zoneinfo import ZoneInfo
+        kad = sad.astimezone(ZoneInfo("Europe/Zagreb")).strftime("%H:%M")
+    except Exception:  # noqa: BLE001
+        kad = sad.strftime("%H:%M")
+    poruka = (f"Valjci rade ({kad}), a u aplikaciji Valjci nije upisano vozilo — "
+              f"upiši vozilo prije kočenja: {settings.valjci_url}")
+    z = ValjciUpozorenje(uredjaj_id=u.id, vrijeme=sad, test_id=test_id, rezultat="šaljem…")
+    db.add(z)
+    db.commit()   # zapis prije slanja — da drugi zahtjev u istoj sekundi ne pošalje opet
+    zid = z.id
+
+    def posalji(d2: Session | None = None):   # u pozadini — skripta s valjaka ne smije čekati WhatsApp
+        ishodi = []
+        for k in primatelji:
+            r = _wa_tekst(k, poruka)
+            ishodi.append(f"{k.ime}: {'poslano' if r.get('poslano') else 'NIJE — ' + str(r.get('razlog'))}")
+        vlastita = d2 is None
+        if vlastita:
+            from ..database import SessionLocal
+            d2 = SessionLocal()
+        try:
+            zz = d2.get(ValjciUpozorenje, zid)
+            if zz:
+                zz.rezultat = ("; ".join(ishodi) or "nema primatelja")[:500]
+                d2.commit()
+        finally:
+            if vlastita:
+                d2.close()
+
+    if _UPOZORENJE_U_POZADINI:
+        import threading
+        threading.Thread(target=posalji, daemon=True).start()
+    else:
+        posalji(db)
+    return True
+
+
+_UPOZORENJE_U_POZADINI = True   # testovi isključe (jedna in-memory baza)
 
 
 KRAJ_REZERVA_MIN = 5    # bez znaka kraja (stara skripta) — obavijest nakon 5 min bez nove osovine
@@ -481,6 +547,17 @@ def testovi(status: str | None = Query(default=None, pattern="^(vezan|nerazvrsta
     return [_test_out(db, t) for t in q.order_by(TestKocnica.pocetak.desc()).limit(limit).all()]
 
 
+@router.get("/upozorenja")
+def upozorenja(limit: int = Query(default=30, ge=1, le=200),
+               db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
+    """Zapis: kad su valjci radili bez upisanog vozila i kome je javljeno."""
+    _smije_vidjeti(k)
+    from ..models import ValjciUpozorenje
+    red = db.query(ValjciUpozorenje).order_by(ValjciUpozorenje.vrijeme.desc()).limit(limit).all()
+    return [{"id": z.id, "vrijeme": _utc(z.vrijeme).isoformat(), "test_id": z.test_id, "rezultat": z.rezultat}
+            for z in red]
+
+
 @router.get("/otvoreni-nalozi")
 def otvoreni_nalozi_za_gb(gb: str = Query(min_length=1, max_length=40),
                           db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
@@ -561,7 +638,15 @@ def _wa_poveznica(db: Session, t: TestKocnica, primatelj: Korisnik, base_url: st
         kad = _utc(t.pocetak).astimezone(ZoneInfo("Europe/Zagreb")).strftime("%d.%m. u %H:%M")
     except Exception:  # noqa: BLE001
         kad = _utc(t.pocetak).strftime("%d.%m. u %H:%M")
-    body = {"poruka": f"Test kočnica {kad} gotov, {_sto_upisati(t)}: {url}"}
+    return _wa_tekst(primatelj, f"Test kočnica {kad} gotov, {_sto_upisati(t)}: {url}")
+
+
+def _wa_tekst(primatelj: Korisnik, poruka: str) -> dict:
+    """Jedna WhatsApp poruka korisniku (broj iz imenika po imenu) preko bravel-agenta."""
+    from ..config import settings
+    if not (settings.dispecer_wa_on and settings.bravel_agent_url and settings.bravel_agent_kljuc):
+        return {"poslano": False, "razlog": "WhatsApp slanje je isključeno"}
+    body = {"poruka": poruka}
     test = (settings.dispecer_test_broj or "").strip()
     if test:
         body["vozac"], body["broj"] = "test", test

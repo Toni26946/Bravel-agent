@@ -20,6 +20,7 @@ from app.routers import cartec
 from app.routers.cartec import MjerenjeIn, OdobriIn, PrijavaIn, VeziIn
 
 T0 = datetime(2026, 11, 17, 13, 4, 47, tzinfo=timezone.utc)
+cartec._UPOZORENJE_U_POZADINI = False   # u testu bez pozadinske niti (jedna in-memory baza)
 
 
 def _db():

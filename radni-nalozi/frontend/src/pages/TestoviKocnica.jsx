@@ -158,12 +158,36 @@ function KarticaTesta({ t }) {
   )
 }
 
+// Zapis: valjci su radili, a u aplikaciji Valjci nije bilo upisano vozilo (javljeno na WhatsApp).
+function Upozorenja({ lista }) {
+  const [sve, setSve] = useState(false)
+  if (!lista?.length) return null
+  const prikaz = sve ? lista : lista.slice(0, 3)
+  return (
+    <div className="card" style={{ borderLeft: '4px solid #e65100' }}>
+      <b>⚠️ Valjci radili bez upisanog vozila ({lista.length})</b>
+      {prikaz.map((z) => (
+        <div key={z.id} style={{ fontSize: 13, marginTop: 4 }}>
+          {vrijeme(z.vrijeme)} · {dan(z.vrijeme)} — <span style={{ color: 'var(--muted)' }}>{z.rezultat || ''}</span>
+        </div>
+      ))}
+      {lista.length > 3 && (
+        <button className="btn ghost" style={{ width: 'auto', margin: '6px 0 0', fontSize: 12, padding: '4px 10px' }} onClick={() => setSve(!sve)}>
+          {sve ? 'Manje' : 'Prikaži sve'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function TestoviKocnica() {
   const [testovi, setTestovi] = useState(null)
+  const [upozorenja, setUpozorenja] = useState([])
   const [greska, setGreska] = useState('')
-  const ucitaj = () => Promise.all([api.testoviKocnica({ status: 'otvoreni' }), api.testoviKocnica({ status: 'vezan' })])
-    .then(([o, v]) => {
+  const ucitaj = () => Promise.all([api.testoviKocnica({ status: 'otvoreni' }), api.testoviKocnica({ status: 'vezan' }), api.valjciUpozorenja().catch(() => [])])
+    .then(([o, v, z]) => {
       setTestovi([...o, ...v].sort((a, b) => new Date(b.pocetak) - new Date(a.pocetak)))
+      setUpozorenja(z || [])
       setGreska('')
     })
     .catch((e) => setGreska(e.message))
@@ -173,6 +197,7 @@ export default function TestoviKocnica() {
   return (
     <Layout naslov="Testovi kočnica" nazad={true}>
       {greska && <div className="card" style={{ color: 'var(--crveno)' }}>{greska}</div>}
+      <Upozorenja lista={upozorenja} />
       {!testovi ? <Spinner /> : (
         !testovi.length ? <Prazno emo="🛞" tekst="Još nema testova s valjaka." /> : testovi.map((t) => <KarticaTesta key={t.id} t={t} />)
       )}
