@@ -197,80 +197,99 @@ def _red(db: Session, radnik: Korisnik) -> list[tuple[Nalog, object, Zadatak]]:
                     continue
                 out.append((n, op, z))
 
+    return slozi_red(out, radnik.id)
+
+
+# --- Redoslijed zadataka mehaničara ----------------------------------------
+# Svaki zadatak ima KLJUČ REDA: ručni (red_ruc, postavlja se strelicom/povlačenjem SAMO
+# za pomaknutu karticu) ili osnovni po prioritetu naloga. Manji ključ = ranije.
+# Prioritet 1 = 0, prioritet 2 = 1000, …; nalozi izvan liste prioriteta iza svih
+# (10 000 000 + redoslijed plana × 1000). Razmak 1000 ostavlja mjesta ručnim pomacima.
+KORAK_REDA = 1000
+_BEZ_PRIORITETA = 10 ** 7
+
+
+def osnovni_kljuc(n: Nalog) -> int:
+    if n.prioritet_rang is not None:
+        return n.prioritet_rang * KORAK_REDA
+    rang = n.plan_rang if n.plan_rang is not None else 9999
+    return _BEZ_PRIORITETA + rang * KORAK_REDA
+
+
+def kljuc_reda(n: Nalog, z: Zadatak) -> int:
+    return z.red_ruc if z.red_ruc is not None else osnovni_kljuc(n)
+
+
+def radi_na(z: Zadatak, radnik_id: int) -> bool:
+    """Teče li OVOM mehaničaru mjerač na zadatku. Kod operacije s 2+ radnika gleda se
+    njegov vlastiti mjerač — ako radi drugi, njemu to nije „u tijeku"."""
+    zr = next((v for v in z.vremena if v.radnik_id == radnik_id), None)
+    if zr is not None:
+        return zr.zapoceto is not None
+    return z.zapoceto is not None and len(z.radnici) <= 1
+
+
+BLIZU_M = 200   # isto kao kartica Radnici: vozilo dalje od 200 m (GPS) = nije u radioni
+
+
+def faza_zadatka(n: Nalog, z: Zadatak, radnik_id: int) -> int:
+    """0 = on radi (uvijek prvi), 1 = HITNO, 2 = ostalo, 3 = vozilo daleko od radione
+    (GPS > 200 m), 4 = odgođeno (nema dijelova / nedostupan) → na kraj, ali OSTAJE u
+    planu. Isto kao kartica Radnici. Mehaničar ne vidi da je hitno."""
+    if radi_na(z, radnik_id):
+        return 0
+    if z.razlog_prekida in ("dijelovi", "nedostupan"):
+        return 4
+    if n.plan_hitno:
+        return 1
+    try:
+        d = flota.udaljenost_od_radione(_gb(n))
+    except Exception:  # noqa: BLE001
+        d = None
+    return 3 if (d is not None and d > BLIZU_M) else 2
+
+
+def slozi_red(stavke: list, radnik_id: int, bez_pina: bool = False) -> list:
+    """Složi (nalog, op, zadatak) za mehaničara: u tijeku → hitno → ostalo → odgođeno;
+    unutar hitnog/ostalog po ključu reda (ručni pomak ili prioritet). Ako ne radi ništa,
+    POSLANI zadatak („čeka potvrdu" — onaj koji vidi na mobitelu) ostaje prvi, da mu se
+    ne promijeni pod prstom (ručni pomak ga mijenja i šalje novu poruku)."""
     def _ts(dt):
         if dt is None:
             return 0.0
         return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
 
-    def faza_od(t):
-        n, _op, z = t
-        # 0 = u tijeku (uvijek prvi), 1 = HITNO, 2 = ostalo, 3 = odgođeno (nema dijelova /
-        # nedostupan) → uvijek na kraj reda, ali OSTAJE u planu. Mehaničar ne vidi da je hitno.
-        if z.zapoceto:
-            return 0
-        if z.razlog_prekida in ("dijelovi", "nedostupan"):
-            return 3
-        return 1 if n.plan_hitno else 2
-
     def kljuc(t):
-        n, op, z = t
-        rang = n.plan_rang if n.plan_rang is not None else 9999
-        # Unutar „hitnog" i „ostalog": RUČNI red (red_ruc, strelice/drag u Radnicima), pa
-        # LISTA PRIORITETA (1, 2, 3…), pa redoslijed plana. Unutar „odgođenog" po vremenu
-        # prekida (najstarije odgođeno se prvo vrati).
-        rr = z.red_ruc if z.red_ruc is not None else 10 ** 6
-        cp = 0 if z.ceka_potvrdu else 1
-        return (faza_od(t), _ts(z.prekid_vrijeme), rr, _prio_naloga(n), cp, rang, op.redoslijed or 0, z.id)
+        n, _op, z = t
+        f = faza_zadatka(n, z, radnik_id)
+        if f == 4:   # najstarije odgođeno se prvo vrati
+            return (f, _ts(z.prekid_vrijeme), z.id)
+        return (f, kljuc_reda(n, z), z.id)
 
-    out.sort(key=kljuc)
-    return spoji_rucni_i_prioritet(out, faza_od)
+    red = sorted(stavke, key=kljuc)
+    if bez_pina or not red:
+        return red
+    f0 = faza_zadatka(red[0][0], red[0][2], radnik_id)
+    if f0 not in (1, 2):
+        return red   # radi nešto (ili samo odgođeni) → nema zaključanog
+    pin = next((t for t in red if faza_zadatka(t[0], t[2], radnik_id) == f0
+                and t[2].ceka_potvrdu and not t[2].zapoceto), None)
+    if pin is None:
+        return red
+    return [pin] + [t for t in red if t is not pin]
 
 
-def _prio_naloga(n: Nalog) -> int:
-    """Pozicija naloga na listi prioriteta (0 = najhitniji); izvan liste = na kraj."""
-    return n.prioritet_rang if n.prioritet_rang is not None else 10 ** 6
-
-
-def spoji_rucni_i_prioritet(red: list, faza_od) -> list:
-    """Ručni red uvijek pobjeđuje, ali zadaci BEZ ručnog mjesta (npr. novo dodijeljeni)
-    se umeću po prioritetu naloga: unutar faze hitno/ostalo spoji dva već poredana niza —
-    ručno složene (red_ruc) i ostale — tako da ostali uđu ispred prvog ručnog zadatka
-    lošijeg prioriteta. Ispred svih ostaje SAMO zadatak koji mehaničar upravo vidi
-    (poslan, a ne radi ništa drugo) — da mu se ne promijeni pod prstom. Ostale stare
-    oznake „čeka potvrdu" ne blokiraju prioritete."""
-    def mk(t):
-        return _prio_naloga(t[0])
-
-    zakvacen = None
-    if red and faza_od(red[0]) in (1, 2):   # nitko u tijeku → mehaničar vidi poslani zadatak
-        f0 = faza_od(red[0])
-        # Samo ako nije ručno složen — ručni pomak (strelice/povlačenje) uvijek pobjeđuje.
-        zakvacen = next((t for t in red if faza_od(t) == f0 and t[2].ceka_potvrdu
-                         and t[2].red_ruc is None), None)
-
-    out, i = [], 0
-    while i < len(red):
-        f = faza_od(red[i])
-        j = i
-        while j < len(red) and faza_od(red[j]) == f:
-            j += 1
-        grupa = red[i:j]
-        if f in (1, 2):
-            if zakvacen is not None and zakvacen in grupa:
-                out.append(zakvacen)
-                grupa = [t for t in grupa if t is not zakvacen]
-            rucni = [t for t in grupa if t[2].red_ruc is not None]
-            ostali = [t for t in grupa if t[2].red_ruc is None]
-            a = b = 0
-            while a < len(ostali) or b < len(rucni):
-                if b >= len(rucni) or (a < len(ostali) and mk(ostali[a]) < mk(rucni[b])):
-                    out.append(ostali[a]); a += 1
-                else:
-                    out.append(rucni[b]); b += 1
-        else:
-            out.extend(grupa)
-        i = j
-    return out
+def kljuc_izmedu(prije: int | None, poslije: int | None) -> int:
+    """Ključ za karticu ubačenu između dvije (ručni pomak)."""
+    if prije is None and poslije is None:
+        return 0
+    if prije is None:
+        return poslije - KORAK_REDA
+    if poslije is None:
+        return prije + KORAK_REDA
+    if poslije - prije >= 2:
+        return (prije + poslije) // 2
+    return prije   # nema mjesta (rijetko) — izjednači s prethodnim
 
 
 def _cijena(db: Session, kategorija: str | None) -> dict | None:
@@ -432,6 +451,10 @@ def z_pocinjem(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     z.ceka_potvrdu = False
     z.razlog_prekida = None
     z.prekid_vrijeme = None
+    # Stare oznake „čeka potvrdu" na njegovim drugim zadacima više ne vrijede (krenuo je).
+    for (_n, _op, x) in red[1:]:
+        if x.ceka_potvrdu and not x.zapoceto and len(x.radnici) <= 1:
+            x.ceka_potvrdu = False
     # Pokreni mjerač SAMO ovom mehaničaru — ako su na operaciji dvojica, drugi kreće tek
     # kad SAM stisne Počinjem (prije se pokretao mjerač i onome tko nije kliknuo).
     _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=link.radnik.id)
@@ -453,7 +476,7 @@ def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
     if not red:
         return
     nz = red[0][2]
-    if not nz.zapoceto:              # već radi → ne diraj (nije u 'čeka potvrdu')
+    if not radi_na(nz, radnik.id):   # već radi → ne diraj (nije u 'čeka potvrdu')
         nz.ceka_potvrdu = True
     db.commit()
 
@@ -461,15 +484,14 @@ def _pripremi_sljedeci(db: Session, radnik: Korisnik) -> None:
 def _nedovrseni_iza_hitnih(z: Zadatak, nz: Zadatak, preostali: list) -> None:
     """„Nije gotovo": nedovršeni zadatak ostaje mehaničaru u redu — iza HITNIH, a ispred
     svih ostalih (prvi sljedeći čim završi zadatak koji mu se upravo pokazao).
-    Hitni su ionako uvijek ispred (faza 1 u _red). Ručno mjesto (red_ruc) dobivaju SAMO
-    upravo prikazani i nedovršeni (ispred svih dosadašnjih ručnih) — ostali zadaci ostaju
-    kako su bili (po prioritetu ili ručno), da red i dalje prati listu prioriteta."""
-    obicni = [t[2] for t in preostali if not t[0].plan_hitno and not t[2].zapoceto]
-    postojeci = [x.red_ruc for x in obicni if x.red_ruc is not None and x is not nz]
-    dno = min(postojeci) if postojeci else 0
-    poredak = ([nz] if nz in obicni else []) + [z]
-    for i, x in enumerate(poredak):
-        x.red_ruc = dno - len(poredak) + i
+    Upravo prikazani (nz) je poslan pa ostaje prvi (vidi slozi_red); nedovršeni dobiva
+    ključ reda odmah ispred svih ostalih iz svoje skupine (hitno/ostalo). Ostali zadaci
+    se ne diraju — i dalje prate listu prioriteta."""
+    hitno = bool(z.operacija.nalog.plan_hitno)
+    kljucevi = [kljuc_reda(n, x) for (n, _op, x) in preostali
+                if x is not nz and x is not z and bool(n.plan_hitno) == hitno]
+    if kljucevi:
+        z.red_ruc = min(kljucevi) - 1
 
 
 @router.post("/z/{token}/gotovo")
@@ -617,7 +639,7 @@ def z_nije_gotovo(token: str, p: UredjajIn, db: Session = Depends(get_db)):
     preostali = [t for t in _red(db, link.radnik) if t[2].id != z.id]
     if preostali:
         nz = preostali[0][2]
-        if not nz.zapoceto:
+        if not radi_na(nz, link.radnik.id):
             nz.ceka_potvrdu = True
         _nedovrseni_iza_hitnih(z, nz, preostali)
         db.commit()

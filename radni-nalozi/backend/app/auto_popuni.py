@@ -25,7 +25,7 @@ from .models import Korisnik, Nalog, StatusNaloga, Uloga, Zadatak
 log = logging.getLogger("auto_popuni")
 
 KLJUC = "plan_auto_popuni"
-KLJUC_RESET_RED = "plan_red_ruc_reset_v1"
+KLJUC_RESET_RED = "plan_red_ruc_reset_v2"   # v2: red_ruc je od sada ključ reda (ne pozicija)
 BLIZU_M = 200
 _ODGODJENO = ("dijelovi", "nedostupan")
 
@@ -216,6 +216,25 @@ def jednokratno_ocisti_rucni_red(db: Session) -> None:
     broj = (db.query(Zadatak)
             .filter(Zadatak.gotovo.is_(False), Zadatak.red_ruc.isnot(None))
             .update({Zadatak.red_ruc: None}, synchronize_session=False))
+    db.flush()
+    # Stare oznake „čeka potvrdu": mehaničar vidi samo JEDAN zadatak — ostale skini
+    # (inače bi zastarjele oznake stajale ispred prioriteta).
+    skinuto = 0
+    try:
+        from .routers.dispecer import _red, radi_na
+        for m in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all():
+            red = _red(db, m)
+            if not red:
+                continue
+            radi = any(radi_na(z, m.id) for (_n, _op, z) in red)
+            zadrzi = None if radi else red[0][2]
+            for (_n, _op, z) in red:
+                if z is not zadrzi and z.ceka_potvrdu and not z.zapoceto and len(z.radnici) <= 1:
+                    z.ceka_potvrdu = False
+                    skinuto += 1
+    except Exception as e:  # noqa: BLE001 — čišćenje oznaka nije kritično
+        log.warning("Čišćenje starih oznaka 'čeka potvrdu' nije uspjelo: %s", e)
     norme.set_postavka(db, KLJUC_RESET_RED, "1")
     db.commit()
-    log.info("Ručni red mehaničara očišćen (%s zadataka) — red ide po prioritetima.", broj)
+    log.info("Ručni red mehaničara očišćen (%s zadataka, %s starih 'čeka potvrdu') — red ide po prioritetima.",
+             broj, skinuto)

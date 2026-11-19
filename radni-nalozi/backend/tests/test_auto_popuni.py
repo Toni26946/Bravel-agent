@@ -171,25 +171,6 @@ def test_red_po_prioritetu_i_hitno_ispred():
     assert [t[2].opis for t in _red(db, ana)] == ["radi", "hitno", "p1", "p2", "bez"]
 
 
-def test_rucni_red_pobjeduje_a_novi_ulazi_po_prioritetu():
-    db = _session()
-    ana = _meh(db, "Ana")
-    n_p1 = _nalog(db, "21", ana, prioritet_rang=0)
-    n_p2 = _nalog(db, "22", ana, prioritet_rang=1)
-    n_p3 = _nalog(db, "23", ana, prioritet_rang=2)
-    n_bez = _nalog(db, "24", ana, plan_rang=0)
-    # Ručno: bez prioriteta ispred p3 (Toni pomaknuo strelicom)
-    _zad(db, n_bez, "GUME", "bez", radnici=[ana], red_ruc=0)
-    _zad(db, n_p3, "GUME", "p3", radnici=[ana], red_ruc=1)
-    db.commit()
-    assert [t[2].opis for t in _red(db, ana)] == ["bez", "p3"], "ručni red pobjeđuje prioritet"
-    # Novo dodijeljeni (bez ručnog mjesta) ulaze po prioritetu: p1 i p2 ispred ručnih jer su bolji
-    _zad(db, n_p1, "GUME", "p1", radnici=[ana])
-    _zad(db, n_p2, "GUME", "p2", radnici=[ana])
-    db.commit()
-    assert [t[2].opis for t in _red(db, ana)] == ["p1", "p2", "bez", "p3"]
-
-
 def test_poslani_ostaje_prvi():
     db = _session()
     ana = _meh(db, "Ana")
@@ -218,18 +199,6 @@ def test_stari_cekaju_potvrdu_ne_blokiraju_prioritet():
     assert [t[2].opis for t in _red(db, ana)] == ["radi", "p1", "staroA", "staroB"]
     radi.zapoceto = None; radi.gotovo = True; db.commit()
     assert [t[2].opis for t in _red(db, ana)] == ["staroA", "p1", "staroB"]
-
-
-def test_rucni_pomak_pobjeduje_poslani():
-    """Toni strelicom stavi drugi zadatak ispred poslanog („čeka potvrdu") → vrijedi ručni red."""
-    db = _session()
-    ana = _meh(db, "Ana")
-    n1 = _nalog(db, "71", ana, prioritet_rang=1)
-    n2 = _nalog(db, "72", ana, prioritet_rang=5)
-    _zad(db, n1, "GUME", "poslan210", radnici=[ana], ceka_potvrdu=True, red_ruc=1)
-    _zad(db, n2, "GUME", "gb200", radnici=[ana], red_ruc=0)
-    db.commit()
-    assert [t[2].opis for t in _red(db, ana)] == ["gb200", "poslan210"]
 
 
 def test_jednokratno_ocisti_rucni_red():

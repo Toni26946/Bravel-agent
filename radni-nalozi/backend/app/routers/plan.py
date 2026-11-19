@@ -253,6 +253,7 @@ def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, tuple[str, i
 # --- GET /plan -------------------------------------------------------------
 @router.get("")
 def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    from .dispecer import radi_na as _radi_na
     nalozi = db.query(Nalog).options(*nalog_eager()).filter(Nalog.status.in_(_AKTIVNI)).all()
     nalozi = [n for n in nalozi if _gb(n) not in _SKRIVENI_GB]   # bez internih (RADIONA)
     nalozi.sort(key=lambda n: (
@@ -313,7 +314,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],
                     "status": _plan_status(z),
-                    "red": z.red_ruc,                 # ručni red po mehaničaru (dashboard drag)
+                    "red": z.red_ruc,                 # ručni ključ reda (strelica/povlačenje), None = po prioritetu
+                    "radiIds": [r.id for r in z.radnici if _radi_na(z, r.id)],   # kome mjerač teče (isto kao dispečer)
                     "akumSek": int(z.utroseno_sek or 0),
                     "startTs": _ms(z.zapoceto),
                 })
@@ -477,7 +479,8 @@ def prioriteti(p: PrioritetiIn, _: Korisnik = Depends(_samo_vlasnik), db: Sessio
 
 class MehRedoslijedIn(BaseModel):
     radnik_id: int
-    zadaci: list[int] = []   # id-evi zadataka u željenom redu za tog mehaničara
+    zadaci: list[int] = []      # id-evi zadataka u novom redu tog mehaničara (kako je na ekranu)
+    pomaknut: int | None = None  # koja je kartica pomaknuta (strelica / povlačenje)
 
 
 @router.get("/napravljeno")
@@ -547,21 +550,72 @@ def _poslani_mu(db: Session, radnik: Korisnik) -> set[int]:
     return {z.id for (_n, _op, z) in _red(db, radnik) if z.ceka_potvrdu and not z.zapoceto}
 
 
-def _novi_prvi_posalji(db: Session, radnik: Korisnik, prije: set[int], base_url: str, korisnik) -> bool:
-    """Ručni pomak u Radnicima: ako je na PRVO mjesto došao drugi zadatak, a mehaničar
-    ne radi ništa i čeka potvrdu nekog poslanog (Toni 19.11.2026.) → stari poslani se
-    poništi, novi prvi ide na potvrdu i mehaničar dobiva NOVU poruku (push + WhatsApp)."""
-    if not prije or not radnik or not radnik.prijavljuje_se:
-        return False
-    from .dispecer import _red, opis_s_operacijom, posalji_poveznicu
+def _postavi_rucni_kljuc(db: Session, radnik: Korisnik, poredak: list[int], pomaknut: int) -> None:
+    """Toni je pomaknuo JEDNU karticu (strelica / povlačenje): samo ona dobiva ručni
+    ključ reda — između susjeda u novom poretku. Ostale kartice ostaju po prioritetu,
+    pa jedan pomak ne „zaledi" cijeli redak (ni redak drugog mehaničara kod zajedničke
+    operacije)."""
+    from .dispecer import KORAK_REDA, _red, faza_zadatka, kljuc_reda
     red = _red(db, radnik)
-    if not red:
+    po_id = {z.id: (n, z) for (n, _op, z) in red}
+    if pomaknut not in po_id:
+        return
+    n_x, z_x = po_id[pomaknut]
+    f = faza_zadatka(n_x, z_x, radnik.id)
+    if f not in (1, 2, 3):
+        return   # u tijeku / odgođeni se ne slažu ručno
+    # Zaključani (poslani, prvi) zadatak nije dio poretka po ključu — ne računa se.
+    prvi = red[0][2]
+    zakljucan = prvi.id if (prvi.ceka_potvrdu and not prvi.zapoceto
+                            and faza_zadatka(red[0][0], prvi, radnik.id) == f) else None
+    lista = [zid for zid in poredak if zid in po_id and zid != zakljucan
+             and faza_zadatka(*po_id[zid], radnik.id) == f]
+    if pomaknut not in lista:
+        return
+    # Prođi novi poredak: svaka kartica mora biti iza prethodne po (ključ, id). Pomaknuta
+    # dobiva ključ između susjeda; ostale zadržavaju svoj ključ (prioritet) i dobivaju
+    # ručni samo ako baš moraju (npr. više operacija istog naloga s istim ključem).
+    zadnji = None   # (ključ, id) prethodne kartice
+    for i, zid in enumerate(lista):
+        n, z = po_id[zid]
+        if zid == pomaknut:
+            sljedeci = next((kljuc_reda(*po_id[y]) for y in lista[i + 1:]), None)
+            if zadnji is None:
+                k = (sljedeci - KORAK_REDA) if sljedeci is not None else 0
+            elif sljedeci is not None and sljedeci - zadnji[0] >= 2:
+                k = (zadnji[0] + sljedeci) // 2
+            elif sljedeci is None:
+                k = zadnji[0] + KORAK_REDA
+            else:
+                k = zadnji[0] + 1   # nema mjesta — sljedeće se pomaknu iza
+            z.red_ruc = k
+            zadnji = (k, z.id)
+            continue
+        cur = (kljuc_reda(n, z), z.id)
+        if zadnji is None or cur > zadnji:
+            zadnji = cur
+        else:
+            z.red_ruc = zadnji[0] + 1
+            zadnji = (z.red_ruc, z.id)
+
+
+def _novi_prvi_posalji(db: Session, radnik: Korisnik, prije: set[int], novi_prvi: int | None,
+                       base_url: str, korisnik) -> bool:
+    """Ako je na PRVO mjesto došao drugi zadatak, a mehaničar ne radi ništa i čeka
+    potvrdu poslanog (Toni 19.11.2026.) → stari poslani se poništi, novi prvi ide na
+    potvrdu i mehaničar dobiva NOVU poruku (push + WhatsApp)."""
+    if not prije or not radnik or not radnik.prijavljuje_se or novi_prvi is None or novi_prvi in prije:
         return False
-    n, op, z = red[0]
-    if z.zapoceto or z.id in prije:
-        return False   # radi nešto ili je prvi i dalje onaj koji mu je poslan
+    from .dispecer import _red, opis_s_operacijom, posalji_poveznicu, radi_na
+    red = _red(db, radnik)
+    if any(radi_na(z, radnik.id) for (_n, _op, z) in red):
+        return False   # radi nešto — novi prvi mu dolazi kad završi
+    t = next(((n, op, z) for (n, op, z) in red if z.id == novi_prvi), None)
+    if t is None:
+        return False
+    n, op, z = t
     for (_n, _op, x) in red:
-        if x.id in prije and not x.zapoceto and len(x.radnici) <= 1:
+        if x.id in prije and x.id != z.id and not x.zapoceto:
             x.ceka_potvrdu = False
     z.ceka_potvrdu = True
     z.razlog_prekida = None
@@ -577,21 +631,47 @@ def _novi_prvi_posalji(db: Session, radnik: Korisnik, prije: set[int], base_url:
     return True
 
 
+def _prvi_u_poretku(db: Session, radnik: Korisnik, poredak: list[int]) -> int | None:
+    """Prvi zadatak u Tonijevom poretku koji mehaničar ne radi i nije odgođen."""
+    from .dispecer import _red, faza_zadatka
+    po_id = {z.id: (n, z) for (n, _op, z) in _red(db, radnik)}
+    for zid in poredak:
+        if zid in po_id and faza_zadatka(*po_id[zid], radnik.id) in (1, 2):
+            return zid
+    return None
+
+
+def _pomaknut_iz_poretka(staro: list[int], novo: list[int]) -> int | None:
+    """Koja je kartica pomaknuta (stari klijent bez polja `pomaknut`)."""
+    for x in novo:
+        if [y for y in staro if y != x] == [y for y in novo if y != x] and staro.index(x) != novo.index(x):
+            return x
+    return None
+
+
 @router.post("/meh-redoslijed")
 def meh_redoslijed(p: MehRedoslijedIn, request: Request, korisnik: Korisnik = Depends(_samo_vlasnik),
                    db: Session = Depends(get_db)):
-    """Ručni red zadataka za jednog mehaničara (dashboard drag) — postavi red_ruc = pozicija.
-    Zadatak „u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega (vidi _red/kljuc).
-    Ako na prvo mjesto dođe drugi zadatak dok mehaničar čeka potvrdu → nova poruka."""
+    """Ručni pomak kartice u Radnicima (strelica / povlačenje). `zadaci` = novi poredak
+    retka, `pomaknut` = koja je kartica pomaknuta. Samo ona dobiva ručno mjesto; ostale
+    ostaju po prioritetu. Zadatak „u tijeku" ostaje prvi. Ako na prvo mjesto dođe drugi
+    zadatak dok mehaničar čeka potvrdu → nova poruka."""
     _provjeri_otkljucan(db)
     radnik = db.get(Korisnik, p.radnik_id)
-    prije = _poslani_mu(db, radnik) if radnik else set()
-    for i, zid in enumerate(p.zadaci):
-        z = db.get(Zadatak, zid)
-        if z:
-            z.red_ruc = i
+    if not radnik:
+        raise HTTPException(status_code=404, detail="Mehaničar ne postoji")
+    from .dispecer import _red
+    prije = _poslani_mu(db, radnik)
+    pomaknut = p.pomaknut
+    if pomaknut is None:
+        staro = [z.id for (_n, _op, z) in _red(db, radnik)]
+        pomaknut = _pomaknut_iz_poretka([x for x in staro if x in p.zadaci],
+                                        [x for x in p.zadaci if x in staro])
+    if pomaknut is not None:
+        _postavi_rucni_kljuc(db, radnik, p.zadaci, pomaknut)
     db.flush()
-    poslano = _novi_prvi_posalji(db, radnik, prije, str(request.base_url), korisnik) if radnik else False
+    poslano = _novi_prvi_posalji(db, radnik, prije, _prvi_u_poretku(db, radnik, p.zadaci),
+                                 str(request.base_url), korisnik)
     db.commit()
     return {"ok": True, "poslano": poslano}
 
@@ -607,40 +687,40 @@ class PremjestiIn(BaseModel):
 def premjesti(p: PremjestiIn, request: Request, korisnik: Korisnik = Depends(_samo_vlasnik),
               db: Session = Depends(get_db)):
     """Dashboard drag između mehaničara: zadatak prelazi s jednog na drugog i dobiva
-    mjesto u njegovom redu. Zadatak u tijeku se ne seli (prvo ga treba zaustaviti).
+    mjesto u njegovom redu (samo ON dobiva ručno mjesto). Zadatak u tijeku se ne seli.
     Ako je bio poslan starom mehaničaru (čeka potvrdu), ta se oznaka skida; kome se
     zbog toga promijeni prvi zadatak dok čeka potvrdu, dobiva novu poruku."""
     _provjeri_otkljucan(db)
-    prije = {}
-    for rid in dict.fromkeys([p.s_radnika, p.na_radnika]):
-        r = db.get(Korisnik, rid)
-        if r:
-            prije[r] = _poslani_mu(db, r)
+    stari = db.get(Korisnik, p.s_radnika)
+    novi = db.get(Korisnik, p.na_radnika)
+    prije_stari = _poslani_mu(db, stari) if stari else set()
+    prije_novi = _poslani_mu(db, novi) if novi else set()
     z = _zad(db, p.zadatak_id)
     if z.gotovo:
         raise HTTPException(status_code=400, detail="Zadatak je već gotov")
     if z.zapoceto:
         raise HTTPException(status_code=400, detail="Zadatak je u tijeku — prvo ga zaustavi")
     if p.s_radnika != p.na_radnika:
-        stari = db.get(Korisnik, p.s_radnika)
         # novi mehaničar preuzima mjesto starog (ostali suradnici na zadatku ostaju)
         ids = [p.na_radnika if r.id == p.s_radnika else r.id for r in z.radnici]
         if p.na_radnika not in ids:
             ids.append(p.na_radnika)
         _set_radnici(db, z, ids)
         z.ceka_potvrdu = False
-        novi = db.get(Korisnik, p.na_radnika)
         _log(db, korisnik, "premjesti",
              f"GB {_gb(z.operacija.nalog)}: {stari.ime if stari else '?'} → {novi.ime if novi else '?'}",
              nalog_id=z.operacija.nalog_id, zadatak_id=z.id, radnik_id=p.na_radnika)
-    for i, zid in enumerate(p.redoslijed):
-        x = db.get(Zadatak, zid)
-        if x:
-            x.red_ruc = i
     db.flush()
-    # Kome se promijenio prvi zadatak dok čeka potvrdu → nova poruka (oba mehaničara).
-    for r, pr in prije.items():
-        _novi_prvi_posalji(db, r, pr, str(request.base_url), korisnik)
+    if novi:
+        _postavi_rucni_kljuc(db, novi, p.redoslijed, z.id)
+    db.flush()
+    base = str(request.base_url)
+    if novi:
+        _novi_prvi_posalji(db, novi, prije_novi, _prvi_u_poretku(db, novi, p.redoslijed), base, korisnik)
+    if stari and stari is not novi:
+        from .dispecer import _red
+        red_s = _red(db, stari)
+        _novi_prvi_posalji(db, stari, prije_stari, red_s[0][2].id if red_s else None, base, korisnik)
     db.commit()
     return {"ok": True}
 
