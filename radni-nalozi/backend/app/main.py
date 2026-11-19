@@ -238,6 +238,22 @@ def _spa_response(datoteka: Path) -> FileResponse:
     return odgovor
 
 
+def _valjci_index(index: Path) -> Response:
+    """Valjci su ZASEBNA aplikacija: već u HTML-u (ne tek iz JS-a) svoj manifest, naslov,
+    boja i ikona — inače Chrome pri „Dodaj na početni zaslon" vidi manifest Naloga i
+    stavi ih u aplikaciju Bravel Nalozi (Toni 19.11.2026.)."""
+    import re
+    html = index.read_text(encoding="utf-8")
+    html = re.sub(r'href="/manifest\.webmanifest"', 'href="/valjci.webmanifest"', html)
+    if "valjci.webmanifest" not in html:
+        html = html.replace("</head>", '<link rel="manifest" href="/valjci.webmanifest"></head>')
+    html = re.sub(r"<title>.*?</title>", "<title>Valjci</title>", html, flags=re.S)
+    html = html.replace('content="#0d47a1"', 'content="#e65100"')
+    html = re.sub(r'<link rel="icon"[^>]*>', '<link rel="icon" type="image/png" href="/icons/valjci-192.png" />', html)
+    html = re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" href="/icons/valjci-192.png" />', html)
+    return Response(content=html, media_type="text/html", headers={"Cache-Control": "no-cache"})
+
+
 if _dist.is_dir():
     # Statičke datoteke (assets, ikone) i SPA fallback na index.html.
     app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
@@ -250,6 +266,8 @@ if _dist.is_dir():
         if putanja and datoteka.is_file():
             return _spa_response(datoteka)
         index = _dist / "index.html"
+        if (putanja == "valjci" or putanja.startswith("valjci/")) and index.is_file():
+            return _valjci_index(index)
         if index.is_file():
             return _spa_response(index)
         raise HTTPException(status_code=404, detail="Frontend nije izgrađen")
