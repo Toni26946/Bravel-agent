@@ -1354,7 +1354,7 @@
     var rid=parseInt(cont.getAttribute("data-rid"),10);
     var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
     if(!rid||!zids.length) return;
-    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(ucitaj).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids}).then(function(r){ if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka"); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
   }
   // Dodir koji NIJE palac na ✋ (taj se ne računa ni u povlačenje ni u zumiranje).
   function _prstNaKartici(lista){ for(var i=0;i<lista.length;i++){ if(!_naDrzi(lista[i].target)) return lista[i]; } return null; }

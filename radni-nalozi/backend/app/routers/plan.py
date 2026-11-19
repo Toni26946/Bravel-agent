@@ -541,17 +541,59 @@ def vrati_u_plan(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Sess
     return {"ok": True}
 
 
+def _poslani_mu(db: Session, radnik: Korisnik) -> set[int]:
+    """Zadaci ovog mehaničara koji su mu poslani i čekaju potvrdu (nezapočeti)."""
+    from .dispecer import _red
+    return {z.id for (_n, _op, z) in _red(db, radnik) if z.ceka_potvrdu and not z.zapoceto}
+
+
+def _novi_prvi_posalji(db: Session, radnik: Korisnik, prije: set[int], base_url: str, korisnik) -> bool:
+    """Ručni pomak u Radnicima: ako je na PRVO mjesto došao drugi zadatak, a mehaničar
+    ne radi ništa i čeka potvrdu nekog poslanog (Toni 19.11.2026.) → stari poslani se
+    poništi, novi prvi ide na potvrdu i mehaničar dobiva NOVU poruku (push + WhatsApp)."""
+    if not prije or not radnik or not radnik.prijavljuje_se:
+        return False
+    from .dispecer import _red, opis_s_operacijom, posalji_poveznicu
+    red = _red(db, radnik)
+    if not red:
+        return False
+    n, op, z = red[0]
+    if z.zapoceto or z.id in prije:
+        return False   # radi nešto ili je prvi i dalje onaj koji mu je poslan
+    for (_n, _op, x) in red:
+        if x.id in prije and not x.zapoceto and len(x.radnici) <= 1:
+            x.ceka_potvrdu = False
+    z.ceka_potvrdu = True
+    z.razlog_prekida = None
+    z.prekid_vrijeme = None
+    tekst = opis_s_operacijom(op.kategorija, z.opis)
+    obavijesti_korisnika(db, radnik.id, "Potvrdi početak", f"{tekst} · GB {_gb(n)}", "/moja-radiona")
+    try:
+        posalji_poveznicu(db, radnik, _gb(n), tekst, base_url)
+    except Exception:  # noqa: BLE001 — slanje ne smije srušiti presloživanje
+        pass
+    _log(db, korisnik, "novi-prvi", f"{radnik.ime}: novi prvi zadatak GB {_gb(n)} — poslana nova poruka"[:250],
+         nalog_id=n.id, zadatak_id=z.id, radnik_id=radnik.id)
+    return True
+
+
 @router.post("/meh-redoslijed")
-def meh_redoslijed(p: MehRedoslijedIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+def meh_redoslijed(p: MehRedoslijedIn, request: Request, korisnik: Korisnik = Depends(_samo_vlasnik),
+                   db: Session = Depends(get_db)):
     """Ručni red zadataka za jednog mehaničara (dashboard drag) — postavi red_ruc = pozicija.
-    Zadatak „u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega (vidi _red/kljuc)."""
+    Zadatak „u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega (vidi _red/kljuc).
+    Ako na prvo mjesto dođe drugi zadatak dok mehaničar čeka potvrdu → nova poruka."""
     _provjeri_otkljucan(db)
+    radnik = db.get(Korisnik, p.radnik_id)
+    prije = _poslani_mu(db, radnik) if radnik else set()
     for i, zid in enumerate(p.zadaci):
         z = db.get(Zadatak, zid)
         if z:
             z.red_ruc = i
+    db.flush()
+    poslano = _novi_prvi_posalji(db, radnik, prije, str(request.base_url), korisnik) if radnik else False
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "poslano": poslano}
 
 
 class PremjestiIn(BaseModel):
@@ -562,12 +604,18 @@ class PremjestiIn(BaseModel):
 
 
 @router.post("/premjesti")
-def premjesti(p: PremjestiIn, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+def premjesti(p: PremjestiIn, request: Request, korisnik: Korisnik = Depends(_samo_vlasnik),
+              db: Session = Depends(get_db)):
     """Dashboard drag između mehaničara: zadatak prelazi s jednog na drugog i dobiva
     mjesto u njegovom redu. Zadatak u tijeku se ne seli (prvo ga treba zaustaviti).
-    Ako je bio poslan starom mehaničaru (čeka potvrdu), ta se oznaka skida — novom
-    ga treba poslati (gumb Pošalji / auto-slanje)."""
+    Ako je bio poslan starom mehaničaru (čeka potvrdu), ta se oznaka skida; kome se
+    zbog toga promijeni prvi zadatak dok čeka potvrdu, dobiva novu poruku."""
     _provjeri_otkljucan(db)
+    prije = {}
+    for rid in dict.fromkeys([p.s_radnika, p.na_radnika]):
+        r = db.get(Korisnik, rid)
+        if r:
+            prije[r] = _poslani_mu(db, r)
     z = _zad(db, p.zadatak_id)
     if z.gotovo:
         raise HTTPException(status_code=400, detail="Zadatak je već gotov")
@@ -589,6 +637,10 @@ def premjesti(p: PremjestiIn, korisnik: Korisnik = Depends(_samo_vlasnik), db: S
         x = db.get(Zadatak, zid)
         if x:
             x.red_ruc = i
+    db.flush()
+    # Kome se promijenio prvi zadatak dok čeka potvrdu → nova poruka (oba mehaničara).
+    for r, pr in prije.items():
+        _novi_prvi_posalji(db, r, pr, str(request.base_url), korisnik)
     db.commit()
     return {"ok": True}
 
