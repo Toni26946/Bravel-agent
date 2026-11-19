@@ -1359,7 +1359,18 @@
     var rid=parseInt(cont.getAttribute("data-rid"),10);
     var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
     if(!rid||!zids.length) return;
-    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids, pomaknut:(pomaknut||null)}).then(function(r){ if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka"); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+    api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids, pomaknut:(pomaknut||null)}).then(function(r){
+      if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka");
+      else if(pomaknut && _pomak_vracen(zids, r&&r.red, pomaknut)) toast("⚠ Kartica se ne može staviti na to mjesto — vraćena je (red: u tijeku → hitno → ostalo → vani)");
+      return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); ucitaj(); });
+  }
+  // WhatsApp #339/#340: je li server pomaknutu karticu spremio na drugo mjesto nego što je
+  // tražena (usporedba samo kartica koje su u oba popisa)? Tad ne smije tiho skočiti natrag.
+  function _pomak_vracen(trazeno, spremljeno, zid){
+    if(!spremljeno||!spremljeno.length) return false;
+    var a=trazeno.filter(function(x){ return spremljeno.indexOf(x)>=0; });
+    var b=spremljeno.filter(function(x){ return a.indexOf(x)>=0; });
+    return a.indexOf(zid)!==b.indexOf(zid);
   }
   // Je li novi redoslijed u retku protiv faza (isto kao dispecer.slozi_red: u tijeku → hitno →
   // ostalo → vozilo izvan radione)? Vrati poruku za korisnika ili null ako je red u redu.

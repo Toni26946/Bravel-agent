@@ -631,6 +631,35 @@ def _novi_prvi_posalji(db: Session, radnik: Korisnik, prije: set[int], novi_prvi
     return True
 
 
+def _skini_stari_pin(db: Session, radnik: Korisnik, poredak: list[int], pomaknut: int) -> None:
+    """WhatsApp #339/#340 (Baranov, GB 110): Toni je karticu stavio PRVU, ali ispred nje je
+    ostao stari POSLANI zadatak („Čeka potvrdu") jer nova poruka nije otišla — pa je
+    kartica tiho skočila natrag. Ručni pomak ima prednost: starom poslanom se skida
+    oznaka (nije započet), a pomaknuta kartica dobiva ključ ispred njega."""
+    from .dispecer import KORAK_REDA, _red, faza_zadatka, kljuc_reda
+    red = _red(db, radnik)
+    po_id = {z.id: (n, z) for (n, _op, z) in red}
+    if pomaknut not in po_id:
+        return
+    n_x, z_x = po_id[pomaknut]
+    f = faza_zadatka(n_x, z_x, radnik.id)
+    if f not in (1, 2):
+        return
+    trazeno = [zid for zid in poredak if zid in po_id and faza_zadatka(*po_id[zid], radnik.id) == f]
+    if not trazeno or trazeno[0] != pomaknut:
+        return   # nije stavljena na prvo mjesto → zaključani poslani ostaje
+    prvi = next(((n, z) for (n, _op, z) in red if faza_zadatka(n, z, radnik.id) == f), None)
+    if prvi is None or prvi[1].id == pomaknut:
+        return
+    n_p, z_p = prvi
+    if not (z_p.ceka_potvrdu and not z_p.zapoceto):
+        return
+    z_p.ceka_potvrdu = False
+    k_p = kljuc_reda(n_p, z_p)
+    if kljuc_reda(n_x, z_x) >= k_p:
+        z_x.red_ruc = k_p - KORAK_REDA
+
+
 def _prvi_u_poretku(db: Session, radnik: Korisnik, poredak: list[int]) -> int | None:
     """Prvi zadatak u Tonijevom poretku koji mehaničar ne radi i nije odgođen."""
     from .dispecer import _red, faza_zadatka
@@ -672,8 +701,14 @@ def meh_redoslijed(p: MehRedoslijedIn, request: Request, korisnik: Korisnik = De
     db.flush()
     poslano = _novi_prvi_posalji(db, radnik, prije, _prvi_u_poretku(db, radnik, p.zadaci),
                                  str(request.base_url), korisnik)
+    db.flush()
+    if pomaknut is not None and not poslano:
+        _skini_stari_pin(db, radnik, p.zadaci, pomaknut)
+        db.flush()
+    red = [z.id for (_n, _op, z) in _red(db, radnik)]
     db.commit()
-    return {"ok": True, "poslano": poslano}
+    # `red` = poredak kakav je stvarno spremljen — stranica po njemu vidi je li pomak ostao.
+    return {"ok": True, "poslano": poslano, "red": red}
 
 
 class PremjestiIn(BaseModel):
