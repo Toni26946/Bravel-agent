@@ -63,14 +63,20 @@ def test_popuni_po_prioritetu_do_dva():
     z_p2 = _zad(db, n_p2, "GUME", "p2")
     z_p1 = _zad(db, n_p1, "GUME", "p1")
     z_h = _zad(db, n_h, "GUME", "hitno")
+    n_x = _nalog(db, "50", ana, plan_rang=4)
+    n_y = _nalog(db, "51", ana, plan_rang=5)
+    z_x = _zad(db, n_x, "GUME", "x")
+    z_y = _zad(db, n_y, "GUME", "y")
+    # već radi na jednom (računa se u 5)
+    n_r = _nalog(db, "52", ana, plan_rang=9)
+    _zad(db, n_r, "GUME", "radi", radnici=[ana], zapoceto=datetime.now(timezone.utc))
     db.commit()
 
     out = popuni(db)
-    # dvije dodjele (prag 2): HITNO pa prioritet 1
-    assert [d["zadatak_id"] for d in out] == [z_h.id, z_p1.id]
-    assert [r.id for r in z_h.radnici] == [ana.id] and [r.id for r in z_p1.radnici] == [ana.id]
-    assert not z_p2.radnici and not z_bez.radnici
-    # opet → ništa (ima 2 u pripremi)
+    # min 5 u redu: 1 već radi + 4 nova — HITNO, prioritet 1, prioritet 2, pa po planu
+    assert [d["zadatak_id"] for d in out] == [z_h.id, z_p1.id, z_p2.id, z_bez.id]
+    assert not z_x.radnici and not z_y.radnici
+    # opet → ništa (ima 5)
     assert popuni(db) == []
 
 
