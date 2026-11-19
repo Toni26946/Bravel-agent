@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from . import flota, norme
 from .config import settings
-from .models import Korisnik, Nalog, StatusNaloga, Zadatak
+from .models import Korisnik, Nalog, StatusNaloga, Uloga, Zadatak
 
 log = logging.getLogger("auto_popuni")
 
@@ -77,6 +77,7 @@ def popuni(db: Session) -> list[dict]:
     meh = [
         m for m in db.query(Korisnik)
         .filter(or_(Korisnik.uloga.in_(_SERVISERI), Korisnik.radi_na_nalozima.is_(True)),
+                Korisnik.uloga != Uloga.skladistar,   # skladištar (Akshay) ne dobiva zadatke
                 Korisnik.aktivan.is_(True),
                 Korisnik.prijavljuje_se.is_(True))
         .all()
@@ -164,10 +165,24 @@ def _vrati_krivo_dodijeljene(db: Session, iskljuceni: set[str]) -> None:
     """Zadatke koje je auto-popunjavanje dalo isključenom korisniku (npr. 🧪 TEST
     Mehaničaru), a još nisu započeti, vrati u plan — dobit će ih pravi mehaničar."""
     from .models import PlanDogadaj
-    ids = [k.id for k in db.query(Korisnik).all() if (k.korisnicko_ime or "").lower() in iskljuceni]
+    svi = db.query(Korisnik).all()
+    ids = [k.id for k in svi
+           if (k.korisnicko_ime or "").lower() in iskljuceni or k.uloga == Uloga.skladistar]
     if not ids:
         return
     vraceno = 0
+    # Skladištar (Akshay) uopće ne dobiva zadatke iz plana (Toni 19.11.2026.) → SVI
+    # njegovi nezapočeti zadaci (i ručno dodijeljeni) natrag u plan.
+    sklad = {k.id for k in svi if k.uloga == Uloga.skladistar}
+    if sklad:
+        for z in (db.query(Zadatak).join(Zadatak.radnici)
+                  .filter(Korisnik.id.in_(sklad), Zadatak.gotovo.is_(False), Zadatak.zapoceto.is_(None))
+                  .all()):
+            ostali = [r for r in z.radnici if r.id not in sklad]
+            if len(ostali) != len(z.radnici):
+                z.radnici = ostali
+                z.ceka_potvrdu = False
+                vraceno += 1
     for d in (db.query(PlanDogadaj)
               .filter(PlanDogadaj.tip == "auto-dodjela", PlanDogadaj.radnik_id.in_(ids)).all()):
         z = db.get(Zadatak, d.zadatak_id) if d.zadatak_id else None
