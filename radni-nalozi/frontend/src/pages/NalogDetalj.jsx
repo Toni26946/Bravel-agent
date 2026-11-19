@@ -9,7 +9,7 @@ import {
 } from '../ui'
 import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
 import SlikaEditor from '../SlikaEditor'
-import { TablicaMjerenja } from './TestoviKocnica'
+import { CrtezOsovina } from './TestoviKocnica'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -192,7 +192,7 @@ function TestoviKocnicaBlok({ nalogId }) {
         <div key={t.id} className="card">
           <b>{new Date(t.pocetak).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b>
           {t.status !== 'vezan' && <span style={{ color: 'var(--crveno)', marginLeft: 8 }}>{t.napomena || 'čeka potvrdu'}</span>}
-          <TablicaMjerenja mjerenja={t.mjerenja} />
+          <CrtezOsovina mjerenja={t.mjerenja} />
         </div>
       ))}
     </>

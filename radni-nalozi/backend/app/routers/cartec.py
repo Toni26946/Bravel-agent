@@ -278,10 +278,12 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
         t.kraj = vrijeme
     db.flush()
     db.refresh(t)
-    _ocijeni(db, t, novi_test)
+    pitaj = _ocijeni(db, t, novi_test)
     db.commit()
-    # Pitanje mehaničaru „koje vozilo?" — Toni 17.11.2026.: rješava se drukčije, kasnije.
-    # Zasad nerazvrstan test samo čeka na popisu „Testovi kočnica" (bez obavijesti).
+    # Toni 19.11.2026.: test bez vozila ide VODITELJIMA na mobitel (obavijest → ekran za upis GB-a).
+    # Mehaničare se ne pita. Jedna obavijest po testu, ne za svaku osovinu.
+    if pitaj:
+        _obavijesti_nerazvrstan(db, t)
     return {"ok": True, "test_id": t.id, "status": t.status, "nalog_id": t.nalog_id, "gb": t.gb}
 
 
@@ -296,7 +298,7 @@ def _lokalno(d: datetime) -> str:
 def _obavijesti_nerazvrstan(db: Session, t: TestKocnica) -> None:
     try:
         from ..push import obavijesti_ulogu
-        tekst = f"Test kočnica u {_lokalno(t.pocetak)} — koje vozilo?"
+        tekst = f"Test kočnica u {_lokalno(t.pocetak)} — upiši GB vozila."
         for uloga in (Uloga.voditelj, Uloga.poslovodja):
             obavijesti_ulogu(db, uloga, "Test kočnica", tekst, url="/testovi-kocnica")
     except Exception:  # noqa: BLE001 — obavijest nije bitna za spremanje mjerenja
@@ -337,6 +339,12 @@ def _smije_vidjeti(k: Korisnik) -> None:
         raise HTTPException(status_code=403, detail="Nemate ovlasti")
 
 
+def _smije_vezati(k: Korisnik) -> None:
+    # Odabir vozila za test rade SAMO voditelji/poslovođe (Toni 19.11.2026.) — mehaničari ne.
+    if k.uloga not in (Uloga.voditelj, Uloga.poslovodja):
+        raise HTTPException(status_code=403, detail="Vozilo za test kočnica odabire voditelj")
+
+
 @router.get("/testovi")
 def testovi(status: str | None = Query(default=None, pattern="^(vezan|nerazvrstan|ceka_potvrdu|otvoreni)$"),
             nalog_id: int | None = None, gb: str | None = None,
@@ -359,7 +367,7 @@ def testovi(status: str | None = Query(default=None, pattern="^(vezan|nerazvrsta
 def otvoreni_nalozi_za_gb(gb: str = Query(min_length=1, max_length=40),
                           db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
     """Otvoreni nalozi vozila po GB-u — za ručni odabir kad pravog vozila nema među gumbima."""
-    _smije_vidjeti(k)
+    _smije_vezati(k)
     from ..models import Vozilo
     red = (db.query(Nalog).join(Vozilo, Vozilo.id == Nalog.vozilo_id)
            .filter(Vozilo.gb == gb.strip(), Nalog.status.in_(OTVORENI))
@@ -373,8 +381,8 @@ class VeziIn(BaseModel):
 
 @router.post("/testovi/{test_id}/vezi")
 def vezi_test(test_id: int, p: VeziIn, db: Session = Depends(get_db), k: Korisnik = Depends(trenutni_korisnik)):
-    """Čovjek odabere nalog (= vozilo po GB-u) za test. Ručni izbor je konačan."""
-    _smije_vidjeti(k)
+    """Voditelj odabere nalog (= vozilo po GB-u) za test. Ručni izbor je konačan."""
+    _smije_vezati(k)
     t = db.get(TestKocnica, test_id)
     if not t:
         raise HTTPException(status_code=404, detail="Test ne postoji")
