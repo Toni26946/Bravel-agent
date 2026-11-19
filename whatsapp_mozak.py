@@ -82,13 +82,20 @@ def _tekst_i_slika(msg):
     tip = msg.get("type")
     if tip == "text":
         return ((msg.get("text") or {}).get("body") or "").strip(), None
-    if tip in ("image", "document"):
+    if tip in ("image", "document", "video"):
         m = msg.get(tip) or {}
-        if tip == "document" and not str(m.get("mime_type") or "").startswith("image/"):
+        if tip == "document" and not str(m.get("mime_type") or "").startswith(("image/", "video/")):
             return "", None
         if m.get("id"):
             return (m.get("caption") or "").strip(), m["id"]
     return "", None
+
+
+def _je_video(msg):
+    """Video poruka (ili dokument s video/* tipom) – Toni 19.11.2026.: tatin video se izgubio."""
+    tip = msg.get("type")
+    return tip == "video" or (tip == "document" and
+                              str((msg.get("document") or {}).get("mime_type") or "").startswith("video/"))
 
 
 def _posalji_sliku(zid, media_id):
@@ -97,7 +104,9 @@ def _posalji_sliku(zid, media_id):
         import whatsapp
         sadrzaj, mime = whatsapp.download_media(media_id)
         url = _URL.rstrip("/") + f"/slika/{zid}"
-        requests.post(url, timeout=40, headers={"X-Mozak-WA": kljuc(), "Content-Type": mime},
+        # video: mozak ga spremi i izvuče sličice (traje dulje od slike)
+        requests.post(url, timeout=120 if mime.startswith("video/") else 40,
+                      headers={"X-Mozak-WA": kljuc(), "Content-Type": mime},
                       data=sadrzaj)
     except Exception:
         pass
@@ -114,7 +123,7 @@ def ponudi(frm, ime, msg):
     try:
         r = requests.post(_URL, timeout=25, headers={"X-Mozak-WA": kljuc()},
                           json={"od": frm, "ime": ime, "tekst": tekst, "id": msg.get("id") or "",
-                                "slika": bool(media_id)})
+                                "slika": bool(media_id), "video": bool(media_id) and _je_video(msg)})
         if r.status_code != 200:
             return False
         rez = r.json()
