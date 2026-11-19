@@ -176,7 +176,7 @@ export default function ValjciApp() {
   const { korisnik, ucitavanje, odjava } = useAuth()
   return (
     <div style={{ minHeight: '100vh' }}>
-      <div style={{ background: '#0d47a1', color: '#fff', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#e65100', color: '#fff', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 20, fontWeight: 800 }}>🛞 Valjci</span>
         {korisnik && (
           <span style={{ fontSize: 13 }}>

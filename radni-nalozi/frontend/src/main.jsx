@@ -9,6 +9,11 @@ import './styles.css'
 // Valjci su ZASEBNA aplikacija (svoja ikona na mobitelu): na /valjci vlastiti manifest i naslov.
 if (window.location.pathname.startsWith('/valjci')) {
   document.title = 'Valjci'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#e65100')
+  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((l) => {
+    l.href = '/icons/valjci-192.png'
+    l.removeAttribute('type')
+  })
   const postavi = () => {
     const linkovi = document.querySelectorAll('link[rel="manifest"]')
     if (!linkovi.length) {
