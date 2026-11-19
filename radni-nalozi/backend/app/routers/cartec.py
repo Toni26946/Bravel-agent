@@ -472,6 +472,20 @@ def javni_upis_gb(oznaka: str, p: JavnoGbIn, db: Session = Depends(get_db)):
     return {"test": _javni_out(db, t)}
 
 
+@router.post("/javno/{oznaka}/ponisti")
+def javni_ponisti_gb(oznaka: str, db: Session = Depends(get_db)):
+    """Obriši upisano vozilo — test je opet bez GB-a (krivo upisano / krivo kliknuto)."""
+    t = _test_po_poveznici(db, oznaka)
+    t.nalog_id = None
+    t.gb = None
+    t.status = "nerazvrstan"
+    t.napomena = "Vozilo obrisano — upiši GB."
+    t.vezao_id = None
+    t.rucno_poveznicom = False
+    db.commit()
+    return {"test": _javni_out(db, t)}
+
+
 def blokira_zatvaranje(db: Session, nalog_id: int) -> TestKocnica | None:
     """Nerazvrstan / nepotvrđen test koji bi mogao pripadati ovom nalogu."""
     for t in db.query(TestKocnica).filter(TestKocnica.status.in_(("nerazvrstan", "ceka_potvrdu"))).all():
