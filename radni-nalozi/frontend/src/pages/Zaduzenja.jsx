@@ -22,8 +22,14 @@ export default function Zaduzenja() {
       .some((v) => (v || '').toString().toLowerCase().includes(upit))
   })
 
+  // Zaduženja koja već imaju razduženje (vozilo vraćeno).
+  const razduzena = new Set((redovi || []).filter((z) => z.vrsta === 'razduzenje' && z.zaduzenje_id).map((z) => z.zaduzenje_id))
+
   const akcija = (
-    <button className="btn mali" onClick={() => nav('/zaduzenja/novo')}>+ {t('zad.novo')}</button>
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <button className="btn mali" onClick={() => nav('/zaduzenja/novo')}>+ {t('zad.novo')}</button>
+      <button className="btn mali sekund" onClick={() => nav('/zaduzenja/novo-razduzenje')}>↩️ {t('zad.novoRazduzenje')}</button>
+    </div>
   )
 
   return (
@@ -44,6 +50,7 @@ export default function Zaduzenja() {
             <thead>
               <tr>
                 <th>{t('zad.datum')}</th>
+                <th>{t('zad.vrsta')}</th>
                 <th>{t('zad.kamion')}</th>
                 <th>{t('zad.prikolica')}</th>
                 <th>{t('zad.vozac')}</th>
@@ -54,6 +61,11 @@ export default function Zaduzenja() {
               {filt.map((z) => (
                 <tr key={z.id} className="klik-red" onClick={() => nav(`/zaduzenja/${z.id}`)}>
                   <td>{datum(z.datum)}</td>
+                  <td>
+                    {z.vrsta === 'razduzenje'
+                      ? <span className="zad-znak zad-razd">↩️ {t('zad.razduzenje')}</span>
+                      : <span>{t('zad.naslov')}{razduzena.has(z.id) && <span className="zad-znak zad-ok" style={{ marginLeft: 6 }}>{t('zad.razduzeno')}</span>}</span>}
+                  </td>
                   <td><strong>🚚 {z.kamion_registracija || '—'}</strong></td>
                   <td>🛻 {z.prikolica_registracija || '—'}</td>
                   <td>{z.vozac || z.preuzeo || '—'}</td>

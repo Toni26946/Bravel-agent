@@ -8,7 +8,7 @@ import { useT } from '../i18n'
 
 // Novi ili postojeći obrazac zaduženja kamiona/prikolice.
 // Zaglavlje (registracije, datum, potpisnici) + popis opreme s +/- oznakama.
-export default function ZaduzenjeDetalj({ novo = false }) {
+export default function ZaduzenjeDetalj({ novo = false, vrsta = 'zaduzenje' }) {
   const { t } = useT()
   const nav = useNavigate()
   const { id } = useParams()
@@ -35,7 +35,7 @@ export default function ZaduzenjeDetalj({ novo = false }) {
         setZ({
           kamion_registracija: '', prikolica_registracija: '', vozac: '',
           datum: new Date().toISOString().slice(0, 10),
-          odradio: '', predao: '', preuzeo: '', napomena: '', status: 'u_tijeku',
+          odradio: '', predao: '', preuzeo: '', napomena: '', status: 'u_tijeku', vrsta,
         })
       }).catch(() => setGreska(t('zad.greskaUcitavanje')))
     } else {
@@ -46,7 +46,7 @@ export default function ZaduzenjeDetalj({ novo = false }) {
       }).catch(() => setGreska(t('zad.greskaUcitavanje')))
     }
     return () => { ziv = false }
-  }, [id, novo])
+  }, [id, novo, vrsta])
 
   const postavi = (polje, vrijednost) => setZ((s) => ({ ...s, [polje]: vrijednost }))
 
@@ -55,7 +55,15 @@ export default function ZaduzenjeDetalj({ novo = false }) {
   }
 
   const oznaciSve = (grupa, stanje) => {
-    setStavke((lista) => lista.map((s) => (s.grupa === grupa ? { ...s, stanje, kolicina: stanje === 'da' ? s.kom : s.kolicina } : s)))
+    setStavke((lista) => {
+      // Razduženje povezano sa zaduženjem: „Sve vraćeno" označi samo ono što je bilo predano.
+      const pov = z && z.vrsta === 'razduzenje' && z.zaduzenje_id && lista.some((s) => s.predano_stanje === 'da')
+      return lista.map((s) => {
+        if (s.grupa !== grupa) return s
+        if (pov && stanje === 'da' && s.predano_stanje !== 'da') return s
+        return { ...s, stanje, kolicina: stanje === 'da' ? (s.predano_kolicina ?? s.kom) : s.kolicina }
+      })
+    })
   }
 
   const spremi = async (noviStatus) => {
@@ -78,6 +86,7 @@ export default function ZaduzenjeDetalj({ novo = false }) {
       preuzeo: z.preuzeo,
       napomena: z.napomena,
       status: noviStatus || z.status,
+      vrsta: z.vrsta || 'zaduzenje',
       stavke,
     }
     try {
@@ -93,6 +102,15 @@ export default function ZaduzenjeDetalj({ novo = false }) {
     } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
   }
 
+  // Razduženje: otvori postojeće ili napravi novo iz ovog zaduženja (isti kamion, prikolica, vozač, oprema).
+  const razduzi = async () => {
+    if (z.razduzenje_id) { nav(`/zaduzenja/${z.razduzenje_id}`); return }
+    if (!window.confirm(t('zad.potvrdiRazduzenje'))) return
+    setRadi(true); setGreska('')
+    try { const r = await api.razduziZaduzenje(id); nav(`/zaduzenja/${r.id}`) }
+    catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+  }
+
   const obrisi = async () => {
     if (!window.confirm(t('zad.potvrdiBrisanje'))) return
     setRadi(true)
@@ -103,15 +121,33 @@ export default function ZaduzenjeDetalj({ novo = false }) {
   const kamionStavke = useMemo(() => stavke.filter((s) => s.grupa === 'kamion'), [stavke])
   const prikolicaStavke = useMemo(() => stavke.filter((s) => s.grupa === 'prikolica'), [stavke])
   const brojPredanih = stavke.filter((s) => s.stanje === 'da').length
+  // Razduženje: računaju se stavke koje su bile predane kod zaduženja; ako je samostalno
+  // (ili u zaduženju ništa nije označeno) — sve stavke.
+  const povezano = !!(z && z.zaduzenje_id) && stavke.some((s) => s.predano_stanje === 'da')
+  const relevantna = (s) => (povezano ? s.predano_stanje === 'da' : true)
+  const razdRelevantne = stavke.filter(relevantna)
+  const fali = razdRelevantne.filter((s) => s.stanje === 'ne')
 
   if (!z) return <Layout naslov={t('tab.zaduzenja')} nazad="/zaduzenja">{greska ? <p className="greska">{greska}</p> : <Spinner />}</Layout>
 
   const smijeBrisati = korisnik?.uloga === 'voditelj' && !novo
   const zavrseno = z.status === 'zavrseno'
+  const razd = (z.vrsta || 'zaduzenje') === 'razduzenje'
+  const naslov = razd ? (novo ? t('zad.novoRazduzenje') : t('zad.razduzenje')) : (novo ? t('zad.novo') : t('zad.naslov'))
 
   return (
-    <Layout naslov={novo ? t('zad.novo') : t('zad.naslov')} nazad="/zaduzenja">
+    <Layout naslov={naslov} nazad="/zaduzenja">
       <div className="zad-obrazac">
+        {razd && (
+          <div className="karta zad-razd-info">
+            <p className="meta" style={{ margin: 0 }}>↩️ {t('zad.razdOpis')}</p>
+            {z.zaduzenje_id && (
+              <button type="button" className="zad-veza no-print" onClick={() => nav(`/zaduzenja/${z.zaduzenje_id}`)}>
+                {t('zad.izZaduzenja', { datum: '#' + z.zaduzenje_id })}
+              </button>
+            )}
+          </div>
+        )}
         {/* Zaglavlje */}
         <div className="karta no-print-sjena">
           <div className="zad-glava">
@@ -160,9 +196,9 @@ export default function ZaduzenjeDetalj({ novo = false }) {
         </div>
 
         {/* Popis opreme */}
-        <ZadGrupa naslov={'🚚 ' + t('zad.kamion')} stavke={kamionStavke} grupa="kamion"
+        <ZadGrupa naslov={'🚚 ' + t('zad.kamion')} stavke={kamionStavke} grupa="kamion" razd={razd} relevantna={relevantna}
           stavkeSve={stavke} postaviStavku={postaviStavku} oznaciSve={oznaciSve} zakljucano={zavrseno} t={t} />
-        <ZadGrupa naslov={'🛻 ' + t('zad.prikolica')} stavke={prikolicaStavke} grupa="prikolica"
+        <ZadGrupa naslov={'🛻 ' + t('zad.prikolica')} stavke={prikolicaStavke} grupa="prikolica" razd={razd} relevantna={relevantna}
           stavkeSve={stavke} postaviStavku={postaviStavku} oznaciSve={oznaciSve} zakljucano={zavrseno} t={t} />
 
         {/* Potpisnici */}
@@ -186,7 +222,16 @@ export default function ZaduzenjeDetalj({ novo = false }) {
             onChange={(e) => postavi('napomena', e.target.value)} />
         </div>
 
-        <p className="meta">{t('zad.predano', { n: brojPredanih, uk: stavke.length })}</p>
+        {razd ? (
+          <>
+            <p className="meta">{t('zad.vraceno', { n: razdRelevantne.filter((s) => s.stanje === 'da').length, uk: razdRelevantne.length })}</p>
+            {fali.length > 0 && (
+              <div className="greska zad-fali">{t('zad.fali', { n: fali.length, sto: fali.map((s) => s.oprema).join(', ') })}</div>
+            )}
+          </>
+        ) : (
+          <p className="meta">{t('zad.predano', { n: brojPredanih, uk: stavke.length })}</p>
+        )}
         {greska && <div className="greska">{greska}</div>}
         {poruka && <div className="uspjeh">{poruka}</div>}
 
@@ -198,6 +243,11 @@ export default function ZaduzenjeDetalj({ novo = false }) {
           {!novo && zavrseno && (
             <button className="btn sekund" disabled={radi} onClick={() => spremi('u_tijeku')}>↩️ {t('zad.vratiTijek')}</button>
           )}
+          {!novo && !razd && (
+            <button className="btn" disabled={radi} onClick={razduzi}>
+              ↩️ {z.razduzenje_id ? t('zad.otvoriRazduzenje') : t('zad.razduzi')}
+            </button>
+          )}
           {!novo && <button className="btn sekund" onClick={() => window.print()}>🖨️ {t('zad.ispisi')}</button>}
           {smijeBrisati && <button className="btn opasno" disabled={radi} onClick={obrisi}>🗑️ {t('zad.obrisi')}</button>}
         </div>
@@ -207,7 +257,10 @@ export default function ZaduzenjeDetalj({ novo = false }) {
 }
 
 // Jedna grupa opreme (kamion ili prikolica) — tablica sa +/- oznakama.
-function ZadGrupa({ naslov, stavke, grupa, stavkeSve, postaviStavku, oznaciSve, zakljucano, t }) {
+function ZadGrupa({ naslov, stavke, grupa, stavkeSve, postaviStavku, oznaciSve, zakljucano, t, razd = false, relevantna = () => true }) {
+  // Razduženje: „Predano" = snimka iz zaduženja; „+" = vraćeno. Fali = predano, a nije vraćeno.
+  const predanoZnak = (s) => (s.predano_stanje === 'da' ? '✓' : s.predano_stanje === 'ne' ? '✗' : '—')
+  const fali = (s) => razd && s.stanje === 'ne' && relevantna(s)
   // Indeks stavke u punom popisu (postaviStavku radi po globalnom indeksu).
   const idxOf = (s) => stavkeSve.indexOf(s)
   return (
@@ -216,7 +269,7 @@ function ZadGrupa({ naslov, stavke, grupa, stavkeSve, postaviStavku, oznaciSve, 
         <strong>{naslov}</strong>
         {!zakljucano && (
           <div className="no-print" style={{ display: 'flex', gap: 6 }}>
-            <button className="btn sekund mali" onClick={() => oznaciSve(grupa, 'da')}>{t('zad.sviPredani')}</button>
+            <button className="btn sekund mali" onClick={() => oznaciSve(grupa, 'da')}>{razd ? t('zad.sveVraceno') : t('zad.sviPredani')}</button>
             <button className="btn sekund mali" onClick={() => oznaciSve(grupa, '')}>{t('zad.ocisti')}</button>
           </div>
         )}
@@ -227,7 +280,8 @@ function ZadGrupa({ naslov, stavke, grupa, stavkeSve, postaviStavku, oznaciSve, 
             <th className="zad-br">#</th>
             <th>{t('zad.oprema')}</th>
             <th className="zad-kom">{t('zad.kom')}</th>
-            <th className="zad-pm">+/−</th>
+            {razd && <th className="zad-kom">{t('zad.predanoKol')}</th>}
+            <th className="zad-pm">{razd ? t('zad.vracenoKol') + ' +/−' : '+/−'}</th>
             <th className="zad-nap">{t('zad.napomenaKratko')}</th>
           </tr>
         </thead>
@@ -235,10 +289,12 @@ function ZadGrupa({ naslov, stavke, grupa, stavkeSve, postaviStavku, oznaciSve, 
           {stavke.map((s) => {
             const gi = idxOf(s)
             return (
-              <tr key={grupa + '-' + s.br} className={s.stanje === 'ne' ? 'zad-manjka' : ''}>
+              <tr key={grupa + '-' + s.br}
+                className={(razd ? fali(s) : s.stanje === 'ne') ? 'zad-manjka' : (razd && !relevantna(s) ? 'zad-nepredano' : '')}>
                 <td className="zad-br">{s.br}</td>
-                <td>{s.oprema}</td>
+                <td>{s.oprema}{fali(s) && <strong className="zad-fali-oznaka"> · fali</strong>}</td>
                 <td className="zad-kom">{s.kom}</td>
+                {razd && <td className="zad-kom">{predanoZnak(s)}</td>}
                 <td className="zad-pm">
                   <div className="zad-toggle">
                     <button

@@ -720,6 +720,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .zad-tab .zad-pm { width: 88px; }
 .zad-tab .zad-nap { width: 30%; }
 .zad-manjka { background: #fdeaea; }
+/* Razduženje */
+.zad-znak.zad-razd { background: #e8f0fe; color: #1d4ed8; }
+.zad-nepredano { color: var(--sivo); }
+.zad-fali-oznaka { color: var(--crvena); font-size: 12px; }
+.zad-razd-info { display: flex; flex-direction: column; gap: 4px; }
+.zad-fali { font-weight: 600; }
 .zad-toggle { display: flex; gap: 4px; }
 .zad-btn { flex: 1; min-width: 32px; height: 32px; border: 1px solid var(--rub); background: #fff; border-radius: 8px; font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; color: var(--sivo); }
 .zad-btn:disabled { cursor: default; opacity: .8; }

@@ -204,6 +204,7 @@ export const api = {
   kreirajZaduzenje: (b) => zahtjev('/zaduzenja', { method: 'POST', body: b }),
   azurirajZaduzenje: (id, b) => zahtjev(`/zaduzenja/${id}`, { method: 'PATCH', body: b }),
   obrisiZaduzenje: (id) => zahtjev(`/zaduzenja/${id}`, { method: 'DELETE' }),
+  razduziZaduzenje: (id) => zahtjev(`/zaduzenja/${id}/razduzenje`, { method: 'POST' }),
 
   // AI Poslovođa (norme, postavke, učinak)
   norme: () => zahtjev('/poslovodja/norme'),
