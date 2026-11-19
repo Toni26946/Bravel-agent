@@ -261,6 +261,8 @@
   .rad-cell .rc-str{display:flex;gap:6px;margin-top:2px}
   .rad-cell .rc-str button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 0;font-size:13px;line-height:1;cursor:pointer;color:var(--plava);font-family:inherit}
   .rad-cell .rc-str button:active{background:var(--plava-soft)}
+  .auto-pop{border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:0 0 8px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .auto-pop.on{border-color:var(--s-radu);color:var(--s-radu)}
   .rad-zoom{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:13px;font-weight:700;color:var(--muted)}
   .rad-zoom button{border:1px solid var(--line);background:var(--card);border-radius:8px;width:36px;height:32px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;color:var(--plava)}
   .rad-zoom span{min-width:42px;text-align:center}
@@ -358,6 +360,7 @@
   var planZakljucan = false;   // stvarno stanje sa servera (zaključano za danas)
   var zakljucaoIme = "", zakljucanoTs = null;
   var autoSlanje = {ukljuceno:false, ura:"06:45", datum:null};   // jutarnje auto-slanje plana
+  var autoPopuni = true;   // automatsko popunjavanje reda mehaničara (Radnici)
   var prikazMeh = null;        // koga gledamo u mobitel-pogledu
   var pogled = "pl";
   var napravljeno = {mehanicari:[], ukupno:0};   // tko je što napravio danas (gotovi zadaci)
@@ -403,10 +406,10 @@
   var _lastSig=null;
   function planSig(d){
     return JSON.stringify({
-      z:!!d.zakljucan, p:(d.promjene||[]).length, a:JSON.stringify(d.autoSlanje||{}),
+      z:!!d.zakljucan, p:(d.promjene||[]).length, a:JSON.stringify(d.autoSlanje||{}), ap:d.autoPopuni!==false,
       m:(d.mehanicari||[]).map(function(x){return x.id+'-'+(x.odsutnost||(x.odsutan?'o':''));}),
       n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,n.prioritet,
-          (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId];})];})
+          (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId,o.red];})];})
     });
   }
   function ucitaj(force){
@@ -419,6 +422,7 @@
       MEH=d.mehanicari||[]; VOD=d.voditelji||[]; nalozi=d.nalozi||[]; promjeneLog=d.promjene||[]; promjene=promjeneLog.length;
       planZakljucan=!!d.zakljucan; zakljucaoIme=d.zakljucaoIme||""; zakljucanoTs=d.zakljucanoTs||null;
       autoSlanje=d.autoSlanje||{ukljuceno:false,ura:"06:45",datum:null};
+      autoPopuni=d.autoPopuni!==false;
       if(prikazMeh===null && MEH.length) prikazMeh=MEH[0].id;
       var s=planSig(d)+"|nap:"+(napravljeno.ukupno||0);
       if(!force && s===_lastSig) return;   // ništa strukturno novo → ne precrtavaj
@@ -477,6 +481,7 @@
   function autoOff(){ act("/auto-slanje",{ukljuceno:false}); }
   function autoPonOn(){ var el=document.getElementById("auto-pon-ura"); var ura=(el&&el.value)||"07:00"; act("/auto-slanje-ponavlja",{ukljuceno:true,ura:ura}); }
   function autoPonOff(){ act("/auto-slanje-ponavlja",{ukljuceno:false}); }
+  function autoPopuniSet(on){ act("/auto-popuni",{ukljuceno:!!on}); }
   function potvrdi(opId){ act("/zadatak/"+opId+"/potvrdi"); }
   function dodijeli(opId,mehId){ act("/zadatak/"+opId+"/dodijeli", {radnici_ids: mehId?[parseInt(mehId,10)]:[]}); }
   function dodajRadnika(opId,mehId,postojeci){ if(!mehId) return; var ids=(postojeci||[]).slice(); var nid=parseInt(mehId,10); if(ids.indexOf(nid)<0) ids.push(nid); act("/zadatak/"+opId+"/dodijeli", {radnici_ids: ids}); }
@@ -855,16 +860,36 @@
         (o.mehIds||[]).forEach(function(id){ (map[id]=map[id]||[]).push({n:n,o:o}); });
       });
     });
+    function faza(x){ return x.o.status==="radu"?0:(x.n.hitno?1:(daleko(x.n)?3:2)); }
+    function prio(x){ return x.n.prioritet==null?1e6:x.n.prioritet; }
     Object.keys(map).forEach(function(id){
       map[id].sort(function(a,b){
         // isti red kao dispečer (_red/kljuc): u tijeku prvi, pa hitno, pa blizu radione,
-        // pa vozila daleko (>200 m, GPS-potvrđeno) NA KRAJ, pa RUČNI red (o.red).
-        var ga=(a.o.status==="radu"?0:(a.n.hitno?1:(daleko(a.n)?3:2))), gb=(b.o.status==="radu"?0:(b.n.hitno?1:(daleko(b.n)?3:2))); if(ga!==gb) return ga-gb;
+        // pa vozila daleko (>200 m, GPS-potvrđeno) NA KRAJ; unutar toga RUČNI red (o.red),
+        // pa LISTA PRIORITETA (1, 2, 3…), pa redoslijed plana.
+        var ga=faza(a), gb=faza(b); if(ga!==gb) return ga-gb;
         var ra=(a.o.red==null?1e6:a.o.red), rb=(b.o.red==null?1e6:b.o.red); if(ra!==rb) return ra-rb;
         var ca=(a.o.status==="ceka"?0:1), cb=(b.o.status==="ceka"?0:1); if(ca!==cb) return ca-cb;
+        var pa=prio(a), pb=prio(b); if(pa!==pb) return pa-pb;
         var na=(a.n.rang==null?9999:a.n.rang), nb=(b.n.rang==null?9999:b.n.rang); if(na!==nb) return na-nb;
         return a.o.id-b.o.id;
       });
+      // Ručni red pobjeđuje, ali zadaci bez ručnog mjesta (novo dodijeljeni) ulaze po
+      // prioritetu — isto kao dispečer (spoji_rucni_i_prioritet).
+      var l=map[id], out=[], i=0;
+      function mk(x){ return x.o.status==="ceka"?-1:prio(x); }
+      while(i<l.length){
+        var f=faza(l[i]), j=i; while(j<l.length && faza(l[j])===f) j++;
+        var grp=l.slice(i,j);
+        if(f===1||f===2){
+          var ruc=grp.filter(function(x){return x.o.red!=null;}), ost=grp.filter(function(x){return x.o.red==null;}), a=0, b=0;
+          while(a<ost.length||b<ruc.length){
+            if(b>=ruc.length || (a<ost.length && mk(ost[a])<mk(ruc[b]))) out.push(ost[a++]); else out.push(ruc[b++]);
+          }
+        } else out=out.concat(grp);
+        i=j;
+      }
+      map[id]=out;
     });
     return map;
   }
@@ -899,7 +924,10 @@
        '<div class="kpi"><div class="n"'+(trebaDopunu>0?' style="color:var(--s-ceka)"':'')+'>'+trebaDopunu+'</div><div class="l">Za dopunu (&lt;'+PRAG+')</div></div>'+
        '<div class="kpi"><div class="n">'+slobodniPrisutni.length+'</div><div class="l">Slobodnih</div></div>'+
        '</div>';
-    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni). ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak. Karticu možeš povući i u redak drugog mehaničara.</p>';
+    h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni): hitno → prioriteti 1, 2, 3… → ostalo. Ručni pomak (strelice/povlačenje) ima prednost. ⚠ = manje od '+PRAG+' u pripremi. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak.</p>';
+    h+='<div class="auto-pop'+(autoPopuni?' on':'')+'">'+(autoPopuni
+      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadatka sam dobiva sljedeći iz plana (po prioritetu, pa tko je to već radio). <button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
+      : '🤖 Automatsko popunjavanje je <b>ugašeno</b>. <button class="btn ghost sm" onclick="PLAN.autoPopuni(true)">Upali</button>')+'</div>';
     if(!saZad.length && !slobodniPrisutni.length){
       h+='<div class="card" style="color:var(--muted)">Nijedan mehaničar nema dodijeljene zadatke. Dodijeli ih u pogledu Poslovođa.</div>';
     } else {
@@ -1115,7 +1143,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, voziloDoslo:voziloDoslo, toggleLog:toggleLog, toggleBlizu:toggleBlizu, filtOp:postaviFiltOp, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, voziloDoslo:voziloDoslo, toggleLog:toggleLog, toggleBlizu:toggleBlizu, filtOp:postaviFiltOp, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, autoPopuni:autoPopuniSet, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;

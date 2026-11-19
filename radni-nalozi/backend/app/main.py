@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 
+from . import auto_popuni
 from . import auto_slanje
 from . import flota
 from . import kraj_smjene
@@ -107,6 +108,7 @@ async def lifespan(app: FastAPI):
         pregledi_auto.ocisti_jednokratno(db)   # makni poplavu auto-pregleda iz prve verzije
         pregledi_auto.ocisti_ne_kamione(db)    # makni auto-preglede s malih auta/ne-kamiona
         jednokratno_reset_borovyk_gb174(db)    # makni lažni mjerač (stari bug) Borovyku na GB174
+        auto_popuni.jednokratno_ocisti_rucni_red(db)   # red mehaničara od 19.11.2026. ide po prioritetima
         auto_sync_pri_pokretanju(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
