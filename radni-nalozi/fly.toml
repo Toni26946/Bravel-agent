@@ -14,6 +14,9 @@ primary_region = "ams"
   RADIONA_LAT = "45.874889"
   RADIONA_LON = "16.414278"
   RADIONA_RADIUS_M = "2000"
+  # Kraj smjene (pon–pet 15:00, sub 14:00): mehaničaru koji radi ide poruka s linkom na
+  # zadatak → ✅ Gotovo / ⏸ Nije gotovo / Ostajem dulje (Toni 19.11.2026.).
+  KRAJ_SMJENE_ON = "1"
 
 [http_service]
   internal_port = 8080

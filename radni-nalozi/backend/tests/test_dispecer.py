@@ -361,6 +361,27 @@ def test_smjena_gotov_zatvara_kao_nije_gotovo():
     assert db.query(MehanicarLink).first().smjena_odgovor == "gotov"
 
 
+def test_smjena_gotovo_zavrsava_zadatak():
+    """15:00 → „✅ Gotovo": zadatak na kojem radi je GOTOV (ne samo pauziran)."""
+    from app.routers.dispecer import SmjenaIn, z_smjena
+    db = _session()
+    meh, z = _meh_s_pokrenutim(db)
+    r = z_smjena("ts", SmjenaIn(uredjaj="A", odgovor="gotovo"), db=db)
+    assert r.get("gotov_za_danas") is True and r.get("zavrseno") == 1
+    db.refresh(z)
+    assert z.gotovo is True and z.zapoceto is None
+    assert db.query(MehanicarLink).first().smjena_odgovor == "gotov"
+
+
+def test_kraj_poruka_ima_gb_i_link():
+    from app.kraj_smjene import _poruka
+    db = _session()
+    meh, z = _meh_s_pokrenutim(db)
+    t = _poruka(db, meh)
+    assert "GB TS" in t and "RADIM" in t
+    assert t.format(url="https://x/z/abc?kraj=1").endswith("https://x/z/abc?kraj=1")
+
+
 def test_kraj_sat_po_danu():
     from datetime import datetime
     from app.kraj_smjene import _kraj_sat
