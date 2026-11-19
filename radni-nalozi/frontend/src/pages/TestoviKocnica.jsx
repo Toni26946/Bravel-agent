@@ -152,6 +152,14 @@ function KarticaTesta({ t, onVezano }) {
             e.preventDefault()
             try { const r = await api.testKocnicaPoveznica(t.id); window.open(r.putanja, '_blank') } catch (er) { setGreska(er.message) }
           }}>🔗 poveznica</a>
+          {' · '}
+          <a href="#" onClick={async (e) => {
+            e.preventDefault()
+            try {
+              const r = await api.testKocnicaNaWhatsapp(t.id)
+              setGreska(r.poslano ? 'Poslano na tvoj WhatsApp.' : `Nije poslano: ${r.razlog || 'nepoznat razlog'}`)
+            } catch (er) { setGreska(er.message) }
+          }}>📱 na WhatsApp</a>
         </span>
       </div>
       {t.nalog && (
