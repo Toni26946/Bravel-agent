@@ -1,0 +1,17 @@
+# Valjci na VLASTITOJ adresi (bravel-valjci.fly.dev) — Toni 19.11.2026.
+# Na istoj adresi kao portal Chrome je aplikaciju Valjci uvijek stavljao u aplikaciju
+# Bravel Nalozi (njen opseg je cijela adresa). Ovdje je samo posrednik: sve ide na
+# Radne naloge (ista baza, isti API, ista prijava), a početna stranica je /valjci.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@pocetna path /
+	redir @pocetna /valjci 302
+
+	reverse_proxy https://bravel-radni-nalozi.fly.dev {
+		header_up Host bravel-radni-nalozi.fly.dev
+	}
+}
