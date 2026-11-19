@@ -913,6 +913,8 @@ class TestKocnica(Base):
     poveznica: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True, index=True)
     # GB upisan preko poveznice (bez prijavljenog korisnika) — ručni izbor, automatika ga ne dira.
     rucno_poveznicom: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Kad je poslana obavijest „test gotov — upiši GB" (jednom po testu, kad vozilo siđe s valjaka).
+    obavijesteno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     mjerenja: Mapped[list["MjerenjeOsovine"]] = relationship(

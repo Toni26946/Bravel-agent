@@ -85,6 +85,7 @@ _STUPCI = [
     ("cartec_uredjaji", "stanje_vrijeme", "TIMESTAMP"),
     ("testovi_kocnica", "poveznica", "VARCHAR(40)"),
     ("testovi_kocnica", "rucno_poveznicom", "BOOLEAN DEFAULT FALSE"),
+    ("testovi_kocnica", "obavijesteno", "TIMESTAMP"),
 ]
 
 

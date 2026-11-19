@@ -158,6 +158,41 @@ def test_broj_iz_imenika_po_dijelu_imena():
     assert cartec._broj_iz_zapisa("Pero", zapisi) is None
 
 
+def test_obavijest_tek_kad_vozilo_sidje(monkeypatch):
+    db = _db()
+    vod, tok = _okolina(db)
+    poslano = []
+    monkeypatch.setattr(cartec, "_obavijesti_kraj", lambda db, t: poslano.append(t.id))
+    for i in (1, 2):
+        cartec.primi_mjerenje(_m(i, 500, 500, T0 + timedelta(minutes=i)), x_cartec_token=tok, db=db)
+    assert poslano == []                       # dok traje test — ništa
+    r = cartec.kraj_testa(cartec.KrajIn(vrijeme=T0 + timedelta(minutes=3)), x_cartec_token=tok, db=db)
+    assert r["poslano"] and poslano == [r["test_id"]]
+    # drugi znak kraja istog testa i rezerva (/stanje) ne šalju ponovno
+    cartec.kraj_testa(cartec.KrajIn(vrijeme=T0 + timedelta(minutes=4)), x_cartec_token=tok, db=db)
+    assert len(poslano) == 1
+    # znak kraja bez svježeg testa (valjci vrtjeli prazni) — ništa
+    r2 = cartec.kraj_testa(cartec.KrajIn(vrijeme=T0 + timedelta(hours=2)), x_cartec_token=tok, db=db)
+    assert r2["test_id"] is None and len(poslano) == 1
+
+
+def test_rezervna_obavijest_bez_znaka_kraja(monkeypatch):
+    db = _db()
+    vod, tok = _okolina(db)
+    poslano = []
+    monkeypatch.setattr(cartec, "_obavijesti_kraj", lambda db, t: poslano.append(t.id))
+    sad = datetime.now(timezone.utc)
+    cartec.primi_mjerenje(_m(1, 500, 500, sad - timedelta(minutes=2)), x_cartec_token=tok, db=db)
+    cartec.javi_stanje(cartec.StanjeIn(verzija="3"), x_cartec_token=tok, db=db)
+    assert poslano == []                       # zadnja osovina prije 2 min — možda ide još koja
+    t = db.query(_Test).one()
+    t.kraj = sad - timedelta(minutes=6)
+    db.commit()
+    cartec.javi_stanje(cartec.StanjeIn(verzija="3"), x_cartec_token=tok, db=db)
+    cartec.javi_stanje(cartec.StanjeIn(verzija="3"), x_cartec_token=tok, db=db)
+    assert poslano == [t.id]
+
+
 def test_nova_sesija_je_novi_test():
     db = _db()
     vod, tok = _okolina(db)

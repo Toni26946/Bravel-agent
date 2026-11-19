@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '3'
+$Verzija   = '4'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -24,6 +24,9 @@ $TokenDat  = Join-Path $Stanje 'token.txt'
 $PoslanoDat = Join-Path $Stanje 'poslano.txt'
 $Dnevnik   = Join-Path $Stanje 'dnevnik.txt'
 $MirnoSek  = 30        # sadržaj se ne smije mijenjati ovoliko sekundi = mjerenje gotovo
+$KrajDat   = Join-Path $Stanje 'kraj.txt'
+$KrajSek   = 45        # valjci prazni (Cartec „IDLE") ovoliko sekundi = vozilo sišlo, test gotov
+                       # (između dviju osovina „IDLE" traje ~5–15 s dok vozilo pomakne iduću osovinu)
 # Faze koje NISU kočenje (pokretanje valjaka, otpor kotrljanja) — ne ulaze u najveću silu.
 $NeKocenje = @('BrakeStartUp', 'WaitingBeforeWheelDrag', 'WheelDrag')
 
@@ -111,6 +114,74 @@ function ProcitajDijeljeno($put) {
     } finally { $fs.Dispose() }
 }
 
+function RepDatoteke($put, $bajtova) {
+    # Samo kraj (velike) datoteke, uz dijeljenje — Cartec je drži otvorenom.
+    $fs = [IO.File]::Open($put, 'Open', 'Read', 'ReadWrite')
+    try {
+        [void]$fs.Seek([Math]::Max(0, $fs.Length - $bajtova), 'Begin')
+        $sr = New-Object IO.StreamReader($fs, [Text.Encoding]::UTF8)
+        return $sr.ReadToEnd()
+    } finally { $fs.Dispose() }
+}
+
+function Faze($tekst, [datetime]$dan) {
+    # Početci stanja iz Cartecovog TestProcedure.log: „HH:mm:ss,fff <X> ---- X START ----".
+    $out = New-Object System.Collections.ArrayList
+    foreach ($red in $tekst -split "`n") {
+        if ($red -match '^(\d{2}:\d{2}:\d{2},\d{3}) <([A-Z ]+)> -+ ([A-Z ]+) START -+') {
+            $kad = [datetime]::ParseExact($dan.ToString('yyyy-MM-dd') + ' ' + $Matches[1], 'yyyy-MM-dd HH:mm:ss,fff', $null)
+            [void]$out.Add(@{ Kad = $kad; Faza = $Matches[3] })
+        }
+    }
+    return ,$out
+}
+
+function NadjiKraj($faze, [datetime]$sad, [int]$sek) {
+    # Vozilo sišlo s valjaka = prvi „IDLE" nakon zadnjeg „BRAKE TEST", i od tada $sek sekundi
+    # nijedan „IDLE BRAKE" (kotač na valjcima) nije trajao 3 s ili više. Prazni valjci sami
+    # titraju IDLE ↔ IDLE BRAKE (~0,1 s) — to se ne broji. Vrati @{ Kocenje; Odlazak } ili $null.
+    $b = -1
+    for ($i = $faze.Count - 1; $i -ge 0; $i--) { if ($faze[$i].Faza -eq 'BRAKE TEST') { $b = $i; break } }
+    if ($b -lt 0) { return $null }
+    $o = -1
+    for ($i = $b + 1; $i -lt $faze.Count; $i++) { if ($faze[$i].Faza -eq 'IDLE') { $o = $i; break } }
+    if ($o -lt 0) { return $null }
+    for ($i = $o + 1; $i -lt $faze.Count; $i++) {
+        if ($faze[$i].Faza -ne 'IDLE BRAKE') { continue }
+        $do = if ($i + 1 -lt $faze.Count) { $faze[$i + 1].Kad } else { $sad }
+        if (($do - $faze[$i].Kad).TotalSeconds -ge 3) { return $null }   # opet nešto na valjcima
+    }
+    if (($sad - $faze[$o].Kad).TotalSeconds -lt $sek) { return $null }
+    return @{ Kocenje = $faze[$b].Kad; Odlazak = $faze[$o].Kad }
+}
+
+function ProvjeriKraj($token) {
+    # Kraj testa = vozilo sišlo s valjaka (Cartec <datum>_TestProcedure.log) → javi portalu,
+    # a on pošalje poruku za upis GB-a. Jednom po testu (pamti se u kraj.txt).
+    if (-not $token) { return }
+    $sad = Get-Date
+    $dat = Join-Path $CartecDir ('Logs\' + $sad.ToString('yyyyMMdd') + '_TestProcedure.log')
+    if (-not (Test-Path $dat)) { return }
+    $k = NadjiKraj (Faze (RepDatoteke $dat 300000) $sad) $sad $KrajSek
+    if (-not $k) { return }
+    if (($sad - $k.Odlazak).TotalMinutes -gt 30) { return }   # staro (npr. nakon ponovnog pokretanja)
+    $stanjeKad = $k.Odlazak
+    $oznaka = $k.Kocenje.ToString('yyyy-MM-dd HH:mm:ss')
+    if ($script:javljenKraj -eq $oznaka) { return }
+    # Prvo neka odu sve osovine (datoteka koja se još mjeri ili čeka slanje).
+    foreach ($v in $videno.Values) {
+        if (-not $poslano.Contains($v.H) -and -not $prazno.Contains($v.H)) { return }
+    }
+    try {
+        $r = Posalji '/cartec/kraj' @{ vrijeme = ([DateTimeOffset]$stanjeKad).ToString('yyyy-MM-ddTHH:mm:sszzz') } $token
+        $script:javljenKraj = $oznaka
+        Set-Content -Path $KrajDat -Value $oznaka -Encoding ASCII
+        Zapisi "Vozilo sišlo s valjaka u $($stanjeKad.ToString('HH:mm:ss')) → kraj testa $($r.test_id), poruka poslana: $($r.poslano)."
+    } catch {
+        Zapisi "Javljanje kraja testa nije uspjelo: $($_.Exception.Message) — pokušat ću ponovno."
+    }
+}
+
 function Otisak($tekst) {
     $sha = [Security.Cryptography.SHA256]::Create()
     $h = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($tekst))
@@ -181,6 +252,8 @@ if (-not (Test-Path $Oznaka3)) {
     Set-Content -Path $Oznaka3 -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') -Encoding ASCII
     Zapisi "Prvo pokretanje v3: $n postojećih datoteka mjerenja označeno kao staro (ne šalju se)."
 }
+$javljenKraj = ''
+if (Test-Path $KrajDat) { $javljenKraj = (Get-Content $KrajDat -Raw).Trim() }
 $zadnjeStanje = [datetime]::MinValue
 $zadnjeAzuriranje = [datetime]::MinValue
 $logsProvjera = Join-Path $CartecDir 'Logs'
@@ -243,6 +316,7 @@ while ($true) {
                 else { Zapisi "Slanje nije uspjelo ($kod): $($_.Exception.Message) — pokušat ću ponovno." }
             }
         }
+        try { ProvjeriKraj $token } catch { Zapisi "Provjera kraja testa: $($_.Exception.Message)" }
         if (-not (Test-Path $PoslanoDat)) { New-Item -ItemType File -Path $PoslanoDat | Out-Null }
         $prviPut = $false
     } catch {

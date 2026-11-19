@@ -112,6 +112,11 @@ def javi_stanje(p: StanjeIn, x_cartec_token: str | None = Header(default=None), 
     u.stanje = p.dnevnik[-20000:] or None
     u.stanje_vrijeme = _sad()
     db.commit()
+    if u.odobren:
+        try:
+            _rezervna_obavijest(db, u)
+        except Exception:  # noqa: BLE001 — stanje se ne smije srušiti zbog obavijesti
+            db.rollback()
     return {"ok": True, "odobren": u.odobren}
 
 
@@ -279,13 +284,56 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
         t.kraj = vrijeme
     db.flush()
     db.refresh(t)
-    pitaj = _ocijeni(db, t, novi_test)
+    _ocijeni(db, t, novi_test)
     db.commit()
-    # Toni 19.11.2026.: test bez vozila ide VODITELJIMA na mobitel (obavijest → ekran za upis GB-a).
-    # Mehaničare se ne pita. Jedna obavijest po testu, ne za svaku osovinu.
-    if pitaj:
-        _obavijesti_nerazvrstan(db, t)
+    # Obavijest NE ide ovdje (nakon prve osovine test još traje), nego kad vozilo siđe s
+    # valjaka: skripta javi /cartec/kraj, a rezervno /stanje nakon KRAJ_REZERVA_MIN tišine.
     return {"ok": True, "test_id": t.id, "status": t.status, "nalog_id": t.nalog_id, "gb": t.gb}
+
+
+KRAJ_REZERVA_MIN = 5    # bez znaka kraja (stara skripta) — obavijest nakon 5 min bez nove osovine
+KRAJ_PROZOR_MIN = 20    # znak kraja vrijedi za test čija je zadnja osovina unutar 20 min
+
+
+class KrajIn(BaseModel):
+    vrijeme: datetime        # kad je vozilo sišlo s valjaka (Cartec „IDLE")
+
+
+def _obavijesti_jednom(db: Session, t: TestKocnica) -> bool:
+    """Toni 19.11.2026.: poruka ČIM VALJCI STANU (kraj testa), jednom po testu.
+    Ne šalje se ako je čovjek već upisao vozilo."""
+    if t.obavijesteno is not None:
+        return False
+    t.obavijesteno = _sad()
+    db.commit()
+    if t.vezao_id or t.rucno_poveznicom:
+        return False
+    _obavijesti_kraj(db, t)
+    return True
+
+
+@router.post("/kraj")
+def kraj_testa(p: KrajIn, x_cartec_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Skripta javlja da je vozilo sišlo s valjaka (Cartec TestProcedure.log → IDLE)."""
+    u = _uredjaj(db, x_cartec_token)
+    db.commit()
+    kad = p.vrijeme if p.vrijeme.tzinfo else p.vrijeme.replace(tzinfo=timezone.utc)
+    t = (db.query(TestKocnica).filter(TestKocnica.uredjaj_id == u.id)
+         .order_by(TestKocnica.kraj.desc()).first())
+    if not t or kad - _utc(t.kraj) > timedelta(minutes=KRAJ_PROZOR_MIN):
+        return {"ok": True, "test_id": None, "poslano": False}
+    return {"ok": True, "test_id": t.id, "poslano": _obavijesti_jednom(db, t)}
+
+
+def _rezervna_obavijest(db: Session, u: CartecUredjaj) -> None:
+    """Ako znak kraja nije stigao: test bez nove osovine KRAJ_REZERVA_MIN = gotov."""
+    sad = _sad()
+    for t in (db.query(TestKocnica)
+              .filter(TestKocnica.uredjaj_id == u.id, TestKocnica.obavijesteno.is_(None))
+              .order_by(TestKocnica.kraj.desc()).limit(5).all()):
+        star = sad - _utc(t.kraj)
+        if timedelta(minutes=KRAJ_REZERVA_MIN) <= star <= timedelta(minutes=KRAJ_PROZOR_MIN + KRAJ_REZERVA_MIN):
+            _obavijesti_jednom(db, t)
 
 
 def _lokalno(d: datetime) -> str:
@@ -304,10 +352,16 @@ def _poveznica(db: Session, t: TestKocnica) -> str:
     return t.poveznica
 
 
-def _obavijesti_nerazvrstan(db: Session, t: TestKocnica) -> None:
+def _sto_upisati(t: TestKocnica) -> str:
+    n = _broj_osovina(t)
+    osovine = f"{n} osovin{'a' if n == 1 or n >= 5 else 'e'}"
+    return f"{osovine} — provjeri GB {t.gb}" if t.gb else f"{osovine} — upiši GB vozila"
+
+
+def _obavijesti_kraj(db: Session, t: TestKocnica) -> None:
     try:
         from ..push import obavijesti_ulogu
-        tekst = f"Test kočnica u {_lokalno(t.pocetak)} — upiši GB vozila."
+        tekst = f"Test kočnica u {_lokalno(t.pocetak)} gotov, {_sto_upisati(t)}."
         # Poveznica vodi na samostalnu stranicu testa (crtež + upis GB-a), ne u aplikaciju.
         obavijesti_ulogu(db, [Uloga.voditelj, Uloga.poslovodja], "Test kočnica", tekst,
                          url=f"/kocnice/{_poveznica(db, t)}")
@@ -462,7 +516,7 @@ def _wa_poveznica(db: Session, t: TestKocnica, primatelj: Korisnik, base_url: st
         kad = _utc(t.pocetak).astimezone(ZoneInfo("Europe/Zagreb")).strftime("%d.%m. u %H:%M")
     except Exception:  # noqa: BLE001
         kad = _utc(t.pocetak).strftime("%d.%m. u %H:%M")
-    body = {"poruka": f"Test kočnica {kad} — upiši GB vozila: {url}"}
+    body = {"poruka": f"Test kočnica {kad} gotov, {_sto_upisati(t)}: {url}"}
     test = (settings.dispecer_test_broj or "").strip()
     if test:
         body["vozac"], body["broj"] = "test", test
