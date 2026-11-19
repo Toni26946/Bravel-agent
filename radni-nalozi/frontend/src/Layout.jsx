@@ -11,7 +11,7 @@ const NAV_RED = [
   '/izbornik', '/vozila-u-radu', '/nalozi', '/izasli',
   '/samostalno', '/moja-radiona', '/moj-ucinak', '/prijave',
   'grupa:vozila', 'grupa:skladiste', '/skladiste', '/skladiste/dashboard', '/evidencija',
-  '/zaduzenja', '/radnici', '/pregledi', '/poslovodja', '/steta',
+  '/zaduzenja', '/slobodni-vozaci', '/radnici', '/pregledi', '/poslovodja', '/steta',
   '/imenik', '/profil',
 ]
 
@@ -143,6 +143,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push(grupaVozila(true))
     tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
+    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači' })
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
@@ -154,6 +155,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push(grupaVozila(false))
     tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
+    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači' })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
@@ -196,7 +198,9 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     const dopusteni = new Set(korisnik.moduli)
     // '/plan' je izuzet iz filtra — njegovu vidljivost odlučuje gornji push (planPristup).
     // '/imenik' isto — odlučuje korisnik.imenik (vlasnik ILI modul).
-    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || x.do === '/imenik' || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
+    // '/slobodni-vozaci' voditelj/poslovođa vide uvijek (nova kartica — ne skriva se starim popisima modula).
+    const uvijekSlobodni = korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja'
+    vidljiviTabovi = tabovi.filter((x) => x.do === '/plan' || x.do === '/imenik' || (uvijekSlobodni && x.do === '/slobodni-vozaci') || !(x.do && kataloskiKljucevi.has(x.do) && !dopusteni.has(x.do)))
     // Prisutni = i top-level i djeca grupa (da se modul ne doda duplo kao zasebna kartica).
     const prisutni = new Set()
     vidljiviTabovi.forEach((x) => { if (x.do) prisutni.add(x.do); if (x.djeca) x.djeca.forEach((d) => prisutni.add(d.do)) })

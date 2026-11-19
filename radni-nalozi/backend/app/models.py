@@ -967,3 +967,27 @@ class MjerenjeOsovine(Base):
     vazece: Mapped[bool] = mapped_column(Boolean, default=True)
 
     test: Mapped["TestKocnica"] = relationship(back_populates="mjerenja")
+
+
+class SlobodanVozac(Base):
+    """SLOBODNI VOZAČI — disponenti prijavljuju vozače koji su slobodni, odnosno čiji je
+    kamion na popravku (WhatsApp prijava Veljka #328/#331, 19.11.2026.; ista funkcija kao u
+    Flota OS-u). Vozilo se veže po GARAŽNOM BROJU (nikad po registraciji).
+
+    Kad vozač opet vozi, zapis se ZATVORI („Opet vozi") — ništa se ne briše, zatvoreni
+    ostaju u povijesti."""
+    __tablename__ = "slobodni_vozaci"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vozac: Mapped[str] = mapped_column(String(120), index=True)           # ime vozača
+    gb: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)  # garažni broj kamiona
+    razlog: Mapped[str] = mapped_column(String(20))                        # POPRAVAK | SLOBODAN | OSTALO
+    datum_od: Mapped[date | None] = mapped_column(Date, nullable=True)
+    datum_do: Mapped[date | None] = mapped_column(Date, nullable=True)     # predviđeni povratak (smije biti prazno)
+    napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    aktivan: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # True = trenutno slobodan
+    autor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prijavljeno: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    zatvoreno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    zatvorio: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    azurirano: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

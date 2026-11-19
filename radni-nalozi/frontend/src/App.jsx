@@ -37,6 +37,7 @@ import Plan from './pages/Plan'
 import MojaRadiona from './pages/MojaRadiona'
 import Imenik from './pages/Imenik'
 import Samostalno from './pages/Samostalno'
+import SlobodniVozaci from './pages/SlobodniVozaci'
 
 function pocetna(korisnik) {
   const uloga = korisnik?.uloga
@@ -103,6 +104,9 @@ export default function App() {
 
       {/* Šifrarnik vozača: voditelj + poslovođa */}
       <Route path="/vozaci" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozaci /></Zasticeno>} />
+
+      {/* Slobodni vozači (disponenti): voditelj + poslovođa ILI tko ima modul '/slobodni-vozaci' */}
+      <Route path="/slobodni-vozaci" element={<Zasticeno uloge={['voditelj', 'poslovodja']} modul="/slobodni-vozaci"><SlobodniVozaci /></Zasticeno>} />
 
       {/* AI Poslovođa (norme, učinak, postavke): voditelj + poslovođa */}
       <Route path="/poslovodja" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Poslovodja /></Zasticeno>} />

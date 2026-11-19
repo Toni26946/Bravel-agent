@@ -14,6 +14,8 @@ export const MODULI = [
   { key: '/prikapcanje', ikona: '🔗', txt: 'tab.prikapcanje' },
   { key: '/vozaci', ikona: '🧑‍✈️', txt: 'tab.vozaci' },
   { key: '/radnici', ikona: '👷', txt: 'tab.radnici' },
+  // Slobodni vozači — disponenti prijavljuju vozače bez kamiona / s kamionom na popravku.
+  { key: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači', literal: true },
   { key: '/pregledi', ikona: '🗓️', txt: 'tab.pregledi' },
   { key: '/steta', ikona: '💥', txt: 'tab.steta' },
   { key: '/prijave', ikona: '📋', txt: 'tab.prijave' },
@@ -29,8 +31,8 @@ export const MODULI = [
 
 // Koji moduli su relevantni (vidljivi po zadanom) za koju ulogu — za prikaz u uređivaču.
 export const MODULI_ULOGA = {
-  voditelj: ['/izbornik', '/vozila-u-radu', '/nalozi', '/izasli', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/prikapcanje', '/vozaci', '/radnici', '/pregledi', '/steta'],
-  poslovodja: ['/izbornik', '/vozila-u-radu', '/nalozi', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/prikapcanje', '/vozaci', '/pregledi'],
+  voditelj: ['/izbornik', '/vozila-u-radu', '/nalozi', '/izasli', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/prikapcanje', '/vozaci', '/slobodni-vozaci', '/radnici', '/pregledi', '/steta'],
+  poslovodja: ['/izbornik', '/vozila-u-radu', '/nalozi', '/skladiste', '/skladiste/dashboard', '/zaduzenja', '/prikapcanje', '/vozaci', '/slobodni-vozaci', '/pregledi'],
   skladistar: ['/skladiste', '/skladiste/dashboard'],
   radnik: ['/moja-radiona', '/moj-ucinak', '/nalozi', '/samostalno'],
   vozac: ['/prijave'],
