@@ -20,7 +20,7 @@ from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
     Dodjela, KlikPoslano, KlikRucno, Korisnik, Nalog, Operacija, PlanDogadaj, PlanStanje, PovijestStatusa,
-    Prioritet, RegistarVozila, StatusNaloga, Zadatak, ZadatakRadnikVrijeme,
+    Prioritet, RegistarVozila, StatusNaloga, Uloga, Zadatak, ZadatakRadnikVrijeme,
 )
 from ..push import obavijesti_korisnika
 from .nalozi import (
@@ -263,8 +263,9 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     meh = (
         db.query(Korisnik)
         .filter(or_(Korisnik.uloga.in_(_SERVISERI), Korisnik.radi_na_nalozima.is_(True)),
+                Korisnik.uloga != Uloga.skladistar,   # skladištar (Akshay) nije u Radnicima i ne dobiva zadatke (Toni 19.11.2026.)
                 Korisnik.aktivan.is_(True),
-                Korisnik.prijavljuje_se.is_(True))   # mehaničari + označeni „radi na nalozima" (npr. Akshay)
+                Korisnik.prijavljuje_se.is_(True))   # mehaničari + označeni „radi na nalozima"
         .order_by(Korisnik.ime).all()
     )
     # Pregledar (Karthik) — vidljiv u Radnici/dropdownu da mu se vide dodijeljeni pregledi.

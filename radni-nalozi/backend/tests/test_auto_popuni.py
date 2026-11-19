@@ -131,6 +131,22 @@ def test_testni_mehanicar_ne_dobiva_i_vraca_se():
     assert all(d["radnik_id"] != test.id for d in out)
 
 
+def test_skladistar_ne_dobiva_i_vraca_se():
+    db = _session()
+    sk = Korisnik(ime="Akshay", korisnicko_ime="akshay", lozinka_hash="x",
+                  uloga=Uloga.skladistar, radi_na_nalozima=True)
+    db.add(sk); db.flush()
+    ana = _meh(db, "Ana")
+    n = _nalog(db, "61", ana, prioritet_rang=0)
+    z_rucno = _zad(db, n, "GUME", "rucno", radnici=[sk])   # ručno mu dano
+    z_novi = _zad(db, n, "GUME", "novi")
+    db.commit()
+    out = popuni(db)
+    assert all(d["radnik_id"] != sk.id for d in out)
+    assert sk.id not in [r.id for r in z_rucno.radnici]
+    assert [r.id for r in z_novi.radnici] == [ana.id]
+
+
 def test_popuni_ugaseno():
     db = _session()
     ana = _meh(db, "Ana")
