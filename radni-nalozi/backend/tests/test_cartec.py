@@ -100,6 +100,15 @@ def test_vise_mogucih_vozila_nerazvrstan_i_blokira_zatvaranje():
     [t] = _lista(db, vod, "otvoreni")
     assert {x["id"] for x in t["kandidati"]} == {a.id, b.id}
     assert cartec.blokira_zatvaranje(db, a.id) is not None
+    # Vozilo za test bira samo voditelj/poslovođa — mehaničar ne.
+    meh = Korisnik(ime="Meho", korisnicko_ime="meho", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add(meh)
+    db.commit()
+    try:
+        cartec.vezi_test(t["id"], VeziIn(nalog_id=b.id), db=db, k=meh)
+        assert False, "mehaničar ne smije vezati test"
+    except HTTPException as e:
+        assert e.status_code == 403
     cartec.vezi_test(t["id"], VeziIn(nalog_id=b.id), db=db, k=vod)
     assert cartec.blokira_zatvaranje(db, a.id) is None
     t2 = db.get(_Test, t["id"])
