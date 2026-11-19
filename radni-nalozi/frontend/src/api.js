@@ -192,6 +192,11 @@ export const api = {
   zaduzenjeVozaci: () => zahtjev('/zaduzenja/vozaci'),
 
   // Šifrarnik vozača
+  // Slobodni vozači (disponenti: vozači bez kamiona / kamion na popravku)
+  slobodniVozaci: (sve) => zahtjev('/slobodni-vozaci' + (sve ? '?sve=true' : '')),
+  dodajSlobodnogVozaca: (b) => zahtjev('/slobodni-vozaci', { method: 'POST', body: b }),
+  urediSlobodnogVozaca: (id, b) => zahtjev(`/slobodni-vozaci/${id}`, { method: 'PUT', body: b }),
+  zatvoriSlobodnogVozaca: (id) => zahtjev(`/slobodni-vozaci/${id}/zatvori`, { method: 'POST' }),
   vozaci: (aktivni) => zahtjev('/vozaci' + (aktivni ? '?aktivni=true' : '')),
   dodajVozaca: (b) => zahtjev('/vozaci', { method: 'POST', body: b }),
   azurirajVozaca: (id, b) => zahtjev(`/vozaci/${id}`, { method: 'PATCH', body: b }),
