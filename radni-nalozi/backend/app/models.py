@@ -886,6 +886,28 @@ class CartecUredjaj(Base):
     verzija: Mapped[str | None] = mapped_column(String(20), nullable=True)
     stanje: Mapped[str | None] = mapped_column(Text, nullable=True)
     stanje_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Sila UŽIVO dok se koči (JSON {l,d,max_l,max_d,faza}) — za ekran /valjci, ~1x u sekundi.
+    uzivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uzivo_vrijeme: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ValjciSesija(Base):
+    """Mjerenje kočnica preko aplikacije (/valjci): upišu se vozila (kamion + prikolica),
+    app nacrta osovine, osoba u kamionu stisne osovinu koju mjeri — svako mjerenje s
+    valjaka ide na ODABRANU osovinu (Cartecov broj osovine se ne gleda). Rezultati idu u
+    nalog vozila; operacije samo za osovine koje nisu dobre (Toni 19.11.2026.)."""
+    __tablename__ = "valjci_sesije"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uredjaj_id: Mapped[int] = mapped_column(ForeignKey("cartec_uredjaji.id"), index=True)
+    korisnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id"))
+    pocetak: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    # JSON popis: [{"gb", "vrsta", "osovina": broj osovina, "test_id", "nalog_id"}]
+    vozila: Mapped[str] = mapped_column(Text)
+    odabrano_vozilo: Mapped[int] = mapped_column(Integer, default=0)
+    odabrana_osovina: Mapped[int] = mapped_column(Integer, default=1)
+    rucna: Mapped[bool] = mapped_column(Boolean, default=False)
+    zavrsena: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
 
 class TestKocnica(Base):

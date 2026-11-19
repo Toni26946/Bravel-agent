@@ -17,6 +17,7 @@ import EvidencijaPrikapcanja from './pages/EvidencijaPrikapcanja'
 import Servisi from './pages/Servisi'
 import TestoviKocnica from './pages/TestoviKocnica'
 import KocniceJavno from './pages/KocniceJavno'
+import Valjci from './pages/Valjci'
 import Parkiranje from './pages/Parkiranje'
 import NoviNalog from './pages/NoviNalog'
 import NalogDetalj from './pages/NalogDetalj'
@@ -87,6 +88,8 @@ export default function App() {
       <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><EvidencijaPrikapcanja /></Zasticeno>} />
       <Route path="/servisi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Servisi /></Zasticeno>} />
       <Route path="/testovi-kocnica" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><TestoviKocnica /></Zasticeno>} />
+      {/* Valjci: voditelji + svatko kome se dodijeli modul /valjci (Toni odlučuje tko) */}
+      <Route path="/valjci" element={<Zasticeno uloge={['voditelj', 'poslovodja']} modul="/valjci"><Valjci /></Zasticeno>} />
 
       {/* Nalozi: voditelj/poslovođa (svi, kreiranje/uređivanje) + radnik (dodijeljeni) */}
       <Route path="/nalozi" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']} modul="/nalozi"><Nalozi /></Zasticeno>} />
