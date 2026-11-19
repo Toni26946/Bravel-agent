@@ -123,6 +123,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },
       { do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') },
       { do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') },
+      { do: '/valjci', ikona: '🛞', txt: 'Valjci (mjerenje)' },
       { do: '/testovi-kocnica', ikona: '🛞', txt: 'Testovi kočnica' },
     ],
   })

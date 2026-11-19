@@ -231,6 +231,12 @@ export const api = {
   kocniceJavno: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}`),
   kocniceJavnoGb: (oznaka, gb, nalogId) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/gb`, { method: 'POST', body: { gb, nalog_id: nalogId || null } }),
   testKocnicaNaWhatsapp: (id) => zahtjev(`/cartec/testovi/${id}/posalji-wa`, { method: 'POST' }),
+  // Valjci — mjerenje kočnica preko mobitela
+  valjciAktivna: () => zahtjev('/valjci/aktivna'),
+  valjciNova: (podaci) => zahtjev('/valjci/sesija', { method: 'POST', body: podaci }),
+  valjciSesija: (id) => zahtjev(`/valjci/sesija/${id}`),
+  valjciOdabir: (id, odabir) => zahtjev(`/valjci/sesija/${id}/odabir`, { method: 'POST', body: odabir }),
+  valjciZavrsi: (id) => zahtjev(`/valjci/sesija/${id}/zavrsi`, { method: 'POST' }),
   kocniceJavnoPonisti: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/ponisti`, { method: 'POST' }),
   gpsPoveziUredaj: (b) => zahtjev('/integracije/gps-uredaji', { method: 'POST', body: b }),
   arossStanje: () => zahtjev('/integracije/aross'),

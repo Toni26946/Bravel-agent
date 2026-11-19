@@ -265,15 +265,23 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
         return {"ok": True, "duplikat": True}
     vrijeme = p.vrijeme if p.vrijeme.tzinfo else p.vrijeme.replace(tzinfo=timezone.utc)
     vrijeme = vrijeme.astimezone(timezone.utc)
-    t = _nadji_ili_kreiraj_test(db, u, p, vrijeme)
+    # Mjeri se preko aplikacije (/valjci)? Onda mjerenje ide na osovinu koju je osoba
+    # ODABRALA (radna ili ručna po tipki) — Cartecov broj osovine i vrsta se ne gledaju.
+    from .valjci import aktivna_sesija, usmjeri
+    s = aktivna_sesija(db, u)
+    if s is not None and vrijeme >= _utc(s.pocetak) - timedelta(minutes=2):   # ne staro mjerenje
+        t, osovina, vrsta = usmjeri(db, s)
+    else:
+        t = _nadji_ili_kreiraj_test(db, u, p, vrijeme)
+        osovina, vrsta = p.osovina, p.vrsta
     novi_test = not t.mjerenja
     # Ponovljeno mjerenje iste osovine: ranija više ne vrijede.
     for m in t.mjerenja:
-        if m.osovina == p.osovina and m.vrsta == p.vrsta and m.vazece and _utc(m.vrijeme) <= vrijeme:
+        if m.osovina == osovina and m.vrsta == vrsta and m.vazece and _utc(m.vrijeme) <= vrijeme:
             m.vazece = False
-    noviji = any(m.osovina == p.osovina and m.vrsta == p.vrsta and _utc(m.vrijeme) > vrijeme
+    noviji = any(m.osovina == osovina and m.vrsta == vrsta and _utc(m.vrijeme) > vrijeme
                  for m in t.mjerenja)
-    m = MjerenjeOsovine(test=t, otisak=p.otisak, osovina=p.osovina, vrsta=p.vrsta, vrijeme=vrijeme,
+    m = MjerenjeOsovine(test=t, otisak=p.otisak, osovina=osovina, vrsta=vrsta, vrijeme=vrijeme,
                         sila_lijevo=p.sila_lijevo, sila_desno=p.sila_desno,
                         razlika_pct=_razlika(p.sila_lijevo, p.sila_desno), tezina=p.tezina,
                         vazece=not noviji)
@@ -292,6 +300,25 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
     # Obavijest NE ide ovdje (nakon prve osovine test još traje), nego kad vozilo siđe s
     # valjaka: skripta javi /cartec/kraj, a rezervno /stanje nakon KRAJ_REZERVA_MIN tišine.
     return {"ok": True, "test_id": t.id, "status": t.status, "nalog_id": t.nalog_id, "gb": t.gb}
+
+
+class UzivoIn(BaseModel):
+    l: int = Field(ge=0, le=200000)
+    d: int = Field(ge=0, le=200000)
+    max_l: int = Field(ge=0, le=200000)
+    max_d: int = Field(ge=0, le=200000)
+    faza: str = Field(default="", max_length=40)
+
+
+@router.post("/uzivo")
+def primi_uzivo(p: UzivoIn, x_cartec_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Sila dok se koči (~1x u sekundi) — ekran /valjci je prikazuje uživo."""
+    import json
+    u = _uredjaj(db, x_cartec_token)
+    u.uzivo = json.dumps(p.model_dump())
+    u.uzivo_vrijeme = _sad()
+    db.commit()
+    return {"ok": True}
 
 
 KRAJ_REZERVA_MIN = 5    # bez znaka kraja (stara skripta) — obavijest nakon 5 min bez nove osovine
@@ -320,6 +347,10 @@ def kraj_testa(p: KrajIn, x_cartec_token: str | None = Header(default=None), db:
     """Skripta javlja da je vozilo sišlo s valjaka (Cartec TestProcedure.log → IDLE)."""
     u = _uredjaj(db, x_cartec_token)
     db.commit()
+    from .valjci import aktivna_sesija, zavrsi_ako_sve_izmjereno
+    s = aktivna_sesija(db, u)
+    if s is not None:   # mjerenje preko aplikacije — tamo se ne pita za GB, samo završi ako je sve izmjereno
+        return {"ok": True, "test_id": None, "poslano": False, "zavrseno": zavrsi_ako_sve_izmjereno(db, s)}
     kad = p.vrijeme if p.vrijeme.tzinfo else p.vrijeme.replace(tzinfo=timezone.utc)
     t = (db.query(TestKocnica).filter(TestKocnica.uredjaj_id == u.id)
          .order_by(TestKocnica.kraj.desc()).first())

@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '5'
+$Verzija   = '6'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -23,7 +23,8 @@ if ($env:BRAVEL_CARTEC_STANJE) { $Stanje = $env:BRAVEL_CARTEC_STANJE }
 $TokenDat  = Join-Path $Stanje 'token.txt'
 $PoslanoDat = Join-Path $Stanje 'poslano.txt'
 $Dnevnik   = Join-Path $Stanje 'dnevnik.txt'
-$MirnoSek  = 30        # sadržaj se ne smije mijenjati ovoliko sekundi = mjerenje gotovo
+$MirnoSek  = 30        # rezerva: sadržaj se ne mijenja ovoliko sekundi = mjerenje gotovo
+                       # (redovno se osovina šalje čim Cartec pokaže rezultat — „SHOW BRAKE RESULT")
 $KrajDat   = Join-Path $Stanje 'kraj.txt'
 $KrajSek   = 45        # valjci prazni (Cartec „IDLE") ovoliko sekundi = vozilo sišlo, test gotov
                        # (između dviju osovina „IDLE" traje ~5–15 s dok vozilo pomakne iduću osovinu)
@@ -199,14 +200,51 @@ function NadjiKraj($faze, [datetime]$sad, [int]$sek) {
     return @{ Kocenje = $faze[$b].Kad; Odlazak = $faze[$o].Kad }
 }
 
-function ProvjeriKraj($token) {
-    # Kraj testa = vozilo sišlo s valjaka (Cartec <datum>_TestProcedure.log) → javi portalu,
-    # a on pošalje poruku za upis GB-a. Jednom po testu (pamti se u kraj.txt).
-    if (-not $token) { return }
+function FazeDanas {
+    # Stanja valjaka iz današnjeg Cartec TestProcedure.log (zadnjih ~30 min); $null ako ga nema.
     $sad = Get-Date
     $dat = Join-Path $CartecDir ('Logs\' + $sad.ToString('yyyyMMdd') + '_TestProcedure.log')
-    if (-not (Test-Path $dat)) { return }
-    $k = NadjiKraj (Faze (RepDatoteke $dat 300000) $sad) $sad $KrajSek
+    if (-not (Test-Path $dat)) { return $null }
+    return ,(Faze (RepDatoteke $dat 150000) $sad)
+}
+
+function PosaljiUzivo($tekst, $token) {
+    # Trenutna i najveća sila iz datoteke koja se upravo piše (Cartec 10x/s) → portal.
+    if (-not $token) { return }
+    $l = 0; $d = 0; $maxL = 0; $maxD = 0; $faza = ''
+    foreach ($red in ($tekst -split "`n")) {
+        $s = $red.Trim().Split(';')
+        if ($s.Count -lt 9 -or $s[0] -eq 'TimeStamp') { continue }
+        $a = 0; $b = 0
+        [void][int]::TryParse($s[2], [ref]$a); [void][int]::TryParse($s[3], [ref]$b)
+        $l = $a; $d = $b; $faza = $s[8]
+        if ($NeKocenje -contains $s[8]) { continue }
+        if ($a -gt $maxL) { $maxL = $a }
+        if ($b -gt $maxD) { $maxD = $b }
+    }
+    try {
+        $json = @{ l = $l; d = $d; max_l = $maxL; max_d = $maxD; faza = $faza } | ConvertTo-Json -Compress
+        [void](Invoke-RestMethod -Uri ($Baza + '/cartec/uzivo') -Method Post -Body ([Text.Encoding]::UTF8.GetBytes($json)) `
+            -ContentType 'application/json; charset=utf-8' -Headers @{ 'X-Cartec-Token' = $token } -TimeoutSec 3)
+    } catch {}   # uživo nije bitno — ne smije zakočiti petlju
+}
+
+function RezultatPokazan($faze, [datetime]$promjena) {
+    # Je li Cartec pokazao rezultat (kočenje gotovo) za mjerenje čija se datoteka zadnji put
+    # promijenila u $promjena? Rezultat krene u trenutku kad datoteka stane (vidimo je ≤5 s kasnije).
+    if (-not $faze) { return $false }
+    foreach ($f in $faze) {
+        if ($f.Faza -eq 'SHOW BRAKE RESULT' -and $f.Kad -ge $promjena.AddSeconds(-7)) { return $true }
+    }
+    return $false
+}
+
+function ProvjeriKraj($token, $faze) {
+    # Kraj testa = vozilo sišlo s valjaka (Cartec <datum>_TestProcedure.log) → javi portalu,
+    # a on pošalje poruku za upis GB-a. Jednom po testu (pamti se u kraj.txt).
+    if (-not $token -or -not $faze) { return }
+    $sad = Get-Date
+    $k = NadjiKraj $faze $sad $KrajSek
     if (-not $k) { return }
     if (($sad - $k.Odlazak).TotalMinutes -gt 30) { return }   # staro (npr. nakon ponovnog pokretanja)
     $stanjeKad = $k.Odlazak
@@ -311,6 +349,8 @@ while ($true) {
         if (((Get-Date) - $zadnjeAzuriranje).TotalMinutes -ge 10) { Azuriraj $token; $zadnjeAzuriranje = Get-Date }
         $logs = Join-Path $CartecDir 'Logs'
         $datoteke = Get-ChildItem -Path $logs -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue
+        $fazeSad = $null
+        try { $fazeSad = FazeDanas } catch {}
         foreach ($dat in $datoteke) {
             if ($dat.Name -notmatch '^AxleData_(Service|Parking)_(\d+)\.csv$') { continue }
             $tip = $Matches[1]; $osovina = [int]$Matches[2]                # $Matches se kasnije prepiše
@@ -321,9 +361,12 @@ while ($true) {
             if ($poslano.Contains($kljuc)) { continue }
             if (-not $videno.ContainsKey($dat.Name) -or $videno[$dat.Name].H -ne $kljuc) {
                 $videno[$dat.Name] = @{ H = $kljuc; Kad = (Get-Date) }       # sadržaj se promijenio — još se mjeri
+                PosaljiUzivo $tekst $token                                     # sila uživo na ekran /valjci
                 continue
             }
-            if (((Get-Date) - $videno[$dat.Name].Kad).TotalSeconds -lt $MirnoSek) { continue }
+            # Gotovo: Cartec pokazao rezultat (odmah) ili, rezervno, 30 s bez promjene.
+            if (((Get-Date) - $videno[$dat.Name].Kad).TotalSeconds -lt $MirnoSek -and
+                -not (RezultatPokazan $fazeSad $videno[$dat.Name].Kad)) { continue }
             if ($prazno.Contains($kljuc)) { continue }
             if (-not $token) { continue }
             if ($zadnjiPokusaj.ContainsKey($kljuc) -and ((Get-Date) - $zadnjiPokusaj[$kljuc]).TotalSeconds -lt 60) { continue }
@@ -360,11 +403,11 @@ while ($true) {
                 else { Zapisi "Slanje nije uspjelo ($kod): $($_.Exception.Message) — pokušat ću ponovno." }
             }
         }
-        try { ProvjeriKraj $token } catch { Zapisi "Provjera kraja testa: $($_.Exception.Message)" }
+        try { ProvjeriKraj $token $fazeSad } catch { Zapisi "Provjera kraja testa: $($_.Exception.Message)" }
         if (-not (Test-Path $PoslanoDat)) { New-Item -ItemType File -Path $PoslanoDat | Out-Null }
         $prviPut = $false
     } catch {
         Zapisi "Greška u petlji: $($_.Exception.Message)"
     }
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 1          # svake sekunde — rezultat i sila uživo stižu odmah
 }
