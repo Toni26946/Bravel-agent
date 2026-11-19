@@ -81,6 +81,22 @@ class TestWhatsappMozak(unittest.TestCase):
             self.assertEqual(p.call_args.kwargs["json"]["tekst"], "")
             self.assertTrue(p.call_args.kwargs["json"]["slika"])
 
+    def test_video_ide_mozgu_kao_video(self):
+        pozivi = []
+
+        def lazni_post(url, **kw):
+            pozivi.append((url, kw))
+            return _Odg(200, {"preuzeto": True, "odgovor": "Zaprimljeno", "zadatak": 78})
+
+        msg = {"type": "video", "id": "v1", "video": {"id": "mv1", "mime_type": "video/mp4"}}
+        with mock.patch("requests.post", side_effect=lazni_post), \
+                mock.patch("whatsapp.download_media", return_value=(b"vid", "video/mp4")):
+            self.assertTrue(whatsapp_mozak.ponudi("385911112222", "Marko", msg))
+        self.assertTrue(pozivi[0][1]["json"]["video"])
+        self.assertTrue(pozivi[0][1]["json"]["slika"])
+        self.assertTrue(pozivi[1][0].endswith("/slika/78"))
+        self.assertEqual(pozivi[1][1]["headers"]["Content-Type"], "video/mp4")
+
     def test_glasovna_ne_ide_mozgu(self):
         with mock.patch("requests.post") as p:
             self.assertFalse(whatsapp_mozak.ponudi("385911112222", "Marko", {"type": "audio", "id": "x"}))
