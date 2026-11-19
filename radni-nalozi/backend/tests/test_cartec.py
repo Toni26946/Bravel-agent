@@ -144,6 +144,9 @@ def test_poveznica_bez_prijave_upis_gb():
     db.commit()
     r3 = cartec.javni_upis_gb(oznaka, cartec.JavnoGbIn(gb="777"), db=db)
     assert (r3["test"]["gb"], r3["test"]["nalog"]) == ("777", None)
+    # Brisanje vozila: test je opet prazan.
+    r4 = cartec.javni_ponisti_gb(oznaka, db=db)
+    assert (r4["test"]["status"], r4["test"]["gb"], r4["test"]["nalog"]) == ("nerazvrstan", None, None)
 
 
 def test_nova_sesija_je_novi_test():

@@ -51,7 +51,13 @@ export default function KocniceJavno() {
             <div style={{ fontSize: 14, color: 'var(--muted)' }}>
               {t.nalog ? `Nalog ${t.nalog.broj}` : 'Bez otvorenog naloga'}
             </div>
-            <button className="btn ghost" style={{ width: 'auto', marginTop: 10 }} onClick={() => setMijenjam(true)}>Promijeni GB</button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <button className="btn ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setMijenjam(true)}>Promijeni GB</button>
+              <button className="btn ghost" disabled={radi} style={{ width: 'auto', margin: 0 }} onClick={async () => {
+                setRadi(true); setGreska('')
+                try { setT((await api.kocniceJavnoPonisti(oznaka)).test) } catch (e) { setGreska(e.message) } finally { setRadi(false) }
+              }}>Obriši GB</button>
+            </div>
           </>
         ) : (
           <>

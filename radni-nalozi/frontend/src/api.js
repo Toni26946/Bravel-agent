@@ -230,6 +230,7 @@ export const api = {
   testKocnicaPoveznica: (id) => zahtjev(`/cartec/testovi/${id}/poveznica`),
   kocniceJavno: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}`),
   kocniceJavnoGb: (oznaka, gb, nalogId) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/gb`, { method: 'POST', body: { gb, nalog_id: nalogId || null } }),
+  kocniceJavnoPonisti: (oznaka) => zahtjev(`/cartec/javno/${encodeURIComponent(oznaka)}/ponisti`, { method: 'POST' }),
   gpsPoveziUredaj: (b) => zahtjev('/integracije/gps-uredaji', { method: 'POST', body: b }),
   arossStanje: () => zahtjev('/integracije/aross'),
   arossSpremi: (b) => zahtjev('/integracije/aross', { method: 'POST', body: b }),
