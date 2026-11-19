@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '2'
+$Verzija   = '3'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -23,8 +23,7 @@ if ($env:BRAVEL_CARTEC_STANJE) { $Stanje = $env:BRAVEL_CARTEC_STANJE }
 $TokenDat  = Join-Path $Stanje 'token.txt'
 $PoslanoDat = Join-Path $Stanje 'poslano.txt'
 $Dnevnik   = Join-Path $Stanje 'dnevnik.txt'
-$MirnoSek  = 30        # datoteka se ne smije mijenjati ovoliko sekundi = mjerenje gotovo
-$StaroSati = 12        # pri prvom pokretanju ne šalji stara mjerenja
+$MirnoSek  = 30        # sadržaj se ne smije mijenjati ovoliko sekundi = mjerenje gotovo
 # Faze koje NISU kočenje (pokretanje valjaka, otpor kotrljanja) — ne ulaze u najveću silu.
 $NeKocenje = @('BrakeStartUp', 'WaitingBeforeWheelDrag', 'WheelDrag')
 
@@ -134,9 +133,9 @@ function Sesija([datetime]$kad) {
     return $zadnje
 }
 
-function Ocitaj($dat) {
+function Ocitaj($tekst, [datetime]$videno) {
     # Vrati najveću silu lijevo/desno u fazama kočenja i vrijeme zadnjeg retka.
-    $tekst = ProcitajDijeljeno $dat.FullName
+    # $videno = kad smo prvi put vidjeli ovaj sadržaj (datum mjerenja; vrijeme datoteke nije pouzdano).
     $maxL = 0; $maxD = 0; $maxT = 0; $zadnjeVrijeme = $null; $ima = $false
     foreach ($red in ($tekst -split "`n")) {
         $s = $red.Trim().Split(';')
@@ -153,17 +152,35 @@ function Ocitaj($dat) {
         if ($w -gt $maxT) { $maxT = $w }
     }
     if (-not $ima -or -not $zadnjeVrijeme) { return $null }
-    # Vrijeme retka (HH:mm:ss,fff) + datum datoteke.
+    # Vrijeme retka (HH:mm:ss,fff) + datum kad smo sadržaj vidjeli (oko ponoći: dan ranije).
     $hms = ($zadnjeVrijeme -split ',')[0]
-    $kad = [datetime]::ParseExact($dat.LastWriteTime.ToString('yyyy-MM-dd') + ' ' + $hms, 'yyyy-MM-dd HH:mm:ss', $null)
+    $kad = [datetime]::ParseExact($videno.ToString('yyyy-MM-dd') + ' ' + $hms, 'yyyy-MM-dd HH:mm:ss', $null)
+    if ($kad -gt $videno.AddMinutes(10)) { $kad = $kad.AddDays(-1) }
     return @{ L = $maxL; D = $maxD; T = $maxT; Kad = $kad; Otisak = (Otisak $tekst) }
 }
 
 $poslano = New-Object 'System.Collections.Generic.HashSet[string]'
 if (Test-Path $PoslanoDat) { Get-Content $PoslanoDat | ForEach-Object { [void]$poslano.Add($_.Trim()) } }
 $prviPut = -not (Test-Path $PoslanoDat)
-$pocetak = Get-Date
 $zadnjiPokusaj = @{}
+$videno = @{}                                   # datoteka → @{ H = otisak sadržaja; Kad = otkad je takav }
+$prazno = New-Object 'System.Collections.Generic.HashSet[string]'   # sadržaji bez kočenja (već zapisano u dnevnik)
+$logsStart = Join-Path $CartecDir 'Logs'
+# Od v3 se pamti OTISAK SADRŽAJA, ne vrijeme/veličina datoteke: Cartec drži datoteke otvorene,
+# pa Windows vrijeme i veličinu u mapi ne osvježava (osovina se znala pročitati prerano i preskočiti).
+# Pri prvom pokretanju v3 sve što već leži u mapi smatra se starim i ne šalje se.
+$Oznaka3 = Join-Path $Stanje 'v3.txt'
+if (-not (Test-Path $Oznaka3)) {
+    $n = 0
+    foreach ($dat in @(Get-ChildItem -Path $logsStart -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue)) {
+        try {
+            $t = ProcitajDijeljeno $dat.FullName
+            if ($t) { $h = Otisak $t; if ($poslano.Add($h)) { Add-Content $PoslanoDat $h; $n++ } }
+        } catch {}
+    }
+    Set-Content -Path $Oznaka3 -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') -Encoding ASCII
+    Zapisi "Prvo pokretanje v3: $n postojećih datoteka mjerenja označeno kao staro (ne šalju se)."
+}
 $zadnjeStanje = [datetime]::MinValue
 $zadnjeAzuriranje = [datetime]::MinValue
 $logsProvjera = Join-Path $CartecDir 'Logs'
@@ -180,24 +197,29 @@ while ($true) {
         foreach ($dat in $datoteke) {
             if ($dat.Name -notmatch '^AxleData_(Service|Parking)_(\d+)\.csv$') { continue }
             $tip = $Matches[1]; $osovina = [int]$Matches[2]                # $Matches se kasnije prepiše
-            if ($dat.Length -le 0) { continue }
-            $starost = ((Get-Date) - $dat.LastWriteTime).TotalSeconds
-            if ($starost -lt $MirnoSek) { continue }                       # još se mjeri
-            $kljuc = $dat.FullName + '|' + $dat.LastWriteTime.Ticks + '|' + $dat.Length
+            # Čitamo SADRŽAJ (ne vrijeme/veličinu iz mape — dok Cartec drži datoteku otvorenom, nisu točni).
+            try { $tekst = ProcitajDijeljeno $dat.FullName } catch { continue }
+            if (-not $tekst) { $videno.Remove($dat.Name); continue }       # Cartec ju je ispraznio — novo mjerenje
+            $kljuc = Otisak $tekst
             if ($poslano.Contains($kljuc)) { continue }
-            if ($prviPut -and $dat.LastWriteTime -lt $pocetak.AddHours(-$StaroSati)) {
-                # Stara mjerenja od prije instalacije — samo zapamti da ih ne šaljemo.
-                [void]$poslano.Add($kljuc); Add-Content $PoslanoDat $kljuc; continue
+            if (-not $videno.ContainsKey($dat.Name) -or $videno[$dat.Name].H -ne $kljuc) {
+                $videno[$dat.Name] = @{ H = $kljuc; Kad = (Get-Date) }       # sadržaj se promijenio — još se mjeri
+                continue
             }
+            if (((Get-Date) - $videno[$dat.Name].Kad).TotalSeconds -lt $MirnoSek) { continue }
+            if ($prazno.Contains($kljuc)) { continue }
             if (-not $token) { continue }
             if ($zadnjiPokusaj.ContainsKey($kljuc) -and ((Get-Date) - $zadnjiPokusaj[$kljuc]).TotalSeconds -lt 60) { continue }
             $zadnjiPokusaj[$kljuc] = Get-Date
-            Zapisi "Šaljem $($dat.Name) ($($dat.LastWriteTime.ToString('HH:mm:ss')))."
 
-            $o = Ocitaj $dat
-            if (-not $o) {                                                  # samo pokretanje valjaka, bez kočenja
-                [void]$poslano.Add($kljuc); Add-Content $PoslanoDat $kljuc; continue
+            $o = Ocitaj $tekst $videno[$dat.Name].Kad
+            if (-not $o) {
+                # Samo pokretanje valjaka, bez kočenja — NE označavamo kao poslano; čim stignu novi retci, čita se ponovno.
+                [void]$prazno.Add($kljuc)
+                Zapisi "$($dat.Name): još nema kočenja ($($tekst.Length) znakova) — čekam."
+                continue
             }
+            Zapisi "Šaljem $($dat.Name) (mjereno $($o.Kad.ToString('HH:mm:ss')))."
             $vrsta = if ($tip -eq 'Service') { 'radna' } else { 'parkirna' }
             $tijelo = @{
                 sesija = (Sesija $o.Kad)
