@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
 import { Bedz, MikrofonGumb, Prazno, Spinner, datum, useAutoOsvjezi, voziloLabel } from '../ui'
+import { ValjciBedz } from './NalogDetalj'
 
 // bez kvačica + mala slova — pretraga neosjetljiva na dijakritike
 const _norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -148,7 +149,7 @@ export default function Nalozi() {
               </div>
               <Bedz vrsta={n.status} tekst={t('status.' + n.status)} />
             </div>
-            <p className="meta">🚚 {voziloLabel(n.vozilo)}</p>
+            <p className="meta">🚚 {voziloLabel(n.vozilo)}{n.valjci && <ValjciBedz kad={n.valjci} />}</p>
             {n.rok && <p className="meta">📅 {t('nalozi.rok')}: {datum(n.rok)}</p>}
             {(n.voditelj || n.vozac) && (
               <p className="meta">

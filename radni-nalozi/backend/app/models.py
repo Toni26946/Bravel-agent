@@ -301,6 +301,8 @@ class Nalog(Base):
     parking_otvoreno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parking_rijeseno: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parking_lokacija: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Zadnje mjerenje kočnica na valjcima za ovaj nalog — oznaka „🛞 valjci" (Toni 19.11.2026.).
+    valjci: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Plan radione (pregled za vlasnika): ručni redoslijed i oznaka hitno.
     plan_rang: Mapped[int | None] = mapped_column(Integer, nullable=True)
     plan_hitno: Mapped[bool] = mapped_column(Boolean, default=False)

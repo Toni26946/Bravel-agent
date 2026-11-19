@@ -527,6 +527,7 @@ class NalogListItem(ORM):
     parking_otvoreno: datetime | None = None
     parking_rijeseno: datetime | None = None
     parking_lokacija: str | None = None
+    valjci: datetime | None = None
 
 
 class NalogOut(ORM):
@@ -555,6 +556,7 @@ class NalogOut(ORM):
     parking_otvoreno: datetime | None = None
     parking_rijeseno: datetime | None = None
     parking_lokacija: str | None = None
+    valjci: datetime | None = None
 
 
 class NalogCreateOut(BaseModel):

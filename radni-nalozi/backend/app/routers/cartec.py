@@ -223,6 +223,15 @@ def _prethodni_broj_osovina(db: Session, t: TestKocnica) -> int | None:
     return _broj_osovina(pr) if pr else None
 
 
+def _oznaci_nalog(db: Session, t: TestKocnica) -> None:
+    """Nalog s izmjerenim testom dobije oznaku „🛞 valjci" (vrijeme zadnjeg mjerenja)."""
+    if not t.nalog_id or not t.mjerenja:
+        return
+    n = db.get(Nalog, t.nalog_id)
+    if n is not None and (n.valjci is None or _utc(n.valjci) < _utc(t.kraj)):
+        n.valjci = t.kraj
+
+
 def _ocijeni(db: Session, t: TestKocnica, novi_test: bool) -> bool:
     """Postavi status testa. Vraća True kad treba pitati ljude (test je tek postao
     nerazvrstan / čeka potvrdu) — da se obavijest ne šalje za svaku osovinu."""
@@ -296,6 +305,7 @@ def primi_mjerenje(p: MjerenjeIn, x_cartec_token: str | None = Header(default=No
     db.flush()
     db.refresh(t)
     _ocijeni(db, t, novi_test)
+    _oznaci_nalog(db, t)
     db.commit()
     # Obavijest NE ide ovdje (nakon prve osovine test još traje), nego kad vozilo siđe s
     # valjaka: skripta javi /cartec/kraj, a rezervno /stanje nakon KRAJ_REZERVA_MIN tišine.
@@ -502,6 +512,7 @@ def vezi_test(test_id: int, p: VeziIn, db: Session = Depends(get_db), k: Korisni
     t.status = "vezan"
     t.napomena = None
     t.vezao_id = k.id
+    _oznaci_nalog(db, t)
     db.commit()
     return _test_out(db, t)
 
@@ -631,6 +642,7 @@ def javni_upis_gb(oznaka: str, p: JavnoGbIn, db: Session = Depends(get_db)):
     t.status = "vezan"
     t.napomena = None if odabran else "GB upisan ručno — vozilo tada nije imalo otvoren nalog."
     t.rucno_poveznicom = True
+    _oznaci_nalog(db, t)
     db.commit()
     return {"test": _javni_out(db, t)}
 

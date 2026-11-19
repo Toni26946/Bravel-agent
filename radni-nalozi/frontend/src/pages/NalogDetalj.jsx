@@ -103,6 +103,7 @@ export default function NalogDetalj() {
                 onChange={(e) => setForma({ ...forma, naslov: e.target.value })} placeholder={t('nalog.naslovPh')} />
             : <h3>{n.naslov}</h3>}
           <Bedz vrsta={n.status} tekst={t('status.' + n.status)} />
+          {n.valjci && <ValjciBedz kad={n.valjci} onClick={() => document.getElementById('valjci-rezultati')?.scrollIntoView({ behavior: 'smooth' })} />}
         </div>
         <p className="meta">
           {n.vozilo?.id ? (
@@ -180,6 +181,18 @@ export default function NalogDetalj() {
   )
 }
 
+// Oznaka da je nalog (vozilo) bio na valjcima — klik vodi na rezultate.
+export function ValjciBedz({ kad, onClick }) {
+  const d = (() => { try { return new Date(kad).toLocaleDateString('hr-HR', { day: '2-digit', month: '2-digit' }) } catch { return '' } })()
+  return (
+    <span onClick={onClick} title="Vozilo je bilo na valjcima — rezultati kočenja su u nalogu"
+      style={{ display: 'inline-block', marginLeft: 6, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+        background: '#fff3e0', color: '#e65100', border: '1px solid #ffb74d', cursor: onClick ? 'pointer' : 'default', whiteSpace: 'nowrap' }}>
+      🛞 valjci {d}
+    </span>
+  )
+}
+
 // --- Testovi kočnica (Cartec valjci) vezani uz nalog ---------------------------
 function TestoviKocnicaBlok({ nalogId }) {
   const [testovi, setTestovi] = useState([])
@@ -187,7 +200,7 @@ function TestoviKocnicaBlok({ nalogId }) {
   if (!testovi.length) return null
   return (
     <>
-      <div className="sekcija-naslov">🛞 Testovi kočnica</div>
+      <div className="sekcija-naslov" id="valjci-rezultati">🛞 Valjci — rezultati kočenja</div>
       {testovi.map((t) => (
         <div key={t.id} className="card">
           <b>{new Date(t.pocetak).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b>
