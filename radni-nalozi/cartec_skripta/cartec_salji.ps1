@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '6'
+$Verzija   = '7'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -229,12 +229,26 @@ function PosaljiUzivo($tekst, $token) {
     } catch {}   # uživo nije bitno — ne smije zakočiti petlju
 }
 
-function RezultatPokazan($faze, [datetime]$promjena) {
-    # Je li Cartec pokazao rezultat (kočenje gotovo) za mjerenje čija se datoteka zadnji put
-    # promijenila u $promjena? Rezultat krene u trenutku kad datoteka stane (vidimo je ≤5 s kasnije).
+function PrviRed($tekst) {
+    # Vrijeme PRVOG retka mjerenja u datoteci = oznaka tog mjerenja (novo mjerenje prepiše datoteku).
+    foreach ($red in ($tekst -split "`n")) {
+        $s = $red.Trim().Split(';')
+        if ($s.Count -lt 9 -or $s[0] -eq 'TimeStamp') { continue }
+        if ($s[0] -notmatch '^(\d{2}:\d{2}:\d{2}),(\d{1,3})') { return $null }
+        $sad = Get-Date
+        $kad = [datetime]::ParseExact($sad.ToString('yyyy-MM-dd') + ' ' + $Matches[1], 'yyyy-MM-dd HH:mm:ss', $null).AddMilliseconds([int]$Matches[2])
+        if ($kad -gt $sad.AddMinutes(10)) { $kad = $kad.AddDays(-1) }
+        return $kad
+    }
+    return $null
+}
+
+function RezultatNakon($faze, [datetime]$pocetak) {
+    # Je li Cartec pokazao rezultat („SHOW BRAKE RESULT") nakon početka ovog mjerenja → kočenje gotovo.
+    # (Cartec u datoteku piše i nakon rezultata dok vozilo ne siđe, pa se „mirna datoteka" ne može čekati.)
     if (-not $faze) { return $false }
     foreach ($f in $faze) {
-        if ($f.Faza -eq 'SHOW BRAKE RESULT' -and $f.Kad -ge $promjena.AddSeconds(-7)) { return $true }
+        if ($f.Faza -eq 'SHOW BRAKE RESULT' -and $f.Kad -ge $pocetak) { return $true }
     }
     return $false
 }
@@ -336,6 +350,29 @@ if (-not (Test-Path $Oznaka3)) {
 }
 $javljenKraj = ''
 if (Test-Path $KrajDat) { $javljenKraj = (Get-Content $KrajDat -Raw).Trim() }
+# Datoteka → oznaka (prvi redak) mjerenja koje je već poslano: Cartec u datoteku dopisuje i
+# nakon rezultata, pa isto mjerenje ne smije otići dvaput (ni nakon ponovnog pokretanja).
+$GotovoDat = Join-Path $Stanje 'gotovo.txt'
+$gotovaMjerenja = @{}
+if (Test-Path $GotovoDat) {
+    foreach ($red in (Get-Content $GotovoDat -Encoding UTF8)) {
+        $dijelovi = $red.Split('|')
+        if ($dijelovi.Count -eq 2) { $gotovaMjerenja[$dijelovi[0]] = $dijelovi[1] }
+    }
+}
+# Prvo pokretanje v7: što već leži u datotekama je staro — samo zapamti oznake.
+$Oznaka7 = Join-Path $Stanje 'v7.txt'
+if (-not (Test-Path $Oznaka7)) {
+    foreach ($dat in @(Get-ChildItem -Path $logsStart -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue)) {
+        try {
+            $t = ProcitajDijeljeno $dat.FullName
+            $p = if ($t) { PrviRed $t } else { $null }
+            if ($p) { $gotovaMjerenja[$dat.Name] = $p.ToString('HH:mm:ss.fff') }
+        } catch {}
+    }
+    Set-Content -Path $GotovoDat -Encoding UTF8 -Value (@($gotovaMjerenja.GetEnumerator() | ForEach-Object { "$($_.Key)|$($_.Value)" }))
+    Set-Content -Path $Oznaka7 -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') -Encoding ASCII
+}
 $zadnjeStanje = [datetime]::MinValue
 $zadnjeAzuriranje = [datetime]::MinValue
 $logsProvjera = Join-Path $CartecDir 'Logs'
@@ -359,18 +396,21 @@ while ($true) {
             if (-not $tekst) { $videno.Remove($dat.Name); continue }       # Cartec ju je ispraznio — novo mjerenje
             $kljuc = Otisak $tekst
             if ($poslano.Contains($kljuc)) { continue }
-            if (-not $videno.ContainsKey($dat.Name) -or $videno[$dat.Name].H -ne $kljuc) {
-                $videno[$dat.Name] = @{ H = $kljuc; Kad = (Get-Date) }       # sadržaj se promijenio — još se mjeri
-                PosaljiUzivo $tekst $token                                     # sila uživo na ekran /valjci
-                continue
+            $prvi = PrviRed $tekst
+            $id = if ($prvi) { $prvi.ToString('HH:mm:ss.fff') } else { '' }
+            if ($id -and $gotovaMjerenja[$dat.Name] -eq $id) { continue }   # već poslano — Cartec samo dopisuje
+            $promijenjeno = (-not $videno.ContainsKey($dat.Name) -or $videno[$dat.Name].H -ne $kljuc)
+            if ($promijenjeno) { $videno[$dat.Name] = @{ H = $kljuc; Kad = (Get-Date) } }
+            # Gotovo: Cartec pokazao rezultat za ovo mjerenje (ODMAH) ili, rezervno, 30 s bez promjene.
+            if (-not ($prvi -and (RezultatNakon $fazeSad $prvi))) {
+                if ($promijenjeno) { PosaljiUzivo $tekst $token; continue }  # još se mjeri — sila uživo
+                if (((Get-Date) - $videno[$dat.Name].Kad).TotalSeconds -lt $MirnoSek) { continue }
             }
-            # Gotovo: Cartec pokazao rezultat (odmah) ili, rezervno, 30 s bez promjene.
-            if (((Get-Date) - $videno[$dat.Name].Kad).TotalSeconds -lt $MirnoSek -and
-                -not (RezultatPokazan $fazeSad $videno[$dat.Name].Kad)) { continue }
             if ($prazno.Contains($kljuc)) { continue }
             if (-not $token) { continue }
-            if ($zadnjiPokusaj.ContainsKey($kljuc) -and ((Get-Date) - $zadnjiPokusaj[$kljuc]).TotalSeconds -lt 60) { continue }
-            $zadnjiPokusaj[$kljuc] = Get-Date
+            $pokusaj = if ($id) { "$($dat.Name)|$id" } else { $kljuc }
+            if ($zadnjiPokusaj.ContainsKey($pokusaj) -and ((Get-Date) - $zadnjiPokusaj[$pokusaj]).TotalSeconds -lt 20) { continue }
+            $zadnjiPokusaj[$pokusaj] = Get-Date
 
             $o = Ocitaj $tekst $videno[$dat.Name].Kad
             if (-not $o) {
@@ -394,6 +434,10 @@ while ($true) {
             try {
                 $r = Posalji '/cartec/mjerenje' $tijelo $token
                 [void]$poslano.Add($kljuc); Add-Content $PoslanoDat $kljuc
+                if ($id) {
+                    $gotovaMjerenja[$dat.Name] = $id
+                    Set-Content -Path $GotovoDat -Encoding UTF8 -Value (@($gotovaMjerenja.GetEnumerator() | ForEach-Object { "$($_.Key)|$($_.Value)" }))
+                }
                 Zapisi "Poslano: $vrsta osovina $($tijelo.osovina) L=$($o.L) D=$($o.D) → test $($r.test_id) ($($r.status), GB $($r.gb))"
             } catch {
                 $kod = $null
