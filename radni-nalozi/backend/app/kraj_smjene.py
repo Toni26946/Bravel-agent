@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from .config import settings
 from .database import SessionLocal
 from .models import Korisnik, MehanicarLink, Zadatak
-from .routers.dispecer import _red, posalji_poveznicu
+from .routers.dispecer import _red, posalji_poveznicu, radi_na
 from .routers.nalozi import _auto_status_naloga, _zatvori_kao_nije_gotovo
 from .routers.plan import _gb, _hr_now
 
@@ -28,8 +28,9 @@ log = logging.getLogger("kraj_smjene")
 
 _INTERVAL = 60          # provjera svake minute
 CEKANJE_MIN = 15        # bez odgovora ovoliko min → auto "Nije gotovo"
-_PROZOR_H = 2           # pitanje se inicira samo unutar ovoliko sati od kraja smjene
-_PORUKA = "Kraj radnog vremena. Jesi gotov za danas ili ostaješ dulje? Otvori: {url}"
+_PROZOR_MIN = 30        # pitanje se šalje samo u prvih 30 min nakon kraja smjene (ne kasno)
+# Toni 19.11.2026.: link otvara BAŠ taj zadatak — klikne ✅ Gotovo / ⏸ Nije gotovo / Ostajem dulje.
+_PORUKA = "Kraj radnog vremena. {zadatak}Klikni je li gotov ili nije (ili ostaješ dulje): {{url}}"
 
 
 def _kraj_sat(hr: datetime) -> int | None:
@@ -43,14 +44,26 @@ def _kraj_sat(hr: datetime) -> int | None:
 
 
 def _aktivni_radnici(db) -> list[Korisnik]:
-    """Mehaničari koji trenutno rade (barem jedan zadatak s pokrenutim mjeračem)."""
+    """Mehaničari koji trenutno rade (NJIHOV mjerač teče — kod zajedničke operacije
+    gleda se svaki posebno)."""
     zad = (db.query(Zadatak)
            .filter(Zadatak.zapoceto.isnot(None), Zadatak.gotovo.is_(False)).all())
     po_id: dict[int, Korisnik] = {}
     for z in zad:
         for r in z.radnici:
-            po_id[r.id] = r
+            if radi_na(z, r.id):
+                po_id[r.id] = r
     return list(po_id.values())
+
+
+def _poruka(db, r: Korisnik) -> str:
+    """Tekst poruke s GB-om i opisom zadatka na kojem radi."""
+    for (n, _op, z) in _red(db, r):
+        if radi_na(z, r.id):
+            opis = (z.opis or "").strip().replace("{", "(").replace("}", ")")   # poruka ide kroz .format(url=)
+            opis = (opis[:60] + "…") if len(opis) > 60 else opis
+            return _PORUKA.format(zadatak=f"GB {_gb(n)}{(' — ' + opis) if opis else ''}. ")
+    return _PORUKA.format(zadatak="")
 
 
 def _tik(db) -> None:
@@ -69,7 +82,7 @@ def _tik(db) -> None:
         return (p + offset).date() == hr.date()
 
     # 1) Inicijalno pitanje — unutar prozora [kraj, kraj+_PROZOR_H) i ako još radi.
-    if sat is not None and sat <= hr.hour < sat + _PROZOR_H:
+    if sat is not None and hr.hour == sat and hr.minute < _PROZOR_MIN:
         for r in _aktivni_radnici(db):
             link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == r.id,
                                                   MehanicarLink.aktivan.is_(True)).first()
@@ -77,7 +90,7 @@ def _tik(db) -> None:
                 continue
             # gb nije bitan za ovu poruku (poruka_override)
             rez = posalji_poveznicu(db, r, "", "", settings.javni_url,
-                                    poruka_override=_PORUKA, link_suffix="?kraj=1")
+                                    poruka_override=_poruka(db, r), link_suffix="?kraj=1")
             if rez.get("poslano"):
                 link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == r.id).first()
                 if link:

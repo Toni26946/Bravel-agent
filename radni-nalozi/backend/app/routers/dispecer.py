@@ -79,7 +79,8 @@ def osiguraj_link(db: Session, radnik_id: int) -> MehanicarLink:
 
 
 def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_url: str,
-                      poruka_override: str | None = None, link_suffix: str = "") -> dict:
+                      poruka_override: str | None = None, link_suffix: str = "",
+                      broj_override: str | None = None) -> dict:
     """Pošalji login-less poveznicu mehaničaru preko bravel-agenta (predložak
     `poruka_dispecera`). GATED — ništa se ne šalje osim ako je izričito upaljeno:
     - `dispecer_wa_on` mora biti True i bravel-agent URL/ključ postavljeni,
@@ -98,7 +99,7 @@ def posalji_poveznicu(db: Session, radnik: Korisnik, gb: str, opis: str, base_ur
     # Meta pravilo: parametar predloška bez novih redova/tabova
     sadrzaj = poruka_override.format(url=url) if poruka_override else f"Novi zadatak: GB {gb}, {opis} {url}"
     poruka = " ".join(sadrzaj.split())[:900]
-    test = (settings.dispecer_test_broj or "").strip()
+    test = (broj_override or settings.dispecer_test_broj or "").strip()   # broj_override = proba vlasniku
     body = {"poruka": poruka}
     if test:
         body["vozac"] = "test"
@@ -661,22 +662,40 @@ def z_smjena(token: str, p: SmjenaIn, db: Session = Depends(get_db)):
       (pauza, čuvaju vrijeme). NE označava gotovim, NE šalje sljedeći."""
     link = _ucitaj(db, token, p.uredjaj)
     odgovor = (p.odgovor or "").strip().lower()
-    if odgovor not in ("ostajem", "gotov"):
-        raise HTTPException(status_code=400, detail="Nepoznat odgovor (ostajem/gotov)")
+    if odgovor not in ("ostajem", "gotov", "gotovo"):
+        raise HTTPException(status_code=400, detail="Nepoznat odgovor (ostajem/gotov/gotovo)")
     link.smjena_pitano = link.smjena_pitano or datetime.now(timezone.utc)
-    link.smjena_odgovor = odgovor
+    link.smjena_odgovor = "gotov" if odgovor == "gotovo" else odgovor
     if odgovor == "ostajem":
         db.commit()
         return _stanje(db, link.radnik)
-    # "gotov za danas" → zatvori sve pokrenute (a i preostale u redu) kao nedovršene
-    zatvoreno = 0
+    rid = link.radnik.id
+    zavrseno = zatvoreno = 0
     for (_n, _op, z) in _red(db, link.radnik):
-        if z.zapoceto or (z.utroseno_sek or 0) > 0:
+        if odgovor == "gotovo" and radi_na(z, rid):
+            # „✅ Gotovo" (Toni 19.11.2026.): zadatak na kojem radi je GOTOV — kao gumb Gotovo,
+            # ali bez prebacivanja na sljedeći (kraj smjene).
+            _zavrsi_radnika(z, rid)
+            z.ceka_potvrdu = False
+            z.razlog_prekida = None
+            z.prekid_vrijeme = None
+            if _svi_radnici_gotovi(z):
+                _zaustavi_mjerac(z)
+                z.gotovo = True
+                z.zavrseno = datetime.now(timezone.utc)
+                z.zavrsio_id = rid
+                servis_odradjen(db, z)
+            db.flush()
+            _auto_status_naloga(db, z.operacija.nalog, link.radnik)
+            zavrseno += 1
+        elif radi_na(z, rid) or (not z.zapoceto and (z.utroseno_sek or 0) > 0):   # tuđi mjerač ne diraj
+            # „⏸ Nije gotovo" / gotov za danas → pokrenuti ostaju nedovršeni (pauza, čuvaju vrijeme)
             _zatvori_kao_nije_gotovo(z)
             _auto_status_naloga(db, z.operacija.nalog, link.radnik)
             zatvoreno += 1
     db.commit()
-    return {"parkirano": True, "gotov_za_danas": True, "ime": link.radnik.ime, "zatvoreno": zatvoreno}
+    return {"parkirano": True, "gotov_za_danas": True, "ime": link.radnik.ime,
+            "zatvoreno": zatvoreno, "zavrseno": zavrseno}
 
 
 # --- vlasnik: upravljanje poveznicama --------------------------------------
@@ -838,6 +857,50 @@ def test_tok(request: Request, _: Korisnik = Depends(_samo_vlasnik), db: Session
     rez = posalji_poveznicu(db, meh, _TEST_GB, opisi[0], str(request.base_url))
     db.commit()
     return {"ok": bool(rez.get("poslano")), "detalji": rez, "zadataka": len(opisi)}
+
+
+class TestKrajIn(BaseModel):
+    broj: str   # npr. 385912319141 — kamo poslati probu
+
+
+@router.post("/test-kraj-smjene")
+def test_kraj_smjene(request: Request, p: TestKrajIn, _: Korisnik = Depends(_samo_vlasnik),
+                     db: Session = Depends(get_db)):
+    """Proba poruke KRAJA SMJENE (15:00) na zadani broj (vlasnik vidi kako izgleda):
+    test mehaničar + probni nalog (GB TEST) sa zadatkom U TIJEKU, poruka s linkom ?kraj=1
+    → stranica ✅ Gotovo / ⏸ Nije gotovo / Ostajem dulje. Ne dira prave naloge;
+    čisti se preko /test-tok-stop."""
+    broj = "".join(ch for ch in (p.broj or "") if ch.isdigit())
+    if len(broj) < 9:
+        raise HTTPException(status_code=400, detail="Neispravan broj")
+    meh = _test_mehanicar(db)
+    link = db.query(MehanicarLink).filter(MehanicarLink.radnik_id == meh.id).first()
+    if link:
+        link.token = secrets.token_urlsafe(24)
+        link.uredjaj = None
+        link.aktivan = True
+        link.zadnje_koristeno = None
+        link.zadnji_uredjaj = None
+        link.smjena_pitano = None
+        link.smjena_odgovor = None
+    db.flush()
+    voz = db.query(Vozilo).filter(Vozilo.gb == _TEST_GB).first()
+    if not voz:
+        voz = Vozilo(gb=_TEST_GB, marka="TEST"); db.add(voz); db.flush()
+    _obrisi_test_nalog(db)
+    n = Nalog(broj=_TEST_RN, vozilo_id=voz.id, naslov="PROBNI KRAJ SMJENE",
+              kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="TEST", redoslijed=1); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="PROBNI — zamjena pločica"); z.radnici = [meh]; db.add(z)
+    db.flush()
+    _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=meh.id)   # „u tijeku" kao pravi mehaničar
+    db.commit()
+    from ..kraj_smjene import _poruka
+    rez = posalji_poveznicu(db, meh, "", "", str(request.base_url), poruka_override=_poruka(db, meh),
+                            link_suffix="?kraj=1", broj_override=broj)
+    db.commit()
+    return {"ok": bool(rez.get("poslano")), "detalji": rez}
 
 
 class TestTokLinkIn(BaseModel):
@@ -1026,9 +1089,9 @@ function operacija(k,opis){k=(k||'').trim();if(!k||k.toUpperCase()==='RAZNO'||St
 function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
 // --- Jezici: HR / EN / UK (mehaničari su često s ukrajinskog govornog područja) ---
 var I18N={
- hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače.",slikaDio:"Slikaj dio",posalji:"Pošalji",odustani:"Odustani"},
- en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual.",slikaDio:"Photograph part",posalji:"Send",odustani:"Cancel"},
- uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди.",slikaDio:"Сфотографувати деталь",posalji:"Надіслати",odustani:"Скасувати"}
+ hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",jeLiGotov:"Je li zadatak gotov?",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače.",slikaDio:"Slikaj dio",posalji:"Pošalji",odustani:"Odustani"},
+ en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",jeLiGotov:"Is the task finished?",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual.",slikaDio:"Photograph part",posalji:"Send",odustani:"Cancel"},
+ uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",jeLiGotov:"Завдання виконано?",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди.",slikaDio:"Сфотографувати деталь",posalji:"Надіслати",odustani:"Скасувати"}
 };
 var L=localStorage.getItem('bravel_jezik')||'hr'; if(!I18N[L])L='hr';
 function T(k,p){var s=(I18N[L]&&I18N[L][k])||I18N.hr[k]||k; if(p){for(var x in p){s=s.split('{'+x+'}').join(p[x]);}} return s;}
@@ -1173,22 +1236,31 @@ function dijelovi(){
     render(j); prevZid=(j&&j.zadatak_id)||null;
   };
 }
-function krajPrompt(){
+var _krajZad=null;   // zadatak na kojem radi (za pitanje kraja smjene)
+async function krajPrompt(){
   const app=document.getElementById('app');
   _krajMode=true; _lastD=null;
+  if(_krajZad===null && !PROBA){
+    try{ const {status,j}=await api('stanje'); _krajZad=(status<400&&j&&j.zadatak_id&&j.stanje==='radu')?j:false; }catch(e){ _krajZad=false; }
+  }
+  const z=_krajZad||null;
+  // 15:00 (Toni 19.11.2026.): klikni je li zadatak gotov ili nije — ili ostaješ dulje.
   app.innerHTML=
-   '<div class="banner">'+T('krajVremena')+'<br/>'+T('gotovIliOstajes')+'</div>'
+   '<div class="banner">'+T('krajVremena')+'<br/>'+(z?T('jeLiGotov'):T('gotovIliOstajes'))+'</div>'
+   +(z?'<div class="kart"><div class="gb">GB '+esc(z.gb)+'</div><div class="opis">'+esc(z.opis||'')+'</div></div>':'')
    +'<div class="gumbi">'
+   +(z?'<button class="b-got">✅ '+T('got')+'</button>':'')
+   +'<button class="b-kraj">'+(z?'⏸ '+T('nije'):T('gotovDanas'))+'</button>'
    +'<button class="b-ostaje">'+T('ostajem')+'</button>'
-   +'<button class="b-kraj">'+T('gotovDanas')+'</button>'
    +'</div>';
+  if(z) document.querySelector('.b-got').onclick=function(){smjena('gotovo')};
   document.querySelector('.b-ostaje').onclick=function(){smjena('ostajem')};
   document.querySelector('.b-kraj').onclick=function(){smjena('gotov')};
 }
 async function smjena(odg){
   if(busy)return;
   if(PROBA){
-    if(odg==='gotov'){render({gotov_za_danas:true});}
+    if(odg==='gotov'||odg==='gotovo'){render({gotov_za_danas:true});}
     else{document.getElementById('app').innerHTML='<div class="kart"><div class="info">'+T('ostajemProba')+'</div></div>';}
     return;
   }
