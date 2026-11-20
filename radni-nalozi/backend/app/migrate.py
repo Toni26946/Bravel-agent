@@ -23,6 +23,7 @@ _STUPCI = [
     ("nalozi", "izvan_radione_javljeno", "BOOLEAN DEFAULT FALSE"),
     ("korisnici", "prijavljuje_se", "BOOLEAN DEFAULT TRUE"),
     ("korisnici", "radi_na_nalozima", "BOOLEAN DEFAULT FALSE"),
+    ("korisnici", "skupine_poslova", "TEXT"),
     ("korisnici", "odsutnost_vrsta", "VARCHAR(20)"),
     ("korisnici", "odsutnost_od", "DATE"),
     ("korisnici", "odsutnost_do", "DATE"),

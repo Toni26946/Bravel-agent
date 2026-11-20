@@ -22,6 +22,7 @@ from app.auto_popuni import KLJUC, jednokratno_ocisti_rucni_red, popuni
 from app.database import Base
 from app.models import Korisnik, Nalog, Operacija, StatusNaloga, Uloga, Vozilo, Zadatak
 from app.routers.dispecer import _red
+from app.skupine import KLJUCEVI
 
 
 def _session():
@@ -31,6 +32,7 @@ def _session():
 
 
 def _meh(db, ime, **kw):
+    kw.setdefault("skupine_poslova", ",".join(KLJUCEVI))   # zadano: smije sve skupine
     m = Korisnik(ime=ime, korisnicko_ime=ime.lower(), lozinka_hash="x", uloga=Uloga.radnik, **kw)
     db.add(m); db.flush()
     return m

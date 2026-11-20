@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from .. import flota
+from .. import flota, skupine
 from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
@@ -274,7 +274,17 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     pregledar = db.query(Korisnik).filter(Korisnik.korisnicko_ime == _PREGLEDAR_KIME).first()
     if pregledar and pregledar not in meh:
         meh.append(pregledar)
-    preporuke = _preporuke_po_kategoriji(db, [m.id for m in meh])
+    iskustvo = _iskustvo_po_kategoriji(db, [m.id for m in meh])
+    _prep_cache: dict[str, int | None] = {}
+
+    def _preporuka(kat: str | None) -> int | None:
+        """Prijedlog po iskustvu — samo među majstorima kojima je ta skupina označena."""
+        if kat not in _prep_cache:
+            isk = iskustvo.get(_norm_kat(kat), {})
+            smiju = [m for m in meh if skupine.smije(m, kat) and isk.get(m.id)]
+            _prep_cache[kat] = max(smiju, key=lambda m: isk[m.id]).id if smiju else None
+        return _prep_cache[kat]
+
     zad_ids = [z.id for n in nalozi for op in n.operacije for z in op.zadaci]
     radili = _radio_po_zadatku(db, zad_ids)   # tko je nakupio vrijeme na zadatku
     # Naziv/registracija vozila: PRIMARNO iz matičnog popisa (RegistarVozila — ono što se
@@ -294,12 +304,13 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
             for z in op.zadaci:
                 m = _mehanicar(z)
                 vrem = {v.radnik_id: v for v in z.vremena}   # vrijeme po radniku
-                prep_id = preporuke.get(_norm_kat(op.kategorija))
+                prep_id = _preporuka(op.kategorija)
                 prep_ime = None
                 if prep_id is None and pregledar and op.kategorija in _PREGLED_KAT:
                     prep_id, prep_ime = pregledar.id, pregledar.ime   # prijedlog pregledara
                 ops.append({
                     "id": z.id, "naziv": z.opis, "kat": op.kategorija,
+                    "skupina": skupine.skupina_kategorije(op.kategorija),   # None = ručno
                     "mehId": m.id if m else None,
                     "mehovi": [{"id": r.id, "ime": r.ime} for r in z.radnici],
                     "mehIds": [r.id for r in z.radnici],
@@ -364,7 +375,9 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
     )
     return {
         "mehanicari": [{"id": m.id, "ime": m.ime, "odsutan": _odsutan(m),
-                        "odsutnost": (m.odsutnost_vrsta if _odsutan(m) else None)} for m in meh],
+                        "odsutnost": (m.odsutnost_vrsta if _odsutan(m) else None),
+                        "skupine": sorted(skupine.skupine_radnika(m) or [])} for m in meh],
+        "skupineSve": [{"k": k, "naziv": n} for k, n, _p in skupine.SKUPINE],
         "voditelji": [{"id": v.id, "ime": v.ime} for v in voditelji],
         "nalozi": out_nal,
         "promjene": [{"t": _ms(p.vrijeme), "tekst": p.opis} for p in promjene],
@@ -394,6 +407,24 @@ def auto_popuni_prekidac(p: AutoPopuniIn, _: Korisnik = Depends(_samo_vlasnik), 
     db.commit()
     dodano = popuni(db) if p.ukljuceno else []
     return {"ok": True, "ukljuceno": p.ukljuceno, "dodijeljeno": len(dodano)}
+
+
+class SkupineIn(BaseModel):
+    radnik_id: int
+    skupine: list[str]
+
+
+@router.post("/skupine")
+def postavi_skupine(p: SkupineIn, _: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Kućice „što tko radi": koje skupine poslova majstor smije dobiti automatski."""
+    k = db.get(Korisnik, p.radnik_id)
+    if not k:
+        raise HTTPException(status_code=404, detail="Radnik ne postoji")
+    k.skupine_poslova = skupine.u_tekst(p.skupine)
+    _log(db, None, "skupine", f"{k.ime}: {', '.join(skupine.NAZIVI[s] for s in skupine.KLJUCEVI if s in set(p.skupine)) or 'ništa'}"[:250],
+         radnik_id=k.id)
+    db.commit()
+    return {"ok": True, "skupine": sorted(skupine.skupine_radnika(k) or [])}
 
 
 # --- GET /plan/moje (radnik vidi SAMO svoje operacije) ---------------------

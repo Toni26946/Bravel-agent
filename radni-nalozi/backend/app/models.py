@@ -132,6 +132,10 @@ class Korisnik(Base):
     # Ne-mehaničar (npr. skladištar Akshay) kojeg se SMIJE dodijeliti na nalog kao
     # mehaničara — pojavljuje se u popisu radnika naloga/plana i prima poveznicu.
     radi_na_nalozima: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Skupine poslova koje majstor smije dobiti AUTOMATSKI (ključevi iz skupine.py,
+    # odvojeni zarezom; npr. "pranje" ili "motor,podvozje"). None = još nije postavljeno.
+    # Tekst, ne JSON (Postgres DISTINCT nad json stupcem puca).
+    skupine_poslova: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Odsutnost radnika: godišnji/bolovanje za razdoblje (za prikaz statusa/boje).
     odsutnost_vrsta: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'godisnji' | 'bolovanje'
     odsutnost_od: Mapped[date | None] = mapped_column(Date, nullable=True)
