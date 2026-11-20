@@ -30,6 +30,7 @@ _TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 P_KEY = "aross_api_key"
 P_USER = "aross_user"
 P_PASS = "aross_pass"
+P_BASE = "aross_base"   # adresa API-ja (testna ili prava baza) — prazno = iz env (testna)
 
 
 class ArossGreska(RuntimeError):
@@ -68,10 +69,19 @@ def ima_basic(db=None) -> bool:
     return bool(user and pw)
 
 
+def adresa(db=None) -> str:
+    """Adresa API-ja bez ključa (bez završnog /) — iz portala, inače iz env (testna)."""
+    return (_postavka(db, P_BASE) or settings.aross_base or "").strip().rstrip("/")
+
+
+def je_testna(db=None) -> bool:
+    return "-test" in adresa(db).lower() or "test." in adresa(db).lower()
+
+
 def _baza(db=None) -> str:
     """Puni prefiks s ključem: https://.../api5/{API-KEY}  (bez završnog /)."""
     key, _u, _p = _konf(db)
-    return f"{settings.aross_base.rstrip('/')}/{key}"
+    return f"{adresa(db)}/{key}"
 
 
 def _client(db=None) -> httpx.Client:
@@ -80,7 +90,7 @@ def _client(db=None) -> httpx.Client:
         raise ArossNijePovezan("APROSS API nije povezan (nedostaje API-KEY).")
     auth = (user, pw) if (user and pw) else None
     return httpx.Client(
-        base_url=f"{settings.aross_base.rstrip('/')}/{key}",
+        base_url=f"{adresa(db)}/{key}",
         auth=auth,
         timeout=_TIMEOUT,
         headers={"Accept": "application/json"},

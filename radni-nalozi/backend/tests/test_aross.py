@@ -238,3 +238,26 @@ def test_dupla_otpremnica_odbijena_osim_svjesno():
     assert e.value.status_code == 409 and "već upisana" in e.value.detail
     p = kreiraj(PrimkaCreate(dobavljac="Frenum", broj_otpremnice="6409-03-261", dupli=True), korisnik=k, db=db)
     assert p.id
+
+
+def test_adresa_iz_portala_prije_env(monkeypatch):
+    """Prebacivanje na pravu bazu iz portala (Šifrarnik → Integracije), bez deploya."""
+    import os
+    os.environ.setdefault("DATABASE_URL", "sqlite://")
+    from fastapi import HTTPException
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database import Base
+    from app.routers.integracije import ArossIn, aross_spremi
+    monkeypatch.setattr(settings, "aross_base", "https://bravel-api-test.zgdata.hr/api5", raising=False)
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(eng)
+    db = sessionmaker(bind=eng, autoflush=False)()
+    assert aross.adresa(db) == "https://bravel-api-test.zgdata.hr/api5" and aross.je_testna(db)
+    st = aross_spremi(ArossIn(api_key="PRAVI", adresa="https://bravel-api.zgdata.hr/api5/"), db=db, _=None)
+    assert st["adresa"] == "https://bravel-api.zgdata.hr/api5" and st["testna"] is False
+    assert aross._baza(db) == "https://bravel-api.zgdata.hr/api5/PRAVI"
+    with pytest.raises(HTTPException):
+        aross_spremi(ArossIn(adresa="http://nesigurno.hr/api5"), db=db, _=None)
+    aross_spremi(ArossIn(adresa=""), db=db, _=None)   # prazno = natrag na env (testna)
+    assert aross.je_testna(db)

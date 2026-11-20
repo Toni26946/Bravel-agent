@@ -194,7 +194,8 @@ function Integracije() {
   const [cjenRadi, setCjenRadi] = useState(false)
   const datRef = useRef(null)
 
-  const ucitaj = () => api.arossStanje().then((s) => { setSt(s); setKorisnik(s?.korisnik || '') }).catch((e) => setGreska(e.message))
+  const [adresa, setAdresa] = useState('')
+  const ucitaj = () => api.arossStanje().then((s) => { setSt(s); setKorisnik(s?.korisnik || ''); setAdresa(s?.adresa || '') }).catch((e) => setGreska(e.message))
   const ucitajCjenik = () => api.cjenikStanje().then(setCjen).catch(() => {})
   useEffect(() => { ucitaj(); ucitajCjenik() }, [])
 
@@ -218,8 +219,9 @@ function Integracije() {
       if (kljuc.trim()) telo.api_key = kljuc.trim()
       telo.user = korisnik.trim()           // korisnik se uvijek šalje (može biti i prazan)
       if (lozinka) telo.lozinka = lozinka
+      if (adresa.trim() !== (st?.adresa || '')) telo.adresa = adresa.trim()
       const novo = await api.arossSpremi(telo)
-      setSt(novo); setKljuc(''); setLozinka('')
+      setSt(novo); setKljuc(''); setLozinka(''); setAdresa(novo?.adresa || '')
       setPoruka('Spremljeno.')
     } catch (e) { setGreska(e.message) } finally { setRadi(false) }
   }
@@ -252,9 +254,27 @@ function Integracije() {
           : <b style={{ color: 'var(--crveno)' }}>nije povezano</b>}
         {st && st.ima_basic ? ' · Basic Auth postavljen' : ''}
       </p>
+      {st && (
+        <p style={{ margin: '0 0 10px', padding: '6px 10px', borderRadius: 8, fontWeight: 700, fontSize: 13,
+          background: st.testna ? 'var(--s-ceka-bg, #fdf1dd)' : 'rgba(22,163,74,.1)',
+          color: st.testna ? 'var(--s-ceka, #b45309)' : 'var(--zelena, green)' }}>
+          {st.testna ? '🧪 TESTNA baza — primke i izdatnice NE idu u pravi Apross' : '✅ PRAVA baza — dokumenti idu u pravi Apross'}
+        </p>
+      )}
 
       <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
-        Zalijepi testni API-KEY (iz password.link maila):
+        Adresa Apross API-ja (bez ključa; pravu adresu daje Zagreb Data):
+      </label>
+      <input
+        type="text"
+        value={adresa}
+        onChange={(e) => setAdresa(e.target.value)}
+        placeholder="https://bravel-api-test.zgdata.hr/api5"
+        autoComplete="off"
+        style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
+      />
+      <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+        Zalijepi API-KEY (za tu adresu — testna i prava baza imaju različit ključ):
       </label>
       <input
         type="password"
@@ -284,7 +304,7 @@ function Integracije() {
         style={{ width: '100%', padding: 8, boxSizing: 'border-box', marginBottom: 8 }}
       />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn" disabled={radi || (!kljuc.trim() && !korisnik.trim() && !lozinka)} onClick={spremi}>💾 Spremi</button>
+        <button className="btn" disabled={radi || (!kljuc.trim() && !korisnik.trim() && !lozinka && adresa.trim() === (st?.adresa || ''))} onClick={spremi}>💾 Spremi</button>
         <button className="btn ghost" disabled={radi || !st?.ima_kljuc} onClick={testiraj}>🔌 Testiraj spoj</button>
         {st?.ima_kljuc && <button className="btn ghost" disabled={radi} onClick={obrisi} style={{ color: 'var(--crveno)' }}>Obriši</button>}
       </div>
