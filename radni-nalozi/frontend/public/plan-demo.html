@@ -265,7 +265,11 @@
   .auto-pop.on{border-color:var(--s-radu);color:var(--s-radu)}
   /* Skupine poslova — kućice „što tko radi" */
   .sk-box{border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:0 0 8px;font-size:12.5px}
-  .sk-box summary{cursor:pointer;font-weight:700;padding:4px 0;min-height:32px;display:flex;align-items:center}
+  .sk-box summary{cursor:pointer;font-weight:700;padding:4px 0;min-height:32px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none}
+  .sk-box summary::-webkit-details-marker{display:none}
+  .sk-box summary .sk-otvori{margin-left:auto;border:1px solid var(--s-radu);color:var(--s-radu);border-radius:8px;padding:5px 12px;font-weight:700;white-space:nowrap}
+  .sk-box[open] summary .sk-otvori::after{content:"▴ Zatvori"}
+  .sk-box:not([open]) summary .sk-otvori::after{content:"▾ Otvori kućice"}
   .sk-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:6px}
   .sk-tbl{border-collapse:collapse;font-size:12px;min-width:100%}
   .sk-tbl th{font-weight:600;color:var(--muted);padding:4px 6px;text-align:center;vertical-align:bottom;max-width:92px;line-height:1.2}
@@ -527,7 +531,7 @@
   }
   function skupineHtml(){
     if(!SKUPINE.length) return '';
-    var h='<details class="sk-box"'+(_skOtv?' open':'')+' ontoggle="PLAN.skOtv(this.open)"><summary>🧰 Što tko radi — majstor automatski dobiva samo označene poslove</summary>';
+    var h='<details class="sk-box"'+(_skOtv?' open':'')+' ontoggle="PLAN.skOtv(this.open)"><summary><span>🧰 Što tko radi — majstor automatski dobiva samo označene poslove</span><span class="sk-otvori"></span></summary>';
     h+='<div class="sk-scroll"><table class="sk-tbl"><thead><tr><th>Majstor</th>';
     SKUPINE.forEach(function(s){ h+='<th>'+esc(s.naziv)+'</th>'; });
     h+='</tr></thead><tbody>';
