@@ -83,13 +83,13 @@ function Osovina({ o, odabrana, rucna, uzivo, onOdaberi, onRucna, zavrseno }) {
       <div>
         <div style={{ fontSize: 17, fontWeight: 800 }}>{o.br}. os.</div>
         <div style={{ fontSize: 12, color: odabrana ? PLAVO : 'var(--muted)', fontWeight: odabrana ? 700 : 400 }}>
-          {odabrana ? (mjeriSe ? 'mjeri se…' : `koči — ${rucna ? 'ručna' : 'radna'}`) : (o.radna || o.rucna ? 'izmjereno' : 'stisni')}
+          {odabrana ? (mjeriSe ? 'mjeri se…' : `koči — ${rucna ? 'ručna' : 'nožna'}`) : (o.radna || o.rucna ? 'izmjereno' : 'stisni')}
         </div>
       </div>
       <div style={{ minWidth: 0 }}>
         {mjeriSe ? <Uzivo u={uzivo} /> : (
           <>
-            {o.radna ? <Rezultat m={o.radna} /> : <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>{o.rucna ? '' : 'radna nije izmjerena'}</div>}
+            {o.radna ? <Rezultat m={o.radna} /> : <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>{o.rucna ? '' : 'nožna nije izmjerena'}</div>}
             {o.rucna && <Rezultat m={o.rucna} naslov="ručna" />}
           </>
         )}
@@ -100,6 +100,56 @@ function Osovina({ o, odabrana, rucna, uzivo, onOdaberi, onRucna, zavrseno }) {
           width: 72, margin: 0, padding: '8px 4px', fontSize: 13, fontWeight: 700,
           ...(odabrana && rucna ? { background: '#fff3cd', borderColor: '#e0a800', color: '#7a5600' } : {}),
         }}>Ručna{odabrana && rucna ? ' ✓' : ''}</button>
+    </div>
+  )
+}
+
+// Vodič (Veljko 20.11.2026.: „ne znam kad kliknuti — prije ili poslije valjaka, nožna ili ručna"):
+// rezultat s valjaka ide na osovinu koja je ODABRANA (plava) u trenutku kad valjci ZAVRŠE mjerenje,
+// i to kao nožna ili ručna prema tipki „Ručna". Zato se uvijek prvo stisne, pa tek onda koči.
+const VODIC_KLJUC = 'valjci_vodic_skriven'
+const procitajVodic = () => { try { return localStorage.getItem(VODIC_KLJUC) === '1' } catch { return false } }
+const spremiVodic = (skriven) => { try { localStorage.setItem(VODIC_KLJUC, skriven ? '1' : '0') } catch { /* nije bitno */ } }
+
+function Vodic() {
+  const [skriven, setSkriven] = useState(procitajVodic)
+  const promijeni = (v) => { setSkriven(v); spremiVodic(v) }
+  if (skriven) {
+    return (
+      <button className="btn ghost" style={{ margin: '0 0 10px', padding: '8px 0', fontSize: 14 }}
+        onClick={() => promijeni(false)}>❓ Kako mjeriti?</button>
+    )
+  }
+  const korak = { display: 'grid', gridTemplateColumns: '26px 1fr', gap: 6, marginBottom: 6, fontSize: 14, lineHeight: 1.35 }
+  const br = { fontWeight: 800, color: PLAVO }
+  return (
+    <div className="card" style={{ marginBottom: 10, borderLeft: `4px solid ${PLAVO}`, padding: 12 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>Kako mjeriti — PRVO stisni, PA koči</div>
+      <div style={korak}><span style={br}>1.</span><span>Stisni osovinu koja je na valjcima — postane <b style={{ color: PLAVO }}>plava</b>. Tek onda pokreni valjke.</span></div>
+      <div style={korak}><span style={br}>2.</span><span><b>Nožna kočnica:</b> samo osovina (bez „Ručna"). Piše „koči — nožna". Koči nožnom.</span></div>
+      <div style={korak}><span style={br}>3.</span><span><b>Ručna kočnica:</b> na toj osovini stisni <b>„Ručna"</b> (postane <b style={{ color: '#7a5600' }}>žuta ✓</b>) PRIJE nego povučeš ručnu.</span></div>
+      <div style={korak}><span style={br}>4.</span><span>Ne stišći ništa dok valjci mjere. Kad završe, rezultat ostane na plavoj osovini.</span></div>
+      <div style={korak}><span style={br}>5.</span><span>Sljedeća osovina: stisni je, pa pokreni valjke. Krivo izmjereno? Stisni istu osovinu i mjeri ponovno — novo mjerenje prepiše staro.</span></div>
+      <button className="btn ghost" style={{ margin: '6px 0 0', padding: '6px 0', fontSize: 13 }} onClick={() => promijeni(true)}>Razumijem — sakrij</button>
+    </div>
+  )
+}
+
+// Traka iznad osovina: što je SAD odabrano i što treba napraviti.
+function SadKoraci({ s }) {
+  const v = s.vozila[s.odabrano_vozilo]
+  if (!v) return null
+  const mjeri = !!s.uzivo
+  const vrsta = s.rucna ? 'RUČNA' : 'NOŽNA'
+  const vise = s.vozila.length > 1 ? ` (GB ${v.gb})` : ''
+  return (
+    <div style={{
+      margin: '0 0 10px', padding: '10px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.35,
+      background: s.rucna ? '#fff3cd' : '#e3f2fd', color: s.rucna ? '#7a5600' : '#0d47a1',
+    }}>
+      {mjeri
+        ? <>⏺ Mjeri se <b>{s.odabrana_osovina}. osovina{vise} — {vrsta}</b>. Ne stišći ništa dok valjci ne završe.</>
+        : <>▶ Odabrano: <b>{s.odabrana_osovina}. osovina{vise} — {vrsta} kočnica</b>. Pokreni valjke i {s.rucna ? 'povuci ručnu' : 'koči nožnom'}.</>}
     </div>
   )
 }
@@ -252,6 +302,8 @@ function MjerenjeValjci() {
                 </span>
               )}
             </div>
+            {!s.zavrsena && <Vodic />}
+            {!s.zavrsena && <SadKoraci s={s} />}
             {s.vozila.map((v, vi) => (
               <div key={v.gb} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '0 0 6px' }}>
