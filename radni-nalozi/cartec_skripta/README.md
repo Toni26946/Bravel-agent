@@ -14,6 +14,8 @@ Svaki test kočnica sama šalje u Radne naloge. Cartec se ne mijenja, skripta sa
 - Ponovljeno mjerenje osovine prepiše datoteku → šalje se ponovno; u portalu vrijedi zadnje, ranije je „ponovljeno”.
 - Novo vozilo = `Logs\<datum>_SaveVehicleData.log` „deleteAll = True” → novi test.
 - Test se sam veže uz nalog na kojem se tog trena radi. Ako nije jasno, u **Pregled radova → Testovi kočnica** stoji pitanje „Test kočnica u HH:MM — koje vozilo?” s gumbima.
-- Nema interneta / čeka odobrenje → mjerenja ostaju i šalju se kasnije.
+- Nema interneta / čeka odobrenje → mjerenje se odmah spremi u red (`%LOCALAPPDATA%\BravelCartec\red.txt`) i šalje se
+  samo svakih 20 s, najstarije prvo — i kad Cartec u međuvremenu prepiše datoteku osovine ili se računalo ponovno pokrene (od v8).
+  Kraj testa se javlja tek kad je red prazan. Server duplikate (isti otisak) odbacuje.
 
 Dnevnik: `%LOCALAPPDATA%\BravelCartec\dnevnik.txt`

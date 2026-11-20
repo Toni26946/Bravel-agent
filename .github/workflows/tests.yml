@@ -26,3 +26,22 @@ jobs:
 
   # Testovi za „radni-nalozi" backend vrte se u workflowu „Deploy Radni Nalozi"
   # (fly-deploy-radni-nalozi.yml) — ondje uz pravi Postgres, kao vrata prije deploya.
+
+  # Skripta s Cartec valjaka se sama ažurira s portala — sintaksna greška bi je ugasila
+  # na računalu u radioni (popravak tek preko AnyDeska). Zato se prije mergea parsira.
+  powershell:
+    name: PowerShell skripte (sintaksa)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parsiraj .ps1
+        shell: pwsh
+        run: |
+          $greske = 0
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1 -Path radni-nalozi) {
+            $tok = $null; $err = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tok, [ref]$err)
+            foreach ($e in $err) { Write-Host "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $greske++ }
+            Write-Host "$($f.Name): $($err.Count) grešaka"
+          }
+          if ($greske) { exit 1 }

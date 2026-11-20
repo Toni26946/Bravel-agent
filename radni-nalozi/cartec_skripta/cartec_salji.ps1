@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '7'
+$Verzija   = '8'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -22,6 +22,10 @@ if ($env:BRAVEL_CARTEC_DIR) { $CartecDir = $env:BRAVEL_CARTEC_DIR }
 if ($env:BRAVEL_CARTEC_STANJE) { $Stanje = $env:BRAVEL_CARTEC_STANJE }
 $TokenDat  = Join-Path $Stanje 'token.txt'
 $PoslanoDat = Join-Path $Stanje 'poslano.txt'
+# Red neposlanih mjerenja (v8): kad pukne veza, mjerenje se odmah spremi ovdje (jedan JSON po retku)
+# i šalje se kasnije — i kad Cartec u međuvremenu prepiše datoteku osovine ili se računalo ponovno pokrene.
+$RedDat    = Join-Path $Stanje 'red.txt'
+$RedSek    = 20        # koliko često se pokušava poslati red
 $Dnevnik   = Join-Path $Stanje 'dnevnik.txt'
 $MirnoSek  = 30        # rezerva: sadržaj se ne mijenja ovoliko sekundi = mjerenje gotovo
                        # (redovno se osovina šalje čim Cartec pokaže rezultat — „SHOW BRAKE RESULT")
@@ -264,7 +268,8 @@ function ProvjeriKraj($token, $faze) {
     $stanjeKad = $k.Odlazak
     $oznaka = $k.Kocenje.ToString('yyyy-MM-dd HH:mm:ss')
     if ($script:javljenKraj -eq $oznaka) { return }
-    # Prvo neka odu sve osovine (datoteka koja se još mjeri ili čeka slanje).
+    # Prvo neka odu sve osovine (datoteka koja se još mjeri ili čeka slanje, i red neposlanih).
+    if ($script:redSlanja.Count -gt 0) { return }
     foreach ($v in $videno.Values) {
         if (-not $poslano.Contains($v.H) -and -not $prazno.Contains($v.H)) { return }
     }
@@ -275,6 +280,63 @@ function ProvjeriKraj($token, $faze) {
         Zapisi "Vozilo sišlo s valjaka u $($stanjeKad.ToString('HH:mm:ss')) → kraj testa $($r.test_id), poruka poslana: $($r.poslano)."
     } catch {
         Zapisi "Javljanje kraja testa nije uspjelo: $($_.Exception.Message) — pokušat ću ponovno."
+    }
+}
+
+function UcitajRed {
+    # Red neposlanih mjerenja s diska (preživi ponovno pokretanje). Pokvareni redak se preskoči.
+    $red = New-Object System.Collections.ArrayList
+    if (-not (Test-Path $RedDat)) { return ,$red }
+    foreach ($l in (Get-Content $RedDat -Encoding UTF8)) {
+        if (-not $l.Trim()) { continue }
+        try { [void]$red.Add(($l | ConvertFrom-Json)) } catch {}
+    }
+    return ,$red
+}
+
+function SpremiRed {
+    $retci = @($script:redSlanja | ForEach-Object { $_ | ConvertTo-Json -Compress })
+    if ($retci.Count -eq 0) { Remove-Item $RedDat -Force -ErrorAction SilentlyContinue; return }
+    Set-Content -Path $RedDat -Encoding UTF8 -Value $retci
+}
+
+function URed($tijelo) {
+    # Mjerenje koje nije otišlo → u red (isti otisak samo jednom).
+    foreach ($m in $script:redSlanja) { if ($m.otisak -eq $tijelo.otisak) { return } }
+    [void]$script:redSlanja.Add([pscustomobject]$tijelo)
+    SpremiRed
+}
+
+function PosaljiRed($token) {
+    # Najstarije prvo; stane na prvoj grešci veze (redoslijed osovina ostaje). Server po otisku
+    # odbacuje duplikat, pa ponovno slanje istog mjerenja ne smeta.
+    if (-not $token -or $script:redSlanja.Count -eq 0) { return }
+    if (((Get-Date) - $script:zadnjiRed).TotalSeconds -lt $RedSek) { return }
+    $script:zadnjiRed = Get-Date
+    while ($script:redSlanja.Count -gt 0) {
+        $m = $script:redSlanja[0]
+        $tijelo = @{}
+        foreach ($p in $m.PSObject.Properties) { $tijelo[$p.Name] = $p.Value }
+        # (PowerShell 7 ISO tekst pretvori u datum — vrati ga u isti oblik kao pri prvom slanju.)
+        if ($tijelo.vrijeme -is [datetime]) { $tijelo.vrijeme = ([DateTimeOffset]$tijelo.vrijeme).ToString('yyyy-MM-ddTHH:mm:sszzz') }
+        try {
+            $r = Posalji '/cartec/mjerenje' $tijelo $token
+            $script:redSlanja.RemoveAt(0); SpremiRed
+            Zapisi "Poslano iz reda: $($tijelo.vrsta) osovina $($tijelo.osovina) ($($tijelo.vrijeme)) → test $($r.test_id) ($($r.status), GB $($r.gb)); u redu još $($script:redSlanja.Count)."
+        } catch {
+            $kod = $null
+            try { $kod = [int]$_.Exception.Response.StatusCode } catch {}
+            if ($kod -eq 400 -or $kod -eq 422) {
+                # Server ga trajno odbija (neispravni podaci) — inače bi zauvijek blokiralo red.
+                $script:redSlanja.RemoveAt(0); SpremiRed
+                Zapisi "Mjerenje iz reda odbijeno ($kod) i maknuto: osovina $($tijelo.osovina) ($($tijelo.vrijeme))."
+                continue
+            }
+            if ($kod -eq 401) { Remove-Item $TokenDat -Force -ErrorAction SilentlyContinue; Zapisi 'Token odbijen — nova prijava (red čeka).' }
+            elseif ($kod -eq 403) { Zapisi "Čeka odobrenje u Radnim nalozima — u redu $($script:redSlanja.Count) mjerenja." }
+            else { Zapisi "Red: slanje nije uspjelo ($kod) — u redu $($script:redSlanja.Count) mjerenja, pokušat ću za $RedSek s." }
+            return
+        }
     }
 }
 
@@ -373,17 +435,20 @@ if (-not (Test-Path $Oznaka7)) {
     Set-Content -Path $GotovoDat -Encoding UTF8 -Value (@($gotovaMjerenja.GetEnumerator() | ForEach-Object { "$($_.Key)|$($_.Value)" }))
     Set-Content -Path $Oznaka7 -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') -Encoding ASCII
 }
+$redSlanja = UcitajRed
+$zadnjiRed = [datetime]::MinValue
 $zadnjeStanje = [datetime]::MinValue
 $zadnjeAzuriranje = [datetime]::MinValue
 $logsProvjera = Join-Path $CartecDir 'Logs'
 $brAxle = @(Get-ChildItem -Path $logsProvjera -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue).Count
-Zapisi "Pokrenuto v$Verzija ($env:COMPUTERNAME). Mapa Logs postoji: $(Test-Path $logsProvjera), AxleData datoteka: $brAxle, prvi put: $prviPut."
+Zapisi "Pokrenuto v$Verzija ($env:COMPUTERNAME). Mapa Logs postoji: $(Test-Path $logsProvjera), AxleData datoteka: $brAxle, prvi put: $prviPut, u redu neposlanih: $($redSlanja.Count)."
 
 while ($true) {
     try {
         $token = Token
         if (((Get-Date) - $zadnjeStanje).TotalSeconds -ge 120) { JaviStanje $token; $zadnjeStanje = Get-Date }
         if (((Get-Date) - $zadnjeAzuriranje).TotalMinutes -ge 10) { Azuriraj $token; $zadnjeAzuriranje = Get-Date }
+        try { PosaljiRed $token } catch { Zapisi "Red: $($_.Exception.Message)" }
         $logs = Join-Path $CartecDir 'Logs'
         $datoteke = Get-ChildItem -Path $logs -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue
         $fazeSad = $null
@@ -431,20 +496,31 @@ while ($true) {
                 tezina = $(if ($o.T -gt 0) { $o.T } else { $null })
                 otisak = $o.Otisak
             }
-            try {
-                $r = Posalji '/cartec/mjerenje' $tijelo $token
-                [void]$poslano.Add($kljuc); Add-Content $PoslanoDat $kljuc
-                if ($id) {
-                    $gotovaMjerenja[$dat.Name] = $id
-                    Set-Content -Path $GotovoDat -Encoding UTF8 -Value (@($gotovaMjerenja.GetEnumerator() | ForEach-Object { "$($_.Key)|$($_.Value)" }))
+            # Dok red nije prazan, novo mjerenje ide na KRAJ reda (redoslijed osovina ostaje).
+            $poslanoSad = $false
+            if ($redSlanja.Count -eq 0) {
+                try {
+                    $r = Posalji '/cartec/mjerenje' $tijelo $token
+                    $poslanoSad = $true
+                    Zapisi "Poslano: $vrsta osovina $($tijelo.osovina) L=$($o.L) D=$($o.D) → test $($r.test_id) ($($r.status), GB $($r.gb))"
+                } catch {
+                    $kod = $null
+                    try { $kod = [int]$_.Exception.Response.StatusCode } catch {}
+                    if ($kod -eq 401) { Remove-Item $TokenDat -Force -ErrorAction SilentlyContinue; Zapisi 'Token odbijen — nova prijava.' }
+                    elseif ($kod -eq 403) { Zapisi 'Čeka odobrenje u Radnim nalozima — mjerenje ide u red.' }
+                    else { Zapisi "Slanje nije uspjelo ($kod): $($_.Exception.Message) — mjerenje ide u red." }
                 }
-                Zapisi "Poslano: $vrsta osovina $($tijelo.osovina) L=$($o.L) D=$($o.D) → test $($r.test_id) ($($r.status), GB $($r.gb))"
-            } catch {
-                $kod = $null
-                try { $kod = [int]$_.Exception.Response.StatusCode } catch {}
-                if ($kod -eq 401) { Remove-Item $TokenDat -Force -ErrorAction SilentlyContinue; Zapisi 'Token odbijen — nova prijava.' }
-                elseif ($kod -eq 403) { Zapisi 'Čeka odobrenje u Radnim nalozima — mjerenje ostaje za kasnije.' }
-                else { Zapisi "Slanje nije uspjelo ($kod): $($_.Exception.Message) — pokušat ću ponovno." }
+            }
+            if (-not $poslanoSad) {
+                URed $tijelo
+                $zadnjiRed = Get-Date
+                Zapisi "U redu: $vrsta osovina $($tijelo.osovina) (mjereno $($o.Kad.ToString('HH:mm:ss'))) — u redu $($redSlanja.Count)."
+            }
+            # Poslano ili sigurno spremljeno u red → ova datoteka je obrađena (ne čita se ponovno).
+            [void]$poslano.Add($kljuc); Add-Content $PoslanoDat $kljuc
+            if ($id) {
+                $gotovaMjerenja[$dat.Name] = $id
+                Set-Content -Path $GotovoDat -Encoding UTF8 -Value (@($gotovaMjerenja.GetEnumerator() | ForEach-Object { "$($_.Key)|$($_.Value)" }))
             }
         }
         try { ProvjeriKraj $token $fazeSad } catch { Zapisi "Provjera kraja testa: $($_.Exception.Message)" }
