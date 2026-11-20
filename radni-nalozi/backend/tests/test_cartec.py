@@ -242,3 +242,11 @@ def test_stanje_i_skripta_za_samoazuriranje():
     assert s["verzija"] and int(s["verzija"]) >= 2 and "AxleData" in s["sadrzaj"]
     [u] = cartec.uredjaji(db=db, _=vod)
     assert u["verzija"] == "2" and "red2" in u["stanje"]
+
+
+def test_skripta_ima_red_neposlanih():
+    # v8: mjerenje koje ne ode (pukla veza) ide u trajni red i šalje se kasnije.
+    put = cartec._skripta_put()
+    tekst = put.read_text(encoding="utf-8-sig")
+    assert int(cartec._verzija_skripte(tekst)) >= 8
+    assert "red.txt" in tekst and "function PosaljiRed" in tekst and "URed $tijelo" in tekst
