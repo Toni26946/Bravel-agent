@@ -587,7 +587,9 @@ def aross_posalji_primku(p: PrimkaIn, db: Session = Depends(get_db), _: Korisnik
     erp = None
     if isinstance(rez, list) and rez and isinstance(rez[0], dict):
         erp = rez[0].get("erpBrojPrimke")
-    if lokalna is not None and erp is not None:
+    if erp is None:
+        raise HTTPException(status_code=502, detail=f"APROSS nije vratio broj primke: {str(rez)[:200]}")
+    if lokalna is not None:
         lokalna.apross_broj = int(erp)
         db.commit()
     return {"ok": True, "erp_broj_primke": erp, "rezultat": rez}

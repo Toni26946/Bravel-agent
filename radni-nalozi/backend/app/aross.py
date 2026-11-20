@@ -104,6 +104,13 @@ def _json(r: httpx.Response):
         if "unauthor" in msg.lower():
             raise ArossGreska(f"APROSS: {msg} — treba Basic Auth (korisnik i lozinka).")
         raise ArossGreska(f"APROSS: {msg}")
+    # Odbijen dokument isto dolazi kao HTTP 200: [{"result": "Error", "message":
+    # "Primka 6409-03-261 je već zaprimljena."}] — prije se tiho gutalo (test 20.11.2026.).
+    elementi = data if isinstance(data, list) else ([data] if isinstance(data, dict) else [])
+    greske = [str(e.get("message") or "nepoznata greška").strip() for e in elementi
+              if isinstance(e, dict) and str(e.get("result") or "").lower() == "error"]
+    if greske:
+        raise ArossGreska("APROSS: " + "; ".join(greske))
     return data
 
 

@@ -674,6 +674,7 @@ class PrimkaCreate(BaseModel):
     foto: str | None = None               # zastarjelo: prva stranica (kompatibilnost)
     fotografije: list[str] = []           # sve stranice otpremnice
     stavke: list[PrimkaStavka] = []
+    dupli: bool = False                   # svjesno spremi otpremnicu s brojem koji već postoji
 
 
 class PrimkaUpdate(BaseModel):

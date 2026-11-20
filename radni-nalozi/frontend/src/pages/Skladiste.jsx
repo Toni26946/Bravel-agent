@@ -266,7 +266,7 @@ function Trazilica({ placeholder, trazi, opis, onPick, pocetni = '', onKreiraj }
 }
 
 // Slanje spremljene primke u Apross (mapiranje na prave šifre + primka/kreiraj).
-function PosaljiUApross({ primka, onPoslano }) {
+function PosaljiUApross({ primka, onPoslano, vecPoslana }) {
   const danas = new Date().toISOString().slice(0, 10)
   const [skl, setSkl] = useState([])
   const [sklId, setSklId] = useState('2')   // sve ide preko skladišta 2 „Roba" (Toni 17.11.2026.)
@@ -316,6 +316,7 @@ function PosaljiUApross({ primka, onPoslano }) {
 
   const posalji = async () => {
     setGreska('')
+    if (vecPoslana) return setGreska(`Otpremnica ${primka.broj_otpremnice} je već u Aprossu kao primka #${vecPoslana.apross_broj} — ne šaljem ponovno.`)
     if (!sklId) return setGreska('Odaberi skladište.')
     if (!dob) return setGreska('Odaberi dobavljača.')
     setRadi(true)
@@ -559,6 +560,14 @@ export default function Skladiste() {
     if (!telo.dobavljac && !telo.broj_otpremnice && !stavke.length && !nova.fotografije.length) {
       setGreska(t('skl.prazno')); return
     }
+    // Ista otpremnica već upisana? (Apross bi drugu odbio, a robu bismo brojali dvaput.)
+    const nb = (s) => (s || '').toUpperCase().replace(/[^0-9A-ZČĆŠŽĐ]/g, '')
+    const isti = telo.broj_otpremnice && (lista || []).find((p) => nb(p.broj_otpremnice) === nb(telo.broj_otpremnice))
+    if (isti) {
+      const kad = isti.datum ? isti.datum.split('-').reverse().join('.') + '.' : ''
+      if (!window.confirm(`Otpremnica ${telo.broj_otpremnice} je već upisana (${isti.dobavljac || ''} ${kad}${isti.apross_broj ? ', u Aprossu #' + isti.apross_broj : ''}).\n\nSpremiti je ipak još jednom?`)) return
+      telo.dupli = true
+    }
     setSpremam(true)
     try {
       await api.kreirajPrimku(telo)
@@ -662,6 +671,8 @@ export default function Skladiste() {
           </div>
         </div>
         <PosaljiUApross primka={detalj}
+          vecPoslana={detalj.broj_otpremnice ? (lista || []).find((p) => p.id !== detalj.id && p.apross_broj
+            && (p.broj_otpremnice || '').toUpperCase().replace(/[^0-9A-ZČĆŠŽĐ]/g, '') === detalj.broj_otpremnice.toUpperCase().replace(/[^0-9A-ZČĆŠŽĐ]/g, '')) : null}
           onPoslano={(erp) => { setDetalj({ ...detalj, apross_broj: erp }); setPoruka(`Poslano u Apross — primka #${erp}`); ucitaj() }} />
       </Layout>
     )
