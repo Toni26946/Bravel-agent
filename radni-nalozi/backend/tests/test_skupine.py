@@ -93,9 +93,11 @@ def test_nitko_nema_skupinu_ostaje_u_planu():
 
 def test_popuni_iz_povijesti():
     db = _session()
-    perac = _meh(db, "Ivan Serniak")
+    from app.routers.plan import SkupineIn, postavi_skupine
+    perac = _meh(db, "Serniak Ivan")            # u aplikaciji obrnuto nego u povijesti
     elek = _meh(db, "Zlatko Kuzmić")
-    vec = _meh(db, "Već Postavljen", "motor")
+    vec = _meh(db, "Već Postavljen")
+    postavi_skupine(SkupineIn(radnik_id=vec.id, skupine=["motor"]), _=vec, db=db)   # ručno
     voz = Vozilo(gb="1", marka="MAN"); db.add(voz); db.flush()
     d = date.today()
 
@@ -113,10 +115,22 @@ def test_popuni_iz_povijesti():
     skupine.jednokratno_popuni(db)
     assert perac.skupine_poslova == "pranje"
     assert elek.skupine_poslova == "elektrika,motor"
-    assert vec.skupine_poslova == "motor", "postojeće kućice se ne diraju"
+    assert vec.skupine_poslova == "motor", "ručno postavljene kućice se ne diraju"
     perac.skupine_poslova = "pranje,gume"; db.commit()
     skupine.jednokratno_popuni(db)            # drugi put ne radi ništa
     assert perac.skupine_poslova == "pranje,gume"
+
+
+@pytest.mark.parametrize("a,b,isto", [
+    ("Antony Jeffin", "Jeffin Antony", True),
+    ("Liushnenko Miykhailo", "Mykhailo Liushnenko", True),
+    ("Ankudy Midhun Hari", "Midhun Hari Ankudy", True),
+    ("Baček Matija", "Matija Bacek", True),
+    ("Kovačević Dario", "Dario Šebec", False),
+    ("Ivan", "Ivan Serniak", False),
+])
+def test_isto_ime(a, b, isto):
+    assert skupine.isto_ime(a, b) is isto
 
 
 def test_api_postavi_skupine():

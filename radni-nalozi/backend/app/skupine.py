@@ -54,7 +54,8 @@ NAZIVI = {k: n for k, n, _p in SKUPINE}
 PRAG_UDIO = 0.15
 PRAG_BROJ = 15
 POVIJEST_DANA = 730
-KLJUC_PREFILL = "skupine_poslova_prefill_v1"
+# v2: imena se spajaju i obrnutim redoslijedom („Antony Jeffin" = „Jeffin Antony").
+KLJUC_PREFILL = "skupine_poslova_prefill_v2"
 
 
 def _bez_dijakritika(s: str) -> str:
@@ -97,8 +98,31 @@ def smije(korisnik, kategorija: str | None) -> bool:
     return bool(moje) and sk in moje
 
 
-def _kljuc_imena(ime: str | None) -> str:
-    return " ".join(_bez_dijakritika(ime or "").upper().split())
+def _rijeci_imena(ime: str | None) -> list[str]:
+    return [w for w in _bez_dijakritika(ime or "").upper().replace("-", " ").split() if len(w) > 1]
+
+
+def _iste_rijeci(a: str, b: str) -> bool:
+    from difflib import SequenceMatcher
+    return a == b or (len(a) >= 5 and len(b) >= 5 and SequenceMatcher(None, a, b).ratio() >= 0.85)
+
+
+def isto_ime(ime_a: str | None, ime_b: str | None) -> bool:
+    """Ista osoba neovisno o redoslijedu (u aplikaciji „Antony Jeffin", u povijesti
+    „Jeffin Antony") i sitnim tipfelerima („Miykhailo"/„Mykhailo"): svaka riječ
+    kraćeg imena (barem 2 riječi) mora imati par u drugom."""
+    a, b = _rijeci_imena(ime_a), _rijeci_imena(ime_b)
+    if len(a) > len(b):
+        a, b = b, a
+    if len(a) < 2:
+        return False
+    ostatak = list(b)
+    for w in a:
+        par = next((x for x in ostatak if _iste_rijeci(w, x)), None)
+        if par is None:
+            return False
+        ostatak.remove(par)
+    return True
 
 
 def brojevi_iz_povijesti(db: Session, korisnici) -> dict[int, dict[str, int]]:
@@ -106,17 +130,25 @@ def brojevi_iz_povijesti(db: Session, korisnici) -> dict[int, dict[str, int]]:
     i završenih zadataka u aplikaciji."""
     from .models import Korisnik, Operacija, PovijestRada, Zadatak
 
-    po_imenu = {_kljuc_imena(k.ime): k.id for k in korisnici}
     ids = {k.id for k in korisnici}
     out: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     od = date.today() - timedelta(days=POVIJEST_DANA)
+    po_imenu: dict[str, int | None] = {}   # ime iz povijesti → korisnik (keš)
+
+    def _rid(ime: str) -> int | None:
+        if ime not in po_imenu:
+            pog = [k.id for k in korisnici if isto_ime(k.ime, ime)]
+            po_imenu[ime] = pog[0] if len(pog) == 1 else None   # dvojbeno → nitko
+        return po_imenu[ime]
+
     for radnik, operacija in (db.query(PovijestRada.radnik, PovijestRada.operacija)
                               .filter(PovijestRada.datum >= od).all()):
         sk = skupina_kategorije(operacija)
         if sk is None:
             continue
         for ime in (radnik or "").split(","):
-            rid = po_imenu.get(_kljuc_imena(ime))
+            ime = " ".join(ime.split())
+            rid = _rid(ime) if ime else None
             if rid is not None:
                 out[rid][sk] += 1
     for kat, rid in (db.query(Operacija.kategorija, Korisnik.id)
@@ -136,9 +168,10 @@ def predlozi_iz_povijesti(brojevi: dict[str, int]) -> set[str]:
     return {sk for sk, c in brojevi.items() if c >= PRAG_BROJ and c / ukupno >= PRAG_UDIO}
 
 
-def popuni_iz_povijesti(db: Session, samo_prazne: bool = True) -> dict[str, list[str]]:
-    """Postavi kućice majstorima iz povijesti. Vraća {ime: [skupine]}."""
-    from .models import Korisnik, Uloga
+def popuni_iz_povijesti(db: Session) -> dict[str, list[str]]:
+    """Postavi kućice majstorima iz povijesti. Ne dira one kojima je netko kućice
+    već ručno mijenjao (zapis „skupine" u povijesti plana). Vraća {ime: [skupine]}."""
+    from .models import Korisnik, PlanDogadaj, Uloga
     from .routers.plan import _SERVISERI
     from sqlalchemy import or_
 
@@ -146,10 +179,11 @@ def popuni_iz_povijesti(db: Session, samo_prazne: bool = True) -> dict[str, list
            .filter(or_(Korisnik.uloga.in_(_SERVISERI), Korisnik.radi_na_nalozima.is_(True)),
                    Korisnik.uloga != Uloga.skladistar)
            .all())
+    rucno = {rid for (rid,) in db.query(PlanDogadaj.radnik_id).filter(PlanDogadaj.tip == "skupine").all()}
     brojevi = brojevi_iz_povijesti(db, meh)
     out = {}
     for k in meh:
-        if samo_prazne and k.skupine_poslova is not None:
+        if k.id in rucno:
             continue
         sk = predlozi_iz_povijesti(brojevi.get(k.id, {}))
         k.skupine_poslova = u_tekst(sk)
@@ -159,7 +193,7 @@ def popuni_iz_povijesti(db: Session, samo_prazne: bool = True) -> dict[str, list
 
 
 def jednokratno_popuni(db: Session) -> None:
-    """Pri startu: jednom popuni kućice iz povijesti (samo onima koji ih nemaju)."""
+    """Pri startu: jednom popuni kućice iz povijesti (osim ručno mijenjanih)."""
     from .norme import get_postavka, set_postavka
     try:
         if get_postavka(db, KLJUC_PREFILL) == "1":
