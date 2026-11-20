@@ -354,6 +354,9 @@ def upozori_bez_vozila(db: Session, u: CartecUredjaj, test_id: int | None = None
             db.commit()
         return False
     imena = [x.strip().lower() for x in (settings.valjci_upozorenje_korisnici or "").split(",") if x.strip()]
+    vlasnik = (settings.ai_poslovodja_user or "").strip().lower()
+    if vlasnik:   # Toni 20.11.2026.: „nek i meni dođe poruka"
+        imena.append(vlasnik)
     primatelji = [k for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all()
                   if (k.korisnicko_ime or "").strip().lower() in imena]
     try:
