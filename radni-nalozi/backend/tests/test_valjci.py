@@ -30,11 +30,11 @@ def test_upozorenje_kad_valjci_rade_bez_vozila(monkeypatch):
     monkeypatch.setattr(cartec, "_wa_tekst", lambda k, poruka: poslano.append((k.korisnicko_ime, poruka)) or {"poslano": True})
     u = cartec.UzivoIn(l=100, d=100, max_l=0, max_d=0, faza="BrakeStartUp")
     cartec.primi_uzivo(u, x_cartec_token=tok, db=db)
-    assert sorted(x[0] for x in poslano) == ["dominik.bahal", "zvonimir.azinovic"]
+    assert sorted(x[0] for x in poslano) == ["dominik.bahal", "toni", "zvonimir.azinovic"]
     assert "bravel-valjci.fly.dev" in poslano[0][1]
     cartec.primi_uzivo(u, x_cartec_token=tok, db=db)          # unutar 15 min — ne opet
     _koci(db, tok, 500, 500)
-    assert len(poslano) == 2
+    assert len(poslano) == 3
     [z] = cartec.upozorenja(limit=10, db=db, k=vod)
     assert "Dominik Bahal: poslano" in z["rezultat"] and z["test_id"]   # zapisano, s testom
     # S upisanim vozilom u aplikaciji — nema upozorenja.
@@ -43,7 +43,7 @@ def test_upozorenje_kad_valjci_rade_bez_vozila(monkeypatch):
     db.commit()
     valjci.nova_sesija(valjci.SesijaIn(kamion_gb="425"), db=db, k=vod)
     cartec.primi_uzivo(u, x_cartec_token=tok, db=db)
-    assert len(poslano) == 2
+    assert len(poslano) == 3
 
 
 def _db():
