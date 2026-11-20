@@ -385,6 +385,21 @@ def izvoz_jedne(primka_id: int, _: Korisnik = Depends(skladiste), db: Session = 
     return _xlsx_odgovor(wb, f"primka-{p.broj_otpremnice or p.id}")
 
 
+def _norm_broj(s: str | None) -> str:
+    return "".join(c for c in (s or "").upper() if c.isalnum())
+
+
+def _ista_otpremnica(db: Session, broj: str):
+    """Postojeća primka s istim brojem otpremnice (bez razmaka/crtica), ili None."""
+    n = _norm_broj(broj)
+    if not n:
+        return None
+    for p in db.query(Primka).filter(Primka.broj_otpremnice.isnot(None)).all():
+        if _norm_broj(p.broj_otpremnice) == n:
+            return p
+    return None
+
+
 @router.post("", response_model=PrimkaOut, status_code=201)
 def kreiraj(podaci: PrimkaCreate, korisnik: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
     stavke = [x.model_dump() for x in podaci.stavke if x.artikl.strip()]
@@ -393,6 +408,15 @@ def kreiraj(podaci: PrimkaCreate, korisnik: Korisnik = Depends(skladiste), db: S
         fotografije = [podaci.foto]
     if not (podaci.dobavljac or podaci.broj_otpremnice or stavke or fotografije):
         raise HTTPException(status_code=400, detail="Primka je prazna — dodaj barem dobavljača, broj otpremnice ili stavku.")
+    # Ista otpremnica dvaput (test 20.11.2026.: 6409-03-261 upisana i 26.10.) — Apross bi je
+    # ionako odbio („već zaprimljena"), a robu bismo lokalno brojali dvaput.
+    if podaci.broj_otpremnice and not podaci.dupli:
+        isti = _ista_otpremnica(db, podaci.broj_otpremnice)
+        if isti is not None:
+            kad = isti.datum.strftime("%d.%m.%Y.") if isti.datum else "ranije"
+            raise HTTPException(status_code=409, detail=(
+                f"Otpremnica {podaci.broj_otpremnice} je već upisana ({isti.dobavljac or 'primka'}, {kad}"
+                + (f", u Aprossu #{isti.apross_broj}" if isti.apross_broj else "") + ")."))
     p = Primka(
         dobavljac=(podaci.dobavljac or None),
         broj_otpremnice=(podaci.broj_otpremnice or None),

@@ -204,3 +204,37 @@ def test_ne_spaja_po_viskoznosti_i_brojevima_iz_naziva():
     assert predlozi_artikl("5W30 Total Quartz Ineo RCP (1L) (TOT231130)", idx) is None
     assert predlozi_artikl("75W90 Pemco iPoid 595 GI-5 (1L) (PM0595-1)", idx) is None
     assert predlozi_artikl("Semering 27X47X7 (81-35552-00)", idx)["sifra"] == 4
+
+
+def test_odbijen_dokument_digne_gresku():
+    """Apross odbijenu primku vraća kao HTTP 200 s [{"result": "Error", "message": …}] —
+    prije se tiho gutalo pa korisnik nije znao da primka nije prošla (test 20.11.2026.)."""
+    import httpx
+    r = httpx.Response(200, json=[{"result": "Error", "message": "Primka 6409-03-261 je već zaprimljena."}])
+    with pytest.raises(aross.ArossGreska, match="već zaprimljena"):
+        aross._json(r)
+    ok = httpx.Response(200, json=[{"webBrojPrimke": "X", "erpBrojPrimke": 2480}])
+    assert aross._json(ok)[0]["erpBrojPrimke"] == 2480
+
+
+def test_dupla_otpremnica_odbijena_osim_svjesno():
+    import os
+    os.environ.setdefault("DATABASE_URL", "sqlite://")
+    from fastapi import HTTPException
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database import Base
+    from app.models import Korisnik, Uloga
+    from app.routers.primke import kreiraj
+    from app.schemas import PrimkaCreate
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(eng)
+    db = sessionmaker(bind=eng, autoflush=False)()
+    k = Korisnik(ime="Sk", korisnicko_ime="sk", lozinka_hash="x", uloga=Uloga.skladistar)
+    db.add(k); db.commit()
+    kreiraj(PrimkaCreate(dobavljac="FRENUM", broj_otpremnice="6409-03-261"), korisnik=k, db=db)
+    with pytest.raises(HTTPException) as e:
+        kreiraj(PrimkaCreate(dobavljac="Frenum", broj_otpremnice="6409 03 261"), korisnik=k, db=db)
+    assert e.value.status_code == 409 and "već upisana" in e.value.detail
+    p = kreiraj(PrimkaCreate(dobavljac="Frenum", broj_otpremnice="6409-03-261", dupli=True), korisnik=k, db=db)
+    assert p.id
