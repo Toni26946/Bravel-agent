@@ -36,6 +36,7 @@ class ArossIn(BaseModel):
     api_key: str | None = None   # None/izostavljeno = ne diraj; "" = obriši
     user: str | None = None
     lozinka: str | None = None
+    adresa: str | None = None    # npr. https://bravel-api-test.zgdata.hr/api5 (bez ključa)
 
 
 @router.get("/aross")
@@ -50,6 +51,8 @@ def aross_stanje(db: Session = Depends(get_db), _: Korisnik = Depends(samo_vlasn
         "ima_basic": aross.ima_basic(db),
         "korisnik": user,                 # korisničko ime nije tajna; lozinka se ne vraća
         "baza": aross._baza(db) if key else "",
+        "adresa": aross.adresa(db),       # bez ključa
+        "testna": aross.je_testna(db),    # True = testna baza (ništa ne ide u pravi Apross)
     }
 
 
@@ -63,7 +66,18 @@ def aross_spremi(p: ArossIn, db: Session = Depends(get_db), _: Korisnik = Depend
         set_postavka(db, aross.P_USER, p.user.strip())
     if p.lozinka is not None:
         set_postavka(db, aross.P_PASS, p.lozinka)
+    if p.adresa is not None:
+        a = p.adresa.strip().rstrip("/")
+        if a and not re.match(r"^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$", a):
+            raise HTTPException(status_code=400, detail="Adresa mora biti https://… (bez API ključa na kraju).")
+        set_postavka(db, aross.P_BASE, a)
     db.commit()
+    # Druga baza/ključ → šifrarnici iz keša više ne vrijede (artikli, partneri, mjesta troška).
+    for kes in (_ART_KES, _PART_KES, _MT_KES):
+        kes["ts"] = 0.0
+    _ART_KES["map"] = {}
+    _PART_KES["lista"] = []
+    _MT_KES["lista"] = []
     return aross_stanje(db, _)
 
 
