@@ -140,7 +140,9 @@ async def lifespan(app: FastAPI):
     pregledi_obav_task.cancel()
 
 
-app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan)
+# Bez javnih /docs, /redoc i /openapi.json — popis svih ruta ne treba biti javan.
+app = FastAPI(title="Bravel Radni Nalozi", version="1.0.0", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 
 class SigurnosniZaglavlja:
