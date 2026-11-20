@@ -173,6 +173,9 @@ def azuriraj(
         k.radi_na_nalozima = podaci.radi_na_nalozima
         if podaci.radi_na_nalozima:
             k.prijavljuje_se = True   # inače ga popisi mehaničara (plan, poveznice) preskaču
+    if podaci.skupine_poslova is not None:
+        from ..skupine import u_tekst
+        k.skupine_poslova = u_tekst(podaci.skupine_poslova)
     if podaci.lozinka:
         k.lozinka_hash = hash_lozinka(podaci.lozinka)
     db.commit()

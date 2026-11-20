@@ -3,8 +3,9 @@
 Čim nekom prisutnom mehaničaru ostane manje od MIN_ZADATAKA (5) zadataka u redu
 (i onaj u tijeku; bez odgođenih), sam mu se dodijeli sljedeća NEDODIJELJENA operacija iz plana:
 - redom: HITNO → lista prioriteta (1, 2, 3…) → ostali po redoslijedu plana;
-- kome: mehaničaru (od onih kojima treba posla) koji je najviše puta završio tu vrstu
-  posla; ako nitko nije ili su izjednačeni → onaj s najmanje zadataka.
+- kome: SAMO majstorima kojima je skupina tog posla označena (skupine.py — kućice
+  „što tko radi"); među njima onaj koji je najviše puta završio tu vrstu posla, pa
+  onaj s najmanje zadataka. Kategorija bez skupine / nitko ne smije → ostaje ručno.
 
 Preskaču se: operacije koje čekaju dijelove / vozilo nedostupno, nalozi koji čekaju
 dijelove, vozila dalje od 200 m od radione (GPS), pregledi (rade ih pregledari),
@@ -18,7 +19,7 @@ import logging
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from . import flota, norme
+from . import flota, norme, skupine
 from .config import settings
 from .models import Korisnik, Nalog, StatusNaloga, Uloga, Zadatak
 
@@ -140,8 +141,13 @@ def popuni(db: Session) -> list[dict]:
                 udaljenost[gb] = None
         if udaljenost[gb] is not None and udaljenost[gb] > BLIZU_M:
             continue   # vozilo nije u radioni
+        # Samo majstori kojima je ta skupina poslova označena (Toni 20.11.2026.: perač ne
+        # dobiva elektriku). Nitko ne smije / kategorija bez skupine → ostaje u planu (ručno).
+        smiju = [r for r in trebaju if skupine.smije(po_id[r], op.kategorija)]
+        if not smiju:
+            continue
         isk = iskustvo.get(_norm_kat(op.kategorija), {})
-        rid = min(trebaju, key=lambda r: (-isk.get(r, 0), ceka[r], ukupno[r], po_id[r].ime or ""))
+        rid = min(smiju, key=lambda r: (-isk.get(r, 0), ceka[r], ukupno[r], po_id[r].ime or ""))
         try:
             _set_radnici(db, z, [rid])
         except Exception as e:  # noqa: BLE001 — jedan loš ne smije srušiti ostale
