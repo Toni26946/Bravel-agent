@@ -582,21 +582,42 @@ function RadniciZadatka({ z }) {
   return <span className="rad-tekst">{dodijeljeni.map((r) => r.ime).join(', ') || '—'}</span>
 }
 
-function DodajZadatak({ nalogId, opId, naGotovo, naGresku }) {
+// Unos novog zadatka u operaciju (WhatsApp prijava #353: „neće prihvatiti zadatak").
+// - <form> + onSubmit: tipka „Enter/Gotovo" na Android tipkovnicama (Samsung) ne šalje
+//   uvijek keydown 'Enter' (dok je riječ u prijedlogu dolazi kao 'Unidentified'), a
+//   submit forme radi uvijek.
+// - Tekst se čita iz samog polja (ref), ne samo iz stanja — diktat/prijedlog tipkovnice
+//   zna ostati u polju a da stanje još nije ažurirano.
+// - Dok se sprema piše „Spremam…", a greška ostaje ISPOD polja (s tekstom), umjesto da
+//   klik izgleda kao da ništa nije napravio.
+function DodajZadatak({ nalogId, opId, naGotovo }) {
   const { t } = useT()
   const [opis, setOpis] = useState('')
-  const spremi = async () => {
-    if (!opis.trim()) return
-    try { await api.dodajZadatak(nalogId, opId, opis.trim()); setOpis(''); naGotovo() }
-    catch (e) { naGresku(e.message) }
+  const [sprema, setSprema] = useState(false)
+  const [greska, setGreska] = useState('')
+  const poljeRef = useRef(null)
+  const spremi = async (e) => {
+    if (e) e.preventDefault()
+    if (sprema) return
+    const tekst = ((poljeRef.current && poljeRef.current.value) || opis || '').trim()
+    if (!tekst) { setGreska('Upiši opis zadatka.'); return }
+    setSprema(true); setGreska('')
+    try { await api.dodajZadatak(nalogId, opId, tekst); setOpis(''); naGotovo() }
+    catch (err) { setGreska(err.message || 'Zadatak nije spremljen — pokušaj ponovno.') }
+    finally { setSprema(false) }
   }
   return (
-    <div className="btn-red" style={{ marginTop: 10, alignItems: 'stretch' }}>
-      <input value={opis} onChange={(e) => setOpis(e.target.value)} placeholder={t('op.noviZadatak')}
-        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), spremi())} />
-      <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => setOpis((v) => (v ? v + ' ' : '') + tekst)} />
-      <button className="btn sekund mali" onClick={spremi} disabled={!opis.trim()}>{t('op.zadatak')}</button>
-    </div>
+    <form onSubmit={spremi} style={{ marginTop: 10 }}>
+      <div className="btn-red" style={{ alignItems: 'stretch' }}>
+        <input ref={poljeRef} value={opis} onChange={(e) => { setOpis(e.target.value); setGreska('') }}
+          placeholder={t('op.noviZadatak')} enterKeyHint="done" />
+        <MikrofonGumb naslov={t('op.diktirajZadatak')} onTekst={(tekst) => setOpis((v) => (v ? v + ' ' : '') + tekst)} />
+        <button type="submit" className="btn sekund mali" disabled={sprema}>
+          {sprema ? 'Spremam…' : t('op.zadatak')}
+        </button>
+      </div>
+      {greska && <div className="greska" style={{ marginTop: 6 }}>{greska}</div>}
+    </form>
   )
 }
 
