@@ -697,3 +697,29 @@ def test_gotovo_dvojica_zavrsava_tek_kad_obojica():
     z_gotovo("tokB", UredjajIn(uredjaj="dB"), request=_REQ, db=db)
     db.refresh(z)
     assert z.gotovo is True, "kad obojica kliknu Gotovo, operacija je gotova"
+
+
+def test_dvojica_na_zadatku_kolegin_mjerac_nije_moj():
+    """23.11.2026. (Ronquillo + Ankudy, GB 307): kad mjerač teče samo kolegi, drugi
+    mehaničar mora vidjeti „Počinjem" (ne „mjerač radi") i moći se prijaviti."""
+    from app.models import ZadatakRadnikVrijeme
+    db = _session()
+    ron = Korisnik(ime="Ronquillo", korisnicko_ime="ron", lozinka_hash="x", uloga=Uloga.radnik)
+    ank = Korisnik(ime="Ankudy", korisnicko_ime="ank", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="307", marka="KRONE"); db.add_all([ron, ank, voz]); db.flush()
+    n = Nalog(broj="RN-307", vozilo_id=voz.id, naslov="T", kreirao_id=ron.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="BOJANJE"); db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="farbanje", ceka_potvrdu=True); z.radnici = [ron, ank]
+    db.add(z); db.flush()
+    db.add_all([MehanicarLink(radnik_id=ron.id, token="tron", aktivan=True),
+                MehanicarLink(radnik_id=ank.id, token="tank", aktivan=True)])
+    db.commit()
+    assert z_pocinjem("tank", UredjajIn(uredjaj="A"), db=db)["stanje"] == "radu"   # Ankudy krene
+    s = z_stanje("tron", UredjajIn(uredjaj="B"), db=db)
+    assert s["stanje"] != "radu", "Ronquillu ne teče mjerač — mora dobiti tipku Počinjem"
+    s2 = z_pocinjem("tron", UredjajIn(uredjaj="B"), db=db)
+    assert s2["stanje"] == "radu"
+    db.refresh(z)
+    vr = {v.radnik_id: v for v in db.query(ZadatakRadnikVrijeme).filter_by(zadatak_id=z.id)}
+    assert vr[ron.id].zapoceto is not None and vr[ank.id].zapoceto is not None
