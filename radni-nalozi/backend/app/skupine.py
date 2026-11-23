@@ -39,7 +39,7 @@ SKUPINE: list[tuple[str, str, tuple[str, ...]]] = [
     ("pneumatika", "Pneumatika (zrak)",
      ("PNEUMATIK", "KOMPRESOR")),
     ("ovjes", "Ovjes, osovine, upravljanje, sedla",
-     ("OSOVIN", "OVJES", "GIBNJ", "AMORTIZ", "KOTAC", "GLAVCIN", "UPRAVLJANJ", "SPUR",
+     ("OSOVIN", "OVJES", "ZRACNI JASTU", "GIBNJ", "AMORTIZ", "KOTAC", "GLAVCIN", "UPRAVLJANJ", "SPUR",
       "SEDL", "VUCN", "VUCU", "KUKA", "RUDE")),
     ("hidraulika", "Hidraulika i dizalica",
      ("HIDRAUL", "DIZALIC", "RAZVODNIC", "SKARE", "CRIJEV", "BLOMBIR")),
@@ -86,10 +86,14 @@ def skupina_kategorije(kategorija: str | None) -> str | None:
     k = " ".join(_bez_dijakritika(kategorija or "").upper().split())
     if not k:
         return None
-    k = k + " "
-    for kljuc, _naziv, uzorci in SKUPINE:
-        if any(u in k for u in uzorci):
-            return kljuc
+    # „N. OSOVINA" samo kaže GDJE je posao, ne KOJI — „BLATOBRANI 2. OSOVINA" je limarija,
+    # ne ovjes (23.11.2026.). Prvo bez oznake osovine; tek ako ništa ne pogodi, s njom.
+    import re
+    bez_osovine = re.sub(r"\b\d+\s*\.?\s*OSOVIN\w*", " ", k)
+    for tekst in (bez_osovine + " ", k + " "):
+        for kljuc, _naziv, uzorci in SKUPINE:
+            if any(u in tekst for u in uzorci):
+                return kljuc
     return None
 
 
