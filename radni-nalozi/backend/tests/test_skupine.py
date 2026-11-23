@@ -1,6 +1,6 @@
 """Skupine poslova — „što tko radi" (Toni 20.11.2026.): perač ne dobiva elektriku.
 
-- kategorija operacije → skupina (8 skupina; RAZNO/TEREN → None = samo ručno);
+- kategorija operacije → skupina (9 skupina, zavarivanje zasebno od 23.11.2026.; RAZNO/TEREN → None = samo ručno);
 - auto-popunjavanje daje majstoru SAMO poslove iz njegovih označenih skupina;
 - početne kućice iz povijesti rada (udio ≥ 15 % i ≥ 15 zapisa).
 """
@@ -57,7 +57,8 @@ def _zad(db, gb, kat, kreirao, prio):
     ("IZRADA HIDRAULIČNIH CRIJEVA", "hidraulika"),
     ("MOTOR", "motor"), ("GETRIBA", "motor"), ("AD-BLUE", "motor"), ("HLADNJAK VODE I INTERCOOLER", "motor"),
     ("JASTUCI I ŠTICE", "limarija"), ("LIMARIJA2", "limarija"), ("BOJANJE", "limarija"),
-    ("BRAVARIJA", "limarija"), ("ŠASIJA 3", "limarija"),
+    ("BRAVARIJA", "zavarivanje"), ("Bravarija 2", "zavarivanje"), ("ZAVARIVANJE", "zavarivanje"),
+    ("ŠASIJA 3", "limarija"),
     ("SERVIS", "servis"), ("PODMAZIVANJE", "servis"),
     ("RAZNO", None), ("TEREN Bad Soden", None), ("Prikopčavanje, otkopčavanje, dovažanje i odvažanje", None),
     ("", None), (None, None),
@@ -119,6 +120,30 @@ def test_popuni_iz_povijesti():
     perac.skupine_poslova = "pranje,gume"; db.commit()
     skupine.jednokratno_popuni(db)            # drugi put ne radi ništa
     assert perac.skupine_poslova == "pranje,gume"
+
+
+def test_razdvoji_zavarivanje():
+    """#365: tko je imao „limarija" dobiva i „zavarivanje" samo ako je zavarivao (ili nema povijesti)."""
+    db = _session()
+    bravar = _meh(db, "Bravar Ivo", "limarija")
+    lakirer = _meh(db, "Lakirer Ante", "limarija,pranje")
+    novi = _meh(db, "Novi Majstor", "limarija")         # bez povijesti → zadrži dosadašnje
+    perac = _meh(db, "Perac Pero", "pranje")             # nije limar → ne dira se
+    voz = Vozilo(gb="1", marka="MAN"); db.add(voz); db.flush()
+    d = date.today()
+    for ime, kat, n in [("Bravar Ivo", "Bravarija", 40), ("Bravar Ivo", "Limarija", 30),
+                        ("Lakirer Ante", "Limarija", 50), ("Lakirer Ante", "Bravarija", 3)]:
+        for _ in range(n):
+            db.add(PovijestRada(vozilo_id=voz.id, datum=d, radnik=ime, operacija=kat))
+    db.commit()
+    skupine.jednokratno_razdvoji_zavarivanje(db)
+    assert bravar.skupine_poslova == "zavarivanje,limarija"
+    assert lakirer.skupine_poslova == "limarija,pranje"
+    assert novi.skupine_poslova == "zavarivanje,limarija"
+    assert perac.skupine_poslova == "pranje"
+    lakirer.skupine_poslova = "limarija"; db.commit()
+    skupine.jednokratno_razdvoji_zavarivanje(db)        # drugi put ne radi ništa
+    assert lakirer.skupine_poslova == "limarija"
 
 
 @pytest.mark.parametrize("a,b,isto", [
