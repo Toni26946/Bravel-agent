@@ -74,7 +74,7 @@ def popuni(db: Session) -> list[dict]:
     from .routers.nalozi import nalog_eager
     from .routers.plan import (
         _AKTIVNI, _PREGLED_KAT, _SERVISERI, _SKRIVENI_GB, _gb, _iskustvo_po_kategoriji,
-        _je_odsutan, _log, _norm_kat, _set_radnici,
+        _je_odsutan, _log, _norm_kat, _radio_po_zadatku, _set_radnici,
     )
 
     iskljuceni = _iskljuceni_kimena()
@@ -128,6 +128,9 @@ def popuni(db: Session) -> list[dict]:
         return []
     kandidati.sort(key=_kljuc_kandidata)
     iskustvo = _iskustvo_po_kategoriji(db, list(trebaju))
+    # Tko je na zadatku već nakupio vrijeme (23.11.2026.: Pavliukhov AdBlue od 18 h dobio je
+    # drugi majstor). Započeti posao ide NJEMU ako je prisutan; ako mu je red pun, čeka ga.
+    radili = _radio_po_zadatku(db, [z.id for _n, _op, z in kandidati])
     udaljenost: dict[str, float | None] = {}
     out = []
     for n, op, z in kandidati:
@@ -143,11 +146,17 @@ def popuni(db: Session) -> list[dict]:
             continue   # vozilo nije u radioni
         # Samo majstori kojima je ta skupina poslova označena (Toni 20.11.2026.: perač ne
         # dobiva elektriku). Nitko ne smije / kategorija bez skupine → ostaje u planu (ručno).
-        smiju = [r for r in trebaju if skupine.smije(po_id[r], op.kategorija)]
-        if not smiju:
-            continue
-        isk = iskustvo.get(_norm_kat(op.kategorija), {})
-        rid = min(smiju, key=lambda r: (-isk.get(r, 0), ceka[r], ukupno[r], po_id[r].ime or ""))
+        prethodnik = (radili.get(z.id) or (None, None))[1]
+        if prethodnik in po_id:          # prisutan majstor koji ga je već radio
+            if prethodnik not in trebaju:
+                continue                 # red mu je pun — posao čeka njega, ne ide drugome
+            rid = prethodnik
+        else:
+            smiju = [r for r in trebaju if skupine.smije(po_id[r], op.kategorija)]
+            if not smiju:
+                continue
+            isk = iskustvo.get(_norm_kat(op.kategorija), {})
+            rid = min(smiju, key=lambda r: (-isk.get(r, 0), ceka[r], ukupno[r], po_id[r].ime or ""))
         try:
             _set_radnici(db, z, [rid])
         except Exception as e:  # noqa: BLE001 — jedan loš ne smije srušiti ostale
