@@ -28,7 +28,8 @@ async function zahtjev(putanja, { method = 'GET', body, form } = {}) {
     telo = JSON.stringify(body)
   }
 
-  const res = await fetch(BASE + '/api' + putanja, { method, headers, body: telo })
+  // keepalive: odgođeno brisanje (↶ Poništi) se pri zatvaranju kartice mora stići poslati.
+  const res = await fetch(BASE + '/api' + putanja, { method, headers, body: telo, keepalive: method === 'DELETE' })
   if (res.status === 401) {
     setToken(null)
     // Aplikacija Valjci ima svoju prijavu — ostaje na /valjci.

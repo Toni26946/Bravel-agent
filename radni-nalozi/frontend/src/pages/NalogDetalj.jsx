@@ -10,6 +10,7 @@ import {
 import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
 import SlikaEditor from '../SlikaEditor'
 import { CrtezOsovina } from './TestoviKocnica'
+import { usePonisti } from '../ponisti'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -38,6 +39,7 @@ export default function NalogDetalj() {
   const spojeno = params.get('spojeno') === '1'
   const { korisnik } = useAuth()
   const { t } = useT()
+  const { zabiljezi } = usePonisti()
   const [n, setN] = useState(null)
   const [greska, setGreska] = useState('')
   const [radnici, setRadnici] = useState([])
@@ -78,14 +80,26 @@ export default function NalogDetalj() {
 
   const promijeniStatus = async (status) => {
     setGreska('')
-    try { await api.nalogStatus(id, status); ucitaj() } catch (e) { setGreska(e.message) }
+    const stari = n.status
+    try {
+      await api.nalogStatus(id, status); ucitaj()
+      // ↶ Poništi: vrati prethodni status (WhatsApp #377).
+      zabiljezi({
+        opis: `Status: ${t('status.' + status)}`,
+        vrati: () => api.nalogStatus(id, stari), nakon: ucitaj, naGresku: setGreska,
+      })
+    } catch (e) { setGreska(e.message) }
   }
 
   const jeUrednik = korisnik.uloga === 'voditelj' || korisnik.uloga === 'poslovodja'
   const zapocniUredi = () => { setForma({ naslov: n.naslov || '', opis: n.opis || '' }); setUredi(true) }
   const spremiUredi = async () => {
     setGreska('')
-    try { await api.azurirajNalog(id, { naslov: forma.naslov, opis: forma.opis }); setUredi(false); ucitaj() }
+    const staro = { naslov: n.naslov || '', opis: n.opis || '' }
+    try {
+      await api.azurirajNalog(id, { naslov: forma.naslov, opis: forma.opis }); setUredi(false); ucitaj()
+      zabiljezi({ opis: 'Izmijenjen nalog', vrati: () => api.azurirajNalog(id, staro), nakon: ucitaj, naGresku: setGreska })
+    }
     catch (e) { setGreska(e.message) }
   }
 
@@ -430,20 +444,29 @@ function Operacije({ nalog, radnici, ucitaj, naGresku, jeVoditelj }) {
     const id = setInterval(() => setSada(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+  const pon = usePonisti()
   const wrap = (p) => p.then(ucitaj).catch((e) => naGresku(e.message))
   const dodajOp = (kat) => {
     const k = (kat || '').trim()
     if (!k) return
-    wrap(api.dodajOperaciju(nalog.id, k))
+    wrap(api.dodajOperaciju(nalog.id, k).then((op) => {
+      // ↶ Poništi dodavanje = obriši upravo dodanu operaciju.
+      if (op && op.id) pon.zabiljezi({
+        opis: `Dodana operacija „${k}"`,
+        vrati: () => api.obrisiOperaciju(nalog.id, op.id), nakon: ucitaj, naGresku,
+      })
+    }))
   }
+  // Operacije koje čekaju odgođeno brisanje (↶ Poništi) se ne prikazuju.
+  const operacije = nalog.operacije.filter((op) => !pon.skriveni.has('op:' + op.id))
 
   return (
     <>
       <div className="op-tablica">
         <div className="op-head"><div>{t('op.operacija')}</div><div>{t('op.radnik')}</div></div>
-        {nalog.operacije.length === 0 && <div className="op-prazno">{t('op.nemaOperacija')}</div>}
-        {nalog.operacije.map((op) => (
-          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} sada={sada} jeVoditelj={jeVoditelj} />
+        {operacije.length === 0 && <div className="op-prazno">{t('op.nemaOperacija')}</div>}
+        {operacije.map((op) => (
+          <OperacijaBlok key={op.id} nalog={nalog} op={op} radnici={radnici} wrap={wrap} ucitaj={ucitaj} naGresku={naGresku} sada={sada} jeVoditelj={jeVoditelj} pon={pon} />
         ))}
       </div>
 
@@ -493,9 +516,21 @@ function TekstUredivi({ vrijednost, editable, prikazKlasa, onSpremi }) {
   )
 }
 
-function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVoditelj }) {
+function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVoditelj, pon }) {
   const { t } = useT()
   const [dodaje, setDodaje] = useState(false)
+  // ↶ Poništi (WhatsApp #377): × ne briše odmah nego s odgodom; izmjene pamte staru vrijednost.
+  const kratko = (tx) => { const s = (tx || '').trim(); return s.length > 40 ? s.slice(0, 40) + '…' : s }
+  const obrisiOp = () => pon.odgodi({
+    opis: `Obrisana operacija „${kratko(op.kategorija)}"`, kljuc: 'op:' + op.id,
+    izvrsi: () => api.obrisiOperaciju(nalog.id, op.id), nakon: ucitaj, naGresku,
+  })
+  const obrisiZad = (z) => pon.odgodi({
+    opis: `Obrisan zadatak „${kratko(z.opis)}"`, kljuc: 'zad:' + z.id,
+    izvrsi: () => api.obrisiZadatak(nalog.id, z.id), nakon: ucitaj, naGresku,
+  })
+  const izmijeni = (p, opis, vrati) => wrap(p.then(() => pon.zabiljezi({ opis, vrati, nakon: ucitaj, naGresku })))
+  const zadaci = op.zadaci.filter((z) => !pon.skriveni.has('zad:' + z.id))
   return (
     <div className="op2">
       <div className="op2-kat">
@@ -503,13 +538,14 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
           vrijednost={op.kategorija}
           editable={jeVoditelj}
           prikazKlasa="op2-ime"
-          onSpremi={(v) => wrap(api.azurirajOperaciju(nalog.id, op.id, { kategorija: v }))}
+          onSpremi={(v) => izmijeni(api.azurirajOperaciju(nalog.id, op.id, { kategorija: v }),
+            `Preimenovana operacija „${kratko(v)}"`, () => api.azurirajOperaciju(nalog.id, op.id, { kategorija: op.kategorija }))}
         />
         {jeVoditelj && <span className="op2-plus" onClick={() => setDodaje((v) => !v)}>＋</span>}
-        {jeVoditelj && <span className="x" onClick={() => wrap(api.obrisiOperaciju(nalog.id, op.id))}>×</span>}
+        {jeVoditelj && <span className="x" onClick={obrisiOp}>×</span>}
       </div>
       <div className="op2-kat-r" />
-      {op.zadaci.map((z) => {
+      {zadaci.map((z) => {
         const radi = !!z.zapoceto
         const osnova = z.utroseno_sek || 0
         // Živi prikaz = vrijeme od zadnje prijave (trenutna sesija), ne ukupno.
@@ -520,15 +556,18 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
               <input
                 type="checkbox"
                 checked={z.gotovo}
-                onChange={() => wrap(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }))}
+                onChange={() => izmijeni(api.azurirajZadatak(nalog.id, z.id, { gotovo: !z.gotovo }),
+                  `${z.gotovo ? 'Zadatak ponovno otvoren' : 'Zadatak označen gotovim'}: „${kratko(z.opis)}"`,
+                  () => api.azurirajZadatak(nalog.id, z.id, { gotovo: z.gotovo }))}
               />
               <TekstUredivi
                 vrijednost={z.opis}
                 editable={jeVoditelj}
                 prikazKlasa={z.gotovo ? 'zad-gotov' : ''}
-                onSpremi={(v) => wrap(api.azurirajZadatak(nalog.id, z.id, { opis: v }))}
+                onSpremi={(v) => izmijeni(api.azurirajZadatak(nalog.id, z.id, { opis: v }),
+                  `Izmijenjen zadatak „${kratko(v)}"`, () => api.azurirajZadatak(nalog.id, z.id, { opis: z.opis }))}
               />
-              {jeVoditelj && <span className="x" onClick={(e) => { e.preventDefault(); e.stopPropagation(); wrap(api.obrisiZadatak(nalog.id, z.id)) }}>×</span>}
+              {jeVoditelj && <span className="x" onClick={(e) => { e.preventDefault(); e.stopPropagation(); obrisiZad(z) }}>×</span>}
             </label>
             <div className="op2-rad">
               <RadniciZadatka nalog={nalog} z={z} radnici={radnici} jeVoditelj={jeVoditelj} wrap={wrap} />
@@ -681,7 +720,16 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
       setNaziv(''); setKataloski(''); setKol('1'); setJmj('kom'); setNapomena(''); setFotke([]); ucitaj()
     } catch (e) { naGresku(e.message) } finally { setRadi(false) }
   }
-  const obrisi = async (id) => { try { await api.obrisiNarudzbu(id); ucitaj() } catch (e) { naGresku(e.message) } }
+  // ↶ Poništi (WhatsApp #377): brisanje s odgodom.
+  const pon = usePonisti()
+  const vidljivo = lista && lista.filter((x) => !pon.skriveni.has('nar:' + x.id))
+  const obrisi = (id) => {
+    const st = (lista || []).find((x) => x.id === id)
+    pon.odgodi({
+      opis: `Obrisana narudžba „${(st && (st.naziv || st.kataloski)) || 'dio'}"`, kljuc: 'nar:' + id,
+      izvrsi: () => api.obrisiNarudzbu(id), nakon: ucitaj, naGresku,
+    })
+  }
 
   return (
     <>
@@ -709,10 +757,10 @@ function NarudzbeBlok({ nalogId, gb, naGresku }) {
           <button className="btn mali" style={{ marginLeft: 'auto' }} disabled={radi} onClick={dodaj}>➕ Dodaj u narudžbe</button>
         </div>
 
-        {lista === null ? <Spinner /> : lista.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema upisanih dijelova za naručiti.</p> : (
+        {vidljivo === null ? <Spinner /> : vidljivo.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema upisanih dijelova za naručiti.</p> : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
             <tbody>
-              {lista.map((i) => (
+              {vidljivo.map((i) => (
                 <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
                   <td style={{ padding: '4px 6px' }}>
                     {i.naziv || <em className="meta">bez naziva</em>}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}
@@ -771,9 +819,18 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
       setArtikl(null); setQ(''); setRez([]); setKol('1'); setCijena(''); ucitaj()
     } catch (e) { naGresku(e.message) } finally { setRadi(false) }
   }
-  const obrisi = async (id) => { try { await api.obrisiIzdatnicu(nalogId, id); ucitaj() } catch (e) { naGresku(e.message) } }
+  // ↶ Poništi (WhatsApp #377): brisanje s odgodom.
+  const pon = usePonisti()
+  const vidljivo = lista && lista.filter((x) => !pon.skriveni.has('izd:' + x.id))
+  const obrisi = (id) => {
+    const st = (lista || []).find((x) => x.id === id)
+    pon.odgodi({
+      opis: `Obrisan dio „${(st && st.artikl_naziv) || 'dio'}"`, kljuc: 'izd:' + id,
+      izvrsi: () => api.obrisiIzdatnicu(nalogId, id), nakon: ucitaj, naGresku,
+    })
+  }
   const eur = (n) => (n == null ? '—' : Number(n).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €')
-  const ukupno = (lista || []).reduce((a, i) => a + (i.iznos || 0), 0)
+  const ukupno = (vidljivo || []).reduce((a, i) => a + (i.iznos || 0), 0)
 
   return (
     <>
@@ -809,10 +866,10 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
         </div>
         {!gb && <p className="meta" style={{ color: 'var(--crveno)' }}>Nalog nema vozilo — izdatnica se neće vezati na GB.</p>}
 
-        {lista === null ? <Spinner /> : lista.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema utrošenih dijelova.</p> : (
+        {vidljivo === null ? <Spinner /> : vidljivo.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema utrošenih dijelova.</p> : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
             <tbody>
-              {lista.map((i) => (
+              {vidljivo.map((i) => (
                 <tr key={i.id} style={{ borderTop: '1px solid var(--line, #eee)' }}>
                   <td style={{ padding: '4px 6px' }}>{i.artikl_naziv}{i.kataloski ? <span className="meta"> · {i.kataloski}</span> : ''}</td>
                   <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>{i.kolicina} {i.jmj}{i.cijena != null ? ` × ${eur(i.cijena)} = ${eur(i.iznos)}` : ''}</td>
@@ -827,7 +884,7 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
             </tbody>
           </table>
         )}
-        {lista && lista.some((i) => !i.apross_broj) && (
+        {vidljivo && vidljivo.some((i) => !i.apross_broj) && (
           <IzdatnicaApross nalogId={nalogId} brojNeposlanih={lista.filter((i) => !i.apross_broj).length} onPoslano={ucitaj} naGresku={naGresku} />
         )}
       </div>

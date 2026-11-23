@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './auth'
 import { JezikProvider } from './i18n'
+import { PonistiProvider } from './ponisti'
 import './styles.css'
 
 // Valjci su ZASEBNA aplikacija (svoja ikona na mobitelu): na /valjci vlastiti manifest i naslov.
@@ -32,7 +33,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <JezikProvider>
         <AuthProvider>
-          <App />
+          <PonistiProvider>
+            <App />
+          </PonistiProvider>
         </AuthProvider>
       </JezikProvider>
     </BrowserRouter>
