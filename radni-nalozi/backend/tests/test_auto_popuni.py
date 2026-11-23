@@ -223,3 +223,41 @@ def test_jednokratno_ocisti_rucni_red():
     jednokratno_ocisti_rucni_red(db)   # drugi put ne dira
     db.refresh(z)
     assert z.red_ruc == 5
+
+
+def test_zapoceti_posao_ide_onome_tko_ga_je_radio():
+    """23.11.2026.: Pavliukhov AdBlue (18 h) dobio je drugi majstor. Započeti zadatak bez
+    dodjele ide prisutnom majstoru koji je na njemu radio; ako mu je red pun, čeka ga;
+    ako je odsutan, ide po normalnim pravilima."""
+    from app.models import ZadatakRadnikVrijeme
+    db = _session()
+    pav = _meh(db, "Pavliukh")
+    sca = _meh(db, "Scancar")
+    odsutni = _meh(db, "Borovyk", odsutnost_vrsta="godisnji")
+    n1 = _nalog(db, "488", pav, prioritet_rang=0)
+    n2 = _nalog(db, "501", pav, prioritet_rang=1)
+    z_adblue = _zad(db, n1, "DIJAGNOSTIKA-ELEKTRIKA", "adblue")
+    z_ploca = _zad(db, n2, "ŠASIJA", "ploča")
+    db.add(ZadatakRadnikVrijeme(zadatak_id=z_adblue.id, radnik_id=pav.id, utroseno_sek=18 * 3600))
+    db.add(ZadatakRadnikVrijeme(zadatak_id=z_ploca.id, radnik_id=odsutni.id, utroseno_sek=8 * 3600))
+    # Pavliukh ima više posla od Ščanćara — po staroj logici AdBlue bi dobio Ščanćar
+    for i in range(3):
+        _zad(db, _nalog(db, f"7{i}", pav, plan_rang=9), "GUME", f"g{i}", radnici=[pav])
+    db.commit()
+    popuni(db)
+    assert [r.id for r in z_adblue.radnici] == [pav.id]
+    assert [r.id for r in z_ploca.radnici] != [odsutni.id] and z_ploca.radnici, "odsutni → drugome"
+
+
+def test_zapoceti_posao_ceka_majstora_s_punim_redom():
+    from app.models import ZadatakRadnikVrijeme
+    db = _session()
+    pav = _meh(db, "Pavliukh")
+    sca = _meh(db, "Scancar")
+    for i in range(5):
+        _zad(db, _nalog(db, f"8{i}", pav, plan_rang=9), "GUME", f"g{i}", radnici=[pav])
+    z = _zad(db, _nalog(db, "488", pav, prioritet_rang=0), "MOTOR", "adblue")
+    db.add(ZadatakRadnikVrijeme(zadatak_id=z.id, radnik_id=pav.id, utroseno_sek=3600))
+    db.commit()
+    popuni(db)
+    assert not z.radnici, "red mu je pun — posao čeka njega, ne ide Ščanćaru"
