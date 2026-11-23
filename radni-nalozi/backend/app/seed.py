@@ -312,6 +312,42 @@ def uvezi_preglede_iz_gs(db: Session) -> None:
         pass
 
 
+# Periodički pregledi obavljeni nakon jednokratnog uvoza iz GS (stari datum → novi).
+# Veljko 23.11.2026. (WhatsApp #375): Prikolica 171 ima pregled 30.10.2026., a app je
+# pokazivala „istekao" jer je u bazi ostao uvezeni 30.06.2026. (+3 mj = 30.09.2026.).
+# Isto 174 (31.07. → 28.10.2026.). Mijenja se SAMO ako je u bazi još stari datum —
+# ručne izmjene na kartici Pregledi vozila se ne gaze.
+ISPRAVCI_PREGLEDA_V2 = [
+    ("171", date(2026, 6, 30), date(2026, 10, 30)),
+    ("174", date(2026, 7, 31), date(2026, 10, 28)),
+]
+
+
+def ispravi_preglede_v2(db: Session) -> None:
+    """Jednokratno osvježi datume periodičkog pregleda koji su u GS-u obavljeni nakon
+    uvoza (ISPRAVCI_PREGLEDA_V2). Guardano zastavicom na trajnom volumenu."""
+    zastavica = Path(settings.upload_dir).parent / ".pregledi_ispravak_v2"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    ispravljeno = 0
+    for gb, staro, novo in ISPRAVCI_PREGLEDA_V2:
+        r = db.get(RegistarVozila, gb)
+        if r is not None and r.periodicki_datum == staro:
+            r.periodicki_datum = novo
+            ispravljeno += 1
+    if ispravljeno:
+        db.commit()
+    log.info("Ispravak periodičkih pregleda (v2): ispravljeno %d vozila.", ispravljeno)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def uvezi_vozace_gb(db: Session) -> None:
     """Jednokratni uvoz dodijeljenih vozača po garažnom broju iz app/data/vozaci_gb.json
     (izvezeno iz GS „VOZACI DODJELJENI KAMIONIMA"). Postavlja RegistarVozila.vozac.
