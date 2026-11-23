@@ -142,6 +142,22 @@ export function GlavniIzbornik() {
   if (greska) return <Layout naslov={t('nadzor.izbornik')}><div className="greska">{greska}</div></Layout>
   if (!nalozi) return <Layout naslov={t('nadzor.izbornik')}><Spinner /></Layout>
 
+  // Tko STVARNO radi na zadatku koji teče: samo radnici kojima teče vlastiti mjerač
+  // (svaki stisne svoj „Počinjem"), nikad odsutni (godišnji/bolovanje/odsutan).
+  // Prije su se ispisivali SVI dodijeljeni pa je odsutni radnik, dodijeljen uz
+  // kolegu koji radi, ispadao kao da radi (WhatsApp #368).
+  const odsutniIds = new Set(radnici.filter((r) => odsutnostSada(r)).map((r) => r.id))
+  const radeNaZadatku = (z) => {
+    const mjere = (z.vremena || []).filter((v) => v.zapoceto).map((v) => v.radnik_id)
+    const dodijeljeni = radniciZadatka(z)
+    // Stari zadaci bez mjerača po radniku → svi dodijeljeni (kao prije).
+    const lista = mjere.length
+      ? dodijeljeni.filter((r) => mjere.includes(r.id))
+          .concat((z.vremena || []).filter((v) => v.zapoceto && v.radnik && !dodijeljeni.some((r) => r.id === v.radnik_id)).map((v) => v.radnik))
+      : dodijeljeni
+    return lista.filter((r) => !odsutniIds.has(r.id) && !odsutnostSada(r))
+  }
+
   const tekuci = []
   nalozi.forEach((n) => n.operacije.forEach((op) => op.zadaci.forEach((z) => {
     if (z.zapoceto) tekuci.push({ n, op, z })
@@ -153,7 +169,7 @@ export function GlavniIzbornik() {
   // pa radnici dodijeljeni na pauziranu/nezapočetu operaciju i dalje broje kao slobodni.
   const zauzetiIds = new Set()
   nalozi.forEach((n) => n.operacije.forEach((op) => op.zadaci.forEach((z) => {
-    if (z.zapoceto) radniciZadatka(z).forEach((r) => zauzetiIds.add(r.id))
+    if (z.zapoceto) radeNaZadatku(z).forEach((r) => zauzetiIds.add(r.id))
   })))
   const slobodni = radnici
     .filter((r) => r.aktivan !== false && r.prijavljuje_se !== false && !zauzetiIds.has(r.id))
@@ -192,7 +208,7 @@ export function GlavniIzbornik() {
                   <span className="tr-voz-ime">{[n.vozilo?.marka, n.vozilo?.model].filter(Boolean).join(' ')}</span>
                 )}
               </div>
-              <div className="tr-radnik">{radniciZadatka(z).map((r) => r.ime).join(', ') || '—'}</div>
+              <div className="tr-radnik">{radeNaZadatku(z).map((r) => r.ime).join(', ') || '—'}</div>
               <div className="tr-oper"><span className="tr-op">{op.kategorija}:</span> {z.opis}</div>
               <div className="tr-traj">{trajanjeDugo(sesija(z, sada))}</div>
               <div className="tr-akcija">
