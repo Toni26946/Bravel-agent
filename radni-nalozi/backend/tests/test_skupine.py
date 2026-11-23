@@ -48,11 +48,12 @@ def _zad(db, gb, kat, kreirao, prio):
 
 @pytest.mark.parametrize("kat,sk", [
     ("PRANJE VOZILA", "pranje"), ("Pranje hladnjaka", "pranje"), ("ČIŠĆENJE KAMIONA", "pranje"),
-    ("ELEKTRIKA 3", "elektrika"), ("DIJAGNOSTIKA-ELEKTRIKA", "elektrika"), ("KLIMA", "elektrika"),
-    ("ABS/EBS", "elektrika"), ("Gume", "gume"), ("vulkanizer", "gume"),
-    ("KOČNICE 2. OSOVINA", "podvozje"), ("PNEUMATIKA", "podvozje"), ("KOTAČI", "podvozje"),
-    ("DIJELOVI OVJESA, GIBNJEVI, ZRAČNI JASTUCI", "podvozje"),
-    ("REPARATURA SEDLA, VUČNE KUKE, RUDE", "podvozje"),
+    ("ELEKTRIKA 3", "elektrika"), ("DIJAGNOSTIKA-ELEKTRIKA", "elektrika"), ("KLIMA", "klima"),
+    ("WEBASTO", "klima"), ("DIJAGNOSTIKA", "dijagnostika"),
+    ("ABS/EBS", "dijagnostika"), ("Gume", "gume"), ("vulkanizer", "gume"),
+    ("KOČNICE 2. OSOVINA", "kocnice"), ("PNEUMATIKA", "pneumatika"), ("KOTAČI", "ovjes"),
+    ("DIJELOVI OVJESA, GIBNJEVI, ZRAČNI JASTUCI", "ovjes"),
+    ("REPARATURA SEDLA, VUČNE KUKE, RUDE", "ovjes"),
     ("HIDRAULIKA 2", "hidraulika"), ("DIJELOVI DIZALICE", "hidraulika"),
     ("IZRADA HIDRAULIČNIH CRIJEVA", "hidraulika"),
     ("MOTOR", "motor"), ("GETRIBA", "motor"), ("AD-BLUE", "motor"), ("HLADNJAK VODE I INTERCOOLER", "motor"),
@@ -144,6 +145,24 @@ def test_razdvoji_zavarivanje():
     lakirer.skupine_poslova = "limarija"; db.commit()
     skupine.jednokratno_razdvoji_zavarivanje(db)        # drugi put ne radi ništa
     assert lakirer.skupine_poslova == "limarija"
+
+
+def test_razdvoji_v2_nitko_ne_gubi_poslove():
+    """Podvozje → kočnice+pneumatika+ovjes, elektrika → elektrika+dijagnostika+klima; jednom."""
+    db = _session()
+    a = _meh(db, "Ante Podvozar", "podvozje,motor")
+    b = _meh(db, "Branko Elektricar", "elektrika,gume")
+    c = _meh(db, "Cvijeta Perac", "pranje")
+    d = _meh(db, "Novi Bez")                      # None → ostaje None
+    db.commit()
+    skupine.jednokratno_razdvoji_v2(db)
+    assert a.skupine_poslova == "kocnice,pneumatika,ovjes,motor"
+    assert b.skupine_poslova == "elektrika,dijagnostika,klima,gume"
+    assert c.skupine_poslova == "pranje"
+    assert d.skupine_poslova is None
+    a.skupine_poslova = "kocnice"; db.commit()
+    skupine.jednokratno_razdvoji_v2(db)           # drugi put ne radi ništa
+    assert a.skupine_poslova == "kocnice"
 
 
 @pytest.mark.parametrize("a,b,isto", [

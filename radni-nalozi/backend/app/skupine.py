@@ -25,15 +25,22 @@ log = logging.getLogger(__name__)
 SKUPINE: list[tuple[str, str, tuple[str, ...]]] = [
     ("pranje", "Pranje i čišćenje",
      ("PRANJE", "CISCENJ", "SOBA ", "VESA", "OBILAZAK")),
-    ("elektrika", "Elektrika, dijagnostika, klima",
-     ("ELEKTRIK", "DIJAGNOSTIK", "AKUMULATOR", "KAMER", "SVJETL", "RASVJET", "ZARULJ",
-      "SENZOR", "ABS", "EBS", "KLIMA", "WEBASTO", "GRIJANJ", "TAHOGRAF")),
+    ("elektrika", "Elektrika i svjetla",
+     ("ELEKTRIK", "AKUMULATOR", "KAMER", "SVJETL", "RASVJET", "ZARULJ", "SENZOR", "TAHOGRAF")),
+    ("dijagnostika", "Dijagnostika i elektronika",
+     ("DIJAGNOSTIK", "ABS", "EBS")),
+    ("klima", "Klima i grijanje",
+     ("KLIMA", "WEBASTO", "GRIJANJ")),
     ("gume", "Gume",
      ("GUME", "GUMA", "VULKAN", "NAPLAT", "FELG")),
-    ("podvozje", "Kočnice, osovine, ovjes, pneumatika",
-     ("KOCNIC", "KLOBN", "CELJUST", "PNEUMATIK", "OSOVIN", "OVJES", "GIBNJ", "AMORTIZ",
-      "KOTAC", "GLAVCIN", "UPRAVLJANJ", "SPUR", "SEDL", "VUCN", "VUCU", "KUKA", "RUDE",
-      "KOMPRESOR")),
+    # Kočnice moraju prije ovjesa/osovina ("KOČNICE 2. OSOVINA" = kočnice).
+    ("kocnice", "Kočnice",
+     ("KOCNIC", "KLOBN", "CELJUST")),
+    ("pneumatika", "Pneumatika (zrak)",
+     ("PNEUMATIK", "KOMPRESOR")),
+    ("ovjes", "Ovjes, osovine, upravljanje, sedla",
+     ("OSOVIN", "OVJES", "GIBNJ", "AMORTIZ", "KOTAC", "GLAVCIN", "UPRAVLJANJ", "SPUR",
+      "SEDL", "VUCN", "VUCU", "KUKA", "RUDE")),
     ("hidraulika", "Hidraulika i dizalica",
      ("HIDRAUL", "DIZALIC", "RAZVODNIC", "SKARE", "CRIJEV", "BLOMBIR")),
     ("motor", "Motor i mjenjač",
@@ -61,6 +68,12 @@ POVIJEST_DANA = 730
 KLJUC_PREFILL = "skupine_poslova_prefill_v2"
 # 23.11.2026.: zavarivanje odvojeno od limarije — jednokratni prijenos kućica (vidi razdvoji_zavarivanje).
 KLJUC_ZAVARIVANJE = "skupine_zavarivanje_v1"
+# 23.11.2026.: podvozje → kočnice/pneumatika/ovjes, elektrika → elektrika/dijagnostika/klima.
+KLJUC_RAZDVOJI2 = "skupine_razdvoji_v2"
+RAZDVAJANJE = {
+    "podvozje": ("kocnice", "pneumatika", "ovjes"),
+    "elektrika": ("elektrika", "dijagnostika", "klima"),
+}
 
 
 def _bez_dijakritika(s: str) -> str:
@@ -248,3 +261,40 @@ def jednokratno_razdvoji_zavarivanje(db: Session) -> None:
     except Exception as e:  # noqa: BLE001
         db.rollback()
         log.warning("Skupina zavarivanje: prijenos kućica nije uspio: %s", e)
+
+
+def razdvoji_skupine_v2(db: Session) -> int:
+    """Jednom (23.11.2026.): tko je imao staru skupinu podvozje dobiva kočnice+pneumatika+ovjes,
+    tko je imao elektriku dobiva elektriku+dijagnostika+klima — dakle nitko ne gubi poslove
+    koje je do sada smio; sužavanje je ručno (kućice u planu). Vraća broj promijenjenih."""
+    from .models import Korisnik
+
+    n = 0
+    for k in db.query(Korisnik).filter(Korisnik.skupine_poslova.isnot(None)).all():
+        stari = {x.strip() for x in (k.skupine_poslova or "").split(",") if x.strip()}
+        novi = set(stari)
+        for kljuc, nasljednici in RAZDVAJANJE.items():
+            if kljuc in stari:
+                novi.discard(kljuc)
+                novi.update(nasljednici)
+        novi &= set(NAZIVI)
+        if novi != {x for x in stari if x in NAZIVI}:
+            k.skupine_poslova = u_tekst(novi)
+            n += 1
+    db.commit()
+    return n
+
+
+def jednokratno_razdvoji_v2(db: Session) -> None:
+    """Pri startu: jednom prenesi kućice nakon razdvajanja podvozja i elektrike."""
+    from .norme import get_postavka, set_postavka
+    try:
+        if get_postavka(db, KLJUC_RAZDVOJI2) == "1":
+            return
+        n = razdvoji_skupine_v2(db)
+        set_postavka(db, KLJUC_RAZDVOJI2, "1")
+        db.commit()
+        log.info("Skupine v2 (kočnice/ovjes/pneumatika, elektrika/dijagnostika/klima): preneseno %s majstora", n)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        log.warning("Skupine v2: prijenos kućica nije uspio: %s", e)
