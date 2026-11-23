@@ -1046,6 +1046,9 @@ _HTML = """<!doctype html>
 button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;color:#fff;cursor:pointer}
 .b-poc{background:#1f7a39} .b-got{background:#0d47a1} .b-dij{background:#b26a00} .b-ned{background:#8a5a00} .b-nije{background:#5b6470}
 .b-ostaje{background:#1f7a39} .b-kraj{background:#5b6470}
+/* Ekran „Nemam dijelova" (#361): bez boje su gumbi bili bijeli tekst na svijetloj podlozi — nevidljivi */
+.b-foto{background:#0d47a1} .b-posalji{background:#1f7a39} .b-odustani{background:#5b6470}
+.b-foto:disabled,.b-posalji:disabled{opacity:.5}
 .b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-ned:disabled,.b-nije:disabled{opacity:.5}
 .b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
 .pregbroj{font-weight:800;font-size:18px;margin:2px 0 14px;color:#0d47a1}
