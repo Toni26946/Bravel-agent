@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '8'
+$Verzija   = '9'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -71,9 +71,34 @@ function JaviStanje($token) {
     } catch {}
 }
 
+$KameraIp = '192.168.0.48'   # snimač kamera u radioni (Toni 23.11.2026.) — samo provjera dosega, bez prijave
+$script:mreza = ''; $script:mrezaKad = [datetime]::MinValue
+
+function ProvjeriMrezu {
+    # Vidi li ovo računalo snimač: vlastite IP adrese + otvoreni portovi (RTSP 554, web 80/8000/443).
+    # Najviše jednom u 30 min (svaki port čeka max 1,5 s) — da ne koči hvatanje osovina.
+    if (((Get-Date) - $script:mrezaKad).TotalMinutes -lt 30) { return $script:mreza }
+    $red = New-Object System.Collections.ArrayList
+    try {
+        $ip = @([Net.Dns]::GetHostAddresses([Net.Dns]::GetHostName()) | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | ForEach-Object { $_.ToString() })
+        [void]$red.Add('Moje IP: ' + ($ip -join ', '))
+    } catch { [void]$red.Add('Moje IP: ?') }
+    foreach ($port in @(554, 80, 8000, 443)) {
+        $c = New-Object Net.Sockets.TcpClient
+        try {
+            $a = $c.BeginConnect($KameraIp, $port, $null, $null)
+            $ok = $a.AsyncWaitHandle.WaitOne(1500) -and $c.Connected
+            [void]$red.Add("Snimač ${KameraIp}:$port " + $(if ($ok) { 'OTVOREN' } else { 'ne odgovara' }))
+        } catch { [void]$red.Add("Snimač ${KameraIp}:$port greška") } finally { $c.Close() }
+    }
+    $script:mreza = ($red -join "`n"); $script:mrezaKad = Get-Date
+    return $script:mreza
+}
+
 function Dijagnoza {
     # Za dijagnozu bez AnyDeska: što je u datotekama osovina i tijek stanja valjaka (zadnjih ~40).
     $out = New-Object System.Collections.ArrayList
+    try { [void]$out.Add((ProvjeriMrezu)) } catch {}
     foreach ($dat in @(Get-ChildItem -Path (Join-Path $CartecDir 'Logs') -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue)) {
         try {
             $t = ProcitajDijeljeno $dat.FullName
