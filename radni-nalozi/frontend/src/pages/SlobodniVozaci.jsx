@@ -7,7 +7,8 @@ import { Spinner, Prazno } from '../ui'
 // SLOBODNI VOZAČI — disponenti prijavljuju koji su vozači slobodni, odnosno čiji je kamion na
 // popravku, da se na jednom mjestu vidi tko je raspoloživ (WhatsApp prijava Veljka, 19.11.2026.;
 // ista funkcija kao u Flota OS-u). Vozilo se veže po GB-u: uz GB se vidi vozilo iz registra i
-// otvoreni radni nalog (kamion u radioni). Kad vozač opet vozi, zapis se zatvori („Opet vozi") —
+// otvoreni radni nalog (kamion u radioni). Popis živi u Flota OS-u (jedan za obje aplikacije, #363/#364).
+// Kad vozač opet vozi, zapis se zatvori („Opet vozi") —
 // ništa se ne briše, zatvoreni ostaju u povijesti.
 
 const RAZLOZI = {
@@ -92,6 +93,7 @@ export default function SlobodniVozaci() {
       <p className="meta" style={{ marginTop: 0 }}>
         Vozači koji trenutno ne voze svoj kamion — kamion je na popravku ili su slobodni za drugi posao.
         Kad vozač opet vozi, stisne se <strong>Opet vozi</strong> i zapis prelazi u povijest.
+        Popis je <strong>isti kao u Flota OS-u</strong> — što se upiše ovdje vidi se i tamo, i obrnuto.
       </p>
 
       {uredi && (
