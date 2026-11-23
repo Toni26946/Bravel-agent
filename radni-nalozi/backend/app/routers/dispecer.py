@@ -1170,7 +1170,7 @@ async function gotovoStavka(zid, btn){
   if(status>=400){render({greska:(j.detail||'Greška')});return;}
   render(j);
 }
-async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||T('nijeZaTebe')});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}render(j);prevZid=(j&&j.zadatak_id)||null;}
+async function ucitaj(){const {status,j}=await api('stanje');if(status===403){render({greska:j.detail||T('nijeZaTebe')});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}render(j);prevZid=(j&&j.zadatak_id)||null;var od=dijUcitaj();if(od){if(j&&j.zadatak_id&&j.zadatak_id===od.zid&&!j.pregledar&&!j.nema&&!j.gotov_za_danas&&!j.parkirano)dijelovi(od);else dijObrisi();}}
 async function akc(a){if(busy)return;busy=true;const prije=prevZid;const {status,j}=await api(a);busy=false;if(status===403){render({greska:j.detail});return;}if(status>=400){render({greska:(j.detail||T('greska'))});return;}if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;render(j);prevZid=(j&&j.zadatak_id)||null;}
 var _dijFotke=[];
 // Smanji sliku u pregledniku prije slanja (dulji rub do 1600 px, JPEG ~0.82) —
@@ -1200,9 +1200,16 @@ async function fotoUpload(file){
   if(r.status>=400||!j.url) throw new Error((j&&j.detail)||T('greska'));
   return j.url;
 }
-function dijelovi(){
+// Android zna ugasiti preglednik dok je otvorena kamera (#362) — stranica se nakon
+// slikanja učita iznova na glavni ekran, bez „Pošalji". Zato se ekran „Nemam dijelova"
+// (naziv + već poslane slike) pamti na mobitelu i sam se vrati nakon ponovnog učitavanja.
+var DIJ_KLJUC='bravel_dij_'+TOKEN;
+function dijSpremi(){ try{ localStorage.setItem(DIJ_KLJUC, JSON.stringify({naziv:((document.getElementById('dij-naziv')||{}).value||''), fotke:_dijFotke, zid:prevZid, t:Date.now()})); }catch(_){ } }
+function dijObrisi(){ try{ localStorage.removeItem(DIJ_KLJUC); }catch(_){ } }
+function dijUcitaj(){ try{ var o=JSON.parse(localStorage.getItem(DIJ_KLJUC)||'null'); if(o&&o.t&&Date.now()-o.t<3*3600*1000) return o; }catch(_){ } dijObrisi(); return null; }
+function dijelovi(obnovi){
   if(busy)return;
-  _dijFotke=[];
+  _dijFotke=(obnovi&&Array.isArray(obnovi.fotke))?obnovi.fotke.slice():[];
   const app=document.getElementById('app');
   app.innerHTML=''
     +'<div class="kart">'
@@ -1217,17 +1224,24 @@ function dijelovi(){
     +'<button class="b-odustani">'+T('odustani')+'</button>'
     +'</div>';
   const fi=document.getElementById('dij-file');
-  document.querySelector('.b-foto').onclick=function(){ fi.click(); };
+  const ni=document.getElementById('dij-naziv');
+  if(obnovi&&obnovi.naziv) ni.value=obnovi.naziv;
+  _dijFotke.forEach(function(url){ document.getElementById('dij-thumbs').innerHTML+='<img src="'+esc(url)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #ccc">'; });
+  ni.oninput=dijSpremi;
+  dijSpremi();
+  document.querySelector('.b-foto').onclick=function(){ dijSpremi(); fi.click(); };
   fi.onchange=async function(){
     const f=fi.files&&fi.files[0]; fi.value=''; if(!f)return;
     const btn=document.querySelector('.b-foto'); btn.disabled=true; btn.textContent='…';
     try{
-      const url=await fotoUpload(f); _dijFotke.push(url);
+      const url=await fotoUpload(f); _dijFotke.push(url); dijSpremi();
       document.getElementById('dij-thumbs').innerHTML+='<img src="'+esc(url)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #ccc">';
     }catch(e){ alert(e.message||T('greska')); }
     btn.disabled=false; btn.textContent='📷 '+T('slikaDio');
+    // nakon slikanja pokaži „Pošalji" (na uskom ekranu zna ostati ispod ruba)
+    try{ document.querySelector('.b-posalji').scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ }
   };
-  document.querySelector('.b-odustani').onclick=function(){ if(_lastD)render(_lastD); else ucitaj(); };
+  document.querySelector('.b-odustani').onclick=function(){ dijObrisi(); if(_lastD)render(_lastD); else ucitaj(); };
   document.querySelector('.b-posalji').onclick=async function(){
     if(busy)return; busy=true;
     const naziv=((document.getElementById('dij-naziv')||{}).value||'').trim();
@@ -1235,6 +1249,7 @@ function dijelovi(){
     const {status,j}=await api('dijelovi',{naziv:naziv,fotografije:_dijFotke});
     busy=false;
     if(status>=400){render({greska:(j.detail||T('greska'))});return;}
+    dijObrisi();
     if(j&&j.zadatak_id&&prije&&j.zadatak_id!==prije)j._novi=true;
     render(j); prevZid=(j&&j.zadatak_id)||null;
   };
