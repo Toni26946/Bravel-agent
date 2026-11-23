@@ -368,6 +368,16 @@ def _popis(db: Session, radnik: Korisnik) -> list[dict]:
     return stavke
 
 
+def _stanje_za_radnika(z: Zadatak, radnik_id: int) -> str:
+    """Stanje zadatka kako ga vidi OVAJ mehaničar. Na operaciji s 2+ radnika mjerač
+    kolege nije njegov: prije je vidio „▶ mjerač radi" i nije imao tipku „Počinjem",
+    pa se nije mogao prijaviti (Ronquillo + Ankudy, GB 307, 23.11.2026.)."""
+    s = _plan_status(z)
+    if s == "radu" and not radi_na(z, radnik_id):
+        return "ceka" if z.ceka_potvrdu else ("pauza" if (z.utroseno_sek or 0) > 0 else "plan")
+    return s
+
+
 def _stanje(db: Session, radnik: Korisnik) -> dict:
     # Pregledar: popis svih pregleda s kvačicom (ne red jedan-po-jedan).
     if _je_popisni(radnik):
@@ -387,7 +397,7 @@ def _stanje(db: Session, radnik: Korisnik) -> dict:
         "opis": z.opis,
         "kategorija": op.kategorija,
         "cijena": _cijena(db, op.kategorija),
-        "stanje": _plan_status(z),   # ceka | radu | pauza | plan
+        "stanje": _stanje_za_radnika(z, radnik.id),   # ceka | radu | pauza | plan
         "preostalo": max(0, len(red) - 1),
         # Udaljenost vozila od radione (m) — za gumb „Nedostupan". None za prikolice (nemaju GPS).
         "udaljenost_m": flota.udaljenost_od_radione(_gb(n)),
