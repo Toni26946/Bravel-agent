@@ -10,12 +10,21 @@ GARAŽNOM BROJU (nikad po registraciji); uz GB se prikaže vozilo iz registra i 
 (je li kamion stvarno u radioni). Kad vozač opet vozi, zapis se ZATVORI („Opet vozi") — ništa se ne
 briše, zatvoreni ostaju u povijesti.
 
+JEDAN POPIS ZA OBJE APLIKACIJE (WhatsApp #363/#364, 23.11.2026.): ovdje je prije bila vlastita tablica
+pa su Radni nalozi pokazivali 3 vozača, a Flota OS 8. Sada je **Flota OS izvor istine** (kao imenik):
+popis se čita i upisuje uživo preko Flotinih ruta `/api/slobodni-vozaci` zaglavljem X-Imenik-Kljuc
+(isti fly secret IMENIK_KLJUC), a autor je u Floti „Radni nalozi · <ime>". Lokalna tablica
+`slobodni_vozaci` se više ne puni — njeni aktivni zapisi se JEDNOM sami prenesu u Flotu (vozač kojeg
+Flota već ima se samo zatvori) i zatvore uz oznaku „Preneseno u Flota OS".
+
 Pristup: voditelj, poslovođa ili korisnik kojem je dodijeljen modul /slobodni-vozaci (disponenti).
 """
 from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
+
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -24,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from .. import imenik
 from ..auth import trenutni_korisnik
+from ..config import settings
 from ..database import get_db
 from ..models import Korisnik, Nalog, RegistarVozila, SlobodanVozac, StatusNaloga, Uloga, Vozilo
 
@@ -87,16 +97,24 @@ def _vozilo_info(db: Session, gb: str | None) -> dict | None:
     return info
 
 
-def _out(db: Session, z: SlobodanVozac) -> dict:
+def _iso(ts) -> str | None:
+    """Flota šalje vrijeme kao epoch sekunde → ISO (UTC)."""
+    try:
+        return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat() if ts else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _out(db: Session, z: dict) -> dict:
+    """Zapis iz Flote + vozilo iz NAŠEG registra i otvoreni radni nalog (po GB-u)."""
+    gb = _norm_gb(z.get("gb"))
     return {
-        "id": z.id, "vozac": z.vozac, "gb": z.gb, "razlog": z.razlog,
-        "od": z.datum_od.isoformat() if z.datum_od else None,
-        "do": z.datum_do.isoformat() if z.datum_do else None,
-        "napomena": z.napomena, "aktivan": bool(z.aktivan), "autor": z.autor,
-        "prijavljeno": z.prijavljeno.isoformat() if z.prijavljeno else None,
-        "zatvoreno": z.zatvoreno.isoformat() if z.zatvoreno else None,
-        "zatvorio": z.zatvorio,
-        "vozilo": _vozilo_info(db, z.gb),
+        "id": z.get("id"), "vozac": z.get("vozac"), "gb": gb, "razlog": z.get("razlog"),
+        "od": z.get("od"), "do": z.get("do"),
+        "napomena": z.get("napomena"), "aktivan": bool(z.get("aktivan")), "autor": z.get("autor"),
+        "prijavljeno": _iso(z.get("prijavljeno")), "zatvoreno": _iso(z.get("zatvoreno")),
+        "zatvorio": z.get("zatvorio"),
+        "vozilo": _vozilo_info(db, gb),
     }
 
 
@@ -104,25 +122,63 @@ def _autor(k: Korisnik) -> str:
     return (k.ime or k.korisnicko_ime or "?")[:120]
 
 
+# ---------- veza s Flotom OS (izvor istine) ----------
+def _flota(metoda: str, putanja: str, json: dict | None = None, params: dict | None = None) -> dict:
+    """Jedan poziv Flote servisnim ključem. Greške → HTTPException s porukom za korisnika."""
+    if not settings.imenik_kljuc:
+        raise HTTPException(status_code=503, detail="Slobodni vozači nisu povezani s Flota OS-om (nedostaje IMENIK_KLJUC).")
+    base = settings.flota_api_base.rstrip("/")
+    try:
+        r = httpx.request(metoda, f"{base}/api/slobodni-vozaci{putanja}", json=json, params=params, timeout=20,
+                          headers={"X-Imenik-Kljuc": settings.imenik_kljuc})
+    except Exception as e:  # noqa: BLE001
+        log.warning("Slobodni vozači: Flota OS ne odgovara (%s)", type(e).__name__)
+        raise HTTPException(status_code=502, detail="Flota OS trenutno ne odgovara — pokušaj za minutu.")
+    if r.status_code != 200:
+        try:
+            poruka = r.json().get("detail") or f"Flota OS HTTP {r.status_code}"
+        except Exception:  # noqa: BLE001
+            poruka = f"Flota OS HTTP {r.status_code}"
+        if r.status_code == 400:
+            raise HTTPException(status_code=409 if "već na popisu" in str(poruka) else 422, detail=str(poruka))
+        log.warning("Slobodni vozači: Flota OS HTTP %s", r.status_code)
+        raise HTTPException(status_code=502, detail="Flota OS trenutno ne odgovara — pokušaj za minutu.")
+    return r.json()
+
+
+def _prenesi_lokalne(db: Session, flota_aktivni: list[dict]) -> bool:
+    """Jednokratni prijenos starih lokalnih prijava u Flotu. Vraća True ako je nešto preneseno."""
+    lokalni = db.execute(select(SlobodanVozac).where(SlobodanVozac.aktivan.is_(True))).scalars().all()
+    if not lokalni:
+        return False
+    u_floti = {imenik.kljuc_imena(z.get("vozac")) for z in flota_aktivni}
+    preneseno = False
+    for z in lokalni:
+        if imenik.kljuc_imena(z.vozac) not in u_floti:
+            try:
+                _flota("POST", "", json={
+                    "vozac": z.vozac, "gb": z.gb, "razlog": z.razlog,
+                    "od": z.datum_od.isoformat() if z.datum_od else None,
+                    "do": z.datum_do.isoformat() if z.datum_do else None,
+                    "napomena": z.napomena, "korisnik": z.autor})
+                preneseno = True
+            except HTTPException as e:
+                if e.status_code not in (409, 422):      # Flota nedostupna → probaj idući put
+                    return preneseno
+        z.aktivan = False
+        z.zatvoreno = datetime.now(timezone.utc)
+        z.zatvorio = "Preneseno u Flota OS"
+        db.commit()
+    return preneseno
+
+
 @router.get("")
 def popis(sve: bool = Query(default=False), db: Session = Depends(get_db)):
-    """Trenutno slobodni vozači (`sve=true` i zatvoreni, za povijest) + popis imena vozača
+    """Trenutno slobodni vozači iz Flote OS (`sve=true` i zatvoreni, za povijest) + popis imena vozača
     (Flota OS imenik) i GB-ova kamiona iz registra za odabir."""
-    q = select(SlobodanVozac)
-    if not sve:
-        q = q.where(SlobodanVozac.aktivan.is_(True))
-    zapisi = db.execute(q).scalars().all()
-    red = {r: i for i, r in enumerate(RAZLOZI)}
-    _min = datetime.min.replace(tzinfo=timezone.utc)
-
-    def _kljuc(z: SlobodanVozac):
-        if z.aktivan:
-            return (0, red.get(z.razlog, 9), (z.vozac or "").lower(), 0.0)
-        zt = z.zatvoreno or _min
-        zt = zt if zt.tzinfo else zt.replace(tzinfo=timezone.utc)
-        return (1, 0, "", -zt.timestamp())
-
-    zapisi = sorted(zapisi, key=_kljuc)
+    d = _flota("GET", "", params={"sve": "true" if sve else "false"})
+    if _prenesi_lokalne(db, [z for z in d.get("zapisi", []) if z.get("aktivan")]):
+        d = _flota("GET", "", params={"sve": "true" if sve else "false"})
     try:
         imena = imenik.vozaci_imena()
     except Exception:  # imenik (Flota OS) nedostupan → upis ide i bez prijedloga
@@ -131,10 +187,11 @@ def popis(sve: bool = Query(default=False), db: Session = Depends(get_db)):
     gbovi = [g for (g,) in db.execute(
         select(RegistarVozila.gb).where(func.upper(func.coalesce(RegistarVozila.kategorija, "")) == "KAMION"))]
     gbovi.sort(key=lambda g: (len(g), g))
-    return {"zapisi": [_out(db, z) for z in zapisi], "razlozi": list(RAZLOZI), "vozaci": imena, "gbovi": gbovi}
+    return {"zapisi": [_out(db, z) for z in d.get("zapisi", [])], "razlozi": list(RAZLOZI),
+            "vozaci": imena, "gbovi": gbovi}
 
 
-def _provjeri(db: Session, d: SlobodanIn, rid: int | None) -> dict:
+def _provjeri(d: SlobodanIn) -> dict:
     vozac = _t(d.vozac)
     if not vozac:
         raise HTTPException(status_code=422, detail="Upiši ime vozača.")
@@ -144,49 +201,35 @@ def _provjeri(db: Session, d: SlobodanIn, rid: int | None) -> dict:
     od = d.od or date.today()
     if d.do and d.do < od:
         raise HTTPException(status_code=422, detail="Datum „do” ne smije biti prije datuma „od”.")
-    # Isti vozač ne smije imati dvije aktivne prijave — bolje urediti postojeću.
-    q = select(SlobodanVozac).where(SlobodanVozac.aktivan.is_(True),
-                                    func.lower(SlobodanVozac.vozac) == vozac.lower())
-    if rid:
-        q = q.where(SlobodanVozac.id != rid)
-    if db.execute(q).scalars().first():
-        raise HTTPException(status_code=409, detail=f"{vozac} je već na popisu slobodnih — uredi postojeći zapis.")
-    return {"vozac": vozac, "gb": _norm_gb(d.gb), "razlog": razlog, "datum_od": od, "datum_do": d.do,
-            "napomena": _t(d.napomena, 300)}
+    return {"vozac": vozac, "gb": _norm_gb(d.gb), "razlog": razlog, "od": od.isoformat(),
+            "do": d.do.isoformat() if d.do else None, "napomena": _t(d.napomena, 300)}
+
+
+def _spremi(db: Session, polja: dict, k: Korisnik) -> dict:
+    """Upis u Flotu, pa vrati svježi zapis (s vozilom iz registra)."""
+    rid = _flota("POST", "", json={**polja, "korisnik": _autor(k)}).get("id")
+    z = next((x for x in _flota("GET", "", params={"sve": "true"}).get("zapisi", []) if x.get("id") == rid), None)
+    return _out(db, z) if z else {"id": rid, **polja}
 
 
 @router.post("")
 def dodaj(d: SlobodanIn, db: Session = Depends(get_db), k: Korisnik = Depends(_korisnik)):
-    polja = _provjeri(db, d, None)
-    z = SlobodanVozac(**polja, aktivan=True, autor=_autor(k))
-    db.add(z)
-    db.commit()
-    db.refresh(z)
-    return _out(db, z)
+    return _spremi(db, _provjeri(d), k)
 
 
 @router.put("/{rid}")
 def uredi(rid: int, d: SlobodanIn, db: Session = Depends(get_db), k: Korisnik = Depends(_korisnik)):
-    z = db.get(SlobodanVozac, rid)
-    if not z:
-        raise HTTPException(status_code=404, detail="Zapis ne postoji.")
-    for kljuc, v in _provjeri(db, d, rid).items():
-        setattr(z, kljuc, v)
-    z.autor = _autor(k)
-    db.commit()
-    db.refresh(z)
-    return _out(db, z)
+    return _spremi(db, {"id": rid, **_provjeri(d)}, k)
 
 
 @router.post("/{rid}/zatvori")
 def zatvori(rid: int, db: Session = Depends(get_db), k: Korisnik = Depends(_korisnik)):
-    """Vozač opet vozi → zapis prelazi u povijest (ne briše se)."""
-    z = db.get(SlobodanVozac, rid)
-    if not z or not z.aktivan:
-        raise HTTPException(status_code=404, detail="Zapis ne postoji ili je već zatvoren.")
-    z.aktivan = False
-    z.zatvoreno = datetime.now(timezone.utc)
-    z.zatvorio = _autor(k)
-    db.commit()
-    db.refresh(z)
-    return _out(db, z)
+    """Vozač opet vozi → zapis prelazi u povijest u Floti (ne briše se)."""
+    try:
+        _flota("POST", f"/{int(rid)}/zatvori", params={"korisnik_rn": _autor(k)})
+    except HTTPException as e:
+        if e.status_code in (409, 422):
+            raise HTTPException(status_code=404, detail="Zapis ne postoji ili je već zatvoren.")
+        raise
+    z = next((x for x in _flota("GET", "", params={"sve": "true"}).get("zapisi", []) if x.get("id") == rid), None)
+    return _out(db, z) if z else {"id": rid, "aktivan": False}
