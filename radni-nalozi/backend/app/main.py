@@ -113,6 +113,7 @@ async def lifespan(app: FastAPI):
         auto_popuni.jednokratno_ocisti_rucni_red(db)   # red mehaničara od 19.11.2026. ide po prioritetima
         skupine.jednokratno_popuni(db)                 # kućice „što tko radi" iz povijesti (20.11.2026.)
         skupine.jednokratno_razdvoji_zavarivanje(db)   # zavarivanje odvojeno od limarije (#365, 23.11.2026.)
+        skupine.jednokratno_razdvoji_v2(db)            # kočnice/ovjes/pneumatika, elektrika/dijagnostika/klima posebno (23.11.2026.)
         auto_sync_pri_pokretanju(db)
     # Flota OS (GPS) nadzor — pokreni samo ako je konfigurirano.
     flota_task = None
