@@ -46,6 +46,33 @@ def test_upozorenje_kad_valjci_rade_bez_vozila(monkeypatch):
     assert len(poslano) == 3
 
 
+def test_upozorenje_u_pozadini_nakon_zatvorene_sesije(monkeypatch):
+    """Kvar 20.–22.11.2026.: nit je čitala istekli ORM objekt nakon zatvaranja sesije i tiho umrla."""
+    import threading
+    db = _db()
+    vod, tok = _okolina(db)
+    db.add(Korisnik(ime="Dominik Bahal", korisnicko_ime="dominik.bahal", lozinka_hash="x", uloga=Uloga.poslovodja))
+    db.commit()
+    poslano, niti = [], []
+    monkeypatch.setattr(cartec, "_wa_tekst", lambda k, poruka: poslano.append(k.ime) or {"poslano": True})
+
+    class Nit:   # pokreni tek nakon što se sesija zahtjeva zatvori (kao u produkciji)
+        def __init__(self, target, daemon=None):
+            niti.append(target)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(threading, "Thread", Nit)
+    monkeypatch.setattr(cartec, "_UPOZORENJE_U_POZADINI", True)
+    assert cartec.upozori_bez_vozila(db, db.get(cartec.CartecUredjaj, 1))
+    db.close()
+    import app.database as baza
+    monkeypatch.setattr(baza, "SessionLocal", lambda: _db())
+    niti[0]()
+    assert sorted(poslano) == ["Dominik Bahal", "Toni"]
+
+
 def _db():
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
     Base.metadata.create_all(eng)

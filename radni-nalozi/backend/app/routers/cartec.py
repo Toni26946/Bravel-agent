@@ -357,7 +357,12 @@ def upozori_bez_vozila(db: Session, u: CartecUredjaj, test_id: int | None = None
     vlasnik = (settings.ai_poslovodja_user or "").strip().lower()
     if vlasnik:   # Toni 20.11.2026.: „nek i meni dođe poruka"
         imena.append(vlasnik)
-    primatelji = [k for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all()
+    # Kopija podataka (ne ORM objekti): slanje ide u pozadinskoj niti NAKON commita i zatvaranja
+    # sesije zahtjeva — ORM objekt je tada istekao pa k.ime puca i nit tiho umre (kvar 20.–22.11.2026.:
+    # zapis ostao „šaljem…", nitko nije dobio poruku).
+    from types import SimpleNamespace
+    primatelji = [SimpleNamespace(ime=k.ime, telefon=k.telefon, korisnicko_ime=k.korisnicko_ime)
+                  for k in db.query(Korisnik).filter(Korisnik.aktivan.is_(True)).all()
                   if (k.korisnicko_ime or "").strip().lower() in imena]
     try:
         from zoneinfo import ZoneInfo
@@ -374,8 +379,12 @@ def upozori_bez_vozila(db: Session, u: CartecUredjaj, test_id: int | None = None
     def posalji(d2: Session | None = None):   # u pozadini — skripta s valjaka ne smije čekati WhatsApp
         ishodi = []
         for k in primatelji:
-            r = _wa_tekst(k, poruka)
+            try:
+                r = _wa_tekst(k, poruka)
+            except Exception as e:  # noqa: BLE001 — zapis mora pokazati grešku, ne ostati „šaljem…"
+                r = {"poslano": False, "razlog": f"greška: {e}"}
             ishodi.append(f"{k.ime}: {'poslano' if r.get('poslano') else 'NIJE — ' + str(r.get('razlog'))}")
+            print(f"[valjci upozorenje] {ishodi[-1]}", flush=True)
         vlastita = d2 is None
         if vlastita:
             from ..database import SessionLocal
