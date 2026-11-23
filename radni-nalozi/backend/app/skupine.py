@@ -1,7 +1,8 @@
 """Skupine poslova — što koji majstor smije dobiti automatski (Toni 20.11.2026.).
 
 Kategorije operacija (MOTOR, KOČNICE 2. OSOVINA, PRANJE VOZILA…) svrstavaju se u
-8 skupina. Svaki majstor ima kućice za skupine koje smije raditi
+9 skupina (zavarivanje/bravarija je od 23.11.2026. zasebno od limarije i bojanja —
+Toni, WhatsApp #365: „Zavarivanje treba biti posebno"). Svaki majstor ima kućice za skupine koje smije raditi
 (`Korisnik.skupine_poslova`, ključevi odvojeni zarezom). Automatsko popunjavanje
 reda daje mu SAMO poslove iz njegovih skupina; kategorija koja ne spada ni u jednu
 skupinu (RAZNO, TEREN…) ne ide nikome automatski — dodjeljuje se ručno.
@@ -39,9 +40,11 @@ SKUPINE: list[tuple[str, str, tuple[str, ...]]] = [
      ("MOTOR", "MJENJAC", "GETRIB", "RETARDER", "INJEKTOR", "VENTIL", "HLADNJAK",
       "INTERCOOLER", "AUSPUH", "ISPUSN", "DPF", "TURBO", "KVACIL", "REMEN", "AD-BLUE",
       "ADBLUE", "AD BLUE", "GORIVO", "REZERVOAR", "DIFERENCIJAL")),
-    ("limarija", "Limarija, zavarivanje, bojanje",
-     ("LIMARIJ", "LIMOVI", "SASIJ", "BOJANJ", "BLATOBRAN", "BRANIK", "BOCNA", "BRAVARIJ",
-      "ZAVAR", "BROJEVA", "STRANICA", "NADOGRADNJ", "JASTUC", "STIC", "RETROVIZOR")),
+    ("zavarivanje", "Zavarivanje i bravarija",
+     ("ZAVAR", "BRAVARIJ")),
+    ("limarija", "Limarija i bojanje",
+     ("LIMARIJ", "LIMOVI", "SASIJ", "BOJANJ", "BLATOBRAN", "BRANIK", "BOCNA",
+      "BROJEVA", "STRANICA", "NADOGRADNJ", "JASTUC", "STIC", "RETROVIZOR")),
     ("servis", "Mali servis (ulje, filteri, podmazivanje)",
      ("SERVIS", "PODMAZIV", "ULJ", "FILTER")),
 ]
@@ -56,6 +59,8 @@ PRAG_BROJ = 15
 POVIJEST_DANA = 730
 # v2: imena se spajaju i obrnutim redoslijedom („Antony Jeffin" = „Jeffin Antony").
 KLJUC_PREFILL = "skupine_poslova_prefill_v2"
+# 23.11.2026.: zavarivanje odvojeno od limarije — jednokratni prijenos kućica (vidi razdvoji_zavarivanje).
+KLJUC_ZAVARIVANJE = "skupine_zavarivanje_v1"
 
 
 def _bez_dijakritika(s: str) -> str:
@@ -205,3 +210,41 @@ def jednokratno_popuni(db: Session) -> None:
     except Exception as e:  # noqa: BLE001
         db.rollback()
         log.warning("Skupine poslova: popunjavanje iz povijesti nije uspjelo: %s", e)
+
+
+def razdvoji_zavarivanje(db: Session) -> dict[str, bool]:
+    """Jednom nakon razdvajanja (23.11.2026.): tko je imao kućicu „limarija" dobiva i
+    „zavarivanje" AKO je u povijesti radio zavarivanje/bravariju (barem PRAG_BROJ poslova)
+    ili za njega povijesti nema (tada se zadržava dosadašnje ponašanje). Ostali (npr.
+    lakireri) ostaju samo na limariji. Vraća {ime: dobio_zavarivanje}."""
+    from .models import Korisnik
+
+    meh = [k for k in db.query(Korisnik).filter(Korisnik.skupine_poslova.isnot(None)).all()
+           if "limarija" in (skupine_radnika(k) or set())]
+    if not meh:
+        return {}
+    brojevi = brojevi_iz_povijesti(db, meh)
+    out = {}
+    for k in meh:
+        b = brojevi.get(k.id, {})
+        dobio = not b or b.get("zavarivanje", 0) >= PRAG_BROJ
+        if dobio:
+            k.skupine_poslova = u_tekst((skupine_radnika(k) or set()) | {"zavarivanje"})
+        out[k.ime] = dobio
+    db.commit()
+    return out
+
+
+def jednokratno_razdvoji_zavarivanje(db: Session) -> None:
+    """Pri startu: jednom prenesi kućice nakon odvajanja zavarivanja od limarije."""
+    from .norme import get_postavka, set_postavka
+    try:
+        if get_postavka(db, KLJUC_ZAVARIVANJE) == "1":
+            return
+        rez = razdvoji_zavarivanje(db)
+        set_postavka(db, KLJUC_ZAVARIVANJE, "1")
+        db.commit()
+        log.info("Skupina zavarivanje: kućice prenesene s limarije: %s", rez)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        log.warning("Skupina zavarivanje: prijenos kućica nije uspio: %s", e)
