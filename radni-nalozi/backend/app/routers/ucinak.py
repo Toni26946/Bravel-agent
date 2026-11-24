@@ -286,18 +286,21 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
 
     # Dani kad je mehaničar RUČNO prijavljen (dispečer/voditelj umjesto njega) → prekršaj.
     # Pamtimo i TKO ga je ručno prijavio (ime voditelja), po (radnik, dan).
-    rucno: dict[int, dict] = defaultdict(dict)   # rid -> {dan: ime_voditelja|None}
+    # Ručna prijava „bez prekršaja" (poslovođa odlučio da radnik nije kriv) → taj dan se
+    # radniku NE broji (ni u očekivane ni u prekršaje); samo se vidi u povijesti.
+    rucno: dict[int, dict] = defaultdict(dict)      # rid -> {dan: ime_voditelja|None} (prekršaj)
+    rucno_ok: dict[int, dict] = defaultdict(dict)   # rid -> {dan: ime_voditelja|None} (bez prekršaja)
     _rucno_rows = db.execute(
-        select(KlikRucno.radnik_id, KlikRucno.kreiran, KlikRucno.voditelj_id)
+        select(KlikRucno.radnik_id, KlikRucno.kreiran, KlikRucno.voditelj_id, KlikRucno.opravdano)
         .where(KlikRucno.kreiran >= od)
     ).all()
-    _vod_ids = {vid for _r, _t, vid in _rucno_rows if vid}
+    _vod_ids = {vid for _r, _t, vid, _o in _rucno_rows if vid}
     _vod_imena = {}
     if _vod_ids:
         _vod_imena = {k.id: k.ime for k in db.execute(
             select(Korisnik).where(Korisnik.id.in_(_vod_ids))).scalars().all()}
-    for rid, ts, vid in _rucno_rows:
-        rucno[rid][_u_hr(ts).date()] = _vod_imena.get(vid)
+    for rid, ts, vid, opr in _rucno_rows:
+        (rucno_ok if opr else rucno)[rid][_u_hr(ts).date()] = _vod_imena.get(vid)
 
     # 4) Po radniku: očekivani dani (jutra kad je prisutan) / na vrijeme / prekršaji. Teren van.
     po: dict[int, dict] = {}
@@ -308,6 +311,12 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
         if m.odsutnost_vrsta == "teren":
             continue
         dani = [d for d in jutra if not _odsutan_na(m, d)]
+        # Dani s ručnom prijavom „bez prekršaja" (a bez obične ručne prijave) ne ulaze u bodovanje.
+        opr = {d for d in dani if d in rucno_ok.get(m.id, {}) and d not in rucno.get(m.id, {})}
+        for d in opr:
+            povijest_map[d].append({"ime": m.ime, "vrijeme": None, "status": "rucno_ok",
+                                    "voditelj": rucno_ok[m.id][d]})
+        dani = [d for d in dani if d not in opr]
         if not dani:
             continue
         nav = 0
@@ -336,7 +345,7 @@ def _klik_bonus(db: Session, dana: int, pool: float) -> dict:
                     "prekrsaji": len(dani) - nav, "detalji": detalji}
 
     # Povijest klikanja po danu (najnoviji dan gore), unutar dana po vremenu/imenu.
-    _red_st = {"na_vrijeme": 0, "kasno": 1, "rucno": 2, "nije": 3}
+    _red_st = {"na_vrijeme": 0, "rucno_ok": 1, "kasno": 2, "rucno": 3, "nije": 4}
     povijest = []
     for d in sorted(povijest_map.keys(), reverse=True):
         redovi_d = sorted(povijest_map[d], key=lambda r: (_red_st.get(r["status"], 9), r["vrijeme"] or "99:99", r["ime"]))

@@ -119,3 +119,29 @@ def test_klik_bonus_rucna_prijava_je_prekrsaj():
     out = _klik_bonus(db, dana=30, pool=50.0)
     red = {r["ime"]: r for r in out["redovi"]}
     assert red["A"]["na_vrijeme"] == 0 and red["A"]["prekrsaji"] == 1
+
+
+def test_klik_bonus_rucna_prijava_bez_prekrsaja():
+    """Ručna prijava „bez prekršaja" (#383): taj dan se radniku ne broji — ni plus ni minus,
+    a u povijesti stoji kao „rucno_ok"."""
+    db = _session()
+    a = Korisnik(ime="A", korisnicko_ime="a", lozinka_hash="x", uloga=Uloga.radnik)
+    b = Korisnik(ime="B", korisnicko_ime="b", lozinka_hash="x", uloga=Uloga.radnik)
+    db.add_all([a, b]); db.flush()
+    d1 = (_NOW - timedelta(days=1)).date()
+    d2 = (_NOW - timedelta(days=2)).date()
+    set_postavka(db, KLJUC_KLIK_JUTRA, f"{d1.isoformat()},{d2.isoformat()}")
+    _zad(db, a, _hr(d2, 7, 0))                                                 # d2 na vrijeme
+    db.add(KlikRucno(radnik_id=a.id, kreiran=_hr(d1, 9, 0), opravdano=True))   # d1 opravdano
+    _zad(db, b, _hr(d2, 7, 0))
+    db.add(KlikRucno(radnik_id=b.id, kreiran=_hr(d1, 9, 0)))                   # d1 prekršaj
+    db.commit()
+
+    out = _klik_bonus(db, dana=30, pool=50.0)
+    red = {r["ime"]: r for r in out["redovi"]}
+    assert red["A"]["ocekivano"] == 1 and red["A"]["na_vrijeme"] == 1 and red["A"]["prekrsaji"] == 0
+    assert red["B"]["ocekivano"] == 2 and red["B"]["prekrsaji"] == 1
+    assert red["A"]["bonus_eur"] > red["B"]["bonus_eur"]
+    dan1 = next(p for p in out["povijest"] if p["datum"] == d1.strftime("%d.%m.%Y"))
+    st = {r["ime"]: r["status"] for r in dan1["redovi"]}
+    assert st == {"A": "rucno_ok", "B": "rucno"}
