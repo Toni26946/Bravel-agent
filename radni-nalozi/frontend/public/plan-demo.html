@@ -608,7 +608,16 @@
   }
   function gbKey(ev,el){ if(ev.key==="Enter"){ ev.preventDefault(); dodajGB(el.value); } }
   function dodajGB(gb){ gb=(gb||"").trim(); if(!gb) return;
-    api("/dodaj","POST",{gb:gb}).then(function(r){ toast("✅ GB "+(r&&r.gb||gb)+" dodan u plan"); return ucitaj(); })
+    api("/dodaj","POST",{gb:gb}).then(function(r){
+        var g=(r&&r.gb)||gb;
+        return ucitaj().then(function(){
+          // Javi i kad je dodan, a filter ga skriva — inače izgleda kao da nije dodan (#394).
+          var n=r&&r.id!=null?nalById(r.id):null, zasto=r&&r.napomena;
+          if(!zasto && n && samoBlizu && daleko(n)) zasto="skriven filterom „Samo ≤"+BLIZU_M+" m od radione”";
+          if(!zasto && n && filtOp && !(n.ops||[]).some(function(o){ return o.status!=="gotovo" && opOdgovara(o); })) zasto="skriven filterom operacija „"+filtOp+"”";
+          toast("✅ GB "+g+" dodan u plan"+(zasto?" — "+zasto:""));
+        });
+      })
       .catch(function(e){ toast(e.message||"Greška"); }).then(_fokusGB); }
   function ocistiPlan(){ api("/ocisti","POST").then(function(){ toast("Plan očišćen — kreni novi"); return ucitaj(); }).then(_fokusGB); }
   function izbaci(nid){ if(_busy) return; _busy=true; api("/nalog/"+nid+"/izbaci","POST").then(function(r){ toast("Izbačeno iz plana"+(r&&r.gb?" · GB "+r.gb:"")); return ucitaj(true); }).catch(function(e){ toast(e.message||"Greška"); }).then(function(){ _busy=false; }); }
@@ -1214,7 +1223,7 @@
   var toEl;
   function toast(msg){
     if(!toEl){ toEl=document.createElement("div"); toEl.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);background:#111826;color:#fff;padding:9px 16px;border-radius:999px;font-weight:700;font-size:13px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:opacity .2s;opacity:0;pointer-events:none"; document.body.appendChild(toEl); }
-    toEl.textContent=msg; toEl.style.opacity="1"; clearTimeout(toEl._t); toEl._t=setTimeout(function(){toEl.style.opacity="0";},1800);
+    toEl.textContent=msg; toEl.style.opacity="1"; clearTimeout(toEl._t); toEl._t=setTimeout(function(){toEl.style.opacity="0";},Math.max(1800,String(msg).length*70));   // duža poruka (npr. zašto nije u planu) ostaje dulje
   }
 
   // Skok na karticu naloga iz bočnog popisa (+ kratki bljesak obruba).
