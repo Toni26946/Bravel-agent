@@ -261,6 +261,7 @@
   .rad-cell .rc-str{display:flex;gap:6px;margin-top:2px}
   .rad-cell .rc-str button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 0;font-size:13px;line-height:1;cursor:pointer;color:var(--plava);font-family:inherit}
   .rad-cell .rc-str button:active{background:var(--plava-soft)}
+  .rad-cell .rc-str button.rc-x{flex:0 0 30px;color:var(--crveno)}
   .auto-pop{border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:0 0 8px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .auto-pop.on{border-color:var(--s-radu);color:var(--s-radu)}
   /* Skupine poslova — kućice „što tko radi" */
@@ -1029,7 +1030,9 @@
              '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+(fz===3?' <span class="rc-daleko" title="Vozilo nije u radioni (GPS > 200 m) — ide iza vozila u radioni">📍 vani</span>':'')+'</span>'+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
              '<span class="chip '+CH[st]+'">'+LBL[st]+'</span>'+
-             (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button></div>')+
+             (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button>'+
+               // ✕ = makni zadatak s OVOG radnika (WhatsApp #389: „ne mogu maknuti nalog od 110 sa Ankudy")
+               '<button class="rc-x" data-ime="'+esc(r.m.ime||'')+'" data-gb="'+esc(x.n.gb||'')+'" onclick="PLAN.makniSRadnika(event,'+x.o.id+','+r.m.id+')" title="Makni zadatak s ovog radnika" aria-label="Makni s radnika">✕</button></div>')+
              '</div>';
         });
         h+='</div></div>';
@@ -1249,6 +1252,16 @@
       }
       if(smjer<0) cont.insertBefore(card, cells[j]); else cont.insertBefore(card, cells[j].nextSibling);
       _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); },
+    // ✕ na kartici (Radnici): makni zadatak s OVOG radnika (ostali na zadatku ostaju).
+    // Zadatak se ne briše — vraća se u plan bez tog radnika (WhatsApp #389).
+    makniSRadnika:function(e,zid,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      var b=e&&e.currentTarget&&e.currentTarget.getAttribute?e.currentTarget:null;
+      var ime=b?(b.getAttribute("data-ime")||""):"", gb=b?(b.getAttribute("data-gb")||""):"";
+      if(!window.confirm("Maknuti zadatak"+(gb?" GB "+gb:"")+(ime?" s radnika "+ime:"")+"?\nZadatak ostaje u planu, samo bez ovog radnika.")) return;
+      var o=null; nalozi.forEach(function(n){ (n.ops||[]).forEach(function(op){ if(op.id===zid) o=op; }); });
+      var ids=(o&&o.mehIds&&o.mehIds.length)?o.mehIds:((o&&o.mehId)?[o.mehId]:[rid]);
+      var p=act("/zadatak/"+zid+"/dodijeli", {radnici_ids: ids.filter(function(x){ return x!==rid; })});
+      if(p) p.then(function(){ toast("✕ Maknuto"+(ime?" s "+ime:"")); }); },
     // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
     zoom:function(d){ _setRadZoom(Math.round((_radZoom+d*0.1)*10)/10, true); },
     // Ručna prijava mehaničara na zadatak (umjesto da sam klikne). Poslovođa u dijalogu bira
@@ -1541,7 +1554,7 @@
   var _strDodir=0;
   document.getElementById("v-dash").addEventListener("pointerdown", function(e){
     if(e.pointerType!=="touch") return;
-    var btn=e.target.closest(".rc-str button"); if(!btn) return;
+    var btn=e.target.closest(".rc-str button:not(.rc-x)"); if(!btn) return;   // ✕ ide običnim klikom
     _strDodir=Date.now();
     e.preventDefault(); e.stopPropagation();
     if(_treba_drzati()){ _poruka_drzi(); return; }
