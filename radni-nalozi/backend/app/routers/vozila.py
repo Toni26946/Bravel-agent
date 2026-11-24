@@ -82,6 +82,11 @@ def _status_iz_mobilisisa(sirovi: str | None) -> StatusVozila | None:
     return StatusVozila.aktivno
 
 
+# Matična polja koja Flota OS šalje iz šifrarnika Garažni brojevi (polje → max duljina stupca).
+_MATICNA_POLJA = {"vozilo": 80, "vrsta": 40, "prva_registracija": 10, "firma": 60,
+                  "iznos_registracije": 20, "norma": 20, "broj_sasije": 40}
+
+
 async def _sync_registar(db: Session) -> bool:
     """Osvježi popisna polja (gb/reg/tip/kategorija) iz Flota OS-a i predloži status
     iz Mobilisisa. RUČNO postavljen status (rucno=True) se NE dira. Best-effort;
@@ -101,10 +106,17 @@ async def _sync_registar(db: Session) -> bool:
             r = RegistarVozila(gb=gb, status=(mob or StatusVozila.aktivno))
             db.add(r)
             postojeci[gb] = r
-        r.registracija = v.get("reg")
-        r.tip = v.get("tip")
-        r.kategorija = v.get("kategorija")
+        # Prazno iz Flote ne briše ono što RN već ima (novo vozilo zna kasniti s reg.).
+        r.registracija = v.get("reg") or r.registracija
+        r.tip = v.get("tip") or r.tip
+        r.kategorija = v.get("kategorija") or r.kategorija
         r.mobilisis_status = v.get("status")
+        # Matični podaci: Flota OS (šifrarnik Garažni brojevi) je GLAVNI izvor od 24.11.2026.
+        # Što Flota ima — prepiše; što nema — ostaje kako je bilo u RN-u.
+        for polje, duljina in _MATICNA_POLJA.items():
+            val = str(v.get(polje) or "").strip()
+            if val:
+                setattr(r, polje, val[:duljina])
         # Živi vozač iz Flota OS kompozicija (kad ga endpoint počne slati).
         # Dok Flota ne vraća „vozac", zadrži postojeće ime (ne gazi s None).
         vz = (v.get("vozac") or "").strip()
