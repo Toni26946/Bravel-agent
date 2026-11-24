@@ -1052,6 +1052,7 @@ def posalji(zid: int, request: Request, korisnik: Korisnik = Depends(_samo_vlasn
 
 class PrijaviRucnoIn(BaseModel):
     radnik_id: int
+    bez_prekrsaja: bool = False   # poslovođa: radnik nije stigao kliknuti → ne ide mu u negativno
 
 
 @router.post("/zadatak/{zid}/prijavi-rucno")
@@ -1069,11 +1070,14 @@ def prijavi_rucno(zid: int, p: PrijaviRucnoIn, korisnik: Korisnik = Depends(_sam
     z.razlog_prekida = None
     z.prekid_vrijeme = None
     _pokreni_mjerac(db, z, odjavi_druge=False, radnik_id=m.id)
-    db.add(KlikRucno(radnik_id=m.id, voditelj_id=korisnik.id))   # ručna prijava (tko ju je napravio) → prekršaj u klik-bonusu
+    # Ručna prijava (tko ju je napravio) → prekršaj u klik-bonusu, osim kad poslovođa
+    # odabere „bez prekršaja" (tada se taj dan radniku ne broji).
+    db.add(KlikRucno(radnik_id=m.id, voditelj_id=korisnik.id, opravdano=bool(p.bez_prekrsaja)))
     db.flush()
     _auto_status_naloga(db, n, korisnik)
     _log(db, korisnik, "rucna-prijava",
-         f"{m.ime} ručno prijavljen na zadatak (GB {_gb(n)})",
+         f"{m.ime} ručno prijavljen na zadatak (GB {_gb(n)})"
+         + (" — bez prekršaja" if p.bez_prekrsaja else ""),
          nalog_id=n.id, zadatak_id=z.id, radnik_id=m.id)
     db.commit()
     return {"ok": True}

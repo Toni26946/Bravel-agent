@@ -867,12 +867,15 @@ class KlikPoslano(Base):
 
 class KlikRucno(Base):
     """Trag da je mehaničara na zadatak RUČNO prijavio dispečer (nije sam kliknuo).
-    Za klik-bonus: taj dan mu se broji kao prekršaj (ručna prijava = nije kliknuo)."""
+    Za klik-bonus: taj dan mu se broji kao prekršaj (ručna prijava = nije kliknuo) —
+    osim kad poslovođa odabere „bez prekršaja" (`opravdano`, npr. zadatak dodijeljen na
+    brzinu pa radnik nije stigao kliknuti): tada se taj dan radniku NE broji (ni plus ni minus)."""
     __tablename__ = "klik_rucno"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     radnik_id: Mapped[int] = mapped_column(ForeignKey("korisnici.id", ondelete="CASCADE"), index=True)
     voditelj_id: Mapped[int | None] = mapped_column(ForeignKey("korisnici.id"), nullable=True)  # tko je ručno prijavio
+    opravdano: Mapped[bool] = mapped_column(Boolean, default=False)   # „bez prekršaja" (odluka poslovođe)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
     voditelj: Mapped["Korisnik | None"] = relationship(foreign_keys=[voditelj_id])

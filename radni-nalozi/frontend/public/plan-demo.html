@@ -362,6 +362,18 @@
   </div>
 </div>
 
+<!-- Ručna prijava: poslovođa bira ide li radniku u negativno klikanje (#383) -->
+<div class="modal-ov" id="modal-rucno" hidden onclick="if(event.target===this)PLAN.zatvoriRucno()">
+  <div class="modal-box">
+    <div class="modal-t">✍️ Ručno prijaviti na zadatak?</div>
+    <div class="modal-sub" id="modal-rucno-sub"></div>
+    <button class="btn danger" onclick="PLAN.potvrdiRucno(false)">✍️ Prijavi — računa se kao prekršaj</button>
+    <button class="btn ok" onclick="PLAN.potvrdiRucno(true)">✅ Prijavi BEZ prekršaja</button>
+    <div class="modal-sub" style="margin:0;font-size:12px">„Bez prekršaja" kad radnik nije stigao kliknuti (npr. zadatak dodijeljen na brzinu) — taj dan mu se u klik-bonusu ne broji.</div>
+    <button class="modal-x" onclick="PLAN.zatvoriRucno()">Odustani</button>
+  </div>
+</div>
+
 <script>
 (function(){
   "use strict";
@@ -420,6 +432,7 @@
       .catch(function(e){ alert(e.message||"Greška kod promjene statusa"); });
   }
   var _busy=false;
+  var _rucno=null;   // {zid, rid} dok je otvoren dijalog ručne prijave
   // Potpis strukture plana — ako se ne promijeni, periodično osvježavanje NEĆE
   // precrtavati popis (inače se izbornik/gumb sruši ispod prsta pa klik propadne).
   var _lastSig=null;
@@ -1002,7 +1015,7 @@
         // Prvi zadatak koji mu se može (ponovno) poslati = prvi koji ON ne radi.
         var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(mehStatus(r.lista[si].o, r.m.id)!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
         var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨 Pošalji</button>' : '';
-        var prijaviBtn = zaSlanje ? '<button class="rad-prijavi" onclick="PLAN.prijaviRucno(event,'+zaSlanje+','+r.m.id+')" title="Ručno prijavi mehaničara na zadatak (računa se kao prekršaj jer nije sam kliknuo)">✍️ Prijavi</button>' : '';
+        var prijaviBtn = zaSlanje ? '<button class="rad-prijavi" data-ime="'+esc(r.m.ime||'')+'" onclick="PLAN.prijaviRucno(event,'+zaSlanje+','+r.m.id+')" title="Ručno prijavi mehaničara na zadatak (bira se računa li se kao prekršaj)">✍️ Prijavi</button>' : '';
         h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+prijaviBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
@@ -1090,6 +1103,7 @@
         var ozn, boja;
         if(z.status==='na_vrijeme'){ ozn='✅ '+esc(z.vrijeme||''); boja='var(--zelena, green)'; }
         else if(z.status==='kasno'){ ozn='🟠 '+esc(z.vrijeme||'')+' (kasno)'; boja='var(--narancasta, #b26a00)'; }
+        else if(z.status==='rucno_ok'){ ozn='✍️ ručno, bez prekršaja'+(z.voditelj?(' — '+esc(z.voditelj)):''); boja='var(--muted)'; }
         else if(z.status==='rucno'){ ozn='✍️ ručno'+(z.voditelj?(' — '+esc(z.voditelj)):' (dispečer)'); boja='var(--crveno)'; }
         else { ozn='❌ nije kliknuo'; boja='var(--crveno)'; }
         h+='<div class="kb-red"><span>'+esc(z.ime)+'</span><span style="color:'+boja+';font-weight:600;white-space:nowrap">'+ozn+'</span></div>';
@@ -1237,10 +1251,17 @@
       _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); },
     // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
     zoom:function(d){ _setRadZoom(Math.round((_radZoom+d*0.1)*10)/10, true); },
-    // Ručna prijava mehaničara na zadatak (umjesto da sam klikne) → broji se kao prekršaj.
+    // Ručna prijava mehaničara na zadatak (umjesto da sam klikne). Poslovođa u dijalogu bira
+    // računa li se kao prekršaj ili ne (#383: zadatak dodijeljen na brzinu → radnik nije kriv).
     prijaviRucno:function(e,zid,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
-      if(!confirm("Ručno prijaviti mehaničara na zadatak? Broji se kao prekršaj (nije sam kliknuo).")) return;
-      api("/zadatak/"+zid+"/prijavi-rucno","POST",{radnik_id:rid}).then(function(){ toast("✍️ Prijavljen (prekršaj)"); ucitaj(true); })
+      _rucno={zid:zid,rid:rid};
+      var ime=(e&&e.currentTarget&&e.currentTarget.getAttribute)?(e.currentTarget.getAttribute("data-ime")||""):"";
+      document.getElementById("modal-rucno-sub").textContent=ime?("Mehaničar: "+ime):"";
+      document.getElementById("modal-rucno").hidden=false; },
+    zatvoriRucno:function(){ _rucno=null; document.getElementById("modal-rucno").hidden=true; },
+    potvrdiRucno:function(bez){ var r=_rucno; PLAN.zatvoriRucno(); if(!r) return;
+      api("/zadatak/"+r.zid+"/prijavi-rucno","POST",{radnik_id:r.rid,bez_prekrsaja:!!bez})
+        .then(function(){ toast(bez?"✍️ Prijavljen (bez prekršaja)":"✍️ Prijavljen (prekršaj)"); ucitaj(true); })
         .catch(function(err){ toast(err.message||"Greška"); }); },
     // Napravljeno → „Nije gotovo": zadatak se ponovno otvara i vraća u plan istom mehaničaru.
     vratiUPlan:function(zid){
