@@ -56,7 +56,8 @@ router = APIRouter(prefix="/vozila", tags=["vozila"])
 _ASCII = str.maketrans({"č": "c", "ć": "c", "š": "s", "ž": "z", "đ": "d"})
 
 samo_voditelj = zahtijevaj_uloge(Uloga.voditelj)
-voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.radnik)
+# Povijest vozila (servisna + dijelovi): i poslovođa (Bahal 24.11.2026. nije vidio povijest).
+voditelj_ili_radnik = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja, Uloga.radnik)
 voditelj_ili_poslovodja = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja)
 # Prikapčanje (dnevnik) smije i skladištar (npr. Akshay) — ne samo voditelj/poslovođa.
 prikapcanje_pristup = zahtijevaj_uloge(Uloga.voditelj, Uloga.poslovodja, Uloga.skladistar)
