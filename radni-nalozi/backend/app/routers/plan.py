@@ -851,14 +851,22 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
     if not gb:
         raise HTTPException(status_code=400, detail="Upiši garažni broj")
     g = gb.lstrip("0") or gb
-    nalog = None
+    kandidati = []
     for n in db.query(Nalog).filter(Nalog.status.in_(_AKTIVNI)).all():
-        ng = _gb(n)
+        ng = _gb(n).strip()
         if ng == gb or (ng.lstrip("0") or ng) == g:
-            nalog = n
-            break
-    if not nalog:
+            kandidati.append(n)
+    if not kandidati:
         raise HTTPException(status_code=404, detail=f"Nema aktivnog naloga za GB {gb}")
+    nalog = _najbolji_za_plan(kandidati)
+    zadaci = [z for op in nalog.operacije for z in op.zadaci]
+    if zadaci and all(z.gotovo for z in zadaci):
+        # Plan ne prikazuje nalog kojem su svi zadaci gotovi — prije je javljao
+        # „dodan u plan", a kamiona nije bilo (WhatsApp #394, GB 162).
+        raise HTTPException(
+            status_code=409,
+            detail=(f"GB {_gb(nalog)}: svi zadaci na nalogu {nalog.broj} su već gotovi, "
+                    "pa ga plan ne prikazuje. Otvori nalog i dodaj novu operaciju (ili ga zatvori)."))
     if _gb(nalog) in _SKRIVENI_GB:
         raise HTTPException(status_code=409, detail=f"GB {gb} je interni — ne prikazuje se u planu.")
     # Bez ograničenja na broj vozila u planu (ranije MAX_PLAN) — koliko god treba.
@@ -871,7 +879,26 @@ def dodaj_u_plan(p: DodajIn, _: Korisnik = Depends(_samo_vlasnik), db: Session =
     db.commit()
     from ..auto_popuni import popuni_tiho
     popuni_tiho(db)   # novi kamion u planu → odmah dopuni redove mehaničara
-    return {"ok": True, "gb": _gb(nalog), "rang": 0}
+    napomena = None
+    if nalog.status == StatusNaloga.ceka_dijelove:
+        napomena = "nalog čeka dijelove — vidi se dolje u „⛔ Čeka dijelove”, ne u planu"
+    return {"ok": True, "gb": _gb(nalog), "rang": 0, "id": nalog.id, "napomena": napomena}
+
+
+def _najbolji_za_plan(kandidati: list[Nalog]) -> Nalog:
+    """Kad isti GB ima više aktivnih naloga, u plan ide onaj koji plan stvarno
+    PRIKAZUJE: prvo nalog s nedovršenim zadatkom (ili bez ijednog zadatka), pa onaj
+    koji ne čeka dijelove, pa najnoviji. Prije se uzimao prvi na koji se naiđe —
+    znao je biti stari nalog sa svim gotovim zadacima, pa je javljeno „dodan u plan",
+    a kamiona u planu nije bilo (WhatsApp #394)."""
+    def _kljuc(n: Nalog):
+        zad = [z for op in n.operacije for z in op.zadaci]
+        vidljiv = (not zad) or any(not z.gotovo for z in zad)
+        return (0 if vidljiv else 1,
+                0 if n.status != StatusNaloga.ceka_dijelove else 1,
+                0 if zad else 1,          # s operacijama prije praznog
+                -(n.id or 0))
+    return min(kandidati, key=_kljuc)
 
 
 @router.post("/ocisti")
