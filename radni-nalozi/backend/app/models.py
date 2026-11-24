@@ -209,8 +209,9 @@ class RegistarVozila(Base):
     kategorija: Mapped[str | None] = mapped_column(String(30), nullable=True)  # kamion/prikolica/…
     status: Mapped[StatusVozila] = mapped_column(Enum(StatusVozila), default=StatusVozila.aktivno, index=True)
     napomena: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    # Matični podaci o vozilu (ručni unos / uvoz iz tablice "GARAŽNI BROJEVI";
-    # sinkronizacija iz Flote ih NE dira). "vrsta" = dizalica/tegljač/šlepa/prikolica.
+    # Matični podaci o vozilu. Od 24.11.2026. GLAVNI izvor = Flota OS (šifrarnik Garažni
+    # brojevi) — sinkronizacija ih prepisuje kad ih Flota ima; prazno iz Flote ne briše.
+    # "vrsta" = dizalica/tegljač/šlepa/prikolica.
     vrsta: Mapped[str | None] = mapped_column(String(40), nullable=True)
     vozilo: Mapped[str | None] = mapped_column(String(80), nullable=True)       # marka/model (npr. VOLVO FH 460)
     prva_registracija: Mapped[str | None] = mapped_column(String(10), nullable=True)
