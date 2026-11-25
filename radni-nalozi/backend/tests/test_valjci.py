@@ -73,6 +73,32 @@ def test_upozorenje_u_pozadini_nakon_zatvorene_sesije(monkeypatch):
     assert sorted(poslano) == ["Dominik Bahal", "Toni"]
 
 
+def test_ekran_upozorenje_i_gb_na_valjcima(monkeypatch):
+    """Toni 25.11.2026.: na Cartecovom ekranu crveno upozorenje dok valjci rade bez
+    odabranog vozila, a s odabranim — koji su GB-ovi na valjcima."""
+    db = _db()
+    vod, tok = _okolina(db)
+    monkeypatch.setattr(cartec, "_wa_tekst", lambda k, poruka: {"poslano": True})
+    e = cartec.ekran(x_cartec_token=tok, db=db)
+    assert e == {"prikaz": True, "upozorenje": False, "vozila": []}        # valjci miruju
+    cartec.primi_uzivo(cartec.UzivoIn(l=100, d=100, max_l=0, max_d=0, faza="BrakeStartUp"),
+                       x_cartec_token=tok, db=db)
+    assert cartec.ekran(x_cartec_token=tok, db=db)["upozorenje"] is True
+    s = valjci.nova_sesija(valjci.SesijaIn(kamion_gb="425", prikolica_gb="200"), db=db, k=vod)
+    valjci.odabir(s["id"], valjci.OdabirIn(vozilo=1, osovina=1), db=db, k=vod)
+    e = cartec.ekran(x_cartec_token=tok, db=db)
+    assert e["upozorenje"] is False
+    assert [(v["gb"], v["odabrano"]) for v in e["vozila"]] == [("425", False), ("200", True)]
+    # Sila uživo stara > 60 s → valjci ne rade, nema upozorenja ni bez vozila.
+    valjci.odustani(s["id"], db=db, k=vod)
+    u = db.get(cartec.CartecUredjaj, 1)
+    u.uzivo_vrijeme = datetime.now(timezone.utc) - timedelta(seconds=90)
+    db.commit()
+    assert cartec.ekran(x_cartec_token=tok, db=db)["upozorenje"] is False
+    monkeypatch.setenv("CARTEC_EKRAN_ISKLJUCEN", "1")
+    assert cartec.ekran(x_cartec_token=tok, db=db)["prikaz"] is False
+
+
 def _db():
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
     Base.metadata.create_all(eng)
