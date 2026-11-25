@@ -968,3 +968,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 }
 .ponisti-x { flex: none; background: none; border: none; color: #fff; opacity: .7; font-size: 16px; cursor: pointer; padding: 6px; }
 @media print { .ponisti-traka { display: none; } }
+
+/* Priključna vozila — gdje je što (25.11.2026.) */
+.pv2-cipovi { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
+.pv2-cip { border: 1.5px solid var(--rub, #d1d5db); background: #fff; color: var(--sivo); border-radius: 999px;
+  padding: 5px 11px; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.pv2-cip b { margin-left: 3px; }
+.pv2-cip.akt { background: var(--plava); border-color: var(--plava); color: #fff; }
+.pv2-cip:disabled { opacity: .45; cursor: default; }
+.pv2-sek { margin-bottom: 12px; }
+.pv2-red { align-items: center; gap: 10px; }
+.pv2-opis { margin-top: 2px; }
+.pv2-akcije { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 600px) {
+  .pv2-red { flex-direction: column; align-items: stretch; }
+  .pv2-akcije { justify-content: flex-start; }
+}

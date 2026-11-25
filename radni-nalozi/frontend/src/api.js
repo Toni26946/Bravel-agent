@@ -115,6 +115,7 @@ export const api = {
   urediPodatkeVozila: (gb, b) => zahtjev(`/vozila/registar/${encodeURIComponent(gb)}/podaci`, { method: 'PATCH', body: b }),
   uvozRegistar: (tekst) => zahtjev('/vozila/registar/uvoz', { method: 'POST', body: { tekst } }),
   spremneSlepe: () => zahtjev('/vozila/spremne'),
+  prikljucna: () => zahtjev('/vozila/prikljucna'),
   paznja: () => zahtjev('/paznja'),
   zabiljeziPrikapcanje: (b) => zahtjev('/vozila/prikapcanje', { method: 'POST', body: b }),
   dnevnikPrikapcanja: (params = {}) => {

@@ -250,7 +250,44 @@ export function VozilaURadu() {
           ))}
         </div>
       )}
+      <GotoviKamioni />
     </Layout>
+  )
+}
+
+// Gotovi kamioni koji još stoje u krugu radione (GPS) — premješteno s „Spremnih
+// priključnih vozila" (Toni 25.11.2026.: priključna vozila na jednom mjestu).
+function GotoviKamioni() {
+  const nav = useNavigate()
+  const [k, setK] = useState(null)
+  const [otv, setOtv] = useState(false)
+  useEffect(() => { api.spremneSlepe().then((d) => setK(d.kamioni || [])).catch(() => setK(null)) }, [])
+  if (!k || k.length === 0) return null
+  return (
+    <div className="karta" style={{ marginTop: 14 }}>
+      <div className="fs-glava" onClick={() => setOtv((o) => !o)} style={{ cursor: 'pointer' }}>
+        <strong>🚚 Gotovi kamioni — još u radioni ({k.length})</strong>
+        <span className="meta">{otv ? '▲' : '▼'}</span>
+      </div>
+      {otv && (
+        <>
+          <p className="meta" style={{ marginTop: 4 }}>Nalog je gotov, a kamion još nije otišao iz kruga radione. Nestaje s popisa čim ode (po GPS-u).</p>
+          {k.map((x) => (
+            <div className="sp-red" key={x.gb}>
+              <div className="sp-info" onClick={() => x.nalog_id && nav(`/nalozi/${x.nalog_id}`)}>
+                <div className="sp-gb">🚚 {x.gb}</div>
+                <div className="meta">{[x.reg, x.tip].filter(Boolean).join(' · ') || '—'}{x.broj ? ` · ${x.broj}` : ''}</div>
+              </div>
+              <span className="sp-gps">
+                {x.udaljenost_m != null
+                  ? `📍 ${x.udaljenost_m < 1000 ? `${x.udaljenost_m} m` : `${(x.udaljenost_m / 1000).toFixed(1).replace('.', ',')} km`}`
+                  : (x.ima_gps ? '📍 radiona' : 'nema GPS-a')}
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
   )
 }
 

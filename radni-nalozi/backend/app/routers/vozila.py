@@ -793,6 +793,17 @@ def registar_uvoz(
     return RegistarUvozRezultat(dodano=dodano, azurirano=azurirano, ukupno=ukupno)
 
 
+def je_prikolica(r: RegistarVozila | None) -> bool:
+    """Pravo priključno vozilo = prikolica ili šlepa (25.11.2026.: osobna auta, RADIONA,
+    UPRAVA i sl. imaju kategoriju 'auto'/'ostalo' i NE smiju na ploče priključnih)."""
+    if r is None:
+        return False
+    if (r.kategorija or "") == "prikolica":
+        return True
+    oznake = f"{r.vrsta or ''} {r.tip or ''}".upper()
+    return any(k in oznake for k in ("ŠLEP", "SLEP", "PRIKOL", "POLUPRIK", "PRIKLJ"))
+
+
 def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     """Šlepe (prikolice) čiji je nalog nedavno završen, a još nisu dobile ishod:
     nisu označene Spremno(+lokacija) ni Pokvareno. Njih moramo natjerati na upis.
@@ -816,7 +827,7 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     for gb in gbs:
         r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
             RegistarVozila.gb == (gb.lstrip("0") or gb)).first()
-        if not r or not je_prikljucno_vozilo(r.kategorija):
+        if not je_prikolica(r):
             continue
         # Preskoči šlepe koje su trenutno zadužene (prikačene) na kamion.
         if r.gb in prikacene or (r.gb.lstrip("0") or r.gb) in prikacene:
@@ -925,6 +936,77 @@ async def spremne_slepe(
         "kamioni": kamioni,
         "kamion_radius_km": round(settings.spremni_radius_m / 1000, 1),
     }
+
+
+# --- Priključna vozila — gdje je što (Toni 25.11.2026.) ----------------------
+# Jedna ploča umjesto „Slobodna" + „Spremna": svaka prikolica/šlepa ima TOČNO jedno
+# stanje, redom važnosti: u radioni (otvoren nalog) → prikačena (dnevnik) → pokvarena
+# → spremna → za upisati (nalog gotov, nije upisano) → slobodna → nepoznato.
+STANJA_PRIKLJUCNIH = ("radiona", "prikacena", "pokvarena", "za_upisati", "spremna",
+                      "slobodna", "nepoznato")
+
+
+@router.get("/prikljucna")
+async def prikljucna_vozila(
+    korisnik: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db),
+):
+    await _sync_registar(db)
+    nalozi = _nalog_po_gb(db)
+    # Zadnji događaj prikapčanja po prikolici (najnoviji prvi).
+    zadnji: dict = {}
+    for e in (db.query(DnevnikPrikapcanja)
+              .order_by(DnevnikPrikapcanja.vrijeme.desc(), DnevnikPrikapcanja.id.desc()).all()):
+        if e.prikolica_gb:
+            zadnji.setdefault(e.prikolica_gb, e)
+            zadnji.setdefault(e.prikolica_gb.lstrip("0") or e.prikolica_gb, e)
+    za_upisati = {r.gb for r in _prikolice_za_upisati(db)}
+    svi = db.query(RegistarVozila).all()
+    regmap = {r.gb: r for r in svi}
+
+    def _iso(x):
+        return x.isoformat() if x else None
+
+    out = []
+    for r in svi:
+        if not je_prikolica(r) or r.status == StatusVozila.prodano:
+            continue
+        g0 = r.gb.lstrip("0") or r.gb
+        n = nalozi.get(r.gb) or nalozi.get(g0)
+        e = zadnji.get(r.gb) or zadnji.get(g0)
+        s = {
+            "gb": r.gb, "reg": r.registracija, "vrsta": r.vrsta or r.tip, "vozilo": r.vozilo,
+            "napomena": r.napomena, "lokacija": r.lokacija,
+            "nalog_id": None, "broj": None, "kamion_gb": None, "kamion_reg": None,
+            "vozac": None, "od": None,
+        }
+        if n is not None:
+            s.update(stanje="radiona", nalog_id=n.id, broj=n.broj, od=_iso(n.kreiran))
+        elif e is not None and e.vrsta == VrstaDogadaja.prikaceno:
+            rk = regmap.get(e.kamion_gb) if e.kamion_gb else None
+            s.update(stanje="prikacena", kamion_gb=e.kamion_gb,
+                     kamion_reg=(rk.registracija if rk else None), vozac=e.vozac, od=_iso(e.vrijeme))
+        elif r.status == StatusVozila.pokvareno:
+            s.update(stanje="pokvarena", od=_iso(r.azuriran))
+        elif r.status == StatusVozila.spremno:
+            s.update(stanje="spremna", od=_iso(r.spreman_od))
+        elif r.gb in za_upisati:
+            s.update(stanje="za_upisati")
+        elif r.status == StatusVozila.nezaduzeno or (e is not None and e.vrsta == VrstaDogadaja.otkaceno):
+            s.update(stanje="slobodna", od=_iso(e.vrijeme) if e is not None else None,
+                     lokacija=r.lokacija or (e.lokacija if e is not None else None))
+        else:
+            s.update(stanje="nepoznato")
+        out.append(s)
+
+    def _num(g):
+        try:
+            return (0, int(g))
+        except (TypeError, ValueError):
+            return (1, 0)
+    out.sort(key=lambda x: (STANJA_PRIKLJUCNIH.index(x["stanje"]), _num(x["gb"]), x["gb"]))
+    brojevi = {k: sum(1 for x in out if x["stanje"] == k) for k in STANJA_PRIKLJUCNIH}
+    lokacije = sorted({(x.lokacija or "").strip() for x in svi if (x.lokacija or "").strip()})
+    return {"stavke": out, "brojevi": brojevi, "ukupno": len(out), "lokacije": lokacije}
 
 
 def _osiguraj_vozila_iz_registra(db: Session) -> int:

@@ -115,7 +115,7 @@ export default function SpremneSlepe() {
 }
 
 // Voditelj upravlja fiksnim popisom parkinga (da se lokacija bira, ne tipka).
-function Parkinzi({ parkinzi, onPromjena }) {
+export function Parkinzi({ parkinzi, onPromjena }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [novi, setNovi] = useState('')
@@ -158,7 +158,7 @@ function Parkinzi({ parkinzi, onPromjena }) {
 }
 
 // Odabir parkinga iz fiksnog popisa (ili poruka da voditelj prvo doda parking).
-function ParkingSelect({ parkinzi, value, onChange }) {
+export function ParkingSelect({ parkinzi, value, onChange }) {
   const { t } = useT()
   if (parkinzi.length === 0) {
     return <div className="meta">{t('spremne.trebaParking')}</div>
