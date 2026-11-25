@@ -720,6 +720,11 @@ class Zadatak(Base):
     # Ručni red zadataka po mehaničaru (dashboard drag). Manji = ranije; None = bez ručnog reda.
     # Zadatak "u tijeku" svejedno ostaje prvi; ovo slaže sve iza njega.
     red_ruc: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Automatsko popunjavanje SAMO PREDLAŽE (Toni 25.11.2026.): predloženi mehaničar; zadatak
+    # mu pripada tek kad poslovođa prihvati prijedlog. Odbijeni (id-evi zarezom) se ne
+    # predlažu ponovno za taj zadatak. (Namjerno ne JSON — Postgres DISTINCT, vidi 12.11.)
+    prijedlog_radnik_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prijedlog_odbijeni: Mapped[str | None] = mapped_column(String(200), nullable=True)
     kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     operacija: Mapped["Operacija"] = relationship(back_populates="zadaci")

@@ -288,6 +288,13 @@
   .rad-zoom button{border:1px solid var(--line);background:var(--card);border-radius:8px;width:36px;height:32px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;color:var(--plava)}
   .rad-zoom span{min-width:42px;text-align:center}
   .rad-cell.dragging{opacity:.7;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+  /* 💡 Prijedlog automatskog popunjavanja — zadatak još NIJE dodijeljen (Toni 25.11.2026.) */
+  .rad-cell.prijedlog{border:2px dashed #7c3aed;background:#faf5ff}
+  .rad-cell.prijedlog .rc-poz{color:#7c3aed}
+  .chip.c-prijedlog{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
+  .rad-cell .rc-str button.rc-ok{color:#15803d;font-weight:800}
+  .rad-prihvati{align-self:stretch;margin-top:4px;border:1px dashed #7c3aed;background:#faf5ff;color:#6d28d9;border-radius:8px;padding:3px 7px;font-size:12px;line-height:1.3;cursor:pointer;font-weight:700}
+  .auto-pop .btn-prihvati{border:1px solid #7c3aed;background:#7c3aed;color:#fff;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;font-family:inherit}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
   .rad-cell .rc-daleko{font-weight:600;font-size:10px;color:#b45309;background:#fef3c7;border-radius:6px;padding:0 4px;margin-left:4px;white-space:nowrap}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -446,7 +453,7 @@
       z:!!d.zakljucan, p:(d.promjene||[]).length, a:JSON.stringify(d.autoSlanje||{}), ap:d.autoPopuni!==false,
       m:(d.mehanicari||[]).map(function(x){return x.id+'-'+(x.odsutnost||(x.odsutan?'o':''))+'-'+(x.skupine||[]).join('.');}),
       n:(d.nalozi||[]).map(function(n){return [n.id,n.rang,n.hitno?1:0,n.cekaDijelove?1:0,n.prioritet,
-          (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId,o.red];})];})
+          (n.ops||[]).map(function(o){return [o.id,o.status,(o.mehIds||[]).join('-'),o.radioId,o.red,o.prijedlogId||0];})];})
     });
   }
   function ucitaj(force){
@@ -708,6 +715,11 @@
         if(dod.length===0){
           // još nitko nije dodijeljen → glavni padajući izbornik + prijedlog
           h+='<select onchange="PLAN.dodijeli('+o.id+',this.value)">'+mehOpts(0)+'</select>';
+          if(o.prijedlogId){   // 💡 automatski prijedlog — ✓ prihvati ili ✕ odbij
+            h+='<span class="meh-cip" style="border:1px dashed #7c3aed;color:#6d28d9;background:#faf5ff">💡 '+esc(meh(o.prijedlogId).ime||'?')+
+               ' <button class="cip-x" style="color:#15803d" onclick="PLAN.prijedlogPrihvati(event,'+o.id+')" title="Prihvati prijedlog">✓</button>'+
+               '<button class="cip-x" onclick="PLAN.prijedlogOdbij(event,'+o.id+')" title="Odbij prijedlog">✕</button></span>';
+          }
           var prep=o.preporukaId;
           var prepIme=o.preporukaIme || (meh(prep)&&meh(prep).ime);   // pregledar nije u MEH → ime iz payloada
           if(prep && prepIme){
@@ -977,17 +989,30 @@
     });
     return map;
   }
+  // 💡 Prijedlozi automatskog popunjavanja po mehaničaru (još nisu dodijeljeni).
+  function prijedloziPoRadniku(){
+    var map={};
+    nalozi.forEach(function(n){
+      n.ops.forEach(function(o){
+        if(!o.prijedlogId || (o.mehIds||[]).length || o.status==="gotovo") return;
+        (map[o.prijedlogId]=map[o.prijedlogId]||[]).push({n:n,o:o});
+      });
+    });
+    return map;
+  }
+  function brojPrijedloga(){ var b=0; nalozi.forEach(function(n){ n.ops.forEach(function(o){ if(o.prijedlogId && !(o.mehIds||[]).length && o.status!=="gotovo") b++; }); }); return b; }
   function renderDASH(){
     var PRAG=5;   // min zadataka u retku (auto_popuni.MIN_ZADATAKA)
     var map=redPoRadniku();
+    var PM=prijedloziPoRadniku();
     var PB=prioBandovi();   // nalog id -> traka prioriteta (c/z/g) za okvir kartice
     var saZad=[], slobodniPrisutni=[], slobodniOdsutni=[];
     MEH.forEach(function(m){
       // Odsutni (godišnji/bolovanje/odsutan) se NE prikazuju u redovima — samo u podnožju.
       // Teren ostaje (radi, samo vani).
       if(m.odsutan && m.odsutnost!=='teren'){ slobodniOdsutni.push(m); return; }
-      var l=map[m.id]||[];
-      if(l.length) saZad.push({m:m,lista:l}); else slobodniPrisutni.push(m);   // prisutni bez zadatka → vrh, crveno
+      var l=map[m.id]||[], pr=PM[m.id]||[];
+      if(l.length||pr.length) saZad.push({m:m,lista:l,prij:pr}); else slobodniPrisutni.push(m);   // prisutni bez zadatka → vrh, crveno
     });
     // Uvijek poredano: najmanje zadataka → najviše (tko ima manje je gore, za dopunu);
     // isti broj → abecedno.
@@ -995,6 +1020,7 @@
       if(a.lista.length!==b.lista.length) return a.lista.length-b.lista.length;
       return a.m.ime<b.m.ime?-1:(a.m.ime>b.m.ime?1:0);
     });
+    var brPrij=brojPrijedloga();
     var ukupno=0, trebaDopunu=0;
     saZad.forEach(function(r){
       ukupno+=r.lista.length;
@@ -1010,7 +1036,9 @@
        '</div>';
     h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni): hitno → prioriteti 1, 2, 3… → ostalo. Ručni pomak (strelice/povlačenje) ima prednost. ⚠ = manje od '+PRAG+' zadataka. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak.</p>';
     h+='<div class="auto-pop'+(autoPopuni?' on':'')+'">'+(autoPopuni
-      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadataka sam dobiva sljedeći iz plana (po prioritetu, pa tko je to već radio). <button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
+      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadataka dobiva <b>💡 prijedlog</b> iz plana (po prioritetu, pa tko je to već radio). Zadatak je njegov tek kad prijedlog <b>prihvatiš ✓</b>; prijedlog možeš povući drugom mehaničaru ili odbiti ✕. '+
+        (brPrij?'<button class="btn-prihvati" onclick="PLAN.prihvatiSve(event,0)">✓ Prihvati sve prijedloge ('+brPrij+')</button> ':'')+
+        '<button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
       : '🤖 Automatsko popunjavanje je <b>ugašeno</b>. <button class="btn ghost sm" onclick="PLAN.autoPopuni(true)">Upali</button>')+'</div>';
     h+=skupineHtml();
     if(!saZad.length && !slobodniPrisutni.length){
@@ -1030,7 +1058,8 @@
         var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(mehStatus(r.lista[si].o, r.m.id)!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
         var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨 Pošalji</button>' : '';
         var prijaviBtn = zaSlanje ? '<button class="rad-prijavi" data-ime="'+esc(r.m.ime||'')+'" onclick="PLAN.prijaviRucno(event,'+zaSlanje+','+r.m.id+')" title="Ručno prijavi mehaničara na zadatak (bira se računa li se kao prekršaj)">✍️ Prijavi</button>' : '';
-        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+prijaviBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        var prihvatiBtn = r.prij.length ? '<button class="rad-prihvati" onclick="PLAN.prihvatiSve(event,'+r.m.id+')" title="Prihvati sve prijedloge ovom mehaničaru">✓ Prihvati 💡'+r.prij.length+'</button>' : '';
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+prijaviBtn+prihvatiBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
           var uTijeku=(st==="radu");
@@ -1046,6 +1075,18 @@
              (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button>'+
                // ✕ = makni zadatak s OVOG radnika (WhatsApp #389: „ne mogu maknuti nalog od 110 sa Ankudy")
                '<button class="rc-x" data-ime="'+esc(r.m.ime||'')+'" data-gb="'+esc(x.n.gb||'')+'" onclick="PLAN.makniSRadnika(event,'+x.o.id+','+r.m.id+')" title="Makni zadatak s ovog radnika" aria-label="Makni s radnika">✕</button></div>')+
+             '</div>';
+        });
+        // 💡 Prijedlozi (još nisu njegovi): ✓ prihvati, ✕ odbij, ⠿ povuci drugom mehaničaru.
+        r.prij.forEach(function(x){
+          h+='<div class="rad-cell prijedlog'+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" data-prijedlog="1" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="Prijedlog — '+esc(x.o.naziv)+'">'+
+             '<button class="rc-drag" title="Povuci drugom mehaničaru" aria-label="Premjesti prijedlog">⠿</button>'+
+             '<span class="rc-poz">💡</span>'+
+             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
+             '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
+             '<span class="chip c-prijedlog">💡 Prijedlog</span>'+
+             '<div class="rc-str"><button class="rc-ok" onclick="PLAN.prijedlogPrihvati(event,'+x.o.id+')" title="Prihvati — zadatak postaje njegov">✓ Prihvati</button>'+
+             '<button class="rc-x" onclick="PLAN.prijedlogOdbij(event,'+x.o.id+')" title="Odbij prijedlog (ovom mehaničaru se više ne predlaže)" aria-label="Odbij">✕</button></div>'+
              '</div>';
         });
         h+='</div></div>';
@@ -1252,7 +1293,7 @@
       var card=(src&&src.closest)?src.closest(".rad-cell"):null;
       if(!card) card=document.querySelector('#v-dash .rad-cell[data-zid="'+zid+'"]'); if(!card) return;
       var cont=card.closest(".rad-cells"); if(!cont) return;
-      var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
+      var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno):not(.prijedlog)"));
       var i=cells.indexOf(card), j=i+smjer;
       if(j<0||j>=cells.length||!cells[j].querySelector(".rc-drag")){ toast(smjer<0?"Već je prvi":"Već je zadnji"); return; }
       // Druga faza (WhatsApp #335): server bi karticu vratio natrag, a strelica „ne bi radila".
@@ -1275,6 +1316,16 @@
       var ids=(o&&o.mehIds&&o.mehIds.length)?o.mehIds:((o&&o.mehId)?[o.mehId]:[rid]);
       var p=act("/zadatak/"+zid+"/dodijeli", {radnici_ids: ids.filter(function(x){ return x!==rid; })});
       if(p) p.then(function(){ toast("✕ Maknuto"+(ime?" s "+ime:"")); }); },
+    // 💡 Prijedlozi automatskog popunjavanja (Toni 25.11.2026.).
+    prijedlogPrihvati:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      var p=act("/prijedlog/"+zid+"/prihvati"); if(p) p.then(function(){ toast("✓ Prihvaćeno — zadatak je dodijeljen"); }); },
+    prijedlogOdbij:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      var p=act("/prijedlog/"+zid+"/odbij"); if(p) p.then(function(){ toast("✕ Prijedlog odbijen — tom mehaničaru se više ne predlaže"); }); },
+    prihvatiSve:function(e,rid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy||_drag)return;
+      if(!rid && !window.confirm("Prihvatiti SVE prijedloge? Zadaci postaju dodijeljeni predloženim mehaničarima.")) return;
+      _busy=true;
+      api("/prijedlozi/prihvati-sve","POST",{radnik_id:rid||null}).then(function(r){ toast("✓ Prihvaćeno "+((r&&r.prihvaceno)||0)+" prijedloga"); return ucitaj(true); })
+        .catch(function(err){ toast(err.message||"Greška"); }).then(function(){ _busy=false; }); },
     // Veličina prikaza Radnici (mobitel: manje = više stane na ekran).
     zoom:function(d){ _setRadZoom(Math.round((_radZoom+d*0.1)*10)/10, true); },
     // Ručna prijava mehaničara na zadatak (umjesto da sam klikne). Poslovođa u dijalogu bira
@@ -1465,7 +1516,7 @@
   // --- Drag redoslijed po mehaničaru (dashboard) — vodoravno; „u tijeku" nema ručku ---
   function _dash_commit(cont, pomaknut){
     var rid=parseInt(cont.getAttribute("data-rid"),10);
-    var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
+    var zids=[]; cont.querySelectorAll(".rad-cell:not(.prijedlog)").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
     if(!rid||!zids.length) return;
     api("/meh-redoslijed","POST",{radnik_id:rid, zadaci:zids, pomaknut:(pomaknut||null)}).then(function(r){
       if(r&&r.poslano) toast("📨 Novi prvi zadatak — mehaničaru poslana nova poruka");
@@ -1483,7 +1534,7 @@
   // Je li novi redoslijed u retku protiv faza (isto kao dispecer.slozi_red: u tijeku → hitno →
   // ostalo → vozilo izvan radione)? Vrati poruku za korisnika ili null ako je red u redu.
   function _dash_krsi_fazu(cont, card){
-    var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno)"));
+    var cells=[].slice.call(cont.querySelectorAll(".rad-cell:not(.prazno):not(.prijedlog)"));
     var fc=card.getAttribute("data-faza");
     for(var i=1;i<cells.length;i++){
       var a=parseInt(cells[i-1].getAttribute("data-faza"),10), b=parseInt(cells[i].getAttribute("data-faza"),10);
@@ -1536,6 +1587,14 @@
       var eat=function(ev){ ev.preventDefault(); ev.stopPropagation(); document.removeEventListener("click",eat,true); };
       document.addEventListener("click",eat,true);
       setTimeout(function(){ document.removeEventListener("click",eat,true); }, 500);
+      // 💡 Prijedlog: povlačenje drugom mehaničaru samo preseli PRIJEDLOG (i dalje se prihvaća ✓).
+      if(card.classList.contains("prijedlog")){
+        if(cont===izvor){ ucitaj(true); return; }
+        api("/prijedlog/"+parseInt(card.getAttribute("data-zid"),10)+"/premjesti","POST",{na_radnika:parseInt(cont.getAttribute("data-rid"),10)})
+          .then(function(){ toast("💡 Prijedlog preseljen — prihvati ga ✓ da postane zadatak"); ucitaj(true); })
+          .catch(function(e){ toast(e.message||"Greška"); ucitaj(true); });
+        return;
+      }
       if(cont===izvor){
         // Povlačenje preko granice faze (npr. „📍 vani" ispred vozila u radioni) server bi
         // tiho vratio — kartica bi „skočila" natrag bez objašnjenja (WhatsApp #336).
@@ -1544,7 +1603,7 @@
         _dash_commit(cont, parseInt(card.getAttribute("data-zid"),10)); return;
       }
       // Preseljeno drugom mehaničaru → prebaci zadatak + složi njegov red.
-      var zids=[]; cont.querySelectorAll(".rad-cell").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
+      var zids=[]; cont.querySelectorAll(".rad-cell:not(.prijedlog)").forEach(function(c){ var z=parseInt(c.getAttribute("data-zid"),10); if(z) zids.push(z); });
       api("/premjesti","POST",{
         zadatak_id:parseInt(card.getAttribute("data-zid"),10),
         s_radnika:parseInt(izvor.getAttribute("data-rid"),10),
@@ -1567,7 +1626,7 @@
   var _strDodir=0;
   document.getElementById("v-dash").addEventListener("pointerdown", function(e){
     if(e.pointerType!=="touch") return;
-    var btn=e.target.closest(".rc-str button:not(.rc-x)"); if(!btn) return;   // ✕ ide običnim klikom
+    var btn=e.target.closest(".rc-str button:not(.rc-x):not(.rc-ok)"); if(!btn) return;   // ✕ i ✓ idu običnim klikom
     _strDodir=Date.now();
     e.preventDefault(); e.stopPropagation();
     if(_treba_drzati()){ _poruka_drzi(); return; }
@@ -1582,7 +1641,8 @@
     var naRucki=!!e.target.closest(".rc-drag");
     // Zaključan plan: server odbija promjenu redoslijeda → odmah reci, umjesto da se kartica
     // pomakne pa „skoči" natrag.
-    if(planZakljucan && (naRucki || e.pointerType==="touch")){
+    // (Prijedlog nije dodjela pa se smije seliti i kad je plan zaključan.)
+    if(planZakljucan && !card.classList.contains("prijedlog") && (naRucki || e.pointerType==="touch")){
       if(naRucki){ e.preventDefault(); toast("🔒 Plan je zaključan — otključaj ga za pomicanje zadataka"); }
       return;
     }

@@ -53,6 +53,8 @@ _STUPCI = [
     ("registar_vozila", "periodicki_do", "DATE"),
     ("registar_vozila", "taho_do", "DATE"),
     ("registar_vozila", "pp_do", "DATE"),
+    ("zadaci", "prijedlog_radnik_id", "INTEGER"),
+    ("zadaci", "prijedlog_odbijeni", "VARCHAR(200)"),
     ("registar_vozila", "vozac", "VARCHAR(120)"),
     ("primke", "fotografije", "JSON"),
     ("primke", "apross_broj", "INTEGER"),

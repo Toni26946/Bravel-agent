@@ -141,6 +141,8 @@ def _set_radnici(db: Session, z: Zadatak, ids: list[int]) -> None:
             raise HTTPException(status_code=400, detail=f"Korisnik {rid} se ne može dodijeliti")
         valjani.append(r)
     z.radnici = valjani
+    if valjani:
+        z.prijedlog_radnik_id = None   # dodijeljen → automatski prijedlog više ne vrijedi
 
 
 def _log(db, korisnik, tip, opis, nalog_id=None, zadatak_id=None, radnik_id=None):
@@ -322,6 +324,8 @@ def plan(_: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
                     } for r in z.radnici],
                     "preporukaId": prep_id,
                     "preporukaIme": prep_ime,
+                    # Prijedlog automatskog popunjavanja (čeka prihvaćanje u Radnicima).
+                    "prijedlogId": (z.prijedlog_radnik_id if not z.radnici and not z.gotovo else None),
                     "radioIme": (radili.get(z.id) or (None, None))[0],
                     "radioId": (radili.get(z.id) or (None, None))[1],
                     "status": _plan_status(z),
@@ -406,7 +410,106 @@ def auto_popuni_prekidac(p: AutoPopuniIn, _: Korisnik = Depends(_samo_vlasnik), 
     norme.set_postavka(db, KLJUC, "1" if p.ukljuceno else "0")
     db.commit()
     dodano = popuni(db) if p.ukljuceno else []
+    if not p.ukljuceno:   # ugašeno → otvoreni prijedlozi nestaju (dodijeljeni ostaju)
+        db.query(Zadatak).filter(Zadatak.prijedlog_radnik_id.isnot(None)).update(
+            {Zadatak.prijedlog_radnik_id: None}, synchronize_session=False)
+        db.commit()
     return {"ok": True, "ukljuceno": p.ukljuceno, "dodijeljeno": len(dodano)}
+
+
+# --- Prijedlozi automatskog popunjavanja (Toni 25.11.2026.) -----------------
+# Automatika samo PREDLAŽE (zadatak.prijedlog_radnik_id). Mehaničaru zadatak pripada
+# tek kad ga poslovođa prihvati; prijedlog se smije preseliti drugom ili odbiti.
+# Prijedlozi ne ovise o zaključanom planu (nisu dodjela).
+
+def _prijedlog(db: Session, zid: int) -> Zadatak:
+    z = _zad(db, zid)
+    if z.gotovo:
+        raise HTTPException(status_code=400, detail="Zadatak je već gotov")
+    if not z.prijedlog_radnik_id:
+        raise HTTPException(status_code=409, detail="Zadatak više nema prijedlog — osvježi plan")
+    return z
+
+
+def _prihvati(db: Session, korisnik: Korisnik, z: Zadatak) -> int:
+    rid = z.prijedlog_radnik_id
+    ids = [r.id for r in z.radnici]
+    if rid not in ids:
+        ids.append(rid)
+    _set_radnici(db, z, ids)
+    z.prijedlog_radnik_id = None
+    z.ceka_potvrdu = False
+    r = db.get(Korisnik, rid)
+    _log(db, korisnik, "prijedlog-prihvacen",
+         f"GB {_gb(z.operacija.nalog)}: {z.opis or z.operacija.kategorija or ''} → {r.ime if r else rid}"[:250],
+         nalog_id=z.operacija.nalog_id, zadatak_id=z.id, radnik_id=rid)
+    return rid
+
+
+@router.post("/prijedlog/{zid}/prihvati")
+def prijedlog_prihvati(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Prihvati prijedlog: zadatak se dodjeljuje predloženom mehaničaru."""
+    z = _prijedlog(db, zid)
+    rid = _prihvati(db, korisnik, z)
+    db.commit()
+    return {"ok": True, "radnik_id": rid}
+
+
+class PrihvatiSveIn(BaseModel):
+    radnik_id: int | None = None   # None = svi prijedlozi
+
+
+@router.post("/prijedlozi/prihvati-sve")
+def prijedlozi_prihvati_sve(p: PrihvatiSveIn, korisnik: Korisnik = Depends(_samo_vlasnik),
+                            db: Session = Depends(get_db)):
+    q = db.query(Zadatak).filter(Zadatak.prijedlog_radnik_id.isnot(None), Zadatak.gotovo.is_(False))
+    if p.radnik_id:
+        q = q.filter(Zadatak.prijedlog_radnik_id == p.radnik_id)
+    n = 0
+    for z in q.order_by(Zadatak.id).all():
+        _prihvati(db, korisnik, z)
+        n += 1
+    db.commit()
+    return {"ok": True, "prihvaceno": n}
+
+
+@router.post("/prijedlog/{zid}/odbij")
+def prijedlog_odbij(zid: int, korisnik: Korisnik = Depends(_samo_vlasnik), db: Session = Depends(get_db)):
+    """Odbij prijedlog: zadatak ostaje u planu, tom mehaničaru se više ne predlaže."""
+    z = _prijedlog(db, zid)
+    rid = z.prijedlog_radnik_id
+    odb = [x for x in (z.prijedlog_odbijeni or "").split(",") if x]
+    if str(rid) not in odb:
+        odb.append(str(rid))
+    z.prijedlog_odbijeni = ",".join(odb)[-200:]
+    z.prijedlog_radnik_id = None
+    r = db.get(Korisnik, rid)
+    _log(db, korisnik, "prijedlog-odbijen",
+         f"GB {_gb(z.operacija.nalog)}: {z.opis or ''} ✕ {r.ime if r else rid}"[:250],
+         nalog_id=z.operacija.nalog_id, zadatak_id=z.id, radnik_id=rid)
+    db.commit()
+    return {"ok": True}
+
+
+class PrijedlogPremjestiIn(BaseModel):
+    na_radnika: int
+
+
+@router.post("/prijedlog/{zid}/premjesti")
+def prijedlog_premjesti(zid: int, p: PrijedlogPremjestiIn, korisnik: Korisnik = Depends(_samo_vlasnik),
+                        db: Session = Depends(get_db)):
+    """Preseli prijedlog drugom mehaničaru (i dalje je samo prijedlog dok se ne prihvati)."""
+    z = _prijedlog(db, zid)
+    novi = db.get(Korisnik, p.na_radnika)
+    if not novi or not (novi.uloga in _DODJELJIVI or je_serviser(novi)):
+        raise HTTPException(status_code=400, detail="Tom korisniku se ne može dati zadatak")
+    stari = db.get(Korisnik, z.prijedlog_radnik_id)
+    z.prijedlog_radnik_id = novi.id
+    _log(db, korisnik, "prijedlog-premjesten",
+         f"GB {_gb(z.operacija.nalog)}: {stari.ime if stari else '?'} → {novi.ime}"[:250],
+         nalog_id=z.operacija.nalog_id, zadatak_id=z.id, radnik_id=novi.id)
+    db.commit()
+    return {"ok": True}
 
 
 class SkupineIn(BaseModel):

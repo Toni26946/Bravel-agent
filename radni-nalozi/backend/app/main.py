@@ -115,6 +115,7 @@ async def lifespan(app: FastAPI):
         pregledi_auto.ocisti_ne_kamione(db)    # makni auto-preglede s malih auta/ne-kamiona
         jednokratno_reset_borovyk_gb174(db)    # makni lažni mjerač (stari bug) Borovyku na GB174
         auto_popuni.jednokratno_ocisti_rucni_red(db)   # red mehaničara od 19.11.2026. ide po prioritetima
+        auto_popuni.jednokratno_dodjele_u_prijedloge(db)   # auto-popunjavanje samo predlaže (25.11.2026.)
         skupine.jednokratno_popuni(db)                 # kućice „što tko radi" iz povijesti (20.11.2026.)
         skupine.jednokratno_razdvoji_zavarivanje(db)   # zavarivanje odvojeno od limarije (#365, 23.11.2026.)
         skupine.jednokratno_razdvoji_v2(db)            # kočnice/ovjes/pneumatika, elektrika/dijagnostika/klima posebno (23.11.2026.)
