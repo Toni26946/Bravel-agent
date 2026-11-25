@@ -107,16 +107,13 @@ export default function PregledVozila() {
 
 function Celija({ v, p, otvoren, onOtvori, onZatvori, onSpremi, onGreska }) {
   const { t } = useT()
-  const [datum, setDatum] = useState(v[p.dp] || '')
-  const [inter, setInter] = useState(v[p.ip] != null ? v[p.ip] : (p.zad || ''))
+  // Upisuje se izravno „vrijedi do" (datum s potvrde), ne datum + interval.
+  const [datum, setDatum] = useState(istekZa(v, p) || '')
   const [radi, setRadi] = useState(false)
 
-  // Kad se ćelija zatvori (npr. klikom na drugu), vrati polja na spremljene vrijednosti.
+  // Kad se ćelija zatvori (npr. klikom na drugu), vrati polje na spremljenu vrijednost.
   useEffect(() => {
-    if (!otvoren) {
-      setDatum(v[p.dp] || '')
-      setInter(v[p.ip] != null ? v[p.ip] : (p.zad || ''))
-    }
+    if (!otvoren) setDatum(istekZa(v, p) || '')
   }, [otvoren, v, p])
 
   const istek = istekZa(v, p)
@@ -125,8 +122,8 @@ function Celija({ v, p, otvoren, onOtvori, onZatvori, onSpremi, onGreska }) {
   const spremi = async () => {
     setRadi(true)
     try {
-      const body = { [p.dp]: datum || null }
-      if (p.ip) body[p.ip] = inter ? Number(inter) : null
+      const body = { [p.do]: datum || null }
+      if (!datum && p.dp) body[p.dp] = null   // obrisano = nema roka (ne vraćaj stari izračun)
       await api.urediPregled(v.gb, body)
       onSpremi(v.gb, body)
       onZatvori()
@@ -136,9 +133,9 @@ function Celija({ v, p, otvoren, onOtvori, onZatvori, onSpremi, onGreska }) {
   if (otvoren) {
     return (
       <td className="pv-cel pv-edit">
+        <div className="pv-ed-lbl">{t('pv.vrijediDo')}</div>
         <div className="pv-ed-row">
-          <input type="date" className="pv-ed-datum" value={datum || ''} onChange={(e) => setDatum(e.target.value)} />
-          {p.ip && <input type="number" className="pv-ed-int" min="1" value={inter} title={t('pv.interval')} onChange={(e) => setInter(e.target.value)} />}
+          <input type="date" className="pv-ed-datum" value={datum || ''} onChange={(e) => setDatum(e.target.value)} autoFocus />
         </div>
         <div className="pv-btns">
           <button className="btn mali" onClick={spremi} disabled={radi}>{t('pv.spremi')}</button>

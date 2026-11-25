@@ -61,17 +61,29 @@ def _plus_mj(d: date, n: int) -> date:
     return date(god, mj, dan)
 
 
-def _rok(datum: date | None, interval_mj: int | None) -> date | None:
+def _rok(datum: date | None, interval_mj: int | None, vrijedi_do: date | None = None) -> date | None:
+    """Rok provjere: upisani „vrijedi do" ima prednost; inače datum + interval (stari zapisi)."""
+    if vrijedi_do:
+        return vrijedi_do
     if not datum:
         return None
     return _plus_mj(datum, int(interval_mj)) if interval_mj else datum
 
 
+# Zadani intervali (mj.) kad interval nije upisan — isti kao na kartici Pregledi vozila.
+ZADANI_INT = {"periodicki": 3, "taho": 24, "pp": 12}
+
+
+def rok_provjere(r, k: str) -> date | None:
+    """Rok za provjeru k ∈ periodicki|taho|pp (s istim zadanim intervalom kao ekran)."""
+    return _rok(getattr(r, f"{k}_datum"), getattr(r, f"{k}_int") or ZADANI_INT[k], getattr(r, f"{k}_do"))
+
+
 # (kategorija operacije, opis zadatka, funkcija koja vrati rok iz RegistarVozila)
 VRSTE = [
-    ("PERIODIČKI PREGLED", "Periodični pregled", lambda r: _rok(r.periodicki_datum, r.periodicki_int)),
-    ("BAŽDARENJE TAHOGRAFA", "Baždarenje tahografa", lambda r: _rok(r.taho_datum, r.taho_int)),
-    ("PP APARATI", "Servis PP aparata", lambda r: _rok(r.pp_datum, r.pp_int)),
+    ("PERIODIČKI PREGLED", "Periodični pregled", lambda r: _rok(r.periodicki_datum, r.periodicki_int, r.periodicki_do)),
+    ("BAŽDARENJE TAHOGRAFA", "Baždarenje tahografa", lambda r: _rok(r.taho_datum, r.taho_int, r.taho_do)),
+    ("PP APARATI", "Servis PP aparata", lambda r: _rok(r.pp_datum, r.pp_int, r.pp_do)),
     ("REGISTRACIJA", "Produženje registracije", lambda r: r.registracija_istek),
 ]
 _KATEGORIJE = {k for (k, _o, _f) in VRSTE}
