@@ -95,8 +95,10 @@ def test_popuni_iskustvo_pa_najmanje_posla():
     z_gum = _zad(db, n2, "GUME", "gum")
     db.commit()
     popuni(db)
-    assert [r.id for r in z_hid.radnici] == [bob.id], "hidraulika ide onome tko ju je radio"
-    assert [r.id for r in z_gum.radnici] == [ana.id], "ostalo onome s najmanje posla"
+    # Od 25.11.2026. automatika samo PREDLAŽE (dodjela tek kad poslovođa prihvati).
+    assert not z_hid.radnici and not z_gum.radnici, "ništa se ne dodjeljuje samo"
+    assert z_hid.prijedlog_radnik_id == bob.id, "hidraulika ide onome tko ju je radio"
+    assert z_gum.prijedlog_radnik_id == ana.id, "ostalo onome s najmanje posla"
 
 
 def test_popuni_preskace():
@@ -134,7 +136,7 @@ def test_testni_mehanicar_ne_dobiva_i_vraca_se():
     z_test = _zad(db, n_test, "GUME", "probni")
     db.commit()
     out = popuni(db)
-    assert [r.id for r in z_krivo.radnici] == [ana.id], "vraćen s testnog i dan pravom"
+    assert not z_krivo.radnici and z_krivo.prijedlog_radnik_id == ana.id, "vraćen s testnog i predložen pravom"
     assert not z_test.radnici, "probni nalog se ne dodjeljuje"
     assert all(d["radnik_id"] != test.id for d in out)
 
@@ -152,7 +154,7 @@ def test_skladistar_ne_dobiva_i_vraca_se():
     out = popuni(db)
     assert all(d["radnik_id"] != sk.id for d in out)
     assert sk.id not in [r.id for r in z_rucno.radnici]
-    assert [r.id for r in z_novi.radnici] == [ana.id]
+    assert z_novi.prijedlog_radnik_id == ana.id
 
 
 def test_popuni_ugaseno():
@@ -245,8 +247,8 @@ def test_zapoceti_posao_ide_onome_tko_ga_je_radio():
         _zad(db, _nalog(db, f"7{i}", pav, plan_rang=9), "GUME", f"g{i}", radnici=[pav])
     db.commit()
     popuni(db)
-    assert [r.id for r in z_adblue.radnici] == [pav.id]
-    assert [r.id for r in z_ploca.radnici] != [odsutni.id] and z_ploca.radnici, "odsutni → drugome"
+    assert z_adblue.prijedlog_radnik_id == pav.id
+    assert z_ploca.prijedlog_radnik_id not in (None, odsutni.id), "odsutni → drugome"
 
 
 def test_zapoceti_posao_ceka_majstora_s_punim_redom():
@@ -260,4 +262,69 @@ def test_zapoceti_posao_ceka_majstora_s_punim_redom():
     db.add(ZadatakRadnikVrijeme(zadatak_id=z.id, radnik_id=pav.id, utroseno_sek=3600))
     db.commit()
     popuni(db)
-    assert not z.radnici, "red mu je pun — posao čeka njega, ne ide Ščanćaru"
+    assert not z.radnici and z.prijedlog_radnik_id is None, "red mu je pun — posao čeka njega, ne ide Ščanćaru"
+
+
+# --- Prijedlozi (Toni 25.11.2026.): automatika predlaže, poslovođa prihvaća/odbija/seli ---
+def test_prijedlog_prihvati_odbij_premjesti():
+    from app.routers import plan as plan_r
+    db = _session()
+    sef = Korisnik(ime="Šef", korisnicko_ime="sef", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add(sef); db.flush()
+    ana = _meh(db, "Ana")
+    bob = _meh(db, "Bob")
+    for i in range(4):   # Bob ima 4 → dobiva prijedloge tek do 5
+        _zad(db, _nalog(db, f"9{i}", ana, plan_rang=9), "GUME", f"b{i}", radnici=[bob])
+    z1 = _zad(db, _nalog(db, "61", ana, prioritet_rang=0), "GUME", "jedan")
+    z2 = _zad(db, _nalog(db, "62", ana, prioritet_rang=1), "GUME", "dva")
+    db.commit()
+
+    popuni(db)
+    assert {z1.prijedlog_radnik_id, z2.prijedlog_radnik_id} <= {ana.id, bob.id}
+    assert not z1.radnici and not z2.radnici
+
+    # Odbij → tom mehaničaru se više ne predlaže
+    odbijen = z1.prijedlog_radnik_id
+    plan_r.prijedlog_odbij(z1.id, korisnik=sef, db=db)
+    assert z1.prijedlog_radnik_id is None
+    popuni(db)
+    assert z1.prijedlog_radnik_id not in (odbijen,)
+
+    # Premjesti prijedlog drugome, pa prihvati → tek tada je dodijeljen
+    drugi = bob if z2.prijedlog_radnik_id == ana.id else ana
+    plan_r.prijedlog_premjesti(z2.id, plan_r.PrijedlogPremjestiIn(na_radnika=drugi.id), korisnik=sef, db=db)
+    assert z2.prijedlog_radnik_id == drugi.id and not z2.radnici
+    plan_r.prijedlog_prihvati(z2.id, korisnik=sef, db=db)
+    assert [r.id for r in z2.radnici] == [drugi.id] and z2.prijedlog_radnik_id is None
+
+
+def test_prihvati_sve_i_gasenje():
+    from app.routers import plan as plan_r
+    db = _session()
+    sef = Korisnik(ime="Šef", korisnicko_ime="sef", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add(sef); db.flush()
+    ana = _meh(db, "Ana")
+    zz = [_zad(db, _nalog(db, f"7{i}", ana, prioritet_rang=i), "GUME", f"z{i}") for i in range(3)]
+    db.commit()
+    popuni(db)
+    assert all(z.prijedlog_radnik_id == ana.id for z in zz)
+    r = plan_r.prijedlozi_prihvati_sve(plan_r.PrihvatiSveIn(radnik_id=ana.id), korisnik=sef, db=db)
+    assert r["prihvaceno"] == 3 and all([x.id for x in z.radnici] == [ana.id] for z in zz)
+
+
+def test_danasnje_auto_dodjele_postaju_prijedlozi():
+    from datetime import date
+    from app.auto_popuni import jednokratno_dodjele_u_prijedloge
+    from app.models import PlanDogadaj
+    db = _session()
+    ana = _meh(db, "Ana")
+    n = _nalog(db, "80", ana, prioritet_rang=0)
+    z_auto = _zad(db, n, "GUME", "auto", radnici=[ana])
+    z_poslan = _zad(db, n, "GUME", "poslan", radnici=[ana], ceka_potvrdu=True)
+    for z in (z_auto, z_poslan):
+        db.add(PlanDogadaj(tip="auto-dodjela", opis="x", nalog_id=n.id, zadatak_id=z.id,
+                           radnik_id=ana.id, datum=date(2026, 11, 25)))
+    db.commit()
+    jednokratno_dodjele_u_prijedloge(db)
+    assert not z_auto.radnici and z_auto.prijedlog_radnik_id == ana.id
+    assert [r.id for r in z_poslan.radnici] == [ana.id], "već poslan mehaničaru ostaje dodijeljen"

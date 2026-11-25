@@ -1,7 +1,11 @@
 """Automatsko popunjavanje reda mehaničara (Plan → Radnici).
 
+Od 25.11.2026. (Toni) automatika samo PREDLAŽE: postavi zadatak.prijedlog_radnik_id,
+a zadatak mehaničaru pripada tek kad ga poslovođa prihvati (plan.py /prijedlog/…).
+Prijedlozi se broje u njegovih 5, odbijeni (prijedlog_odbijeni) mu se ne predlažu ponovno.
+
 Čim nekom prisutnom mehaničaru ostane manje od MIN_ZADATAKA (5) zadataka u redu
-(i onaj u tijeku; bez odgođenih), sam mu se dodijeli sljedeća NEDODIJELJENA operacija iz plana:
+(i onaj u tijeku; bez odgođenih; s prijedlozima), predloži mu se sljedeća NEDODIJELJENA operacija iz plana:
 - redom: HITNO → lista prioriteta (1, 2, 3…) → ostali po redoslijedu plana;
 - kome: SAMO majstorima kojima je skupina tog posla označena (skupine.py — kućice
   „što tko radi"); među njima onaj koji je najviše puta završio tu vrstu posla, pa
@@ -74,7 +78,7 @@ def popuni(db: Session) -> list[dict]:
     from .routers.nalozi import nalog_eager
     from .routers.plan import (
         _AKTIVNI, _PREGLED_KAT, _SERVISERI, _SKRIVENI_GB, _gb, _iskustvo_po_kategoriji,
-        _je_odsutan, _log, _norm_kat, _radio_po_zadatku, _set_radnici,
+        _je_odsutan, _log, _norm_kat, _radio_po_zadatku,
     )
 
     iskljuceni = _iskljuceni_kimena()
@@ -104,6 +108,8 @@ def popuni(db: Session) -> list[dict]:
                 if z.gotovo:
                     continue
                 if z.radnici:
+                    if z.prijedlog_radnik_id:
+                        z.prijedlog_radnik_id = None   # već dodijeljen → prijedlog ne vrijedi
                     for r in z.radnici:
                         if r.id not in ceka:
                             continue
@@ -114,6 +120,13 @@ def popuni(db: Session) -> list[dict]:
                         if z.razlog_prekida not in _ODGODJENO:
                             ceka[r.id] += 1   # kartica u njegovom retku (i ona u tijeku)
                     continue
+                if z.prijedlog_radnik_id:
+                    if z.prijedlog_radnik_id in ceka and n.status != StatusNaloga.ceka_dijelove \
+                            and z.razlog_prekida not in _ODGODJENO:
+                        ceka[z.prijedlog_radnik_id] += 1   # otvoren prijedlog se broji u njegovih 5
+                        ukupno[z.prijedlog_radnik_id] += 1
+                        continue
+                    z.prijedlog_radnik_id = None   # mehaničar odsutan / zadatak odgođen → prijedlog pada
                 if not u_planu or n.status == StatusNaloga.ceka_dijelove:
                     continue
                 if z.razlog_prekida in _ODGODJENO:
@@ -125,6 +138,8 @@ def popuni(db: Session) -> list[dict]:
     prag = MIN_ZADATAKA
     trebaju = {rid for rid, c in ceka.items() if c < prag}
     if not trebaju or not kandidati:
+        if db.dirty:
+            db.commit()   # očišćeni zastarjeli prijedlozi
         return []
     kandidati.sort(key=_kljuc_kandidata)
     iskustvo = _iskustvo_po_kategoriji(db, list(trebaju))
@@ -146,35 +161,32 @@ def popuni(db: Session) -> list[dict]:
             continue   # vozilo nije u radioni
         # Samo majstori kojima je ta skupina poslova označena (Toni 20.11.2026.: perač ne
         # dobiva elektriku). Nitko ne smije / kategorija bez skupine → ostaje u planu (ručno).
+        odbijeni = {int(x) for x in (z.prijedlog_odbijeni or "").split(",") if x.strip().isdigit()}
         prethodnik = (radili.get(z.id) or (None, None))[1]
-        if prethodnik in po_id:          # prisutan majstor koji ga je već radio
+        if prethodnik in po_id and prethodnik not in odbijeni:   # prisutan majstor koji ga je već radio
             if prethodnik not in trebaju:
                 continue                 # red mu je pun — posao čeka njega, ne ide drugome
             rid = prethodnik
         else:
-            smiju = [r for r in trebaju if skupine.smije(po_id[r], op.kategorija)]
+            smiju = [r for r in trebaju if r not in odbijeni and skupine.smije(po_id[r], op.kategorija)]
             if not smiju:
                 continue
             isk = iskustvo.get(_norm_kat(op.kategorija), {})
             rid = min(smiju, key=lambda r: (-isk.get(r, 0), ceka[r], ukupno[r], po_id[r].ime or ""))
-        try:
-            _set_radnici(db, z, [rid])
-        except Exception as e:  # noqa: BLE001 — jedan loš ne smije srušiti ostale
-            log.warning("Auto-popuni: ne mogu dodijeliti zadatak %s radniku %s: %s", z.id, rid, e)
-            trebaju.discard(rid)
-            continue
-        z.ceka_potvrdu = False
+        # Samo PRIJEDLOG — dodjela tek kad poslovođa prihvati (plan.py /prijedlog/{id}/prihvati).
+        z.prijedlog_radnik_id = rid
         ceka[rid] += 1
         ukupno[rid] += 1
         if ceka[rid] >= prag:
             trebaju.discard(rid)
         ime = po_id[rid].ime
-        _log(db, None, "auto-dodjela", f"GB {gb}: {z.opis or op.kategorija or ''} → {ime} (automatski)"[:250],
+        _log(db, None, "auto-prijedlog", f"GB {gb}: {z.opis or op.kategorija or ''} → {ime} (prijedlog)"[:250],
              nalog_id=n.id, zadatak_id=z.id, radnik_id=rid)
         out.append({"zadatak_id": z.id, "gb": gb, "radnik_id": rid, "radnik": ime})
-    if out:
+    if out or db.dirty:
         db.commit()
-        log.info("Auto-popuni: %s dodjela (%s)", len(out),
+    if out:
+        log.info("Auto-popuni: %s prijedloga (%s)", len(out),
                  ", ".join(f"GB {d['gb']}→{d['radnik']}" for d in out))
     return out
 
@@ -223,6 +235,31 @@ def popuni_tiho(db: Session) -> None:
     except Exception as e:  # noqa: BLE001
         db.rollback()
         log.warning("Auto-popuni iznimka: %s", e)
+
+
+KLJUC_U_PRIJEDLOGE = "plan_auto_u_prijedloge_v1"
+
+
+def jednokratno_dodjele_u_prijedloge(db: Session) -> None:
+    """Jednokratno (25.11.2026.): automatske dodjele od danas, koje još nitko nije
+    započeo ni poslao mehaničaru, postaju prijedlozi (poslovođa ih prihvaća)."""
+    if norme.get_postavka(db, KLJUC_U_PRIJEDLOGE) == "1":
+        return
+    from datetime import date
+    from .models import PlanDogadaj
+    n = 0
+    for d in (db.query(PlanDogadaj)
+              .filter(PlanDogadaj.tip == "auto-dodjela", PlanDogadaj.datum >= date(2026, 11, 25)).all()):
+        z = db.get(Zadatak, d.zadatak_id) if d.zadatak_id else None
+        if (z is None or z.gotovo or z.zapoceto or z.ceka_potvrdu or z.vremena
+                or [r.id for r in z.radnici] != [d.radnik_id]):
+            continue
+        z.radnici = []
+        z.prijedlog_radnik_id = d.radnik_id
+        n += 1
+    norme.set_postavka(db, KLJUC_U_PRIJEDLOGE, "1")
+    db.commit()
+    log.info("Auto-dodjele pretvorene u prijedloge: %s", n)
 
 
 def jednokratno_ocisti_rucni_red(db: Session) -> None:

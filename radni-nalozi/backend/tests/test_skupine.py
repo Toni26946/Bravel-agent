@@ -82,9 +82,9 @@ def test_perac_ne_dobiva_elektriku():
     z_raz = _zad(db, "12", "RAZNO", elek, 2)
     db.commit()
     popuni(db)
-    assert [r.id for r in z_el.radnici] == [elek.id], "elektrika električaru iako ima više posla"
-    assert [r.id for r in z_pr.radnici] == [perac.id]
-    assert not z_raz.radnici, "RAZNO ne ide automatski nikome"
+    assert z_el.prijedlog_radnik_id == elek.id, "elektrika električaru iako ima više posla"
+    assert z_pr.prijedlog_radnik_id == perac.id
+    assert not z_raz.radnici and z_raz.prijedlog_radnik_id is None, "RAZNO ne ide automatski nikome"
 
 
 def test_nitko_nema_skupinu_ostaje_u_planu():
