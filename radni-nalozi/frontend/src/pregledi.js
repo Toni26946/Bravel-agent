@@ -36,18 +36,20 @@ export function klasa(dana) {
   return 'pv-zelena'
 }
 
-// Definicije provjera: datum-polje, interval-polje, zadani interval; `txt` je
-// ključ prijevoda (pv.*). Registracija je samo datum isteka.
+// Definicije provjera: `do` = polje „vrijedi do" (upisuje se izravno s potvrde —
+// Toni 25.11.2026.: tehnički piše različite datume, „+3 mj." nije dobro);
+// datum-polje + interval ostaju samo kao rezerva za stare zapise. `txt` je ključ prijevoda.
 export const PROVJERE = [
-  { k: 'periodicki', dp: 'periodicki_datum', ip: 'periodicki_int', zad: 3, txt: 'pv.periodicki' },
-  { k: 'taho', dp: 'taho_datum', ip: 'taho_int', zad: 24, txt: 'pv.taho' },
-  { k: 'pp', dp: 'pp_datum', ip: 'pp_int', zad: 12, txt: 'pv.pp' },
-  { k: 'reg', dp: 'registracija_istek', ip: null, zad: null, txt: 'pv.reg' },
+  { k: 'periodicki', do: 'periodicki_do', dp: 'periodicki_datum', ip: 'periodicki_int', zad: 3, txt: 'pv.periodicki' },
+  { k: 'taho', do: 'taho_do', dp: 'taho_datum', ip: 'taho_int', zad: 24, txt: 'pv.taho' },
+  { k: 'pp', do: 'pp_do', dp: 'pp_datum', ip: 'pp_int', zad: 12, txt: 'pv.pp' },
+  { k: 'reg', do: 'registracija_istek', dp: null, ip: null, zad: null, txt: 'pv.reg' },
 ]
 
-// Datum idućeg roka za zadanu provjeru.
+// Datum do kad provjera vrijedi: upisani „vrijedi do", inače (stari zapis) datum + interval.
 export function istekZa(v, p) {
-  if (p.k === 'reg') return v.registracija_istek || null
+  if (v[p.do]) return v[p.do]
+  if (!p.dp) return null
   return dodajMjesece(v[p.dp], v[p.ip] || p.zad)
 }
 

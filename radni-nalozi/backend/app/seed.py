@@ -348,6 +348,32 @@ def ispravi_preglede_v2(db: Session) -> None:
         pass
 
 
+def popuni_vrijedi_do_v1(db: Session) -> None:
+    """Jednokratno (25.11.2026.): rokovi pregleda prelaze na izravno upisani „vrijedi do".
+    Svim vozilima koja ga još nemaju upiše se dosadašnji izračunati rok (datum + interval,
+    isto kao na ekranu), pa se na kartici ništa ne pomakne. Guardano zastavicom."""
+    from .pregledi_auto import rok_provjere
+    zastavica = Path(settings.upload_dir).parent / ".pregledi_vrijedi_do_v1"
+    try:
+        if zastavica.exists():
+            return
+    except OSError:
+        pass
+    n = 0
+    for r in db.query(RegistarVozila).all():
+        for k in ("periodicki", "taho", "pp"):
+            if getattr(r, f"{k}_do") is None and getattr(r, f"{k}_datum") is not None:
+                setattr(r, f"{k}_do", rok_provjere(r, k))
+                n += 1
+    db.commit()
+    log.info("Pregledi: upisano %d rokova 'vrijedi do' iz datuma + intervala.", n)
+    try:
+        zastavica.parent.mkdir(parents=True, exist_ok=True)
+        zastavica.write_text("done", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def uvezi_vozace_gb(db: Session) -> None:
     """Jednokratni uvoz dodijeljenih vozača po garažnom broju iz app/data/vozaci_gb.json
     (izvezeno iz GS „VOZACI DODJELJENI KAMIONIMA"). Postavlja RegistarVozila.vozac.

@@ -250,6 +250,12 @@ class RegistarVozila(Base):
     pp_datum: Mapped[date | None] = mapped_column(Date, nullable=True)           # PP aparati
     pp_int: Mapped[int | None] = mapped_column(Integer, nullable=True)           # mj. (obično 12)
     registracija_istek: Mapped[date | None] = mapped_column(Date, nullable=True) # istek registracije
+    # „Vrijedi do" — rok upisan izravno (s potvrde tehničkog/servisa). Toni 25.11.2026.:
+    # tehnički piše različite datume, pa „datum + 3 mj." nije dobar. Ako je upisan,
+    # on JE rok; inače (stari zapisi) rok = datum + interval.
+    periodicki_do: Mapped[date | None] = mapped_column(Date, nullable=True)
+    taho_do: Mapped[date | None] = mapped_column(Date, nullable=True)
+    pp_do: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Vozač trenutno dodijeljen ovom vozilu (uvoz iz GS „VOZACI DODJELJENI KAMIONIMA", po GB).
     vozac: Mapped[str | None] = mapped_column(String(120), nullable=True)
 

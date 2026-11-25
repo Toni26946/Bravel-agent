@@ -897,6 +897,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pv-crvena { background: rgba(220,38,38,.16); color: #b91c1c; font-weight: 700; }
 .pv-edit { background: #fff; }
 .pv-ed-row { display: flex; gap: 4px; justify-content: center; align-items: center; }
+.pv-ed-lbl { font-size: 11px; color: var(--sivo); text-align: center; margin-bottom: 2px; }
 .pv-ed-datum { margin: 0; padding: 2px 4px; font-size: 12px; width: auto; }
 .pv-ed-int { margin: 0; padding: 2px 4px; font-size: 12px; width: 46px; }
 .pv-btns { display: flex; gap: 4px; justify-content: center; margin-top: 3px; }

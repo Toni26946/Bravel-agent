@@ -62,6 +62,7 @@ from .seed import (
     uvezi_vozila_matica,
     uvezi_preglede_iz_gs,
     ispravi_preglede_v2,
+    popuni_vrijedi_do_v1,
     uvezi_vozace_gb,
 )
 
@@ -104,6 +105,7 @@ async def lifespan(app: FastAPI):
         uvezi_vozila_matica(db)
         uvezi_preglede_iz_gs(db)
         ispravi_preglede_v2(db)
+        popuni_vrijedi_do_v1(db)
         uvezi_vozace_gb(db)
         obavijesti_osvjezi(db)
         seed_vozaci(db)
