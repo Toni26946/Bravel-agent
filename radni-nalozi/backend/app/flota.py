@@ -302,6 +302,16 @@ def _prestaro(vrijeme_iso: str | None) -> bool:
     return starost > settings.flota_max_starost_s
 
 
+def gps_ucitan() -> bool:
+    """Je li GPS spreman za odluku „vozilo je u radioni". Ako lokacija radione nije
+    postavljena (lokalno/testovi), GPS se ne koristi → True. Inače True tek kad je keš
+    napunjen: odmah nakon pokretanja servera je prazan, pa bi se sva vozila smatrala
+    „u radioni" (25.11.2026.: prijedlozi za GB 298/479 koji su bili 40+ km daleko)."""
+    if not (settings.radiona_lat and settings.radiona_lon):
+        return True
+    return bool(_zadnje_pozicije)
+
+
 def udaljenost_od_radione(gb: str | None) -> int | None:
     """Udaljenost vozila od radione u metrima (iz keša GPS-a). None ako nije
     konfigurirano, nema GB-a ili nema svježe pozicije (prikolice/šlepe nemaju GPS)."""
