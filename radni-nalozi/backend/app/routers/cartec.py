@@ -539,7 +539,9 @@ def _test_out(db: Session, t: TestKocnica, nalozi: dict[int, Nalog] | None = Non
     kand = []
     for i in kand_ids:
         n = (nalozi or {}).get(i) or db.get(Nalog, i)
-        if n and n.status in OTVORENI:
+        # I „gotov” nalog je kandidat: on se upravo zatvara, a blokira_zatvaranje ga
+        # blokira — bez njega na popisu nalog nije nudio gumb za vezanje (WhatsApp #412).
+        if n and n.status != StatusNaloga.zatvoren:
             kand.append(nalog_mini(n))
     vazeca = [m for m in t.mjerenja if m.vazece]
     return {

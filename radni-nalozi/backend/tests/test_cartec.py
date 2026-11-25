@@ -116,6 +116,27 @@ def test_vise_mogucih_vozila_nerazvrstan_i_blokira_zatvaranje():
     assert (t2.status, t2.gb) == ("vezan", "156")
 
 
+def test_gotov_nalog_ostaje_kandidat_dok_ga_test_blokira():
+    """Nalog „gotov” blokira test (zatvaranje) — mora biti i na popisu kandidata,
+    inače nalog ne nudi gumb za vezanje i ne može se zatvoriti (WhatsApp #412)."""
+    db = _db()
+    vod, tok = _okolina(db)
+    a = _nalog(db, vod, "400", "RN-1", u_radu=True)
+    b = _nalog(db, vod, "156", "RN-2", u_radu=True)
+    cartec.primi_mjerenje(_m(1, 500, 500), x_cartec_token=tok, db=db)
+    a.status = StatusNaloga.gotov
+    db.commit()
+    [t] = _lista(db, vod, "otvoreni")
+    assert a.id in {x["id"] for x in t["kandidati"]}
+    assert cartec.blokira_zatvaranje(db, a.id) is not None
+    cartec.vezi_test(t["id"], VeziIn(nalog_id=a.id), db=db, k=vod)
+    assert cartec.blokira_zatvaranje(db, a.id) is None
+    # Zatvoren nalog više nije kandidat.
+    b.status = StatusNaloga.zatvoren
+    db.commit()
+    assert db.get(_Test, t["id"]).status == "vezan"
+
+
 def test_poveznica_bez_prijave_upis_gb():
     db = _db()
     vod, tok = _okolina(db)
