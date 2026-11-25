@@ -314,6 +314,11 @@
   .prio-br{font-weight:800;color:var(--muted);min-width:24px}
   .prio-gb{font-weight:800}
   .prio-voz{color:var(--muted);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Prioriteti: je li vozilo u radioni (GPS) — vani = ne dobiva prijedloge (25.11.2026.) */
+  .prio-mj{flex:0 1 auto;max-width:48%;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .prio-mj.vani{color:#b45309;background:#fef3c7;border:1px solid #fcd34d}
+  .prio-mj.tu{color:#047857;background:#dcfce7;border:1px solid #86efac}
+  .prio-mj.nepoznato{color:var(--muted);background:transparent;border:1px dashed var(--line)}
   .prio-x{border:0;background:none;color:var(--crveno);cursor:pointer;font-size:15px;padding:2px 6px;font-family:inherit}
 
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:20px 0 4px}
@@ -1192,13 +1197,20 @@
   }
   function prioBoja(b){ return b==='c'?'#e5484d':(b==='z'?'#e0a400':'#2e9e5b'); }
 
+  // Oznaka je li vozilo u radioni (Toni 25.11.2026.): vani → ne dobiva prijedloge dok ne dođe.
+  function prioMjesto(n){
+    if(n.udaljenostM==null) return '<span class="prio-mj nepoznato" title="Nema GPS pozicije (npr. prikolica)">❔ bez GPS-a</span>';
+    if(!daleko(n)) return '<span class="prio-mj tu" title="Vozilo je u krugu radione">✅ u radioni</span>';
+    var m=n.udaljenostM, d=m<1000?(m+' m'):((m/1000).toFixed(m<10000?1:0).replace('.',',')+' km');
+    return '<span class="prio-mj vani" title="Vozilo nije u radioni — automatika mu ne predlaže zadatke dok ne dođe">📍 vani · '+d+(n.mjesto?' · '+esc(n.mjesto):'')+'</span>';
+  }
   // Kartica „Prioriteti": lista naloga po prioritetu + dodavanje/micanje/povlačenje.
   function renderPRIO(){
     var lista=prioLista(), N=lista.length;
     var slobodni=(nalozi||[]).filter(function(n){ return n.prioritet==null; })
       .sort(function(a,b){ return (""+(a.gb||"")).localeCompare(""+(b.gb||""),"hr",{numeric:true}); });
     var h='';
-    h+='<p class="hint">Popis prioriteta naloga. Prvi je najhitniji (1), pa dalje. U kartici „Radnici" se nalozi s liste oboje: gornjih 33% <b style="color:#e5484d">crveno</b>, srednjih 33% <b style="color:#e0a400">žuto</b>, zadnjih 33% <b style="color:#2e9e5b">zeleno</b>. Povuci ⠿ za presloživanje.</p>';
+    h+='<p class="hint">Popis prioriteta naloga. Prvi je najhitniji (1), pa dalje. U kartici „Radnici" se nalozi s liste oboje: gornjih 33% <b style="color:#e5484d">crveno</b>, srednjih 33% <b style="color:#e0a400">žuto</b>, zadnjih 33% <b style="color:#2e9e5b">zeleno</b>. Povuci ⠿ za presloživanje. <b style="color:#b45309">📍 vani</b> = vozilo nije u radioni, pa njegovi zadaci ne dobivaju prijedloge dok ne dođe.</p>';
     h+='<div class="prio-add"><select id="prio-sel"><option value="">— izaberi nalog (GB) —</option>'+
        slobodni.map(function(n){ return '<option value="'+n.id+'">GB '+esc(n.gb)+(n.vozilo?(' · '+esc(n.vozilo)):'')+'</option>'; }).join('')+
        '</select><button class="btn-mini" onclick="PLAN.dodajPrio()">➕ Dodaj na listu</button></div>';
@@ -1211,6 +1223,7 @@
          '<span class="prio-br">'+(i+1)+'.</span>'+
          '<span class="prio-gb">GB '+esc(n.gb)+'</span>'+
          '<span class="prio-voz">'+esc(n.vozilo||'')+'</span>'+
+         prioMjesto(n)+
          '<button class="prio-x" onclick="PLAN.makniPrio('+n.id+')" title="Makni s liste">✕</button>'+
          '</div>';
     });
