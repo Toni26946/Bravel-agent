@@ -113,6 +113,10 @@
   .btn.ghost{background:var(--plava-soft);color:var(--plava)}
   .btn.sm{padding:6px 10px;font-size:12px}
   .btn.zvj{background:#fff7ed;color:#b45309;border:1px solid #fed7aa}
+  /* „Dodaj vozilo” mora upasti u oko (WhatsApp #397): pun zeleni gumb, veći od ostalih u traci */
+  .btn.dodaj-voz{background:var(--s-radu);color:#fff;font-size:14px;padding:8px 16px;box-shadow:0 2px 8px rgba(21,128,61,.35);cursor:pointer}
+  .btn.dodaj-voz:hover{filter:brightness(1.1)}
+  .btn.dodaj-voz:active{transform:translateY(1px)}
   .btn:disabled{opacity:.45;cursor:default}
   select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--card);color:var(--fg)}
   .gb{font-weight:800;font-size:15px}
@@ -790,7 +794,7 @@
     h+='<div class="pl-top">'+
          (planZakljucan?'':'<button class="btn sm" onclick="PLAN.isplanirajSve()" title="Pošalji sve naloge iz plana odjednom — svakom mehaničaru njegov prvi zadatak">📨 Pošalji sve naloge</button>')+
          autoSlanjeHtml()+
-         (planZakljucan?'':'<button class="btn ghost sm" onclick="PLAN.planMode(true)">➕ Dodaj vozilo</button>')+
+         (planZakljucan?'':'<button class="btn dodaj-voz" onclick="PLAN.planMode(true)" title="Dodaj vozilo (garažni broj) u plan">➕ Dodaj vozilo</button>')+
          '<button class="btn ghost sm" onclick="PLAN.zakljucaj()">'+(planZakljucan?'🔓 Otključaj plan':'🔒 Zaključaj plan')+'</button>'+
          '<button class="brojac-btn" onclick="PLAN.toggleLog()">Promjena plana danas: '+promjene+' '+(logOtvoren?'▴':'▾')+'</button>'+
          '<label class="blizu-chk" title="Sakrij naloge čija su vozila po GPS-u dalje od '+BLIZU_M+' m od radione. Prikolice i vozila bez GPS-a ostaju vidljiva."><input type="checkbox"'+(samoBlizu?' checked':'')+' onchange="PLAN.toggleBlizu(this.checked)"> 📍 Samo ≤'+BLIZU_M+' m od radione</label>'+
