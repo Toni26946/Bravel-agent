@@ -5,8 +5,9 @@ a zadatak mehaničaru pripada tek kad ga poslovođa prihvati (plan.py /prijedlog
 Prijedlozi se broje u njegovih 5, odbijeni (prijedlog_odbijeni) mu se ne predlažu ponovno.
 
 Čim nekom prisutnom mehaničaru ostane manje od MIN_ZADATAKA (5) zadataka u redu
-(i onaj u tijeku; bez odgođenih; s prijedlozima), predloži mu se sljedeća NEDODIJELJENA operacija iz plana:
-- redom: HITNO → lista prioriteta (1, 2, 3…) → ostali po redoslijedu plana;
+(i onaj u tijeku; bez odgođenih; s prijedlozima), predloži mu se sljedeća NEDODIJELJENA operacija:
+- redom: HITNO → lista prioriteta (1, 2, 3…) → ostali po redoslijedu plana → nalozi
+  koji nisu u planu (od 25.11.2026., stariji prvi);
 - kome: SAMO majstorima kojima je skupina tog posla označena (skupine.py — kućice
   „što tko radi"); među njima onaj koji je najviše puta završio tu vrstu posla, pa
   onaj s najmanje zadataka. Kategorija bez skupine / nitko ne smije → ostaje ručno.
@@ -61,11 +62,15 @@ def _prio(n: Nalog) -> int:
 
 
 def _kljuc_kandidata(t) -> tuple:
+    """Redoslijed predlaganja: HITNO → lista prioriteta → plan → nalozi izvan plana
+    (Toni 25.11.2026.: i oni dobivaju prijedloge dok prioriteti nisu posloženi, ali
+    uvijek IZA prioritetnih/planiranih; među njima stariji nalog prvi)."""
     n, op, z = t
     return (
         0 if n.plan_hitno else 1,
         _prio(n),
         n.plan_rang if n.plan_rang is not None else 10 ** 6,
+        n.id,
         op.redoslijed or 0,
         z.id,
     )
@@ -116,7 +121,6 @@ def popuni(db: Session) -> list[dict]:
     for n in nalozi:
         if _gb(n) in _SKRIVENI_GB or _je_testni_nalog(n):
             continue
-        u_planu = bool(n.plan_hitno) or n.plan_rang is not None or n.prioritet_rang is not None
         for op in n.operacije:
             for z in op.zadaci:
                 if z.gotovo:
@@ -142,7 +146,9 @@ def popuni(db: Session) -> list[dict]:
                         ukupno[z.prijedlog_radnik_id] += 1
                         continue
                     z.prijedlog_radnik_id = None   # mehaničar odsutan / zadatak odgođen → prijedlog pada
-                if not u_planu or n.status == StatusNaloga.ceka_dijelove:
+                # Nalozi izvan plana/prioriteta su TAKOĐER kandidati (iza planiranih, vidi
+                # _kljuc_kandidata) — da svatko ima do 5 zadataka s prijedlozima (25.11.2026.).
+                if n.status == StatusNaloga.ceka_dijelove:
                     continue
                 if z.razlog_prekida in _ODGODJENO:
                     continue
