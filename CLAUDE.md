@@ -10,3 +10,10 @@ Lokalne putanje (`C:\…`, OneDrive/SharePoint mapa, Excel COM, Chrome) u oblaku
 konektora Microsoft 365; što traži računalo zapiši kao sljedeći korak.
 <!-- oblak-blok -->
 
+## Radni nalozi — Plan radione: automatika samo PREDLAŽE (Toni 25.11.2026.)
+Raspored u Plan → Radnici, kakav slože poslovođe, automatika NE smije mijenjati. To vrijedi za
+`auto_popuni`, `auto_slanje`, nove pozadinske petlje i jednokratne migracije: ne dodjeljuju, ne miču i ne
+preslaguju dodijeljene zadatke (`zadaci.radnici`, `red_ruc`). Smiju samo postaviti 💡 prijedlog
+(`zadaci.prijedlog_radnik_id`). Poslovođa ga prihvaća ✓, odbija ✕ ili povlači drugom (`/api/plan/prijedlog/…`).
+Promjena dodjela izvan toga je dopuštena samo na Tonijevu izričitu naredbu.
+
