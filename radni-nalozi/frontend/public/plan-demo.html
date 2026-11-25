@@ -249,6 +249,15 @@
   .rad-ime.slob-top .rad-br{background:#fff;color:var(--crveno)}
   .rad-cell.prazno{justify-content:center;align-items:center;text-align:center;color:var(--crveno);border-style:dashed;border-color:var(--crveno);background:transparent;cursor:default;font-size:11.5px;font-weight:700}
   .rad-ime .ri-ime{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ri-stat{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+  .ri-stat .mi-caret{color:#9aa3ad;font-weight:400}
+  .rad-ime .mi-menu,.ods-it .mi-menu{display:none;flex-direction:column;gap:3px}
+  .rad-ime .mi-menu.open,.ods-it .mi-menu.open{display:flex}
+  .rad-ime .mi-opt,.ods-it .mi-opt{text-align:left;background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;font-size:11.5px;font-weight:700;cursor:pointer;color:#1f2937}
+  .rad-ime .mi-opt.sel,.ods-it .mi-opt.sel{background:var(--plava-soft);border-color:var(--plava);color:var(--plava)}
+  .rad-ime .ri-teren{font-size:10.5px;font-weight:700;color:#2e7d32;background:#e8f5e9;border-radius:6px;padding:2px 6px}
+  .ods-lista{display:flex;flex-wrap:wrap;gap:8px;color:var(--muted)}
+  .ods-it{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px;font-weight:700}
   .rad-send{align-self:stretch;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:3px 7px;font-size:13px;line-height:1.3;cursor:pointer}
   .rad-send:hover{border-color:var(--plava)}
   .rad-prijavi{align-self:stretch;margin-top:4px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:3px 7px;font-size:13px;line-height:1.3;cursor:pointer}
@@ -435,15 +444,15 @@
       .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.detail||("Greška "+r.status)); }); return r.json().catch(function(){return {};}); });
   }
   // Otvori/zatvori skriveni status-izbornik radnika (klik na ime) — kao chip na tekućim radovima.
-  function toggleStat(id){
-    var el=document.getElementById('stat-'+id); if(!el) return;
+  function toggleStat(id, pref){
+    var el=document.getElementById((pref||'stat-')+id); if(!el) return;
     var bio=el.classList.contains('open');
     Array.prototype.forEach.call(document.querySelectorAll('.mi-menu.open'), function(m){ m.classList.remove('open'); });
     if(!bio) el.classList.add('open');
   }
   // Postavi status radnika (Dostupan/Teren/Godišnji/Bolovanje/Odsutan) iz liste mehaničara.
   function postaviStatus(id, vrsta){
-    var el=document.getElementById('stat-'+id); if(el) el.classList.remove('open');
+    Array.prototype.forEach.call(document.querySelectorAll('.mi-menu.open'), function(m){ m.classList.remove('open'); });
     apiRaw("/korisnici/"+id+"/odsutnost", "PATCH", { vrsta: vrsta||null, od:null, do:null })
       .then(function(){ ucitaj(true); })
       .catch(function(e){ alert(e.message||"Greška kod promjene statusa"); });
@@ -882,13 +891,7 @@
       var ga=grp(a), gbv=grp(b);
       return ga!==gbv ? ga-gbv : (a.br!==b.br ? a.br-b.br : (a.m.ime<b.m.ime?-1:1));
     });
-    function statEmo(ods){ return ods==='godisnji'?'🌴 ':ods==='bolovanje'?'🤒 ':ods==='odsutan'?'⛔ ':ods==='teren'?'🚜 ':''; }
-    function statMenu(x){
-      var opt=function(v,txt){ return '<button type="button" class="mi-opt'+(x.ods===v?' sel':'')+'" onclick="PLAN.postaviStatus('+x.m.id+',\''+v+'\')">'+txt+'</button>'; };
-      return '<div class="mi-menu" id="stat-'+x.m.id+'">'+
-             opt('','✅ Dostupan')+opt('teren','🚜 Teren')+opt('godisnji','🌴 Godišnji')+opt('bolovanje','🤒 Bolovanje')+opt('odsutan','⛔ Odsutan')+
-             '</div>';
-    }
+    function statMenu(x){ return statMenuHtml(x.m.id, x.ods, 'stat-'); }
     if(mehL.length){
       h+='<div class="meh-idx"><div class="meh-idx-h">Mehaničari · zadataka</div>'+
          mehL.map(function(x){
@@ -1006,6 +1009,17 @@
     return map;
   }
   function brojPrijedloga(){ var b=0; nalozi.forEach(function(n){ n.ops.forEach(function(o){ if(o.prijedlogId && !(o.mehIds||[]).length && o.status!=="gotovo") b++; }); }); return b; }
+  // Status radnika — emoji i izbornik (lista mehaničara i kartica Radnici).
+  // „🚜 Teren / druga radiona" = radi, ali NIJE u ovoj radioni (teren, radiona u Njemačkoj —
+  // WhatsApp #413) → automatika mu ne predlaže zadatke, a stari prijedlozi mu padaju.
+  function statEmo(ods){ return ods==='godisnji'?'🌴 ':ods==='bolovanje'?'🤒 ':ods==='odsutan'?'⛔ ':ods==='teren'?'🚜 ':''; }
+  function statMenuHtml(id, ods, pref){
+    var opt=function(v,txt,tit){ return '<button type="button" class="mi-opt'+((ods||'')===v?' sel':'')+'"'+(tit?' title="'+tit+'"':'')+' onclick="PLAN.postaviStatus('+id+',\''+v+'\')">'+txt+'</button>'; };
+    return '<div class="mi-menu" id="'+pref+id+'">'+
+           opt('','✅ Dostupan')+opt('teren','🚜 Teren / druga radiona','Radi izvan ove radionice (teren, Njemačka…) — ne dobiva automatske prijedloge')+
+           opt('godisnji','🌴 Godišnji')+opt('bolovanje','🤒 Bolovanje')+opt('odsutan','⛔ Odsutan')+
+           '</div>';
+  }
   function renderDASH(){
     var PRAG=5;   // min zadataka u retku (auto_popuni.MIN_ZADATAKA)
     var map=redPoRadniku();
@@ -1017,6 +1031,8 @@
       // Teren ostaje (radi, samo vani).
       if(m.odsutan && m.odsutnost!=='teren'){ slobodniOdsutni.push(m); return; }
       var l=map[m.id]||[], pr=PM[m.id]||[];
+      // Teren / druga radiona bez zadataka nije „slobodan" (crveno) — ide u podnožje.
+      if(m.odsutnost==='teren' && !l.length && !pr.length){ slobodniOdsutni.push(m); return; }
       if(l.length||pr.length) saZad.push({m:m,lista:l,prij:pr}); else slobodniPrisutni.push(m);   // prisutni bez zadatka → vrh, crveno
     });
     // Uvijek poredano: najmanje zadataka → najviše (tko ima manje je gore, za dopunu);
@@ -1030,7 +1046,7 @@
     saZad.forEach(function(r){
       ukupno+=r.lista.length;
       r.cekaju=r.lista.length;   // sve kartice u retku (i ona u tijeku) — kao auto-popunjavanje
-      if(r.cekaju<PRAG) trebaDopunu++;
+      if(r.cekaju<PRAG && r.m.odsutnost!=='teren') trebaDopunu++;   // teren / druga radiona se ne dopunjuje
     });
     var h='';
     h+='<div class="kpis">'+
@@ -1053,18 +1069,21 @@
       h+='<div class="rad-scroll" style="zoom:'+_radZoom+'"><div class="rad-tbl">';
       // Prisutni BEZ zadatka — na vrhu, crveno (hitno im dodijeliti posao).
       slobodniPrisutni.forEach(function(m){
-        h+='<div class="rad-row"><div class="rad-ime slob-top"><div class="ri-top">⚠ <span class="ri-ime">'+esc(m.ime)+'</span><span class="rad-br">0</span></div></div>'+
+        h+='<div class="rad-row"><div class="rad-ime slob-top"><div class="ri-top">⚠ <button type="button" class="ri-ime ri-stat" onclick="PLAN.toggleStat('+m.id+',\'rstat-\')" title="Status (dostupan / teren, druga radiona / godišnji…)">'+esc(m.ime)+' <span class="mi-caret">▾</span></button><span class="rad-br">0</span></div>'+statMenuHtml(m.id, '', 'rstat-')+'</div>'+
            '<div class="rad-cells" data-rid="'+m.id+'"><div class="rad-cell prazno">nema zadatka — dodijeli u planu ili povuci karticu ovamo</div></div></div>';
       });
       saZad.forEach(function(r){
-        var malo=r.cekaju<PRAG;
-        var nije=!r.lista.some(function(x){ return mehStatus(x.o, r.m.id)==="radu"; });   // ON nigdje ne radi → crveno
+        var teren=(r.m.odsutnost==='teren');   // teren / druga radiona (#413): bez ⚠ i crvenog
+        var malo=!teren && r.cekaju<PRAG;
+        var nije=!teren && !r.lista.some(function(x){ return mehStatus(x.o, r.m.id)==="radu"; });   // ON nigdje ne radi → crveno
         // Prvi zadatak koji mu se može (ponovno) poslati = prvi koji ON ne radi.
         var zaSlanje=null; for(var si=0;si<r.lista.length;si++){ if(mehStatus(r.lista[si].o, r.m.id)!=="radu"){ zaSlanje=r.lista[si].o.id; break; } }
         var sendBtn = zaSlanje ? '<button class="rad-send" onclick="PLAN.posaljiMeh(event,'+zaSlanje+')" title="Pošalji (opet) poveznicu ovom mehaničaru">📨 Pošalji</button>' : '';
         var prijaviBtn = zaSlanje ? '<button class="rad-prijavi" data-ime="'+esc(r.m.ime||'')+'" onclick="PLAN.prijaviRucno(event,'+zaSlanje+','+r.m.id+')" title="Ručno prijavi mehaničara na zadatak (bira se računa li se kao prekršaj)">✍️ Prijavi</button>' : '';
         var prihvatiBtn = r.prij.length ? '<button class="rad-prihvati" onclick="PLAN.prihvatiSve(event,'+r.m.id+')" title="Prihvati sve prijedloge ovom mehaničaru">✓ Prihvati 💡'+r.prij.length+'</button>' : '';
-        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<span class="ri-ime">'+esc(r.m.ime)+'</span><span class="rad-br">'+r.lista.length+'</span></div>'+sendBtn+prijaviBtn+prihvatiBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
+        h+='<div class="rad-row"><div class="rad-ime'+(nije?' nije':(malo?' malo':''))+'"'+(nije?' title="Nije prijavljen na zadatak"':'')+'><div class="ri-top">'+(malo?'⚠ ':'')+'<button type="button" class="ri-ime ri-stat" onclick="PLAN.toggleStat('+r.m.id+',\'rstat-\')" title="Status (dostupan / teren, druga radiona / godišnji…)">'+statEmo(r.m.odsutnost)+esc(r.m.ime)+' <span class="mi-caret">▾</span></button><span class="rad-br">'+r.lista.length+'</span></div>'+
+             statMenuHtml(r.m.id, r.m.odsutnost, 'rstat-')+
+             (r.m.odsutnost==='teren'?'<div class="ri-teren">🚜 teren / druga radiona — bez prijedloga</div>':'')+sendBtn+prijaviBtn+prihvatiBtn+'</div><div class="rad-cells" data-rid="'+r.m.id+'">';
         r.lista.forEach(function(x,i){
           var st=mehStatus(x.o, r.m.id);
           var uTijeku=(st==="radu");
@@ -1099,8 +1118,11 @@
       h+='</div></div>';
     }
     if(slobodniOdsutni.length){
-      h+='<div class="sek-nas">Odsutni</div>'+
-         '<div class="card" style="color:var(--muted)">'+slobodniOdsutni.map(function(m){return esc(m.ime);}).join(" · ")+'</div>';
+      h+='<div class="sek-nas">Odsutni · teren / druga radiona</div>'+
+         '<div class="card ods-lista">'+slobodniOdsutni.map(function(m){
+           var ods=m.odsutnost||(m.odsutan?'odsutan':'');
+           return '<div class="ods-it"><button type="button" class="ri-stat" onclick="PLAN.toggleStat('+m.id+',\'rstat-\')" title="Promijeni status">'+statEmo(ods)+esc(m.ime)+' <span class="mi-caret">▾</span></button>'+statMenuHtml(m.id, ods, 'rstat-')+'</div>';
+         }).join("")+'</div>';
     }
     return h;
   }

@@ -180,7 +180,7 @@ const HR = {
   'radnik.imeObavezno': 'Upiši ime radnika.', 'radnik.vecPostoji': 'Radnik s tim imenom već postoji.',
   'radnik.dodan': 'Radnik dodan', 'radnik.korisnicko': 'korisničko ime', 'radnik.lozinka': 'lozinka',
   'radnik.josJedan': 'Dodaj još jednog',
-  'ods.dostupan': 'Dostupan', 'ods.godisnji': 'Godišnji', 'ods.bolovanje': 'Bolovanje', 'ods.odsutan': 'Odsutan', 'ods.teren': 'Teren', 'ods.od': 'Od', 'ods.do': 'Do',
+  'ods.dostupan': 'Dostupan', 'ods.godisnji': 'Godišnji', 'ods.bolovanje': 'Bolovanje', 'ods.odsutan': 'Odsutan', 'ods.teren': 'Teren / druga radiona', 'ods.od': 'Od', 'ods.do': 'Do',
   'nadzor.nalog': 'Nalog', 'nadzor.radnik': 'Radnik', 'nadzor.operacija': 'Operacija', 'nadzor.vozilo': 'Vozilo',
   'nadzor.trajanje': 'Trajanje', 'nadzor.nemaOperacija': 'Nema operacija.',
   'tab.steta': 'Šteta', 'tab.skladiste': 'Skladište', 'tab.profil': 'Profil', 'tab.evidencija': 'Radno vrijeme',
