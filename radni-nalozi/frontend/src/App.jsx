@@ -10,9 +10,8 @@ import PrijavaDetalj from './pages/PrijavaDetalj'
 import Nalozi from './pages/Nalozi'
 import { GlavniIzbornik, VozilaURadu } from './pages/Nadzor'
 import IzasliIzRadione from './pages/IzasliIzRadione'
-import NezaduzenaVozila from './pages/NezaduzenaVozila'
+import PrikljucnaVozila from './pages/PrikljucnaVozila'
 import Vozila from './pages/Vozila'
-import SpremneSlepe from './pages/SpremneSlepe'
 import EvidencijaPrikapcanja from './pages/EvidencijaPrikapcanja'
 import Servisi from './pages/Servisi'
 import TestoviKocnica from './pages/TestoviKocnica'
@@ -86,8 +85,10 @@ export default function App() {
       <Route path="/vozila-u-radu" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']} modul="/vozila-u-radu"><VozilaURadu /></Zasticeno>} />
       <Route path="/izasli" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'radnik']} modul="/izasli"><IzasliIzRadione /></Zasticeno>} />
       <Route path="/vozila" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Vozila /></Zasticeno>} />
-      <Route path="/spremne" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><SpremneSlepe /></Zasticeno>} />
-      <Route path="/nezaduzena" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><NezaduzenaVozila /></Zasticeno>} />
+      {/* Priključna vozila — gdje je što (25.11.2026.: zamjenjuje Spremna + Slobodna) */}
+      <Route path="/prikljucna" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><PrikljucnaVozila /></Zasticeno>} />
+      <Route path="/spremne" element={<Navigate to="/prikljucna" replace />} />
+      <Route path="/nezaduzena" element={<Navigate to="/prikljucna" replace />} />
       <Route path="/parkiranje" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Parkiranje /></Zasticeno>} />
       <Route path="/prikapcanje" element={<Zasticeno uloge={['voditelj', 'poslovodja', 'skladistar']}><EvidencijaPrikapcanja /></Zasticeno>} />
       <Route path="/servisi" element={<Zasticeno uloge={['voditelj', 'poslovodja']}><Servisi /></Zasticeno>} />

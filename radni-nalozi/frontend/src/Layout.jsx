@@ -105,7 +105,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     return () => { ziv = false; clearInterval(id) }
   }, [jeRadnik])
   const paznjaZa = (putanja) => {
-    const m = { '/spremne': paznja.spremne, '/izasli': paznja.izasli, '/prijave': paznja.prijave, '/moja-radiona': mojeZaPotvrdu }
+    const m = { '/prikljucna': paznja.spremne, '/izasli': paznja.izasli, '/prijave': paznja.prijave, '/moja-radiona': mojeZaPotvrdu }
     return m[putanja] || 0
   }
   // Plutajući "+" za novi nalog — svugdje osim na stranicama prijava
@@ -124,8 +124,8 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     djeca: [
       { do: '/vozila', ikona: '📋', txt: t('tab.popisVozila') },
       ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
-      { do: '/nezaduzena', ikona: '🛻', txt: t('tab.nezaduzena') },
-      { do: '/spremne', ikona: '🟢', txt: t('tab.spremne') },
+      // Priključna vozila — gdje je što (25.11.2026.: zamjenjuje „Slobodna" i „Spremna").
+      { do: '/prikljucna', ikona: '🛻', txt: 'Priključna vozila' },
       { do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') },
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],

@@ -28,9 +28,9 @@ def _javi(db, gb: str, voditelj_id: int | None, prvi: bool) -> None:
               if prvi else
               f"Podsjetnik: za šlepu {gb} nije upisano je li spremna ni gdje je parkirana.")
     if voditelj_id:
-        obavijesti_korisnika(db, voditelj_id, naslov, tijelo, url="/spremne")
+        obavijesti_korisnika(db, voditelj_id, naslov, tijelo, url="/prikljucna")
     else:
-        obavijesti_ulogu(db, Uloga.voditelj, naslov, tijelo, url="/spremne")
+        obavijesti_ulogu(db, Uloga.voditelj, naslov, tijelo, url="/prikljucna")
 
 
 def _rijeseno(r: RegistarVozila) -> bool:
