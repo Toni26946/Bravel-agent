@@ -115,10 +115,11 @@ def test_popuni_preskace():
     z_ok = _zad(db, n_ok, "GUME", "ok")
     db.commit()
     out = popuni(db)
-    assert [d["zadatak_id"] for d in out] == [z_ok.id]
+    # Od 25.11.2026. i nalog izvan plana dobiva prijedlog, ali IZA prioritetnog.
+    assert [d["zadatak_id"] for d in out] == [z_ok.id, z_van.id]
     assert all(d["radnik"] == "Ana" for d in out), "odsutni ne dobiva posao"
-    for z in (z_van, z_dij, z_odg, z_preg):
-        assert not z.radnici
+    for z in (z_dij, z_odg, z_preg):
+        assert not z.radnici and z.prijedlog_radnik_id is None
 
 
 def test_testni_mehanicar_ne_dobiva_i_vraca_se():
@@ -354,3 +355,18 @@ def test_bez_gps_nema_prijedloga_a_daleko_vozilo_gubi_prijedlog(monkeypatch):
     db.commit()
     popuni(db)
     assert z_vani.prijedlog_radnik_id is None
+
+
+def test_izvan_plana_tek_kad_nema_prioritetnih():
+    """Toni 25.11.2026.: do 5 zadataka s prijedlozima; prioritetna vozila imaju prednost
+    pred nalozima koji nisu u planu."""
+    db = _session()
+    ana = _meh(db, "Ana")
+    van = [_zad(db, _nalog(db, f"6{i}", ana), "GUME", f"van{i}") for i in range(4)]   # izvan plana
+    pri = [_zad(db, _nalog(db, f"7{i}", ana, prioritet_rang=i), "GUME", f"p{i}") for i in range(3)]
+    db.commit()
+    out = popuni(db)
+    ids = [d["zadatak_id"] for d in out]
+    assert len(ids) == 5, "do 5 s prijedlozima"
+    assert ids[:3] == [z.id for z in pri], "prvo prioritetni"
+    assert ids[3:] == [van[0].id, van[1].id], "pa izvan plana (stariji prvi)"

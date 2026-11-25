@@ -1036,7 +1036,7 @@
        '</div>';
     h+='<p class="hint">Mehaničari u redcima, zadaci po redu čekanja (prvi stupac = trenutni): hitno → prioriteti 1, 2, 3… → ostalo. Ručni pomak (strelice/povlačenje) ima prednost. ⚠ = manje od '+PRAG+' zadataka. <b style="color:var(--crveno)">Crveno</b> = nije prijavljen na zadatak.</p>';
     h+='<div class="auto-pop'+(autoPopuni?' on':'')+'">'+(autoPopuni
-      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadataka dobiva <b>💡 prijedlog</b> iz plana (po prioritetu, pa tko je to već radio). Zadatak je njegov tek kad prijedlog <b>prihvatiš ✓</b>; prijedlog možeš povući drugom mehaničaru ili odbiti ✕. '+
+      ? '🤖 Automatsko popunjavanje <b>uključeno</b> — tko ima manje od '+PRAG+' zadataka dobiva <b>💡 prijedlog</b> (prvo hitno i prioriteti, pa plan, pa ostali nalozi; tko je to već radio ima prednost). Zadatak je njegov tek kad prijedlog <b>prihvatiš ✓</b>; prijedlog možeš povući drugom mehaničaru ili odbiti ✕. '+
         (brPrij?'<button class="btn-prihvati" onclick="PLAN.prihvatiSve(event,0)">✓ Prihvati sve prijedloge ('+brPrij+')</button> ':'')+
         '<button class="btn ghost sm" onclick="PLAN.autoPopuni(false)">Ugasi</button>'
       : '🤖 Automatsko popunjavanje je <b>ugašeno</b>. <button class="btn ghost sm" onclick="PLAN.autoPopuni(true)">Upali</button>')+'</div>';
