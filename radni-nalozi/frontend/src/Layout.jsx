@@ -126,11 +126,14 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/testovi-kocnica', ikona: '🛞', txt: 'Testovi kočnica' },
     ],
   })
-  // Skladište (grupa): Skladište + Evidencija dijelova.
+  // Skladište (grupa): Stanje · Primke · Izdatnice · Naručeni dijelovi · Evidencija dijelova.
   const grupaSkladiste = () => ({
     grupa: 'skladiste', ikona: '📦', txt: t('tab.skladiste'),
     djeca: [
-      { do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') },
+      { do: '/skladiste', ikona: '📦', txt: t('skl.stanjeTab'), end: true },
+      { do: '/skladiste/primke', ikona: '📥', txt: t('skl.primkeTab') },
+      { do: '/skladiste/izdatnice', ikona: '📤', txt: t('skl.izdatniceTab') },
+      { do: '/skladiste/narudzbe', ikona: '🛒', txt: t('skl.narudzbeTab') },
       { do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') },
     ],
   })
@@ -160,8 +163,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
   if (korisnik?.uloga === 'skladistar') {
-    tabovi.push({ do: '/skladiste', ikona: '📦', txt: t('tab.skladiste') })
-    tabovi.push({ do: '/skladiste/dashboard', ikona: '📊', txt: t('skl.dashboard') })
+    tabovi.push(grupaSkladiste())
   }
   if (korisnik?.uloga === 'radnik') {
     // „Moja radiona" maknuta — mehaničar radi isključivo preko WhatsApp poveznice.
@@ -271,7 +273,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
               {otvorena && item.djeca.map((d) => {
                 const dn = paznjaZa(d.do)
                 return (
-                  <NavLink key={d.do} to={d.do} onClick={zatvoriNav}
+                  <NavLink key={d.do} to={d.do} end={!!d.end} onClick={zatvoriNav}
                     className={({ isActive }) => 'nav-dijete' + (isActive ? ' akt' : '') + (dn > 0 ? ' paznja' : '')}>
                     <span className="ikona">{d.ikona}</span>
                     <span className="txt">{d.txt}</span>

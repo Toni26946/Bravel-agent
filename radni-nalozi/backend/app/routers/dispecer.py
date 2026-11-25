@@ -585,11 +585,11 @@ def z_dijelovi(token: str, p: DijeloviIn, request: Request, db: Session = Depend
     # Slike dijela idu i u fotogaleriju naloga (evidencija vozila), ne samo skladištaru.
     for url in foto:
         db.add(Fotografija(nalog_id=nlg.id, putanja=url, postavio_id=link.radnik.id))
-    # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (kartica na /skladiste).
+    # Obavijesti skladište: za ovu operaciju nedostaju dijelovi (Skladište → Naručeni dijelovi).
     foto_oznaka = " 📷" if foto else ""
     obavijesti_ulogu(
         db, Uloga.skladistar, "Nedostaju dijelovi",
-        f"GB {_gb(nlg)} · {naziv or z.opis or ''}{foto_oznaka}".strip(" ·"), url="/skladiste",
+        f"GB {_gb(nlg)} · {naziv or z.opis or ''}{foto_oznaka}".strip(" ·"), url="/skladiste/narudzbe",
     )
     db.commit()
     _pripremi_sljedeci(db, link.radnik)   # sljedeći se pokaže na istoj stranici (bez nove WA poruke)

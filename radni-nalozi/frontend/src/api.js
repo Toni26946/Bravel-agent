@@ -282,6 +282,7 @@ export const api = {
 
   // Primke robe (otpremnice dobavljača — skladište)
   primke: () => zahtjev('/primke'),
+  izdatniceSve: () => zahtjev('/primke/izdatnice'),
   trosakPoVozilu: (od = '', do_ = '') => zahtjev(`/primke/trosak-po-vozilu?od=${od}&do=${do_}`),
   primka: (id) => zahtjev(`/primke/${id}`),
   uploadStranicaOtpremnice: (fd) => zahtjev('/primke/stranica', { method: 'POST', form: fd }),
