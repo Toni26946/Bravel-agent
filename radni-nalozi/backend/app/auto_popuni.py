@@ -94,6 +94,20 @@ def popuni(db: Session) -> list[dict]:
     _vrati_krivo_dodijeljene(db, iskljuceni)
     if not meh:
         return []
+    # Dok GPS nije učitan (prve minute nakon pokretanja) ne zna se tko je u radioni →
+    # NE predlaži ništa (inače vozila 40 km daleko dobiju prijedlog, GB 298 25.11.2026.).
+    gps = flota.gps_ucitan()
+    udaljenost: dict[str, float | None] = {}
+
+    def _daleko(n) -> bool:
+        gb = _gb(n)
+        if gb not in udaljenost:
+            try:
+                udaljenost[gb] = flota.udaljenost_od_radione(gb)
+            except Exception:  # noqa: BLE001 — bez GPS-a (npr. prikolica) = smatra se blizu
+                udaljenost[gb] = None
+        return udaljenost[gb] is not None and udaljenost[gb] > BLIZU_M
+
     po_id = {m.id: m for m in meh}
     ceka = {m.id: 0 for m in meh}      # u pripremi (nezapočeto, nije odgođeno)
     ukupno = {m.id: 0 for m in meh}    # svi njegovi nezavršeni
@@ -121,8 +135,9 @@ def popuni(db: Session) -> list[dict]:
                             ceka[r.id] += 1   # kartica u njegovom retku (i ona u tijeku)
                     continue
                 if z.prijedlog_radnik_id:
+                    # Prijedlog vrijedi samo dok je vozilo u radioni (ode li vani → pada).
                     if z.prijedlog_radnik_id in ceka and n.status != StatusNaloga.ceka_dijelove \
-                            and z.razlog_prekida not in _ODGODJENO:
+                            and z.razlog_prekida not in _ODGODJENO and not (gps and _daleko(n)):
                         ceka[z.prijedlog_radnik_id] += 1   # otvoren prijedlog se broji u njegovih 5
                         ukupno[z.prijedlog_radnik_id] += 1
                         continue
@@ -137,7 +152,9 @@ def popuni(db: Session) -> list[dict]:
 
     prag = MIN_ZADATAKA
     trebaju = {rid for rid, c in ceka.items() if c < prag}
-    if not trebaju or not kandidati:
+    if not gps:
+        log.info("Auto-popuni: GPS još nije učitan — prijedlozi pričekaju idući krug.")
+    if not trebaju or not kandidati or not gps:
         if db.dirty:
             db.commit()   # očišćeni zastarjeli prijedlozi
         return []
@@ -146,18 +163,12 @@ def popuni(db: Session) -> list[dict]:
     # Tko je na zadatku već nakupio vrijeme (23.11.2026.: Pavliukhov AdBlue od 18 h dobio je
     # drugi majstor). Započeti posao ide NJEMU ako je prisutan; ako mu je red pun, čeka ga.
     radili = _radio_po_zadatku(db, [z.id for _n, _op, z in kandidati])
-    udaljenost: dict[str, float | None] = {}
     out = []
     for n, op, z in kandidati:
         if not trebaju:
             break
         gb = _gb(n)
-        if gb not in udaljenost:
-            try:
-                udaljenost[gb] = flota.udaljenost_od_radione(gb)
-            except Exception:  # noqa: BLE001 — bez GPS-a = smatra se blizu
-                udaljenost[gb] = None
-        if udaljenost[gb] is not None and udaljenost[gb] > BLIZU_M:
+        if _daleko(n):
             continue   # vozilo nije u radioni
         # Samo majstori kojima je ta skupina poslova označena (Toni 20.11.2026.: perač ne
         # dobiva elektriku). Nitko ne smije / kategorija bez skupine → ostaje u planu (ručno).

@@ -328,3 +328,29 @@ def test_danasnje_auto_dodjele_postaju_prijedlozi():
     jednokratno_dodjele_u_prijedloge(db)
     assert not z_auto.radnici and z_auto.prijedlog_radnik_id == ana.id
     assert [r.id for r in z_poslan.radnici] == [ana.id], "već poslan mehaničaru ostaje dodijeljen"
+
+
+def test_bez_gps_nema_prijedloga_a_daleko_vozilo_gubi_prijedlog(monkeypatch):
+    """25.11.2026.: nakon objave GPS keš je prazan → GB 298 (47 km) dobio prijedlog.
+    Dok GPS nije učitan nema novih prijedloga; vozilo vani gubi postojeći prijedlog."""
+    from app import auto_popuni as ap
+    db = _session()
+    ana = _meh(db, "Ana")
+    z_tu = _zad(db, _nalog(db, "399", ana, prioritet_rang=0), "GUME", "u radioni")
+    z_vani = _zad(db, _nalog(db, "298", ana, prioritet_rang=1), "GUME", "vani")
+    db.commit()
+    udalj = {"399": 90, "298": 47000}
+    monkeypatch.setattr(ap.flota, "udaljenost_od_radione", lambda gb: udalj.get(gb))
+
+    monkeypatch.setattr(ap.flota, "gps_ucitan", lambda: False)
+    assert popuni(db) == [] and z_tu.prijedlog_radnik_id is None, "bez GPS-a ništa"
+
+    monkeypatch.setattr(ap.flota, "gps_ucitan", lambda: True)
+    popuni(db)
+    assert z_tu.prijedlog_radnik_id == ana.id and z_vani.prijedlog_radnik_id is None
+
+    # prijedlog od prije (npr. dok GPS nije bio učitan) za vozilo koje je vani → pada
+    z_vani.prijedlog_radnik_id = ana.id
+    db.commit()
+    popuni(db)
+    assert z_vani.prijedlog_radnik_id is None
