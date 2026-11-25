@@ -73,8 +73,9 @@ export default function NalogDetalj() {
     api.nalogLokacija(id).then(setLok).catch(() => setLok(null))
   }, [voziloGb, id])
 
-  if (greska) return <Layout naslov="Nalog" nazad={true}><div className="greska">{greska}</div></Layout>
-  if (!n) return <Layout naslov="Nalog" nazad={true}><Spinner /></Layout>
+  // Cijeli ekran greške samo kad se nalog nije ni učitao. Greška neke radnje (npr. zatvaranje
+  // blokirano testom kočnica) stoji IZNAD naloga — prije je brisala cijelu stranicu (WhatsApp #411).
+  if (!n) return <Layout naslov="Nalog" nazad={true}>{greska ? <div className="greska">{greska}</div> : <Spinner />}</Layout>
 
   const ciljevi = ciljeviStatusa(korisnik.uloga, n.status)
 
@@ -108,6 +109,14 @@ export default function NalogDetalj() {
       {spojeno && (
         <div className="uspjeh">{t('nalog.spojeno')}</div>
       )}
+      {greska && (
+        <div className="greska" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ flex: 1 }}>{greska}</span>
+          <button type="button" className="btn sekund mali" onClick={() => setGreska('')} title="Zatvori poruku">✕</button>
+        </div>
+      )}
+      {/* Test kočnica koji blokira zatvaranje — razvrstava se odmah ovdje (WhatsApp #411) */}
+      <TestoviZaRazvrstati nalog={n} jeUrednik={jeUrednik} nakon={() => { setGreska(''); ucitaj() }} naGresku={setGreska} />
       <ServisBanner s={servis} />
       <PreglediBanner v={pregled} />
       <div className="karta">
@@ -207,6 +216,49 @@ export function ValjciBedz({ kad, onClick }) {
   )
 }
 
+// --- Nerazvrstani testovi kočnica koji bi mogli biti ovog naloga ---------------
+// Dok takav test postoji, nalog se ne može zatvoriti (server vraća 409). Umjesto da
+// korisnik traži stranicu „Testovi kočnica", ovdje vidi test i jednim klikom ga veže
+// na ovaj nalog (isti API kao na stranici Testovi kočnica) ili ode na tu stranicu.
+function TestoviZaRazvrstati({ nalog, jeUrednik, nakon, naGresku }) {
+  const nav = useNavigate()
+  const [testovi, setTestovi] = useState([])
+  const [radi, setRadi] = useState(null)
+  const ucitajT = () => api.testoviKocnica({ status: 'otvoreni' })
+    .then((sv) => setTestovi((sv || []).filter((t) =>
+      t.nalog?.id === nalog.id || (t.kandidati || []).some((k) => k.id === nalog.id))))
+    .catch(() => setTestovi([]))
+  useEffect(() => { if (jeUrednik) ucitajT() }, [nalog.id, nalog.status, jeUrednik])
+  if (!jeUrednik || !testovi.length) return null
+  const vezi = async (t) => {
+    setRadi(t.id)
+    try { await api.testKocnicaVezi(t.id, nalog.id); await ucitajT(); nakon() }
+    catch (e) { naGresku(e.message) }
+    finally { setRadi(null) }
+  }
+  const kad = (d) => { try { return new Date(d).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
+  return (
+    <div className="karta" style={{ borderLeft: '4px solid var(--crvena)' }}>
+      <b>🛞 Test kočnica čeka odabir vozila</b>
+      <div className="meta" style={{ margin: '4px 0 8px' }}>
+        Dok test nije razvrstan, nalog se ne može zatvoriti. Ako je test rađen na ovom vozilu, veži ga na ovaj nalog.
+      </div>
+      {testovi.map((t) => (
+        <div key={t.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid #e3e7ee' }}>
+          <span style={{ flex: '1 1 200px' }}>
+            {kad(t.pocetak)}{t.osovina > 0 && ` · ${t.osovina} ${t.osovina === 1 ? 'osovina' : 'osovine'}`}
+            {t.napomena && <span style={{ color: 'var(--crvena)', marginLeft: 6 }}>{t.napomena}</span>}
+          </span>
+          <button type="button" className="btn mali" disabled={radi === t.id} onClick={() => vezi(t)}>
+            {radi === t.id ? '…' : `✅ Ovo je ${nalog.vozilo?.gb ? 'GB ' + nalog.vozilo.gb : 'ovo vozilo'}`}
+          </button>
+          <button type="button" className="btn sekund mali" onClick={() => nav('/testovi-kocnica')}>Drugo vozilo →</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // --- Testovi kočnica (Cartec valjci) vezani uz nalog ---------------------------
 function TestoviKocnicaBlok({ nalogId }) {
   const [testovi, setTestovi] = useState([])
@@ -218,7 +270,7 @@ function TestoviKocnicaBlok({ nalogId }) {
       {testovi.map((t) => (
         <div key={t.id} className="card">
           <b>{new Date(t.pocetak).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b>
-          {t.status !== 'vezan' && <span style={{ color: 'var(--crveno)', marginLeft: 8 }}>{t.napomena || 'čeka potvrdu'}</span>}
+          {t.status !== 'vezan' && <span style={{ color: 'var(--crvena)', marginLeft: 8 }}>{t.napomena || 'čeka potvrdu'}</span>}
           <CrtezOsovina mjerenja={t.mjerenja} />
         </div>
       ))}
@@ -864,7 +916,7 @@ function IzdatniceBlok({ nalogId, gb, naGresku }) {
           <div style={{ flex: 1 }}><label className="meta">Cijena (EUR)</label><input type="number" step="any" value={cijena} onChange={(e) => setCijena(e.target.value)} placeholder="opcijski" style={{ width: '100%', boxSizing: 'border-box' }} /></div>
           <div style={{ alignSelf: 'flex-end' }}><button className="btn mali" disabled={radi || !artikl} onClick={dodaj}>➕ Dodaj</button></div>
         </div>
-        {!gb && <p className="meta" style={{ color: 'var(--crveno)' }}>Nalog nema vozilo — izdatnica se neće vezati na GB.</p>}
+        {!gb && <p className="meta" style={{ color: 'var(--crvena)' }}>Nalog nema vozilo — izdatnica se neće vezati na GB.</p>}
 
         {vidljivo === null ? <Spinner /> : vidljivo.length === 0 ? <p className="meta" style={{ marginTop: 10 }}>Još nema utrošenih dijelova.</p> : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
@@ -939,7 +991,7 @@ function IzdatnicaApross({ nalogId, brojNeposlanih, onPoslano, naGresku }) {
       <div style={{ cursor: 'pointer', fontWeight: 700 }} onClick={() => setOtv(!otv)}>📤 Pošalji u Apross ({brojNeposlanih}) {otv ? '▾' : '▸'}</div>
       {otv && (
         <div style={{ marginTop: 8 }}>
-          {prip && !prip.povezano && <p className="meta" style={{ color: 'var(--crveno)' }}>Apross nije povezan (Šifrarnik → Integracije).</p>}
+          {prip && !prip.povezano && <p className="meta" style={{ color: 'var(--crvena)' }}>Apross nije povezan (Šifrarnik → Integracije).</p>}
           {prip && prip.bez_sifre > 0 && <p className="meta">{prip.bez_sifre} stavki nema Apross šifru — one se ne šalju.</p>}
           <label className="meta">Skladište</label>
           <select value={sklId} onChange={(e) => setSklId(e.target.value)} style={{ width: '100%', marginBottom: 8 }}>
@@ -951,7 +1003,7 @@ function IzdatnicaApross({ nalogId, brojNeposlanih, onPoslano, naGresku }) {
             ? <div style={{ marginBottom: 8 }}><b>GB {mt.sifra} · {mt.naziv}</b>{mt.sektor ? <span className="meta"> · {mt.sektor}</span> : ''} <span className="x" style={{ cursor: 'pointer', marginLeft: 6 }} onClick={() => { setMt(null); setMtQ('') }}>promijeni</span></div>
             : (
               <div style={{ position: 'relative', marginBottom: 8 }}>
-                {prip && prip.povezano && !prip.mjesto_troska && <p className="meta" style={{ color: 'var(--crveno)', margin: '0 0 4px' }}>{prip.gb ? `GB ${prip.gb}` : 'Vozilo'} nije pronađen među mjestima troška u Aprossu — odaberi ručno.</p>}
+                {prip && prip.povezano && !prip.mjesto_troska && <p className="meta" style={{ color: 'var(--crvena)', margin: '0 0 4px' }}>{prip.gb ? `GB ${prip.gb}` : 'Vozilo'} nije pronađen među mjestima troška u Aprossu — odaberi ručno.</p>}
                 <input value={mtQ} placeholder="traži GB ili registraciju…" onChange={(e) => traziMt(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                 {mtRez.length > 0 && (
                   <div style={{ position: 'absolute', zIndex: 20, background: 'var(--karta, #fff)', border: '1px solid var(--line, #ccc)', borderRadius: 8, width: '100%', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
