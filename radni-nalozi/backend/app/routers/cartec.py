@@ -337,6 +337,32 @@ def primi_uzivo(p: UzivoIn, x_cartec_token: str | None = Header(default=None), d
     return {"ok": True}
 
 
+EKRAN_AKTIVNO_SEK = 60   # valjci „rade" ako je sila uživo stigla u zadnjih toliko sekundi
+
+
+@router.get("/ekran")
+def ekran(x_cartec_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Što skripta prikaže preko Cartecovog ekrana (Toni 25.11.2026.):
+    crveno upozorenje dok valjci rade bez odabranog vozila u aplikaciji Valjci,
+    a kad je vozilo odabrano — mali natpis s GB-ovima koji su na valjcima.
+    Isključivanje bez nove skripte: env CARTEC_EKRAN_ISKLJUCEN=1."""
+    import os
+    from .valjci import _vozila, aktivna_sesija
+    u = _uredjaj(db, x_cartec_token)
+    if os.environ.get("CARTEC_EKRAN_ISKLJUCEN"):
+        db.commit()
+        return {"prikaz": False, "upozorenje": False, "vozila": []}
+    s = aktivna_sesija(db, u)
+    vozila = []
+    if s is not None:
+        for i, v in enumerate(_vozila(s)):
+            vozila.append({"gb": str(v.get("gb") or ""), "vrsta": str(v.get("vrsta") or ""),
+                           "odabrano": i == s.odabrano_vozilo})
+    rade = bool(u.uzivo_vrijeme) and _sad() - _utc(u.uzivo_vrijeme) <= timedelta(seconds=EKRAN_AKTIVNO_SEK)
+    db.commit()
+    return {"prikaz": True, "upozorenje": s is None and rade, "vozila": vozila}
+
+
 UPOZORENJE_RAZMAK_MIN = 15   # najviše jedno upozorenje u 15 min (poruke se plaćaju)
 
 

@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '8'
+$Verzija   = '9'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -388,6 +388,141 @@ function Ocitaj($tekst, [datetime]$videno) {
     return @{ L = $maxL; D = $maxD; T = $maxT; Kad = $kad; Otisak = (Otisak $tekst) }
 }
 
+# --- Prikaz preko Cartecovog ekrana (v9, Toni 25.11.2026.) --------------------------
+# Crveno upozorenje dok valjci rade, a u aplikaciji Valjci nije odabrano vozilo; kad je
+# odabrano — mali zeleni natpis s GB-ovima. Prozori NE primaju klik ni fokus (klik prolazi
+# u Cartec), pa Cartecovo upravljanje ostaje netaknuto. Isključuje se na portalu.
+$EkranSek = 3
+$script:ekranSpreman = $false
+$script:ekranNemoguc = $false
+$script:ekranGreske = 0
+$script:crveni = $null
+$script:zeleni = $null
+$script:zeleniNatpis = $null
+
+function EkranPripremi {
+    if ($script:ekranSpreman) { return $true }
+    if ($script:ekranNemoguc) { return $false }
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        if (-not ('BravelPrikaz' -as [type])) {
+            Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+public class BravelPrikaz : Form {
+    [DllImport("user32.dll")] public static extern void DisableProcessWindowsGhosting();
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override CreateParams CreateParams {
+        get {
+            CreateParams cp = base.CreateParams;
+            // uvijek na vrhu, bez trake zadataka, klik prolazi kroz prozor, ne krade fokus
+            cp.ExStyle |= 0x00000008 | 0x00000080 | 0x00000020 | 0x08000000;
+            return cp;
+        }
+    }
+}
+'@
+        }
+        [BravelPrikaz]::DisableProcessWindowsGhosting()
+        $script:ekranSpreman = $true
+    } catch {
+        $script:ekranNemoguc = $true
+        Zapisi "Prikaz na ekranu nije moguć: $($_.Exception.Message)"
+    }
+    return $script:ekranSpreman
+}
+
+function EkranProzor($x, $y, $w, $h, $boja) {
+    $f = New-Object BravelPrikaz
+    $f.FormBorderStyle = 'None'
+    $f.StartPosition = 'Manual'
+    $f.ShowInTaskbar = $false
+    $f.TopMost = $true
+    $f.Opacity = 0.93                    # prozirni (layered) prozor — klik prolazi u Cartec
+    $f.BackColor = $boja
+    $f.Bounds = New-Object System.Drawing.Rectangle([int]$x, [int]$y, [int]$w, [int]$h)
+    return $f
+}
+
+function EkranNatpis($tekst, $px, $boja, $dock) {
+    $l = New-Object System.Windows.Forms.Label
+    $l.Text = $tekst
+    $l.Font = New-Object System.Drawing.Font('Segoe UI', [single]$px, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+    $l.ForeColor = $boja
+    $l.BackColor = [System.Drawing.Color]::Transparent
+    $l.TextAlign = 'MiddleCenter'
+    $l.Dock = $dock
+    return $l
+}
+
+function NapraviCrveni {
+    $ekr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $w = [int]($ekr.Width * 0.84); $h = [int]($ekr.Height * 0.46)
+    $f = EkranProzor ($ekr.X + ($ekr.Width - $w) / 2) ($ekr.Y + ($ekr.Height - $h) / 2) $w $h ([System.Drawing.Color]::FromArgb(255, 214, 0))
+    $f.Padding = New-Object System.Windows.Forms.Padding(10)
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Dock = 'Fill'
+    $p.BackColor = [System.Drawing.Color]::FromArgb(200, 24, 24)
+    $vel = [Math]::Max(28, [int]($h * 0.15))
+    $p.Controls.Add((EkranNatpis "VALJCI RADE`nBEZ ODABRANOG VOZILA" $vel ([System.Drawing.Color]::White) 'Fill'))
+    $dolje = EkranNatpis 'Odaberi vozilo (GB) u aplikaciji Valjci' ([int]($vel * 0.55)) ([System.Drawing.Color]::FromArgb(255, 224, 60)) 'Bottom'
+    $dolje.Height = [int]($h * 0.26)
+    $p.Controls.Add($dolje)
+    $f.Controls.Add($p)
+    return $f
+}
+
+function NapraviZeleni {
+    $ekr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $w = [int]($ekr.Width * 0.5); $h = [Math]::Max(40, [int]($ekr.Height * 0.065))
+    $f = EkranProzor ($ekr.Right - $w - 8) ($ekr.Y + 8) $w $h ([System.Drawing.Color]::FromArgb(20, 120, 40))
+    $script:zeleniNatpis = EkranNatpis '' ([int]($h * 0.5)) ([System.Drawing.Color]::White) 'Fill'
+    $f.Controls.Add($script:zeleniNatpis)
+    return $f
+}
+
+function EkranPokazi($f) {
+    if (-not $f.Visible) { $f.Show() }
+    $f.TopMost = $true
+    $f.Refresh()
+}
+
+function OsvjeziEkran($token) {
+    if (-not $token -or $script:ekranNemoguc) { return }
+    $r = $null
+    try {
+        # Kratki rok (3 s) — prikaz ne smije zakočiti slanje mjerenja.
+        $odg = Invoke-WebRequest -Uri ($Baza + '/cartec/ekran') -Method Get -Headers @{ 'X-Cartec-Token' = $token } -TimeoutSec 3 -UseBasicParsing
+        $r = [Text.Encoding]::UTF8.GetString($odg.RawContentStream.ToArray()) | ConvertFrom-Json
+        $script:ekranGreske = 0
+    } catch {
+        $script:ekranGreske++
+        if ($script:ekranGreske -lt 3) { return }      # kratki prekid veze — prikaz ostaje kakav je
+    }
+    $crveno = [bool]($r -and $r.prikaz -and $r.upozorenje)
+    $tekst = ''
+    if ($r -and $r.prikaz -and @($r.vozila).Count -gt 0) {
+        $tekst = 'Na valjcima:  ' + ((@($r.vozila) | ForEach-Object { 'GB ' + $_.gb }) -join '  +  ')
+    }
+    if (-not $crveno -and -not $tekst -and -not $script:crveni -and -not $script:zeleni) { return }
+    if (-not (EkranPripremi)) { return }
+    if ($crveno) {
+        if (-not $script:crveni) { $script:crveni = NapraviCrveni }
+        if (-not $script:crveni.Visible) { Zapisi 'Na ekranu: upozorenje — valjci rade bez odabranog vozila.' }
+        EkranPokazi $script:crveni
+    } elseif ($script:crveni -and $script:crveni.Visible) {
+        $script:crveni.Hide()
+    }
+    if ($tekst) {
+        if (-not $script:zeleni) { $script:zeleni = NapraviZeleni }
+        if ($script:zeleniNatpis.Text -ne $tekst) { $script:zeleniNatpis.Text = $tekst; Zapisi "Na ekranu: $tekst" }
+        EkranPokazi $script:zeleni
+    } elseif ($script:zeleni -and $script:zeleni.Visible) {
+        $script:zeleni.Hide()
+    }
+}
+
 $poslano = New-Object 'System.Collections.Generic.HashSet[string]'
 if (Test-Path $PoslanoDat) { Get-Content $PoslanoDat | ForEach-Object { [void]$poslano.Add($_.Trim()) } }
 $prviPut = -not (Test-Path $PoslanoDat)
@@ -439,6 +574,7 @@ $redSlanja = UcitajRed
 $zadnjiRed = [datetime]::MinValue
 $zadnjeStanje = [datetime]::MinValue
 $zadnjeAzuriranje = [datetime]::MinValue
+$zadnjiEkran = [datetime]::MinValue
 $logsProvjera = Join-Path $CartecDir 'Logs'
 $brAxle = @(Get-ChildItem -Path $logsProvjera -Filter 'AxleData_*.csv' -ErrorAction SilentlyContinue).Count
 Zapisi "Pokrenuto v$Verzija ($env:COMPUTERNAME). Mapa Logs postoji: $(Test-Path $logsProvjera), AxleData datoteka: $brAxle, prvi put: $prviPut, u redu neposlanih: $($redSlanja.Count)."
@@ -524,10 +660,15 @@ while ($true) {
             }
         }
         try { ProvjeriKraj $token $fazeSad } catch { Zapisi "Provjera kraja testa: $($_.Exception.Message)" }
+        if (((Get-Date) - $zadnjiEkran).TotalSeconds -ge $EkranSek) {
+            try { OsvjeziEkran $token } catch { Zapisi "Prikaz na ekranu: $($_.Exception.Message)" }
+            $zadnjiEkran = Get-Date
+        }
         if (-not (Test-Path $PoslanoDat)) { New-Item -ItemType File -Path $PoslanoDat | Out-Null }
         $prviPut = $false
     } catch {
         Zapisi "Greška u petlji: $($_.Exception.Message)"
     }
+    if ($script:ekranSpreman) { try { [System.Windows.Forms.Application]::DoEvents() } catch {} }
     Start-Sleep -Seconds 1          # svake sekunde — rezultat i sila uživo stižu odmah
 }
