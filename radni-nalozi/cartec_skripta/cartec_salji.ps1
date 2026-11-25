@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Continue'
 # Verzija: portal poslužuje novu skriptu, pa se skripta sama ažurira kad je ovaj broj manji.
-$Verzija   = '9'
+$Verzija   = '10'
 $Baza      = 'https://bravel-radni-nalozi.fly.dev/api'
 $CartecDir = 'C:\Program Files (x86)\BR-Visualization'
 $Stanje    = Join-Path $env:LOCALAPPDATA 'BravelCartec'
@@ -433,6 +433,14 @@ public class BravelPrikaz : Form {
     return $script:ekranSpreman
 }
 
+function EkranGranice {
+    # Za probu na drugom računalu: env BRAVEL_CARTEC_EKRAN = npr. 1024x768 (kao kod valjaka).
+    if ($env:BRAVEL_CARTEC_EKRAN -match '^(\d+)x(\d+)$') {
+        return New-Object System.Drawing.Rectangle(0, 0, [int]$Matches[1], [int]$Matches[2])
+    }
+    return [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+}
+
 function EkranProzor($x, $y, $w, $h, $boja) {
     $f = New-Object BravelPrikaz
     $f.FormBorderStyle = 'None'
@@ -456,25 +464,76 @@ function EkranNatpis($tekst, $px, $boja, $dock) {
     return $l
 }
 
+# QR kod za https://bravel-valjci.fly.dev (29x29, razina M) — redak po redak, 1 = crno.
+$QrValjci = @(
+    '11111110110111110110001111111', '10000010100011110101101000001', '10111010110101100010101011101',
+    '10111010000100110101101011101', '10111010110101010011101011101', '10000010000011100100101000001',
+    '11111110101010101010101111111', '00000000001010100011100000000', '10011111111011111100010010111',
+    '11110001100110100101000110110', '01101110111010100110000100100', '10110101010110110101011011001',
+    '10101010111111100011101000001', '11110001100100000110001111111', '11001010110100110101000110101',
+    '01100100010011101011101010101', '10001111101010010001110101000', '10010000110100000111100010110',
+    '11001110100101101101100101001', '11011000100001011011010011100', '11001111000111000100111111110',
+    '00000000110111001010100011000', '11111110111011011101101011000', '10000010101011001101100010011',
+    '10111010111111011001111111000', '10111010101011101000110100010', '10111010010100101101000110111',
+    '10000010000101110010011001101', '11111110111010100111111110000'
+)
+
+function QrSlika($redovi, [int]$najvise) {
+    # Nacrta QR (s bijelim rubom od 2 polja) na sliku najviše $najvise piksela.
+    $n = $redovi.Count; $m = $n + 4
+    $k = [Math]::Max(2, [int][Math]::Floor($najvise / $m))
+    $b = New-Object System.Drawing.Bitmap(($m * $k), ($m * $k))
+    $g = [System.Drawing.Graphics]::FromImage($b)
+    $g.Clear([System.Drawing.Color]::White)
+    for ($y = 0; $y -lt $n; $y++) {
+        for ($x = 0; $x -lt $n; $x++) {
+            if ($redovi[$y][$x] -eq '1') { $g.FillRectangle([System.Drawing.Brushes]::Black, ($x + 2) * $k, ($y + 2) * $k, $k, $k) }
+        }
+    }
+    $g.Dispose()
+    return $b
+}
+
 function NapraviCrveni {
-    $ekr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-    $w = [int]($ekr.Width * 0.84); $h = [int]($ekr.Height * 0.46)
+    $ekr = EkranGranice
+    $w = [int]($ekr.Width * 0.84); $h = [int]($ekr.Height * 0.52)
+    $crvena = [System.Drawing.Color]::FromArgb(200, 24, 24)
+    $zuta = [System.Drawing.Color]::FromArgb(255, 224, 60)
     $f = EkranProzor ($ekr.X + ($ekr.Width - $w) / 2) ($ekr.Y + ($ekr.Height - $h) / 2) $w $h ([System.Drawing.Color]::FromArgb(255, 214, 0))
     $f.Padding = New-Object System.Windows.Forms.Padding(10)
     $p = New-Object System.Windows.Forms.Panel
     $p.Dock = 'Fill'
-    $p.BackColor = [System.Drawing.Color]::FromArgb(200, 24, 24)
-    $vel = [Math]::Max(28, [int]($h * 0.15))
+    $p.BackColor = $crvena
+    $vel = [Math]::Max(24, [int]($h * 0.098))
+    # Redoslijed dodavanja je bitan (WinForms raspoređuje od zadnjeg): QR desno, uputa dolje, naslov ostatak.
     $p.Controls.Add((EkranNatpis "VALJCI RADE`nBEZ ODABRANOG VOZILA" $vel ([System.Drawing.Color]::White) 'Fill'))
-    $dolje = EkranNatpis 'Odaberi vozilo (GB) u aplikaciji Valjci' ([int]($vel * 0.55)) ([System.Drawing.Color]::FromArgb(255, 224, 60)) 'Bottom'
-    $dolje.Height = [int]($h * 0.26)
+    $dolje = EkranNatpis "Skeniraj kod mobitelom i odaberi`nvozilo (GB) u aplikaciji Valjci" ([int]($vel * 0.6)) $zuta 'Bottom'
+    $dolje.Height = [int]($h * 0.27)
     $p.Controls.Add($dolje)
+    $desno = New-Object System.Windows.Forms.Panel
+    $desno.Dock = 'Right'
+    $desno.Width = [int]($h * 0.72)
+    $desno.Padding = New-Object System.Windows.Forms.Padding([int]($h * 0.06))
+    $desno.BackColor = $crvena
+    $karta = New-Object System.Windows.Forms.Panel
+    $karta.Dock = 'Fill'
+    $karta.BackColor = [System.Drawing.Color]::White
+    $slika = New-Object System.Windows.Forms.PictureBox
+    $slika.Dock = 'Fill'
+    $slika.SizeMode = 'CenterImage'
+    $slika.Image = QrSlika $QrValjci ([int]($h * 0.5))
+    $karta.Controls.Add($slika)
+    $adresa = EkranNatpis 'bravel-valjci.fly.dev' ([int]($vel * 0.4)) ([System.Drawing.Color]::FromArgb(30, 30, 30)) 'Bottom'
+    $adresa.Height = [int]($h * 0.1)
+    $karta.Controls.Add($adresa)
+    $desno.Controls.Add($karta)
+    $p.Controls.Add($desno)
     $f.Controls.Add($p)
     return $f
 }
 
 function NapraviZeleni {
-    $ekr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $ekr = EkranGranice
     $w = [int]($ekr.Width * 0.5); $h = [Math]::Max(40, [int]($ekr.Height * 0.065))
     $f = EkranProzor ($ekr.Right - $w - 8) ($ekr.Y + 8) $w $h ([System.Drawing.Color]::FromArgb(20, 120, 40))
     $script:zeleniNatpis = EkranNatpis '' ([int]($h * 0.5)) ([System.Drawing.Color]::White) 'Fill'
