@@ -131,6 +131,14 @@ a { color: inherit; text-decoration: none; }
 .nz-lokacija { margin-top: 2px; }
 .nz-nema-lok { opacity: .7; font-style: italic; }
 .nav-backdrop { display: none; }
+/* 🔒 Zaključaj izbornik (vrh raširenog izbornika; samo računalo) */
+.tabbar .nav-zakljucaj {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; margin-bottom: 4px; border-radius: 9px; border: 1px dashed #cfd6e0;
+  background: #fff; color: var(--sivo); font-size: 12px; font-family: inherit; cursor: pointer; text-align: left;
+}
+.tabbar .nav-zakljucaj:hover { background: #eef1f5; }
+.tabbar .nav-zakljucaj.akt { border-style: solid; border-color: var(--plava); color: var(--plava); background: #e9eef6; font-weight: 600; }
 
 /* Na užem ekranu (mobitel): nema stalnog raila — sadržaj dobije punu širinu,
    a izbornik (ikone + nazivi) otvara se na ☰ kao klizni panel preko sadržaja. */
@@ -145,6 +153,7 @@ a { color: inherit; text-decoration: none; }
   }
   .app.nav-open .tabbar .txt { display: inline; }
   .nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 35; }
+  .tabbar .nav-zakljucaj { display: none; }
 }
 
 /* Plutajući gumb za novi nalog — vidljiv na svim ekranima */

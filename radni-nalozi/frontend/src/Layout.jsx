@@ -37,13 +37,27 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // Lijevi izbornik: skupljen (samo ikone) ili raširen (ikone + tekst). Pamti se.
-  const [navOtvoren, setNavOtvoren] = useState(() => {
-    try { const v = localStorage.getItem('nav_otvoren'); if (v !== null) return v === '1' } catch (_) { /* */ }
-    return false   // zadano skupljeno; otvara/zatvara se SAMO ☰ gumbom kraj loga
+  // 🔒 Zaključan (Toni 25.11.2026.): ostaje raširen i klik na karticu ga ne skuplja
+  // (samo na računalu — na mobitelu je izbornik panel preko sadržaja pa se uvijek zatvara).
+  const mobitel = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 760px)').matches
+  const [zakljucan, setZakljucan] = useState(() => {
+    try { return localStorage.getItem('nav_zakljucan') === '1' } catch (_) { return false }
   })
+  const [navOtvoren, setNavOtvoren] = useState(() => {
+    try {
+      if (localStorage.getItem('nav_zakljucan') === '1' && !mobitel()) return true
+      const v = localStorage.getItem('nav_otvoren'); if (v !== null) return v === '1'
+    } catch (_) { /* */ }
+    return false   // zadano skupljeno; otvara/zatvara se ☰ gumbom kraj loga
+  })
+  const postaviZakljucan = (z) => {
+    try { localStorage.setItem('nav_zakljucan', z ? '1' : '0') } catch (_) { /* */ }
+    setZakljucan(z)
+  }
   const toggleNav = () => setNavOtvoren((o) => {
     const n = !o
     try { localStorage.setItem('nav_otvoren', n ? '1' : '0') } catch (_) { /* */ }
+    if (!n && !mobitel()) postaviZakljucan(false)   // ručno skupljen na računalu = otključan
     return n
   })
   // Klik na pravu karticu zatvori (skupi) izbornik — na svim širinama. Grupe
@@ -52,6 +66,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
   // kod prelaska na drugu karticu stari odmontira prije nego mu se updater izvrši —
   // nova stranica bi pročitala „otvoreno" i izbornik bi ostao (trebao je drugi klik, #319).
   const zatvoriNav = () => {
+    if (zakljucan && !mobitel()) return   // 🔒 zaključan izbornik ostaje otvoren
     try { localStorage.setItem('nav_otvoren', '0') } catch (_) { /* */ }
     setNavOtvoren(false)
   }
@@ -245,6 +260,14 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         )}
       </header>
       <nav className="tabbar">
+        {navOtvoren && (
+          <button type="button" className={'nav-zakljucaj' + (zakljucan ? ' akt' : '')}
+            onClick={() => postaviZakljucan(!zakljucan)}
+            title={zakljucan ? 'Izbornik ostaje otvoren — klikni za otključavanje' : 'Zaključaj izbornik da ostane otvoren'}>
+            <span className="ikona">{zakljucan ? '🔒' : '🔓'}</span>
+            <span className="txt">{zakljucan ? 'Izbornik zaključan' : 'Zaključaj izbornik'}</span>
+          </button>
+        )}
         {vidljiviTabovi.map((item) => {
           if (!item.djeca) {
             const n = paznjaZa(item.do)
