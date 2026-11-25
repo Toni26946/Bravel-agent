@@ -327,6 +327,41 @@ def trosak_po_vozilu(od: str | None = Query(default=None), do: str | None = Quer
     return {"od": od, "do": do, "ukupno_eur": ukupno, "redovi": redovi}
 
 
+@router.get("/izdatnice")
+def izdatnice_sve(_: Korisnik = Depends(skladiste), db: Session = Depends(get_db)):
+    """Sve izdatnice (utrošeni dijelovi na nalozima) skupno, po nalogu — za karticu
+    Skladište → Izdatnice. Najnovije prvo."""
+    from ..models import Nalog
+    red = db.query(Izdatnica).order_by(Izdatnica.kreiran.desc(), Izdatnica.id.desc()).all()
+    nalozi = {n.id: n for n in db.query(Nalog).filter(Nalog.id.in_({i.nalog_id for i in red})).all()} if red else {}
+    po_nalogu: dict[int, dict] = {}
+    for i in red:
+        n = nalozi.get(i.nalog_id)
+        g = po_nalogu.get(i.nalog_id)
+        if g is None:
+            g = po_nalogu[i.nalog_id] = {
+                "nalog_id": i.nalog_id, "broj_naloga": (n.broj if n else None),
+                "gb": i.vozilo_gb or ((n.vozilo.gb if n and n.vozilo else "") or ""),
+                "zadnja": i.kreiran.isoformat() if i.kreiran else None,
+                "iznos": 0.0, "stavke": [], "neposlano": 0, "apross_brojevi": [],
+            }
+        iznos = round((i.kolicina or 0) * i.cijena, 2) if i.cijena is not None else None
+        if iznos is not None:
+            g["iznos"] = round(g["iznos"] + iznos, 2)
+        if i.apross_broj:
+            if i.apross_broj not in g["apross_brojevi"]:
+                g["apross_brojevi"].append(i.apross_broj)
+        else:
+            g["neposlano"] += 1
+        g["stavke"].append({
+            "id": i.id, "artikl": i.artikl_naziv, "sifra": i.artikl_sifra, "kataloski": i.kataloski,
+            "kolicina": i.kolicina, "jmj": i.jmj, "cijena": i.cijena, "iznos": iznos,
+            "apross_broj": i.apross_broj, "kreirao": (i.kreirao.ime if i.kreirao else None),
+            "kreiran": i.kreiran.isoformat() if i.kreiran else None,
+        })
+    return list(po_nalogu.values())
+
+
 @router.get("/servis/trosak-po-vozilu")
 def servis_trosak_po_vozilu(od: str | None = Query(default=None), do: str | None = Query(default=None),
                             _: bool = Depends(_servisna_ovlast), db: Session = Depends(get_db)):

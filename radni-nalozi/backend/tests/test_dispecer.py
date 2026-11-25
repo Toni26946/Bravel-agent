@@ -568,7 +568,7 @@ def test_dijelovi_javi_skladistaru():
         d.obavijesti_ulogu = orig
     db.refresh(z)
     assert z.razlog_prekida == "dijelovi"
-    assert any(u == Uloga.skladistar and url == "/skladiste" for (u, url) in pozivi), "skladište mora dobiti obavijest"
+    assert any(u == Uloga.skladistar and url == "/skladiste/narudzbe" for (u, url) in pozivi), "skladište mora dobiti obavijest"
 
 
 if __name__ == "__main__":

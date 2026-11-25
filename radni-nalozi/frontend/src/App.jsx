@@ -30,7 +30,7 @@ import Steta from './pages/Steta'
 import PregledVozila from './pages/PregledVozila'
 import Sifrarnik from './pages/Sifrarnik'
 import VoziloDetalj from './pages/VoziloDetalj'
-import Skladiste from './pages/Skladiste'
+import Skladiste, { SkladisteIzdatnice, SkladisteNarudzbe, SkladistePrimke } from './pages/Skladiste'
 import SkladisteDashboard from './pages/SkladisteDashboard'
 import EvidencijaRV from './pages/EvidencijaRV'
 import Plan from './pages/Plan'
@@ -44,8 +44,8 @@ function pocetna(korisnik) {
   // Samostalni rad (npr. vulkanizer): njegov ekran je „Moj rad".
   if (uloga === 'radnik' && Array.isArray(korisnik?.moduli) && korisnik.moduli.includes('/samostalno')) return '/samostalno'
   if (uloga === 'vozac') return '/prijave'
-  // Skladištar: njegov ekran je skladište (primke otpremnica).
-  if (uloga === 'skladistar') return '/skladiste'
+  // Skladištar: njegov ekran su primke otpremnica (Skladište → Primke).
+  if (uloga === 'skladistar') return '/skladiste/primke'
   return '/nalozi'
 }
 
@@ -123,8 +123,11 @@ export default function App() {
       <Route path="/steta" element={<Zasticeno uloge={['voditelj']}><Steta /></Zasticeno>} />
       <Route path="/pregledi" element={<Zasticeno uloge={['voditelj', 'poslovodja']} modul="/pregledi"><PregledVozila /></Zasticeno>} />
 
-      {/* Skladište (primke otpremnica): skladištar + voditelj + poslovođa */}
+      {/* Skladište: stanje, primke, izdatnice, naručeni dijelovi — skladištar + voditelj + poslovođa */}
       <Route path="/skladiste" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><Skladiste /></Zasticeno>} />
+      <Route path="/skladiste/primke" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><SkladistePrimke /></Zasticeno>} />
+      <Route path="/skladiste/izdatnice" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><SkladisteIzdatnice /></Zasticeno>} />
+      <Route path="/skladiste/narudzbe" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><SkladisteNarudzbe /></Zasticeno>} />
       <Route path="/skladiste/dashboard" element={<Zasticeno uloge={['skladistar', 'voditelj', 'poslovodja']}><SkladisteDashboard /></Zasticeno>} />
 
       {/* Evidencija radnog vremena: skladištar + voditelj + poslovođa */}
