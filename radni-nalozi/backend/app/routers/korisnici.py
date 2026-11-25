@@ -206,5 +206,10 @@ def postavi_odsutnost(
         k.odsutnost_od = podaci.od
         k.odsutnost_do = podaci.do
     db.commit()
+    # Odmah preračunaj 💡 prijedloge (inače tek pozadinska petlja za ~1 min): odsutnom /
+    # radniku na terenu ili u drugoj radioni (WhatsApp #413) stari prijedlozi padaju.
+    # Automatika samo predlaže — dodijeljeni zadaci se ne diraju.
+    from ..auto_popuni import popuni_tiho
+    popuni_tiho(db)
     db.refresh(k)
     return k

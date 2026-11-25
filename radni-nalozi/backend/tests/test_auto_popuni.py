@@ -370,3 +370,33 @@ def test_izvan_plana_tek_kad_nema_prioritetnih():
     assert len(ids) == 5, "do 5 s prijedlozima"
     assert ids[:3] == [z.id for z in pri], "prvo prioritetni"
     assert ids[3:] == [van[0].id, van[1].id], "pa izvan plana (stariji prvi)"
+
+
+def test_teren_druga_radiona_bez_prijedloga():
+    """#413 (25.11.2026.): mehaničar u drugoj radionici (Bad Soden) označen je
+    statusom 🚜 Teren / druga radiona → ne dobiva nove prijedloge, a stari mu padaju."""
+    db = _session()
+    ana = _meh(db, "Ana")
+    elson = _meh(db, "Elson", odsutnost_vrsta="teren")
+    n = _nalog(db, "403", ana, prioritet_rang=0)
+    z_stari = _zad(db, n, "GUME", "stari prijedlog", prijedlog_radnik_id=elson.id)
+    z_novi = _zad(db, _nalog(db, "404", ana, prioritet_rang=1), "GUME", "novi")
+    db.commit()
+    out = popuni(db)
+    assert all(d["radnik_id"] != elson.id for d in out), "teren ne dobiva prijedloge"
+    assert z_stari.prijedlog_radnik_id != elson.id, "stari prijedlog mu pada"
+    assert z_novi.prijedlog_radnik_id == ana.id
+
+
+def test_postavi_odsutnost_odmah_mice_prijedloge():
+    """#413: promjena statusa u „teren / druga radiona" odmah skida mehaničareve prijedloge."""
+    from app.routers.korisnici import postavi_odsutnost
+    from app.schemas import OdsutnostUpdate
+    db = _session()
+    ana = _meh(db, "Ana")
+    elson = _meh(db, "Elson")
+    z = _zad(db, _nalog(db, "301", ana, prioritet_rang=0), "GUME", "p", prijedlog_radnik_id=elson.id)
+    db.commit()
+    postavi_odsutnost(elson.id, OdsutnostUpdate(vrsta="teren"), ana, db)
+    assert elson.odsutnost_vrsta == "teren"
+    assert z.prijedlog_radnik_id != elson.id
