@@ -30,6 +30,8 @@ export default function Vozila() {
   const [parkinzi, setParkinzi] = useState([])
   const [uredjujem, setUredjujem] = useState(null)   // gb vozila koje se uređuje
   const [uvozOtvoren, setUvozOtvoren] = useState(false)
+  const [novoOtvoreno, setNovoOtvoreno] = useState(false)
+  const [poruka, setPoruka] = useState('')
 
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj(); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
@@ -72,10 +74,26 @@ export default function Vozila() {
 
       {smijeUrediti && (
         <div className="btn-red" style={{ marginBottom: 8 }}>
-          <button className="btn sekund mali" onClick={() => setUvozOtvoren((o) => !o)}>
-            ⬆️ Uvoz vozila
+          <button className="btn mali" onClick={() => { setNovoOtvoreno((o) => !o); setUvozOtvoren(false); setPoruka('') }}>
+            ＋ Novo vozilo
+          </button>
+          <button className="btn sekund mali" onClick={() => { setUvozOtvoren((o) => !o); setNovoOtvoreno(false) }}>
+            ⬆️ Uvoz više vozila
           </button>
         </div>
+      )}
+      {poruka && <div className="uspjeh" style={{ marginBottom: 8 }}>{poruka}</div>}
+      {novoOtvoreno && smijeUrediti && (
+        <NovoVozilo
+          onGotovo={(r) => {
+            setNovoOtvoreno(false)
+            setPoruka(r.u_floti
+              ? `✅ GB ${r.gb} upisan — u Radnim nalozima i u Floti.`
+              : `✅ GB ${r.gb} upisan u Radne naloge. Flota se ne javlja — upisat će se sama čim proradi.`)
+            setPretraga(r.gb)
+            ucitaj()
+          }}
+          onOdustani={() => setNovoOtvoreno(false)} />
       )}
       {uvozOtvoren && smijeUrediti && (
         <UvozPanel onGotovo={() => { setUvozOtvoren(false); ucitaj() }} onOdustani={() => setUvozOtvoren(false)} />
@@ -291,6 +309,95 @@ function UrediVozilo({ v, onSpremi, onOdustani }) {
       {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
       <div className="btn-red" style={{ marginTop: 6 }}>
         <button className="btn mali" disabled={radi} onClick={spremi}>{radi ? '…' : 'Spremi'}</button>
+        <button className="btn sekund mali" disabled={radi} onClick={onOdustani}>Odustani</button>
+      </div>
+    </div>
+  )
+}
+
+// Novo vozilo — jedan obrazac umjesto uvoza datoteke (Toni 26.11.2026.). Upiše se u Radne
+// naloge i ODMAH u Flotin šifrarnik Garažni brojevi (glavni popis vozila).
+const VRSTE_NOVO = ['DIZALICA', 'TEGLJAČ', 'ŠLEPA', 'PRIKOLICA', 'KOMBI', 'AUTO', 'OSTALO']
+const FIRME_NOVO = ['BRAVEL', 'BRAVEL LOGS']
+
+function NovoVozilo({ onGotovo, onOdustani }) {
+  const [f, setF] = useState({ gb: '', vrsta: '', vozilo: '', registracija: '', broj_sasije: '', prva_registracija: '', firma: 'BRAVEL' })
+  const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
+  const [postoji, setPostoji] = useState(null)
+  const postavi = (k, val) => setF((p) => ({ ...p, [k]: val }))
+
+  // GB = samo broj: razmak (npr. zalijepljeno „498 VOLVO FH64R") odmah upozori.
+  const gb = f.gb.trim()
+  const gbKrivo = gb && /\s/.test(gb)
+
+  useEffect(() => {
+    setPostoji(null)
+    if (!gb || gbKrivo) return undefined
+    const tm = setTimeout(() => {
+      api.provjeriGb(gb).then((r) => setPostoji(r.postoji ? r : null)).catch(() => {})
+    }, 300)
+    return () => clearTimeout(tm)
+  }, [gb, gbKrivo])
+
+  const spremi = async () => {
+    setRadi(true); setGreska('')
+    try {
+      const r = await api.novoVozilo({ ...f, gb, vrsta: f.vrsta === 'OSTALO' ? '' : f.vrsta })
+      onGotovo(r)
+    } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+  }
+
+  const moze = gb && !gbKrivo && !postoji && f.vrsta && !radi
+
+  return (
+    <div className="karta vz-uredi-form">
+      <div className="cm-naslov" style={{ marginBottom: 6 }}>＋ Novo vozilo</div>
+      <p className="meta" style={{ marginTop: 0 }}>Upisuje se i u Flotu (Garažni brojevi) — nigdje drugdje ne treba.</p>
+      <div className="vz-polja">
+        <label className="vz-polje">
+          <span>Garažni broj (GB) *</span>
+          <input className="pretraga-input" inputMode="numeric" autoFocus value={f.gb}
+            onChange={(e) => postavi('gb', e.target.value)} placeholder="npr. 505" />
+        </label>
+        <label className="vz-polje">
+          <span>Vozilo (marka i model)</span>
+          <input className="pretraga-input" value={f.vozilo} onChange={(e) => postavi('vozilo', e.target.value)} placeholder="npr. VOLVO FH64R" />
+        </label>
+      </div>
+      {gbKrivo && <div className="greska" style={{ margin: '4px 0' }}>GB je samo broj (npr. 498) — marku i model upiši u „Vozilo”.</div>}
+      {postoji && <div className="greska" style={{ margin: '4px 0' }}>GB {postoji.gb} već postoji{postoji.opis ? ` — ${postoji.opis}` : ''}.</div>}
+      <div className="vz-polje" style={{ marginTop: 6 }}>
+        <span>Vrsta *</span>
+        <div className="vz-filteri" style={{ marginTop: 4 }}>
+          {VRSTE_NOVO.map((v) => (
+            <button key={v} type="button" className={'vz-fil' + (f.vrsta === v ? ' akt' : '')} onClick={() => postavi('vrsta', v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+      <div className="vz-polja">
+        <label className="vz-polje">
+          <span>Reg. oznaka</span>
+          <input className="pretraga-input" value={f.registracija} onChange={(e) => postavi('registracija', e.target.value)} placeholder="ako je već ima" />
+        </label>
+        <label className="vz-polje">
+          <span>Broj šasije</span>
+          <input className="pretraga-input" value={f.broj_sasije} onChange={(e) => postavi('broj_sasije', e.target.value)} />
+        </label>
+        <label className="vz-polje">
+          <span>Godina (prva registracija)</span>
+          <input className="pretraga-input" inputMode="numeric" value={f.prva_registracija} onChange={(e) => postavi('prva_registracija', e.target.value)} placeholder="npr. 2019" />
+        </label>
+        <label className="vz-polje">
+          <span>Firma</span>
+          <select className="pretraga-input" value={f.firma} onChange={(e) => postavi('firma', e.target.value)}>
+            {FIRME_NOVO.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+      </div>
+      {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
+      <div className="btn-red" style={{ marginTop: 6 }}>
+        <button className="btn mali" disabled={!moze} onClick={spremi}>{radi ? '…' : 'Spremi vozilo'}</button>
         <button className="btn sekund mali" disabled={radi} onClick={onOdustani}>Odustani</button>
       </div>
     </div>

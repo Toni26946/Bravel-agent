@@ -2,6 +2,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import re
@@ -203,6 +204,7 @@ async def _sync_registar(db: Session) -> bool:
             r.status = mob
         r.sinkroniziran = sad
     db.commit()
+    await _posalji_cekajuce_u_flotu(db, {cisti_gb(v.get("gb")) for v in vozila})
     return True
 
 
@@ -861,11 +863,116 @@ def registar_uvoz(
             if kat:
                 r.kategorija = kat
         if nov:
+            r.flota_ceka = True   # novo vozilo ide i u Flotu (pri idućoj sinkronizaciji)
             dodano += 1
         else:
             azurirano += 1
     db.commit()
     return RegistarUvozRezultat(dodano=dodano, azurirano=azurirano, ukupno=ukupno)
+
+
+# ---------------------------------------------------------------------------
+# Novo vozilo — obrazac u Radnim nalozima (Toni 26.11.2026.: „složi da se lakše mogu
+# unašati vozila, a ne da se mora uvažati datoteka … taj popis treba biti sinkroniziran
+# sa flotom, nebitno gdje se upiše; za sad je najpotrebnije u app radni nalozi jer se
+# tamo sazna za vozilo"). Upiše se u registar ODMAH i pošalje u Flotin šifrarnik
+# Garažni brojevi; ako Flota ne odgovori, šalje se ponovno pri svakoj sinkronizaciji.
+# ---------------------------------------------------------------------------
+class NovoVoziloIn(BaseModel):
+    gb: str
+    vrsta: str = ""
+    vozilo: str = ""
+    registracija: str = ""
+    broj_sasije: str = ""
+    prva_registracija: str = ""
+    firma: str = "BRAVEL"
+
+
+def _tip_iz_vrste(vrsta: str) -> str | None:
+    v = (vrsta or "").upper()
+    if any(k in v for k in ("TEGLJA", "DIZAL", "KAMION", "KIPER", "MIKSER")):
+        return "KAMION"
+    if any(k in v for k in ("ŠLEP", "SLEP", "PRIKOL", "POLUPRIK", "PRIKLJ")):
+        return "PRIKLJUČNO VOZILO"
+    if "KOMBI" in v:
+        return "KOMBI"
+    if any(k in v for k in ("AUTO", "OSOBN")):
+        return "OSOBNO VOZILO"
+    return None
+
+
+def _za_flotu(r: RegistarVozila, autor: str = "") -> dict:
+    return {"gb": r.gb, "vrsta": r.vrsta or "", "vozilo": r.vozilo or "", "reg": r.registracija or "",
+            "broj_sasije": r.broj_sasije or "", "prva_registracija": r.prva_registracija or "",
+            "firma": r.firma or "", "autor": autor}
+
+
+def _postoji_gb(db: Session, gb: str) -> RegistarVozila | None:
+    r = db.get(RegistarVozila, gb)
+    if r is not None:
+        return r
+    bez_nula = gb.lstrip("0") or gb
+    for x in db.query(RegistarVozila).all():
+        if (x.gb.lstrip("0") or x.gb) == bez_nula:
+            return x
+    return None
+
+
+@router.get("/novo/provjera")
+def novo_provjera(gb: str, _: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
+    """Dok se upisuje GB: postoji li već (da se isto vozilo ne upiše dvaput)."""
+    r = _postoji_gb(db, cisti_gb(gb)) if cisti_gb(gb) else None
+    return {"postoji": r is not None, "gb": r.gb if r else None,
+            "opis": " · ".join(x for x in (r.vozilo, r.registracija, r.vrsta) if x) if r else None}
+
+
+@router.post("/novo", status_code=201)
+async def novo_vozilo(podaci: NovoVoziloIn, korisnik: Korisnik = Depends(voditelj_ili_poslovodja),
+                      db: Session = Depends(get_db)):
+    gb = (podaci.gb or "").strip()
+    if not gb or len(gb.split()) != 1:
+        raise HTTPException(status_code=400, detail="Garažni broj je samo broj (npr. 498) — opis upiši u „Vozilo”.")
+    if len(gb) > 20:
+        raise HTTPException(status_code=400, detail="Garažni broj je predug.")
+    staro = _postoji_gb(db, gb)
+    if staro is not None:
+        raise HTTPException(status_code=409, detail=f"GB {staro.gb} već postoji"
+                            + (f" ({staro.vozilo})" if staro.vozilo else "") + ".")
+    vrsta = (podaci.vrsta or "").strip().upper() or None
+    tip = _tip_iz_vrste(vrsta or "")
+    kat = _kategorija_iz_tipa(tip) or ("auto" if tip in ("OSOBNO VOZILO", "KOMBI") else None)
+    r = RegistarVozila(
+        gb=gb, status=StatusVozila.aktivno, vrsta=vrsta, tip=tip, kategorija=kat,
+        vozilo=(podaci.vozilo or "").strip().upper()[:80] or None,
+        registracija=(podaci.registracija or "").replace("-", "").replace(" ", "").upper()[:40] or None,
+        broj_sasije=(podaci.broj_sasije or "").replace(" ", "").upper()[:40] or None,
+        prva_registracija=(podaci.prva_registracija or "").strip()[:10] or None,
+        firma=(podaci.firma or "").strip().upper()[:60] or None,
+        azurirao_id=korisnik.id, flota_ceka=True,
+    )
+    db.add(r)
+    db.commit()
+    _osiguraj_vozila_iz_registra(db)
+    rez = await flota.dodaj_vozilo(_za_flotu(r, korisnik.ime or korisnik.korisnicko_ime))
+    u_floti = bool(rez and rez.get("ok"))
+    if u_floti:
+        r.flota_ceka = False
+        db.commit()
+    return {"gb": gb, "u_floti": u_floti}
+
+
+async def _posalji_cekajuce_u_flotu(db: Session, flota_gb: set) -> None:
+    """Vozila upisana u RN koja Flota još nema → pošalji (ponavlja se dok ne uspije)."""
+    cekaju = db.query(RegistarVozila).filter(RegistarVozila.flota_ceka.is_(True)).all()
+    for r in cekaju[:20]:
+        if r.gb in flota_gb:
+            r.flota_ceka = False
+            continue
+        rez = await flota.dodaj_vozilo(_za_flotu(r))
+        if rez and rez.get("ok"):
+            r.flota_ceka = False
+    if cekaju:
+        db.commit()
 
 
 def je_prikolica(r: RegistarVozila | None) -> bool:

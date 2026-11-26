@@ -260,6 +260,31 @@ async def vozila_flota() -> list | None:
     return vozila
 
 
+async def dodaj_vozilo(podaci: dict) -> dict | None:
+    """Novo vozilo → Flota OS šifrarnik Garažni brojevi (POST /api/flota/vozila/novo).
+    Flota samo DODAJE (postojeći GB vrati postoji=True), pa je ponavljanje bezopasno.
+    Vraća odgovor Flote ili None (nedostupno — pokušat će se pri idućoj sinkronizaciji)."""
+    global _token
+    base = settings.flota_api_base.rstrip("/")
+    try:
+        async with httpx.AsyncClient(base_url=base, timeout=25) as client:
+            if settings.flota_service_key:
+                headers = {"X-Service-Key": settings.flota_service_key}
+            else:
+                if not _token:
+                    await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+            r = await client.post("/api/flota/vozila/novo", json=podaci, headers=headers)
+            if r.status_code != 200:
+                print(f"[FLOTA] novo vozilo {podaci.get('gb')}: HTTP {r.status_code} {r.text[:200]}", flush=True)
+                return None
+            _vozila_kes["ts"] = 0.0   # idući popis neka dođe svjež (s novim vozilom)
+            return r.json()
+    except Exception as e:  # noqa: BLE001
+        print(f"[FLOTA] novo vozilo {podaci.get('gb')}: {type(e).__name__}: {str(e)[:200]}", flush=True)
+        return None
+
+
 async def probaj_rutu(putanja: str, params: dict | None = None) -> dict:
     """Dijagnostika: sirovi GET na Flota OS rutu — vrati točan HTTP status i kratak
     odlomak tijela (npr. poruku 403 „ključ nema pristup ruti"). Ne keširano."""
