@@ -36,6 +36,7 @@ _STUPCI = [
     ("registar_vozila", "mobilisis_status", "VARCHAR(60)"),
     ("registar_vozila", "lokacija", "VARCHAR(300)"),
     ("registar_vozila", "spreman_od", "DATE"),
+    ("registar_vozila", "flota_ceka", "BOOLEAN DEFAULT FALSE"),
     ("registar_vozila", "podsjetnik_zadnji", "DATE"),
     ("registar_vozila", "servis_zadnji", "DATE"),
     ("registar_vozila", "servis_prag_km", "INTEGER"),

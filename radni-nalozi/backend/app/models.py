@@ -226,6 +226,9 @@ class RegistarVozila(Base):
     sinkroniziran: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Ručno postavljen status → sinkronizacija ga više ne mijenja (ručno pobjeđuje).
     rucno: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Upisano u Radnim nalozima, a Flota (šifrarnik Garažni brojevi) ga još nema → šalje se
+    # pri svakoj sinkronizaciji dok ne uspije (Toni 26.11.2026.: popis sinkroniziran s Flotom).
+    flota_ceka: Mapped[bool] = mapped_column(Boolean, default=False)
     # Sirovi operativni status iz Mobilisisa (za usporedbu/prijedlog).
     mobilisis_status: Mapped[str | None] = mapped_column(String(60), nullable=True)
     # Gdje je vozilo (šlepa) parkirano — za spremne šlepe (nema GPS-a, upisuje se ručno).
