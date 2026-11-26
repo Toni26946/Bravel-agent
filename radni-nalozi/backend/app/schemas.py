@@ -409,6 +409,8 @@ class ZadatakOut(ORM):
     utroseno_sek: int = 0
     # Razrada vremena po radniku (tko je koliko radio na ovom zadatku).
     vremena: list[ZadatakRadnikVrijemeOut] = []
+    # 📺 Upute iz videa: None | obrada | gotovo | greska
+    video_status: str | None = None
 
     # SQLite vraća naivne datume (spremljene u UTC-u); označi ih kao UTC da ih
     # preglednik ispravno protumači (inače se živo brojanje vremena pomakne za

@@ -523,6 +523,31 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .op2-mj { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 3px 10px 6px 34px; border-top: 1px dashed var(--rub); background: #fbfdff; }
 .mj-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rub); background: #fff; color: var(--plava); font-weight: 700; font-size: 12px; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
 .mj-btn:hover { border-color: var(--plava); }
+/* 📺 Upute iz videa uz zadatak */
+.vu-blok { order: 9; }
+.vu-blok.otv { flex: 1 1 100%; }
+.vu-gumb { border: 1px solid var(--rub); background: #fff; color: var(--plava); font-weight: 700; font-size: 12px; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
+.vu-gumb.vu-gotovo { background: #e8f0fb; border-color: #90b4e6; }
+.vu-gumb.vu-obrada { background: #fff8e1; border-color: #f0c44c; color: #7a4e00; }
+.vu-gumb.vu-greska { background: #fdeaea; border-color: #e5534b; color: #b3261e; }
+.vu-panel { margin-top: 6px; background: #fff; border: 1px solid var(--rub); border-radius: 10px; padding: 10px 12px; font-size: 14px; max-width: 720px; }
+.vu-info { color: var(--sivo); display: flex; align-items: center; gap: 8px; }
+.vu-gr { background: #fdeaea; color: #b3261e; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; font-size: 13px; }
+.vu-nasl { font-weight: 800; font-size: 15px; color: var(--plava); }
+.vu-saz { margin-top: 4px; color: var(--tekst); }
+.vu-pod { margin-top: 10px; font-weight: 800; font-size: 12px; color: var(--plava); text-transform: uppercase; letter-spacing: .3px; }
+.vu-upute ul, .vu-upute ol { margin: 4px 0 0; padding-left: 22px; }
+.vu-upute li { margin-bottom: 5px; line-height: 1.35; }
+.vu-t { display: inline-block; background: #e8f0fb; color: var(--plava); border-radius: 6px; padding: 0 6px; font-size: 12px; font-weight: 700; text-decoration: none; }
+.vu-img { display: block; width: 100%; max-width: 280px; border-radius: 8px; margin-top: 4px; border: 1px solid var(--rub); }
+.vu-oe { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--sivo); }
+.vu-upoz { margin-top: 8px; background: #fff4d6; border: 1px solid #f0c44c; color: #7a4e00; border-radius: 8px; padding: 6px 10px; }
+.vu-video { display: inline-block; margin-top: 10px; background: #b3261e; color: #fff; border-radius: 8px; padding: 6px 12px; font-weight: 700; text-decoration: none; font-size: 13px; }
+.vu-unos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.vu-unos input { flex: 1 1 220px; min-width: 0; padding: 6px 8px; font-size: 14px; border: 1px solid var(--rub); border-radius: 8px; }
+.vu-btn { border: 0; border-radius: 8px; background: var(--plava); color: #fff; font-weight: 700; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+.vu-btn:disabled { opacity: .5; }
+.vu-btn-sivi { background: #5b6470; }
 .mj-btn.radi { background: #e8f5e9; border-color: #66bb6a; color: #2e7d32; }
 .mj-btn .mj-vrijeme { font-variant-numeric: tabular-nums; letter-spacing: .3px; }
 .mj-gotovo { font-size: 12px; color: #2e7d32; font-weight: 600; }

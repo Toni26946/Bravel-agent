@@ -13,3 +13,5 @@ httpx==0.28.1
 openpyxl==3.1.5
 xlrd==2.0.1
 Pillow==11.1.0
+# 📺 Upute iz videa — titlovi i storyboard s YouTubea (bez skidanja videa)
+yt-dlp>=2025.10.22

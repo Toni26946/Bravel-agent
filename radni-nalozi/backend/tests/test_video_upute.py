@@ -1,0 +1,160 @@
+"""📺 Upute iz videa: link → titlovi → Claude → spremljeno uz zadatak → stranica mehaničara."""
+import json
+import os
+import sys
+from pathlib import Path
+
+BACKEND = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND))
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app import database, video_upute as vu
+from app.database import Base
+from app.models import (Korisnik, MehanicarLink, Nalog, Operacija, StatusNaloga, Uloga,
+                        VideoUputa, Vozilo, Zadatak)
+from app.routers.dispecer import UredjajIn, z_stanje
+
+
+def _maker():
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(eng)
+    return sessionmaker(bind=eng, autoflush=False)
+
+
+def _priprema(db):
+    meh = Korisnik(ime="Test Meh", korisnicko_ime="test.meh", lozinka_hash="x", uloga=Uloga.radnik)
+    voz = Vozilo(gb="T778", registracija="ZG0000TV", marka="SCANIA", model="R450")
+    db.add_all([meh, voz]); db.flush()
+    n = Nalog(broj="RN-V-1", vozilo_id=voz.id, naslov="Test", kreirao_id=meh.id, status=StatusNaloga.u_radu)
+    db.add(n); db.flush()
+    op = Operacija(nalog_id=n.id, kategorija="KOČNICE")
+    db.add(op); db.flush()
+    z = Zadatak(operacija_id=op.id, opis="Zamjena pločica", ceka_potvrdu=True)
+    z.radnici = [meh]
+    db.add(z)
+    db.add(MehanicarLink(radnik_id=meh.id, token="vtok", aktivan=True))
+    db.commit()
+    return z
+
+
+def test_video_id():
+    assert vu.video_id("https://www.youtube.com/watch?v=wfnbxDG_sX4&t=30s") == "wfnbxDG_sX4"
+    assert vu.video_id("https://youtu.be/wfnbxDG_sX4?si=abc") == "wfnbxDG_sX4"
+    assert vu.video_id("https://www.youtube.com/shorts/wfnbxDG_sX4") == "wfnbxDG_sX4"
+    assert vu.video_id("https://m.youtube.com/watch?v=wfnbxDG_sX4") == "wfnbxDG_sX4"
+    assert vu.video_id("https://vimeo.com/123") is None
+    assert vu.video_id("") is None
+
+
+def test_odaberi_titlove_prednost():
+    f = lambda: [{"ext": "vtt", "url": "v"}, {"ext": "json3", "url": "j"}]  # noqa: E731
+    # ručni HR ima prednost pred automatskim
+    assert vu.odaberi_titlove({"hr": f()}, {"en-orig": f()}) == ("hr", "j", False)
+    # automatski izvorni engleski
+    assert vu.odaberi_titlove({}, {"en-orig": f(), "de": f(), "hr": f()}, "en")[0] == "en-orig"
+    # izvorni poljski → EN prijevod YouTubea
+    assert vu.odaberi_titlove({}, {"pl-orig": f(), "en": f()}, "pl")[0] == "en"
+    # nema ništa
+    assert vu.odaberi_titlove({}, {}) is None
+    # live_chat se ignorira
+    assert vu.odaberi_titlove({"live_chat": f()}, {}) is None
+
+
+def test_parsiraj_i_sazmi():
+    j = json.dumps({"events": [
+        {"tStartMs": 0, "segs": [{"utf8": "welcome"}, {"utf8": " back"}]},
+        {"tStartMs": 3000, "segs": [{"utf8": "\n"}]},
+        {"tStartMs": 4000, "segs": [{"utf8": "remove the wheel"}]},
+        {"tStartMs": 65000, "segs": [{"utf8": "torque to 600 Nm"}]},
+    ]})
+    linije = vu.parsiraj_json3(j)
+    assert linije[0] == (0.0, "welcome back")
+    t = vu.sazmi_transkript(linije)
+    assert "[0:00] welcome back remove the wheel" in t
+    assert "[1:05] torque to 600 Nm" in t
+    vtt = "WEBVTT\n\n00:01:05.000 --> 00:01:07.000\n<c>torque</c> it\n"
+    assert vu.parsiraj_vtt(vtt) == [(65.0, "torque it")]
+
+
+def test_ocisti_upute():
+    d = vu.ocisti_upute({
+        "naslov": "Zamjena pločica", "koraci": [{"t": "65", "opis": "Skini kotač"}, {"t": 9999, "opis": "Pritegni"}, {"opis": ""}],
+        "dijelovi": ["Pločice", {"naziv": "Senzor", "oe": "2 245 316"}], "alat": ["moment ključ", ""],
+        "momenti": [{"sto": "vijci kotača", "vrijednost": "600 Nm"}, {"sto": "x"}],
+        "upozorenja": ["Podupri vozilo"], "kljucni": [0, 5, "1", 0],
+    }, trajanje=750)
+    assert [k["t"] for k in d["koraci"]] == [65, 750]
+    assert d["dijelovi"][1]["oe"] == "2 245 316" and d["dijelovi"][0]["oe"] is None
+    assert d["alat"] == ["moment ključ"]
+    assert d["momenti"] == [{"sto": "vijci kotača", "vrijednost": "600 Nm"}]
+    assert d["kljucni"] == [0, 1]
+
+
+def test_tocka_storyboarda():
+    sb = {"rows": 3, "columns": 3, "width": 320, "height": 180,
+          "fragments": [{"url": "a", "duration": 90.0}, {"url": "b", "duration": 90.0}, {"url": "c", "duration": 30.0}]}
+    assert vu.tocka_storyboarda(sb, 0) == (0, 0)
+    assert vu.tocka_storyboarda(sb, 95) == (1, 0)
+    assert vu.tocka_storyboarda(sb, 89) == (0, 8)
+    assert vu.tocka_storyboarda(sb, 500) == (2, 8)
+
+
+def test_obradi_i_stranica_mehanicara(monkeypatch):
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    u = VideoUputa(zadatak_id=z.id, url="https://youtu.be/wfnbxDG_sX4", video_id="wfnbxDG_sX4", status="obrada")
+    db.add(u); db.commit()
+
+    # Dok je u obradi, mehaničar ne vidi ništa
+    assert z_stanje("vtok", UredjajIn(uredjaj="A"), db=db)["video"] is None
+
+    monkeypatch.setattr(database, "SessionLocal", maker)
+    monkeypatch.setattr(vu.settings, "anthropic_api_key", "test")
+    monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
+        "naslov": "Changing Brake Pads", "kanal": "K", "trajanje": 750, "jezik": "en-orig",
+        "automatski": True, "transkript": "[0:00] x", "storyboard": None})
+    monkeypatch.setattr(vu, "ai_upute", lambda v: vu.ocisti_upute({
+        "naslov": "Zamjena pločica", "sazetak": "Pogonska osovina",
+        "koraci": [{"t": 60, "opis": "Skini kotač"}, {"t": 300, "opis": "Izvadi pločice"}],
+        "dijelovi": [{"naziv": "Kočione pločice"}], "alat": ["udarni odvijač"],
+        "momenti": [], "upozorenja": ["Podupri vozilo"], "kljucni": [1]}, 750))
+    monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {300: "/uploads/yt_x.jpg"})
+    vu.obradi(u.id)
+
+    db2 = maker()
+    u2 = db2.get(VideoUputa, u.id)
+    assert u2.status == "gotovo", u2.greska
+    p = json.loads(u2.podaci)
+    assert p["koraci"][1]["slika"] == "/uploads/yt_x.jpg"
+    assert p["video"]["naslov"] == "Changing Brake Pads"
+    assert db2.get(Zadatak, z.id).video_status == "gotovo"
+
+    s = z_stanje("vtok", UredjajIn(uredjaj="A"), db=db2)
+    assert s["video"]["video_id"] == "wfnbxDG_sX4"
+    assert s["video"]["upute"]["alat"] == ["udarni odvijač"]
+
+
+def test_obradi_greska_se_sprema(monkeypatch):
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    u = VideoUputa(zadatak_id=z.id, url="x", video_id="wfnbxDG_sX4", status="obrada")
+    db.add(u); db.commit()
+    monkeypatch.setattr(database, "SessionLocal", maker)
+    monkeypatch.setattr(vu.settings, "anthropic_api_key", "test")
+
+    def puca(vid):
+        raise RuntimeError("Video nema titlova")
+    monkeypatch.setattr(vu, "dohvati_video", puca)
+    vu.obradi(u.id)
+    u2 = maker().get(VideoUputa, u.id)
+    assert u2.status == "greska" and "titlova" in u2.greska
+
+
+def test_html_ima_video_dio():
+    from app.routers.dispecer import _HTML
+    assert "videoHtml(d.video)" in _HTML and "vNaslov" in _HTML

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # Čitanje otpremnica (vizualno, gust dokument) — jači model za točnost; pada na anthropic_model.
     # (Sonnet 4.5 se gasi 30.11.2026. → prebačeno na Sonnet 5.5, #376)
     anthropic_vision_model: str = "claude-sonnet-5-5"
+    # 📺 Upute iz videa (titlovi → koraci/dijelovi/alat) — jači model, rijetko se zove.
+    anthropic_video_model: str = "claude-sonnet-5-5"
 
     # Web Push (VAPID) — opcionalno; ako prazno, push se ne šalje
     vapid_public_key: str = ""

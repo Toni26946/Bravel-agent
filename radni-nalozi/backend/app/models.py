@@ -735,6 +735,35 @@ class Zadatak(Base):
     # Izmjereno vrijeme po radniku (tko je koliko radio na ovom zadatku).
     vremena: Mapped[list["ZadatakRadnikVrijeme"]] = relationship(
         back_populates="zadatak", cascade="all, delete-orphan")
+    # 📺 Upute iz videa (YouTube) — najviše jedna po zadatku.
+    video_uputa: Mapped["VideoUputa | None"] = relationship(
+        back_populates="zadatak", uselist=False, cascade="all, delete-orphan", lazy="selectin")
+
+    @property
+    def video_status(self) -> str | None:
+        return self.video_uputa.status if self.video_uputa is not None else None
+
+
+class VideoUputa(Base):
+    """📺 Upute iz YouTube videa uz zadatak (Toni 26.11.2026.): poslovođa zalijepi link,
+    sustav iz titlova (yt-dlp) + Claude složi korake, dijelove, alat, momente i upozorenja
+    (JSON u `podaci`; namjerno Text, ne JSON — Postgres DISTINCT, vidi 12.11.)."""
+    __tablename__ = "video_upute"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    zadatak_id: Mapped[int] = mapped_column(ForeignKey("zadaci.id", ondelete="CASCADE"), unique=True, index=True)
+    url: Mapped[str] = mapped_column(String(300))
+    video_id: Mapped[str] = mapped_column(String(20))
+    naslov: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    jezik: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="obrada")   # obrada | gotovo | greska
+    greska: Mapped[str | None] = mapped_column(Text, nullable=True)
+    podaci: Mapped[str | None] = mapped_column(Text, nullable=True)
+    kreirao_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    kreiran: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    azurirano: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    zadatak: Mapped["Zadatak"] = relationship(back_populates="video_uputa")
 
 
 class ZadatakRadnikVrijeme(Base):
