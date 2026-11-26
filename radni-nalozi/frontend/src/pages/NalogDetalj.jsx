@@ -718,7 +718,7 @@ function VideoUpute({ z, jeVoditelj }) {
       {otvoreno && (
         <div className="vu-panel">
           {greska && <div className="vu-gr">{greska}</div>}
-          {status === 'obrada' && <div className="vu-info"><Spinner /> Čitam titlove i slažem korake — traje do minute.</div>}
+          {status === 'obrada' && <div className="vu-info">⏳ Čitam titlove i slažem korake — traje do minute.</div>}
           {status === 'greska' && <div className="vu-gr">{v?.greska}</div>}
           {status === 'gotovo' && u && (
             <div className="vu-upute">
