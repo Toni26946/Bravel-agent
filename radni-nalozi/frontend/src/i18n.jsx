@@ -393,6 +393,27 @@ const HR = {
   'sif.filtrirajPovijest': 'Filtriraj povijest dijelova (naziv, npr. pločice)',
   'sif.traziVozilo': 'Traži po garažnom broju…',
   'sif.rezultata': 'rezultata', 'sif.nemaRezultata': 'Nema rezultata za „{q}”.', 'sif.josNema': 'Još nema zabilježenih zamjena dijelova.',
+  // Izbornik (26.11.2026. — bili upisani izravno na hrvatskom)
+  'tab.prikljucna': 'Priključna vozila', 'tab.pregledRadova': 'Pregled radova', 'tab.testoviKocnica': 'Testovi kočnica',
+  'tab.plan': 'Plan radione', 'tab.slobodniVozaci': 'Slobodni vozači', 'tab.imenik': 'Imenik',
+  'tab.mojaRadiona': 'Moja radiona', 'tab.mojRad': 'Moj rad', 'tab.valjci': 'Valjci (aplikacija za mjerenje kočnica)',
+  'nav.zakljucan': 'Izbornik zaključan', 'nav.zakljucaj': 'Zaključaj izbornik',
+  'nav.zakljucanTitle': 'Izbornik ostaje otvoren — klikni za otključavanje', 'nav.zakljucajTitle': 'Zaključaj izbornik da ostane otvoren',
+  // Priključna vozila
+  'pv2.opis': 'Sve prikolice i šlepe na jednom mjestu — gdje je koja. Prikačene se vide iz Prikapčanja; što je ⚠ ili ❔ treba upisati.',
+  'pv2.sve': 'Sve', 'pv2.trazi': 'Traži GB, registraciju, kamion, vozača, parking…', 'pv2.nema': 'Nema vozila za prikaz.',
+  'pv2.st.radiona': 'U radioni', 'pv2.st.prikacena': 'Prikačena', 'pv2.st.za_upisati': 'Za upisati', 'pv2.st.spremna': 'Spremna',
+  'pv2.st.slobodna': 'Slobodna', 'pv2.st.pokvarena': 'Pokvarena', 'pv2.st.nepoznato': 'Ne zna se gdje je',
+  'pv2.zaUpisatiOpis': 'Nalog je gotov, a nije upisano gdje je — upiši Spremna (+ parking) ili Pokvareno.',
+  'pv2.nepoznatoOpis': 'Za ove nema ni naloga ni zapisa u Prikapčanju — upiši na kojem su kamionu ili na kojem parkingu.',
+  'pv2.od': 'od', 'pv2.danas': 'danas', 'pv2.dan': 'dan', 'pv2.dana': 'dana',
+  'pv2.naKamionu': 'Na kamionu', 'pv2.parkingNijeUpisan': 'parking nije upisan', 'pv2.nalogGotov': 'Nalog gotov — upiši gdje je',
+  'pv2.nijeUpisano': 'Nije upisano gdje je', 'pv2.greska': 'Greška', 'pv2.upisiGb': 'Upiši GB kamiona',
+  'pv2.naKojiKamion': 'Na koji kamion?', 'pv2.gbKamiona': 'GB kamiona', 'pv2.vozacNeobavezno': 'Vozač (neobavezno)',
+  'pv2.spremnaKojiParking': 'Spremna — na kojem parkingu?', 'pv2.kojiParking': 'Na kojem parkingu?',
+  'pv2.uzeta': 'Uzeta', 'pv2.prikaci': 'Prikači', 'pv2.otkacena': 'Otkačena', 'pv2.nijeSpremna': 'Nije spremna',
+  'pv2.promijeniParking': 'Promijeni parking', 'pv2.naParkingu': 'Na parkingu', 'pv2.potvrdaPokvarena': 'Označiti {gb} kao pokvarenu?',
+  'spremne.noviParkingOpcija': 'Novi parking…', 'spremne.noviParkinzi': 'Naziv parkinga (više odjednom: odvoji zarezom)',
 }
 
 const EN = {
@@ -749,6 +770,27 @@ const EN = {
   'sif.traziVozilo': 'Search by garage number…',
   'sif.rezultata': 'results', 'sif.nemaRezultata': 'No results for “{q}”.', 'sif.josNema': 'No part replacements recorded yet.',
   'mik.diktiraj': 'Dictate',
+  // Menu
+  'tab.prikljucna': 'Trailers', 'tab.pregledRadova': 'Work overview', 'tab.testoviKocnica': 'Brake tests',
+  'tab.plan': 'Workshop plan', 'tab.slobodniVozaci': 'Free drivers', 'tab.imenik': 'Phone book',
+  'tab.mojaRadiona': 'My workshop', 'tab.mojRad': 'My work', 'tab.valjci': 'Rollers (brake testing app)',
+  'nav.zakljucan': 'Menu locked', 'nav.zakljucaj': 'Lock menu',
+  'nav.zakljucanTitle': 'Menu stays open — click to unlock', 'nav.zakljucajTitle': 'Lock the menu so it stays open',
+  // Trailers
+  'pv2.opis': 'All trailers and semi-trailers in one place — where each one is. Coupled ones come from Coupling; anything with ⚠ or ❔ needs to be recorded.',
+  'pv2.sve': 'All', 'pv2.trazi': 'Search GB, registration, truck, driver, parking…', 'pv2.nema': 'No vehicles to show.',
+  'pv2.st.radiona': 'In workshop', 'pv2.st.prikacena': 'Coupled', 'pv2.st.za_upisati': 'To record', 'pv2.st.spremna': 'Ready',
+  'pv2.st.slobodna': 'Free', 'pv2.st.pokvarena': 'Broken', 'pv2.st.nepoznato': 'Location unknown',
+  'pv2.zaUpisatiOpis': 'The work order is finished but its location is not recorded — mark Ready (+ parking) or Broken.',
+  'pv2.nepoznatoOpis': 'No work order and no Coupling record for these — record which truck or which parking they are at.',
+  'pv2.od': 'since', 'pv2.danas': 'today', 'pv2.dan': 'day', 'pv2.dana': 'days',
+  'pv2.naKamionu': 'On truck', 'pv2.parkingNijeUpisan': 'parking not recorded', 'pv2.nalogGotov': 'Work order finished — record where it is',
+  'pv2.nijeUpisano': 'Location not recorded', 'pv2.greska': 'Error', 'pv2.upisiGb': 'Enter the truck GB',
+  'pv2.naKojiKamion': 'Which truck?', 'pv2.gbKamiona': 'Truck GB', 'pv2.vozacNeobavezno': 'Driver (optional)',
+  'pv2.spremnaKojiParking': 'Ready — at which parking?', 'pv2.kojiParking': 'At which parking?',
+  'pv2.uzeta': 'Taken', 'pv2.prikaci': 'Couple', 'pv2.otkacena': 'Uncoupled', 'pv2.nijeSpremna': 'Not ready',
+  'pv2.promijeniParking': 'Change parking', 'pv2.naParkingu': 'At parking', 'pv2.potvrdaPokvarena': 'Mark {gb} as broken?',
+  'spremne.noviParkingOpcija': 'New parking…', 'spremne.noviParkinzi': 'Parking name (several at once: separate with commas)',
 }
 
 const HI = {

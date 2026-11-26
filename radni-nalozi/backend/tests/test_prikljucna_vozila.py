@@ -82,3 +82,15 @@ def test_stanja_prikljucnih(monkeypatch):
     db.commit()
     st = {x["gb"]: x for x in asyncio.run(v.prikljucna_vozila(korisnik=k, db=db))["stavke"]}
     assert st["14"]["stanje"] == "slobodna" and st["14"]["lokacija"] == "Apital"
+
+
+def test_dodaj_parking_bez_duplikata_po_velikim_slovima():
+    """Novi parking iz odabira (26.11.2026.): „bad  soden" = „Bad Soden", bez duplikata."""
+    from app.schemas import ParkingCreate
+    db = _session()
+    k = Korisnik(ime="Posl", korisnicko_ime="posl", lozinka_hash="x", uloga=Uloga.poslovodja)
+    db.add(k); db.commit()
+    p1 = v.dodaj_parking(ParkingCreate(naziv="  Bad   Soden "), k, db)
+    p2 = v.dodaj_parking(ParkingCreate(naziv="bad soden"), k, db)
+    assert p1.naziv == "Bad Soden" and p1.id == p2.id
+    assert [p.naziv for p in v.parkinzi(k, db)] == ["Bad Soden"]

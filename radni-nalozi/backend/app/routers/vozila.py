@@ -626,11 +626,13 @@ def parkinzi(korisnik: Korisnik = Depends(prikapcanje_pristup), db: Session = De
 
 
 @router.post("/parkinzi", response_model=ParkingOut, status_code=201)
-def dodaj_parking(podaci: ParkingCreate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
-    naziv = (podaci.naziv or "").strip()
+def dodaj_parking(podaci: ParkingCreate, _: Korisnik = Depends(voditelj_ili_poslovodja), db: Session = Depends(get_db)):
+    # Dodaje i poslovođa — odmah iz odabira parkinga (Toni 26.11.2026.); brisanje ostaje voditelju.
+    naziv = " ".join((podaci.naziv or "").split())[:100]
     if not naziv:
         raise HTTPException(status_code=400, detail="Naziv parkinga je obavezan")
-    p = db.query(Parking).filter(Parking.naziv == naziv).first()
+    # „bad soden" = „Bad Soden" — ne dupliraj zbog velikih/malih slova.
+    p = db.query(Parking).filter(func.lower(Parking.naziv) == naziv.lower()).first()
     if p:
         if not p.aktivan:
             p.aktivan = True

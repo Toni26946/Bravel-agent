@@ -4,18 +4,20 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useAuth } from '../auth'
+import { useT } from '../i18n'
 import { Parkinzi, ParkingSelect } from './SpremneSlepe'
 
 // Priključna vozila — gdje je što (Toni 25.11.2026.): JEDNA ploča umjesto
 // „Slobodna" + „Spremna". Svaka prikolica/šlepa ima točno jedno stanje.
+// Svi tekstovi idu kroz prijevode (pv2.*) — 26.11.2026. pola stranice nije bilo na engleskom.
 const STANJA = [
-  { k: 'radiona', ikona: '🔧', naziv: 'U radioni', boja: '#1d4ed8', bg: '#e5edff' },
-  { k: 'prikacena', ikona: '🔗', naziv: 'Prikačena', boja: '#047857', bg: '#dcfce7' },
-  { k: 'za_upisati', ikona: '⚠', naziv: 'Za upisati', boja: '#b91c1c', bg: '#fee2e2' },
-  { k: 'spremna', ikona: '🟢', naziv: 'Spremna', boja: '#15803d', bg: '#ecfdf5' },
-  { k: 'slobodna', ikona: '🅿️', naziv: 'Slobodna', boja: '#0369a1', bg: '#e0f2fe' },
-  { k: 'pokvarena', ikona: '🛑', naziv: 'Pokvarena', boja: '#9f1239', bg: '#ffe4e6' },
-  { k: 'nepoznato', ikona: '❔', naziv: 'Ne zna se gdje je', boja: '#6b7280', bg: '#f3f4f6' },
+  { k: 'radiona', ikona: '🔧', boja: '#1d4ed8', bg: '#e5edff' },
+  { k: 'prikacena', ikona: '🔗', boja: '#047857', bg: '#dcfce7' },
+  { k: 'za_upisati', ikona: '⚠', boja: '#b91c1c', bg: '#fee2e2' },
+  { k: 'spremna', ikona: '🟢', boja: '#15803d', bg: '#ecfdf5' },
+  { k: 'slobodna', ikona: '🅿️', boja: '#0369a1', bg: '#e0f2fe' },
+  { k: 'pokvarena', ikona: '🛑', boja: '#9f1239', bg: '#ffe4e6' },
+  { k: 'nepoznato', ikona: '❔', boja: '#6b7280', bg: '#f3f4f6' },
 ]
 const ST = Object.fromEntries(STANJA.map((s) => [s.k, s]))
 
@@ -31,15 +33,17 @@ const dana = (iso) => {
   if (isNaN(d)) return null
   return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000))
 }
-const odTxt = (iso) => {
+const odTxt = (t, iso) => {
   if (!iso) return ''
   const n = dana(iso)
-  return ` · od ${dHR(iso)}${n == null ? '' : n === 0 ? ' (danas)' : ` (${n} ${n === 1 ? 'dan' : 'dana'})`}`
+  const koliko = n == null ? '' : n === 0 ? ` (${t('pv2.danas')})` : ` (${n} ${n === 1 ? t('pv2.dan') : t('pv2.dana')})`
+  return ` · ${t('pv2.od')} ${dHR(iso)}${koliko}`
 }
 const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 export default function PrikljucnaVozila() {
   const nav = useNavigate()
+  const { t } = useT()
   const { korisnik } = useAuth()
   const [d, setD] = useState(null)
   const [parkinzi, setParkinzi] = useState([])
@@ -52,45 +56,45 @@ export default function PrikljucnaVozila() {
   useEffect(() => { ucitaj(); ucitajParkinge() }, [])
   useAutoOsvjezi(() => api.prikljucna().then(setD).catch(() => {}), 60000)
 
-  if (greska) return <Layout naslov="Priključna vozila"><div className="greska">{greska}</div></Layout>
-  if (!d) return <Layout naslov="Priključna vozila"><Spinner /></Layout>
+  const naslov = t('tab.prikljucna')
+  if (greska) return <Layout naslov={naslov}><div className="greska">{greska}</div></Layout>
+  if (!d) return <Layout naslov={naslov}><Spinner /></Layout>
 
   const qn = norm(q.trim())
   const vidljive = (d.stavke || [])
     .filter((s) => filter === 'sve' || s.stanje === filter)
     .filter((s) => !qn || norm([s.gb, s.reg, s.vrsta, s.kamion_gb, s.kamion_reg, s.vozac, s.lokacija, s.broj].join(' ')).includes(qn))
   const sekcije = STANJA.map((st) => ({ st, lista: vidljive.filter((s) => s.stanje === st.k) })).filter((x) => x.lista.length)
+  const uredjuje = korisnik?.uloga === 'voditelj' || korisnik?.uloga === 'poslovodja'
 
   return (
-    <Layout naslov="Priključna vozila">
-      <p className="meta" style={{ marginTop: 0 }}>
-        Sve prikolice i šlepe na jednom mjestu — gdje je koja. Prikačene se vide iz Prikapčanja; što je ⚠ ili ❔ treba upisati.
-      </p>
+    <Layout naslov={naslov}>
+      <p className="meta" style={{ marginTop: 0 }}>{t('pv2.opis')}</p>
 
-      {korisnik?.uloga === 'voditelj' && <Parkinzi parkinzi={parkinzi} onPromjena={ucitajParkinge} />}
+      {uredjuje && <Parkinzi parkinzi={parkinzi} onPromjena={ucitajParkinge} brisanje={korisnik?.uloga === 'voditelj'} />}
 
       <div className="pv2-cipovi">
         <button className={'pv2-cip' + (filter === 'sve' ? ' akt' : '')} onClick={() => setFilter('sve')}>
-          Sve <b>{d.ukupno}</b>
+          {t('pv2.sve')} <b>{d.ukupno}</b>
         </button>
         {STANJA.map((st) => (
           <button key={st.k} className={'pv2-cip' + (filter === st.k ? ' akt' : '')}
             style={filter === st.k ? { background: st.boja, borderColor: st.boja, color: '#fff' } : { borderColor: st.boja, color: st.boja }}
             onClick={() => setFilter(filter === st.k ? 'sve' : st.k)} disabled={!d.brojevi[st.k]}>
-            {st.ikona} {st.naziv} <b>{d.brojevi[st.k] || 0}</b>
+            {st.ikona} {t('pv2.st.' + st.k)} <b>{d.brojevi[st.k] || 0}</b>
           </button>
         ))}
       </div>
       <input className="pretraga-input" value={q} onChange={(e) => setQ(e.target.value)}
-        placeholder="Traži GB, registraciju, kamion, vozača, parking…" style={{ margin: '6px 0 10px' }} />
+        placeholder={t('pv2.trazi')} style={{ margin: '6px 0 10px' }} />
 
-      {sekcije.length === 0 && <p className="meta">Nema vozila za prikaz.</p>}
+      {sekcije.length === 0 && <p className="meta">{t('pv2.nema')}</p>}
       {sekcije.map(({ st, lista }) => (
         <div key={st.k} className="karta pv2-sek" style={{ borderLeft: `5px solid ${st.boja}` }}>
-          <div className="sekcija-naslov" style={{ marginTop: 0, color: st.boja }}>{st.ikona} {st.naziv} ({lista.length})</div>
-          {st.k === 'za_upisati' && <p className="meta" style={{ marginTop: 0 }}>Nalog je gotov, a nije upisano gdje je — upiši Spremna (+ parking) ili Pokvareno.</p>}
-          {st.k === 'nepoznato' && <p className="meta" style={{ marginTop: 0 }}>Za ove nema ni naloga ni zapisa u Prikapčanju — upiši na kojem su kamionu ili na kojem parkingu.</p>}
-          {lista.map((s) => <Redak key={s.gb} s={s} parkinzi={parkinzi} nav={nav} onGotovo={ucitaj} />)}
+          <div className="sekcija-naslov" style={{ marginTop: 0, color: st.boja }}>{st.ikona} {t('pv2.st.' + st.k)} ({lista.length})</div>
+          {st.k === 'za_upisati' && <p className="meta" style={{ marginTop: 0 }}>{t('pv2.zaUpisatiOpis')}</p>}
+          {st.k === 'nepoznato' && <p className="meta" style={{ marginTop: 0 }}>{t('pv2.nepoznatoOpis')}</p>}
+          {lista.map((s) => <Redak key={s.gb} s={s} parkinzi={parkinzi} nav={nav} onGotovo={ucitaj} onNoviParking={ucitajParkinge} />)}
         </div>
       ))}
     </Layout>
@@ -98,18 +102,20 @@ export default function PrikljucnaVozila() {
 }
 
 function Opis({ s }) {
+  const { t } = useT()
+  const nijeUpisan = t('pv2.parkingNijeUpisan')
   switch (s.stanje) {
-    case 'radiona': return <>🔧 U radioni{s.broj ? ` · ${s.broj}` : ''}{odTxt(s.od)}</>
-    case 'prikacena': return <>🔗 Na kamionu <b>GB {s.kamion_gb || '?'}</b>{s.kamion_reg ? ` (${s.kamion_reg})` : ''}{s.vozac ? ` · 🧑 ${s.vozac}` : ''}{odTxt(s.od)}</>
-    case 'spremna': return <>🟢 📍 <b>{s.lokacija || 'parking nije upisan'}</b>{odTxt(s.od)}</>
-    case 'slobodna': return <>🅿️ 📍 {s.lokacija ? <b>{s.lokacija}</b> : <i>parking nije upisan</i>}{odTxt(s.od)}</>
-    case 'pokvarena': return <>🛑 Pokvarena{s.lokacija ? <> · 📍 <b>{s.lokacija}</b></> : ''}</>
-    case 'za_upisati': return <>⚠ Nalog gotov — upiši gdje je</>
-    default: return <>❔ Nije upisano gdje je</>
+    case 'radiona': return <>🔧 {t('pv2.st.radiona')}{s.broj ? ` · ${s.broj}` : ''}{odTxt(t, s.od)}</>
+    case 'prikacena': return <>🔗 {t('pv2.naKamionu')} <b>GB {s.kamion_gb || '?'}</b>{s.kamion_reg ? ` (${s.kamion_reg})` : ''}{s.vozac ? ` · 🧑 ${s.vozac}` : ''}{odTxt(t, s.od)}</>
+    case 'spremna': return <>🟢 📍 <b>{s.lokacija || nijeUpisan}</b>{odTxt(t, s.od)}</>
+    case 'slobodna': return <>🅿️ 📍 {s.lokacija ? <b>{s.lokacija}</b> : <i>{nijeUpisan}</i>}{odTxt(t, s.od)}</>
+    case 'pokvarena': return <>🛑 {t('pv2.st.pokvarena')}{s.lokacija ? <> · 📍 <b>{s.lokacija}</b></> : ''}</>
+    case 'za_upisati': return <>⚠ {t('pv2.nalogGotov')}</>
+    default: return <>❔ {t('pv2.nijeUpisano')}</>
   }
 }
 
-function Redak({ s, parkinzi, nav, onGotovo }) {
+function Redak({ s, parkinzi, nav, onGotovo, onNoviParking }) {
   const st = ST[s.stanje] || ST.nepoznato
   return (
     <div className="sp-red pv2-red">
@@ -118,13 +124,14 @@ function Redak({ s, parkinzi, nav, onGotovo }) {
         <div className="meta pv2-opis" style={{ color: st.boja }}><Opis s={s} /></div>
         {s.napomena && <div className="meta sp-nap">📝 {s.napomena}</div>}
       </div>
-      <Akcije s={s} parkinzi={parkinzi} onGotovo={onGotovo} />
+      <Akcije s={s} parkinzi={parkinzi} onGotovo={onGotovo} onNoviParking={onNoviParking} />
     </div>
   )
 }
 
 // Akcije po stanju: prikači na kamion / na parking / spremna / pokvarena.
-function Akcije({ s, parkinzi, onGotovo }) {
+function Akcije({ s, parkinzi, onGotovo, onNoviParking }) {
+  const { t } = useT()
   const [forma, setForma] = useState(null)   // null | 'prikaci' | 'parking' | 'spremna'
   const [kamion, setKamion] = useState('')
   const [vozac, setVozac] = useState('')
@@ -135,49 +142,49 @@ function Akcije({ s, parkinzi, onGotovo }) {
   if (s.stanje === 'radiona') return null
   const izvrsi = async (fn) => {
     setRadi(true); setGreska('')
-    try { await fn(); setForma(null); onGotovo() } catch (e) { setGreska(e.message || 'Greška') } finally { setRadi(false) }
+    try { await fn(); setForma(null); onGotovo() } catch (e) { setGreska(e.message || t('pv2.greska')) } finally { setRadi(false) }
   }
   const prikaci = () => izvrsi(async () => {
-    if (!kamion.trim()) throw new Error('Upiši GB kamiona')
+    if (!kamion.trim()) throw new Error(t('pv2.upisiGb'))
     await api.zabiljeziPrikapcanje({ prikolica_gb: s.gb, vrsta: 'prikaceno', kamion_gb: kamion.trim(), vozac: vozac.trim() || null })
     if (s.stanje !== 'nepoznato') await api.postaviStatusVozila(s.gb, { status: 'aktivno' })
   })
   const naParking = () => izvrsi(async () => {
-    if (!lok.trim()) throw new Error('Odaberi parking')
+    if (!lok.trim()) throw new Error(t('prikapcanje.trebaParking'))
     await api.zabiljeziPrikapcanje({ prikolica_gb: s.gb, vrsta: 'otkaceno', lokacija: lok.trim() })
     await api.postaviStatusVozila(s.gb, { status: 'nezaduzeno', lokacija: lok.trim() })
   })
   const spremna = () => izvrsi(async () => {
-    if (!lok.trim()) throw new Error('Odaberi parking')
+    if (!lok.trim()) throw new Error(t('prikapcanje.trebaParking'))
     await api.postaviStatusVozila(s.gb, { status: 'spremno', lokacija: lok.trim() })
   })
   const pokvarena = () => izvrsi(() => api.postaviStatusVozila(s.gb, { status: 'pokvareno' }))
+  const gumbi = (spremi) => (
+    <div className="btn-red" style={{ marginTop: 5 }}>
+      <button className="btn mali" disabled={radi} onClick={spremi}>{radi ? '…' : t('common.spremi')}</button>
+      <button className="btn sekund mali" disabled={radi} onClick={() => setForma(null)}>{t('common.odustani')}</button>
+    </div>
+  )
 
   if (forma === 'prikaci') {
     return (
       <div className="sp-forma">
-        <div className="cm-naslov">🔗 Na koji kamion?</div>
-        <input className="pretraga-input" style={{ marginBottom: 5 }} placeholder="GB kamiona" value={kamion}
+        <div className="cm-naslov">🔗 {t('pv2.naKojiKamion')}</div>
+        <input className="pretraga-input" style={{ marginBottom: 5 }} placeholder={t('pv2.gbKamiona')} value={kamion}
           onChange={(e) => setKamion(e.target.value)} autoFocus />
-        <input className="pretraga-input" placeholder="Vozač (neobavezno)" value={vozac} onChange={(e) => setVozac(e.target.value)} />
+        <input className="pretraga-input" placeholder={t('pv2.vozacNeobavezno')} value={vozac} onChange={(e) => setVozac(e.target.value)} />
         {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
-        <div className="btn-red" style={{ marginTop: 5 }}>
-          <button className="btn mali" disabled={radi} onClick={prikaci}>{radi ? '…' : 'Spremi'}</button>
-          <button className="btn sekund mali" disabled={radi} onClick={() => setForma(null)}>Odustani</button>
-        </div>
+        {gumbi(prikaci)}
       </div>
     )
   }
   if (forma === 'parking' || forma === 'spremna') {
     return (
       <div className="sp-forma">
-        <div className="cm-naslov">{forma === 'spremna' ? '🟢 Spremna — na kojem parkingu?' : '🅿️ Na kojem parkingu?'}</div>
-        <ParkingSelect parkinzi={parkinzi} value={lok} onChange={setLok} />
+        <div className="cm-naslov">{forma === 'spremna' ? `🟢 ${t('pv2.spremnaKojiParking')}` : `🅿️ ${t('pv2.kojiParking')}`}</div>
+        <ParkingSelect parkinzi={parkinzi} value={lok} onChange={setLok} onNovi={onNoviParking} />
         {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
-        <div className="btn-red" style={{ marginTop: 5 }}>
-          <button className="btn mali" disabled={radi} onClick={forma === 'spremna' ? spremna : naParking}>{radi ? '…' : 'Spremi'}</button>
-          <button className="btn sekund mali" disabled={radi} onClick={() => setForma(null)}>Odustani</button>
-        </div>
+        {gumbi(forma === 'spremna' ? spremna : naParking)}
       </div>
     )
   }
@@ -185,29 +192,29 @@ function Akcije({ s, parkinzi, onGotovo }) {
   const otvori = (f) => { setLok(s.lokacija || ''); setForma(f) }
   // Pokvarena bez naloga (26.11.2026.) — jedan dodir, pa pitaj da se ne promaši na mobitelu.
   const pokvarenaPotvrdi = () => {
-    if (s.stanje === 'za_upisati' || window.confirm(`Označiti ${s.gb} kao pokvarenu?`)) pokvarena()
+    if (s.stanje === 'za_upisati' || window.confirm(t('pv2.potvrdaPokvarena', { gb: s.gb }))) pokvarena()
   }
   const st = s.stanje
   return (
     <div className="btn-red pv2-akcije">
       {st !== 'prikacena' && st !== 'za_upisati' && (
-        <button className="btn mali" disabled={radi} onClick={() => setForma('prikaci')}>🔗 {st === 'spremna' ? 'Uzeta' : 'Prikači'}</button>
+        <button className="btn mali" disabled={radi} onClick={() => setForma('prikaci')}>🔗 {st === 'spremna' ? t('pv2.uzeta') : t('pv2.prikaci')}</button>
       )}
       {st === 'prikacena' && (
-        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ Otkačena</button>
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ {t('pv2.otkacena')}</button>
       )}
       {st !== 'spremna' && st !== 'prikacena' && (
-        <button className="btn mali" disabled={radi} onClick={() => otvori('spremna')}>🟢 Spremna</button>
+        <button className="btn mali" disabled={radi} onClick={() => otvori('spremna')}>🟢 {t('pv2.st.spremna')}</button>
       )}
       {/* Slobodna = stoji na parkingu, nije potvrđeno da je spremna (bez naloga). */}
       {st === 'spremna' && (
-        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ Nije spremna</button>
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ {t('pv2.nijeSpremna')}</button>
       )}
       {(st === 'slobodna' || st === 'nepoznato' || st === 'pokvarena') && (
-        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ {st === 'slobodna' ? 'Promijeni parking' : 'Na parkingu'}</button>
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ {st === 'slobodna' ? t('pv2.promijeniParking') : t('pv2.naParkingu')}</button>
       )}
       {st !== 'pokvarena' && st !== 'prikacena' && (
-        <button className="btn sekund mali" disabled={radi} onClick={pokvarenaPotvrdi}>🛑 Pokvarena</button>
+        <button className="btn sekund mali" disabled={radi} onClick={pokvarenaPotvrdi}>🛑 {t('pv2.st.pokvarena')}</button>
       )}
       {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
     </div>

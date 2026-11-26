@@ -3,7 +3,7 @@
 // Napomena: "/evidencija" (Radno vrijeme) se vodi posebno (samo Marina i Akshay),
 // pa nije u ovom katalogu.
 export const MODULI = [
-  { key: '/plan', ikona: '📋', txt: 'Plan radione', literal: true },
+  { key: '/plan', ikona: '📋', txt: 'tab.plan' },
   { key: '/izbornik', ikona: '🗂️', txt: 'tab.izbornik' },
   { key: '/vozila-u-radu', ikona: '🚚', txt: 'tab.vozilaURadu' },
   { key: '/nalozi', ikona: '🔧', txt: 'tab.nalozi' },
@@ -15,18 +15,18 @@ export const MODULI = [
   { key: '/vozaci', ikona: '🧑‍✈️', txt: 'tab.vozaci' },
   { key: '/radnici', ikona: '👷', txt: 'tab.radnici' },
   // Slobodni vozači — disponenti prijavljuju vozače bez kamiona / s kamionom na popravku.
-  { key: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači', literal: true },
+  { key: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'tab.slobodniVozaci' },
   { key: '/pregledi', ikona: '🗓️', txt: 'tab.pregledi' },
   { key: '/steta', ikona: '💥', txt: 'tab.steta' },
   { key: '/prijave', ikona: '📋', txt: 'tab.prijave' },
-  { key: '/moja-radiona', ikona: '🛠️', txt: 'Moja radiona', literal: true },
+  { key: '/moja-radiona', ikona: '🛠️', txt: 'tab.mojaRadiona' },
   { key: '/moj-ucinak', ikona: '🏆', txt: 'tab.mojUcinak' },
   // Samostalni rad (npr. vulkanizer): radnik sam otvara posao i sam se prijavljuje (bez WhatsAppa).
-  { key: '/samostalno', ikona: '🛞', txt: 'Moj rad', literal: true },
+  { key: '/samostalno', ikona: '🛞', txt: 'tab.mojRad' },
   // Imenik telefona (samo čitanje, iz Flota OS-a) — po zadanom samo vlasnik; ostalima se dodjeljuje ovdje.
-  { key: '/imenik', ikona: '☎️', txt: 'Imenik', literal: true },
+  { key: '/imenik', ikona: '☎️', txt: 'tab.imenik' },
   // Valjci — ZASEBNA aplikacija za mjerenje kočnica (/valjci); ne dodaje karticu u izbornik portala.
-  { key: '/valjci', ikona: '🛞', txt: 'Valjci (aplikacija za mjerenje kočnica)', literal: true },
+  { key: '/valjci', ikona: '🛞', txt: 'tab.valjci' },
 ]
 
 // Koji moduli su relevantni (vidljivi po zadanom) za koju ulogu — za prikaz u uređivaču.
