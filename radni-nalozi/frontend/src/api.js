@@ -181,7 +181,8 @@ export const api = {
   // 📺 Upute iz videa (YouTube link uz zadatak)
   videoUpute: (zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}`),
   videoUputePostavi: (zadatakId, url) => zahtjev(`/video-upute/zadatak/${zadatakId}`, { method: 'POST', body: { url } }),
-  videoUputeObrisi: (zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}`, { method: 'DELETE' }),
+  videoUputeNadji: (zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}/nadji`, { method: 'POST' }),
+  videoUputeObrisi:(zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}`, { method: 'DELETE' }),
 
   // Samostalni rad (npr. vulkanizer): sam otvara posao i sam se prijavljuje
   samostalno: (kao) => zahtjev('/samostalno' + (kao ? `?kao=${kao}` : '')),
