@@ -765,6 +765,56 @@ async def povijest_vozaca(gb: str | None = None, vozac: str | None = None,
     return {"gb": gb, "vozac": vozac, "od": d.get("od"), "razdoblja": d.get("razdoblja") or []}
 
 
+def _imena_radnika(db: Session) -> list[str]:
+    """Imena za odabir: aktivni radnici/poslovođe + imena iz servisne povijesti."""
+    imena = {k.ime.strip() for k in db.query(Korisnik).filter(
+        Korisnik.aktivan.is_(True), Korisnik.uloga.in_([Uloga.radnik, Uloga.poslovodja])).all()
+        if (k.ime or "").strip()}
+    for (r,) in db.query(PovijestRada.radnik).filter(PovijestRada.radnik.isnot(None)).distinct().all():
+        for ime in (r or "").split(","):
+            if ime.strip():
+                imena.add(ime.strip())
+    return sorted(imena, key=lambda x: x.lower())
+
+
+@router.get("/povijest-radnika")
+def povijest_radnika(radnik: str | None = None, dana: int | None = None,
+                     _: Korisnik = Depends(voditelj_ili_poslovodja),
+                     db: Session = Depends(get_db)) -> dict:
+    """Tko je što radio: gotovi poslovi jednog radnika (datum, vozilo, nalog, operacija,
+    opis, trajanje) iz servisne povijesti (Veljko 26.11.2026., #438). Samo čitanje.
+    Bez `radnik` vraća samo popis imena za odabir."""
+    radnik = (radnik or "").strip()
+    if not radnik:
+        return {"radnik": None, "radnici": _imena_radnika(db), "poslovi": []}
+    trazi = radnik.lower()
+    q = (db.query(PovijestRada, Vozilo.gb, Nalog.broj)
+         .join(Vozilo, Vozilo.id == PovijestRada.vozilo_id)
+         .outerjoin(Nalog, Nalog.id == PovijestRada.nalog_id)
+         .filter(PovijestRada.radnik.ilike(f"%{radnik}%")))
+    if dana and dana > 0:
+        q = q.filter(PovijestRada.datum >= date.today() - timedelta(days=dana))
+    redovi = q.order_by(PovijestRada.datum.desc(), PovijestRada.id.desc()).limit(2000).all()
+    poslovi = []
+    for p, gb, broj in redovi:
+        # Dodatna provjera (npr. „_" ili „%" u upisu su u LIKE-u zamjenski znakovi).
+        if trazi not in (p.radnik or "").lower():
+            continue
+        poslovi.append({
+            "id": p.id, "datum": p.datum.isoformat() if p.datum else None, "gb": gb,
+            "vozilo_id": p.vozilo_id, "nalog_id": p.nalog_id, "nalog_broj": broj,
+            "radnik": p.radnik, "operacija": p.operacija, "opis": p.opis, "minute": p.minute,
+        })
+    return {
+        "radnik": radnik,
+        "poslovi": poslovi,
+        "ukupno_poslova": len(poslovi),
+        "ukupno_minuta": sum(x["minute"] or 0 for x in poslovi),
+        "vozila": len({x["gb"] for x in poslovi}),
+        "skraceno": len(redovi) >= 2000,
+    }
+
+
 @router.patch("/registar/{gb}", response_model=RegistarVozilaOut)
 def registar_status(
     gb: str,
