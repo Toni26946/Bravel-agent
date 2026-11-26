@@ -72,3 +72,13 @@ def test_stanja_prikljucnih(monkeypatch):
     assert st["17"]["stanje"] == "slobodna" and st["17"]["lokacija"] == "Parking 2"
     assert d["brojevi"]["nepoznato"] == 1 and d["ukupno"] == 8
     assert [x["stanje"] for x in d["stavke"]][0] == "radiona", "poredano po stanju"
+
+    # „Nije spremna" (26.11.2026.): nalog gotov, ali upisan parking NAKON naloga →
+    # Slobodna s tim parkingom, NE opet „Za upisati".
+    r14 = db.get(RegistarVozila, "14")
+    r14.status, r14.lokacija = StatusVozila.nezaduzeno, "Apital"
+    db.add(DnevnikPrikapcanja(prikolica_gb="14", vrsta=VrstaDogadaja.otkaceno, lokacija="Apital",
+                              kreirao_id=k.id, vrijeme=datetime.now(timezone.utc) + timedelta(seconds=1)))
+    db.commit()
+    st = {x["gb"]: x for x in asyncio.run(v.prikljucna_vozila(korisnik=k, db=db))["stavke"]}
+    assert st["14"]["stanje"] == "slobodna" and st["14"]["lokacija"] == "Apital"

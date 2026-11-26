@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import re
@@ -1002,6 +1003,11 @@ def je_prikolica(r: RegistarVozila | None) -> bool:
     return any(k in oznake for k in ("ŠLEP", "SLEP", "PRIKOL", "POLUPRIK", "PRIKLJ"))
 
 
+def _bez_tz(t: datetime) -> datetime:
+    """Usporedba vremena iz SQLite (bez zone) i Postgresa (sa zonom) — sve u UTC bez zone."""
+    return t.astimezone(timezone.utc).replace(tzinfo=None) if t.tzinfo else t
+
+
 def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     """Šlepe (prikolice) čiji je nalog nedavno završen, a još nisu dobile ishod:
     nisu označene Spremno(+lokacija) ni Pokvareno. Njih moramo natjerati na upis.
@@ -1016,11 +1022,22 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
     prikacene = _prikacene_prikolice(db)
     gbs: list[str] = []
     vidjeno: set = set()
+    kraj_naloga: dict = {}
     for n in nalozi:
         gb = str(n.vozilo.gb) if n.vozilo else None
         if gb and gb not in vidjeno:
             vidjeno.add(gb)
             gbs.append(gb)
+            kraj_naloga[gb] = n.azuriran
+    # Zadnji zapis u dnevniku prikapčanja po prikolici. Ako je NAKON završetka naloga
+    # netko upisao parking („Nije spremna" / „Na parkingu", Toni 26.11.2026.), šlepa
+    # je upisana — samo nije potvrđeno da je spremna — pa ne smije opet u „Za upisati".
+    zadnji_zapis: dict = {}
+    for gb_e, t in (db.query(DnevnikPrikapcanja.prikolica_gb, func.max(DnevnikPrikapcanja.vrijeme))
+                    .group_by(DnevnikPrikapcanja.prikolica_gb).all()):
+        if gb_e and t:
+            k = gb_e.lstrip("0") or gb_e
+            zadnji_zapis[k] = max(t, zadnji_zapis[k], key=_bez_tz) if k in zadnji_zapis else t
     out = []
     for gb in gbs:
         r = db.get(RegistarVozila, gb) or db.query(RegistarVozila).filter(
@@ -1032,6 +1049,10 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
             continue
         rijeseno = (r.status == StatusVozila.spremno and (r.lokacija or "").strip()) \
             or r.status in (StatusVozila.pokvareno, StatusVozila.prodano)
+        if not rijeseno and r.status == StatusVozila.nezaduzeno and (r.lokacija or "").strip():
+            t = zadnji_zapis.get(r.gb.lstrip("0") or r.gb)
+            kraj = kraj_naloga.get(gb)
+            rijeseno = bool(t and kraj and _bez_tz(t) >= _bez_tz(kraj))
         if not rijeseno:
             out.append(r)
     return out

@@ -181,22 +181,33 @@ function Akcije({ s, parkinzi, onGotovo }) {
       </div>
     )
   }
+  // Otvori formu parkinga s već upisanim parkingom (da se samo potvrdi ili promijeni).
+  const otvori = (f) => { setLok(s.lokacija || ''); setForma(f) }
+  // Pokvarena bez naloga (26.11.2026.) — jedan dodir, pa pitaj da se ne promaši na mobitelu.
+  const pokvarenaPotvrdi = () => {
+    if (s.stanje === 'za_upisati' || window.confirm(`Označiti ${s.gb} kao pokvarenu?`)) pokvarena()
+  }
+  const st = s.stanje
   return (
     <div className="btn-red pv2-akcije">
-      {(s.stanje === 'za_upisati' || s.stanje === 'pokvarena') && (
-        <button className="btn mali" disabled={radi} onClick={() => setForma('spremna')}>🟢 Spremna</button>
+      {st !== 'prikacena' && st !== 'za_upisati' && (
+        <button className="btn mali" disabled={radi} onClick={() => setForma('prikaci')}>🔗 {st === 'spremna' ? 'Uzeta' : 'Prikači'}</button>
       )}
-      {s.stanje === 'za_upisati' && (
-        <button className="btn sekund mali" disabled={radi} onClick={pokvarena}>🛑 Pokvarena</button>
+      {st === 'prikacena' && (
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ Otkačena</button>
       )}
-      {s.stanje !== 'prikacena' && s.stanje !== 'za_upisati' && (
-        <button className="btn mali" disabled={radi} onClick={() => setForma('prikaci')}>🔗 {s.stanje === 'spremna' ? 'Uzeta' : 'Prikači'}</button>
+      {st !== 'spremna' && st !== 'prikacena' && (
+        <button className="btn mali" disabled={radi} onClick={() => otvori('spremna')}>🟢 Spremna</button>
       )}
-      {s.stanje === 'prikacena' && (
-        <button className="btn sekund mali" disabled={radi} onClick={() => setForma('parking')}>🅿️ Otkačena</button>
+      {/* Slobodna = stoji na parkingu, nije potvrđeno da je spremna (bez naloga). */}
+      {st === 'spremna' && (
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ Nije spremna</button>
       )}
-      {(s.stanje === 'slobodna' || s.stanje === 'nepoznato') && (
-        <button className="btn sekund mali" disabled={radi} onClick={() => setForma('parking')}>🅿️ Na parkingu</button>
+      {(st === 'slobodna' || st === 'nepoznato' || st === 'pokvarena') && (
+        <button className="btn sekund mali" disabled={radi} onClick={() => otvori('parking')}>🅿️ {st === 'slobodna' ? 'Promijeni parking' : 'Na parkingu'}</button>
+      )}
+      {st !== 'pokvarena' && st !== 'prikacena' && (
+        <button className="btn sekund mali" disabled={radi} onClick={pokvarenaPotvrdi}>🛑 Pokvarena</button>
       )}
       {greska && <div className="greska" style={{ margin: '4px 0' }}>{greska}</div>}
     </div>
