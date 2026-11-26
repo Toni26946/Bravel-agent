@@ -55,8 +55,11 @@ def test_odaberi_titlove_prednost():
     assert vu.odaberi_titlove({"hr": f()}, {"en-orig": f()}) == ("hr", "j", False)
     # automatski izvorni engleski
     assert vu.odaberi_titlove({}, {"en-orig": f(), "de": f(), "hr": f()}, "en")[0] == "en-orig"
-    # izvorni poljski → EN prijevod YouTubea
-    assert vu.odaberi_titlove({}, {"pl-orig": f(), "en": f()}, "pl")[0] == "en"
+    # izvorni ruski → izvorni ruski (ne YouTubeov prijevod na EN — taj vraća 429)
+    assert vu.odaberi_titlove({}, {"ru-orig": f(), "en": f()}, "ru")[0] == "ru-orig"
+    assert vu.odaberi_titlove({}, {"ru": f(), "en": f()}, "ru")[0] == "ru"
+    # nema izvornog → EN prijevod kao zadnja opcija
+    assert vu.odaberi_titlove({}, {"en": f()}, None)[0] == "en"
     # nema ništa
     assert vu.odaberi_titlove({}, {}) is None
     # live_chat se ignorira

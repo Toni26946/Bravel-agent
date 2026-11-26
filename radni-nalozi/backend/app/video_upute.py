@@ -76,17 +76,16 @@ def odaberi_titlove(subs: dict, auto: dict, izvorni: str | None = None) -> tuple
     for k, v in subs.items():
         if url_za(v):
             return k, url_za(v)[0], False
+    # Automatski: UVIJEK izvorni jezik videa (bilo koji — Claude ga razumije). YouTubeov
+    # strojni prijevod (npr. ru → en, &tlang=) vraća 429 vrlo brzo, pa je tek zadnja opcija.
     izv = _osnovni(izvorni or "")
     orig = [k for k in auto if k.endswith("-orig")]
     kandidati = orig + ([izv] if izv and izv in auto else [])
     for k in kandidati:
-        if _osnovni(k) in _JEZICI and url_za(auto[k]):
+        if url_za(auto[k]):
             return k, url_za(auto[k])[0], True
     if "en" in auto and url_za(auto["en"]):
         return "en", url_za(auto["en"])[0], True
-    for k in kandidati:
-        if url_za(auto[k]):
-            return k, url_za(auto[k])[0], True
     return None
 
 
