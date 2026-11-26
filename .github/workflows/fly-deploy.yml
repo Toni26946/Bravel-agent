@@ -3,12 +3,23 @@ on:
   push:
     branches:
       - main
+    # Bot (bravel-agent) se NE deploya kad se mijenjaju samo Radni nalozi ili drugi
+    # workflowi — štedi GitHub Actions minute (26.11.2026.: 90 % mjesečne kvote).
+    paths-ignore:
+      - 'radni-nalozi/**'
+      - '.github/workflows/fly-deploy-radni-nalozi.yml'
+      - '.github/workflows/prezentacija.yml'
+      - '.github/workflows/tests.yml'
+      - '**/*.md'
   workflow_dispatch:   # ručno pokretanje (npr. primjena staged fly secreta bez promjene koda)
 jobs:
   deploy:
     name: Deploy app
     runs-on: ubuntu-latest
-    concurrency: deploy-group
+    # Niz brzih pushova: stariji deploy koji još čeka/radi se otkaže, ide samo zadnji.
+    concurrency:
+      group: deploy-group
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
