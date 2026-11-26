@@ -114,18 +114,26 @@ export default function SpremneSlepe() {
   )
 }
 
-// Voditelj upravlja fiksnim popisom parkinga (da se lokacija bira, ne tipka).
-export function Parkinzi({ parkinzi, onPromjena }) {
+// „Bad Soden, Apital 2" → ['Bad Soden', 'Apital 2'] — više parkinga odjednom (Toni 26.11.2026.).
+const razdvojiParkinge = (txt) => (txt || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean)
+
+// Voditelj (i poslovođa) upravlja fiksnim popisom parkinga (da se lokacija bira, ne tipka).
+// Brisati (×) smije samo voditelj (`brisanje`).
+export function Parkinzi({ parkinzi, onPromjena, brisanje = true }) {
   const { t } = useT()
   const [otvoren, setOtvoren] = useState(false)
   const [novi, setNovi] = useState('')
   const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
 
   const dodaj = async () => {
-    if (!novi.trim()) return
-    setRadi(true)
-    try { await api.dodajParking(novi.trim()); setNovi(''); onPromjena() }
-    catch (_) { /* tiho */ } finally { setRadi(false) }
+    const nazivi = razdvojiParkinge(novi)
+    if (!nazivi.length) return
+    setRadi(true); setGreska('')
+    try {
+      for (const n of nazivi) await api.dodajParking(n)
+      setNovi(''); onPromjena()
+    } catch (e) { setGreska(e.message || t('pv2.greska')) } finally { setRadi(false) }
   }
   const makni = async (id) => { try { await api.obrisiParking(id); onPromjena() } catch (_) { /* tiho */ } }
 
@@ -133,40 +141,73 @@ export function Parkinzi({ parkinzi, onPromjena }) {
     <div className="karta">
       <div className="fs-glava" onClick={() => setOtvoren((o) => !o)}>
         <strong>🅿️ {t('spremne.parkinzi')} ({parkinzi.length})</strong>
-        <span className="meta">{otvoren ? '▲' : '▼'}</span>
+        <span className="meta">{otvoren ? '▲' : `➕ ${t('spremne.dodajParking')} ▼`}</span>
       </div>
       {otvoren && (
         <div style={{ marginTop: 8 }}>
           <div className="vz-filteri">
             {parkinzi.map((p) => (
               <span key={p.id} className="fil">
-                {p.naziv} <span className="x" style={{ marginLeft: 4 }} onClick={() => makni(p.id)}>×</span>
+                {p.naziv} {brisanje && <span className="x" style={{ marginLeft: 4 }} onClick={() => makni(p.id)}>×</span>}
               </span>
             ))}
             {parkinzi.length === 0 && <span className="meta">{t('spremne.nemaParkinga')}</span>}
           </div>
           <div className="btn-red" style={{ marginTop: 6 }}>
-            <input className="pretraga-input" style={{ maxWidth: 220 }} placeholder={t('spremne.noviParking')}
+            <input className="pretraga-input" style={{ maxWidth: 320 }} placeholder={t('spremne.noviParkinzi')}
               value={novi} onChange={(e) => setNovi(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') dodaj() }} />
             <button className="btn mali" disabled={radi || !novi.trim()} onClick={dodaj}>➕ {t('spremne.dodajParking')}</button>
           </div>
+          {greska && <div className="greska" style={{ marginTop: 4 }}>{greska}</div>}
         </div>
       )}
     </div>
   )
 }
 
-// Odabir parkinga iz fiksnog popisa (ili poruka da voditelj prvo doda parking).
-export function ParkingSelect({ parkinzi, value, onChange }) {
+// Odabir parkinga iz fiksnog popisa + „➕ Novi parking…" odmah u odabiru (26.11.2026.),
+// da se ne mora ići u popis parkinga kad šlepa stoji na novom mjestu.
+export function ParkingSelect({ parkinzi, value, onChange, onNovi }) {
   const { t } = useT()
-  if (parkinzi.length === 0) {
-    return <div className="meta">{t('spremne.trebaParking')}</div>
+  const [dodaje, setDodaje] = useState(false)
+  const [novi, setNovi] = useState('')
+  const [dodani, setDodani] = useState([])
+  const [radi, setRadi] = useState(false)
+  const [greska, setGreska] = useState('')
+  const nazivi = [...new Set([...parkinzi.map((p) => p.naziv), ...dodani])]
+
+  const spremiNovi = async () => {
+    const n = novi.trim()
+    if (!n) return
+    setRadi(true); setGreska('')
+    try {
+      const p = await api.dodajParking(n)
+      const naziv = p?.naziv || n
+      setDodani((d) => [...d, naziv]); onChange(naziv); setNovi(''); setDodaje(false)
+      onNovi?.()
+    } catch (e) { setGreska(e.message || t('pv2.greska')) } finally { setRadi(false) }
+  }
+
+  if (dodaje || nazivi.length === 0) {
+    return (
+      <div>
+        <div className="btn-red">
+          <input className="pretraga-input" style={{ maxWidth: 260 }} placeholder={t('spremne.noviParking')} value={novi}
+            onChange={(e) => setNovi(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') spremiNovi() }} autoFocus />
+          <button type="button" className="btn mali" disabled={radi || !novi.trim()} onClick={spremiNovi}>➕ {t('spremne.dodajParking')}</button>
+          {nazivi.length > 0 && <button type="button" className="btn sekund mali" onClick={() => setDodaje(false)}>{t('common.odustani')}</button>}
+        </div>
+        {greska && <div className="greska" style={{ marginTop: 4 }}>{greska}</div>}
+      </div>
+    )
   }
   return (
-    <select className="pretraga-input" value={value} onChange={(e) => onChange(e.target.value)} autoFocus>
+    <select className="pretraga-input" value={value} autoFocus
+      onChange={(e) => (e.target.value === '__novi__' ? setDodaje(true) : onChange(e.target.value))}>
       <option value="">{t('spremne.odaberiParking')}</option>
-      {parkinzi.map((p) => <option key={p.id} value={p.naziv}>{p.naziv}</option>)}
+      {nazivi.map((n) => <option key={n} value={n}>{n}</option>)}
+      <option value="__novi__">➕ {t('spremne.noviParkingOpcija')}</option>
     </select>
   )
 }

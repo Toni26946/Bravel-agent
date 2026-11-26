@@ -125,20 +125,20 @@ export default function Layout({ naslov, nazad, children, akcija }) {
       { do: '/vozila', ikona: '📋', txt: t('tab.popisVozila') },
       ...(jeVoditelj ? [{ do: '/sifrarnik', ikona: '📖', txt: t('tab.sifrarnik') }] : []),
       // Priključna vozila — gdje je što (25.11.2026.: zamjenjuje „Slobodna" i „Spremna").
-      { do: '/prikljucna', ikona: '🛻', txt: 'Priključna vozila' },
+      { do: '/prikljucna', ikona: '🛻', txt: t('tab.prikljucna') },
       { do: '/prikapcanje', ikona: '🔗', txt: t('tab.prikapcanje') },
       { do: '/servisi', ikona: '🛢️', txt: t('tab.servisi') },
     ],
   })
   // Plan radione (grupa): dnevni radni pregledi. (Plan je zasebna direktna kartica iznad.)
   const grupaPlan = () => ({
-    grupa: 'plan', ikona: '📋', txt: 'Pregled radova',
+    grupa: 'plan', ikona: '📋', txt: t('tab.pregledRadova'),
     djeca: [
       { do: '/izbornik', ikona: '🗂️', txt: t('tab.izbornik') },
       { do: '/vozila-u-radu', ikona: '🚚', txt: t('tab.vozilaURadu') },
       { do: '/nalozi', ikona: '🔧', txt: t('tab.nalozi') },
       { do: '/izasli', ikona: '🛣️', txt: t('tab.izasli') },
-      { do: '/testovi-kocnica', ikona: '🛞', txt: 'Testovi kočnica' },
+      { do: '/testovi-kocnica', ikona: '🛞', txt: t('tab.testoviKocnica') },
     ],
   })
   // Skladište (grupa): Stanje · Primke · Izdatnice · Naručeni dijelovi · Evidencija dijelova.
@@ -156,24 +156,24 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     tabovi.push({ do: '/prijave', ikona: '📋', txt: t('tab.prijave') })
   }
   if (korisnik?.uloga === 'voditelj') {
-    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: t('tab.plan') })
     tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(true))
     tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
-    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači' })
+    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: t('tab.slobodniVozaci') })
     tabovi.push({ do: '/radnici', ikona: '👷', txt: t('tab.radnici') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
     tabovi.push({ do: '/steta', ikona: '💥', txt: t('tab.steta') })
   }
   if (korisnik?.uloga === 'poslovodja') {
-    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: 'Plan radione' })
+    if (planPristup) tabovi.push({ do: '/plan', ikona: '📋', txt: t('tab.plan') })
     tabovi.push(grupaPlan())
     tabovi.push(grupaVozila(false))
     tabovi.push(grupaSkladiste())
     tabovi.push({ do: '/zaduzenja', ikona: '🧾', txt: t('tab.zaduzenja') })
-    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: 'Slobodni vozači' })
+    tabovi.push({ do: '/slobodni-vozaci', ikona: '🧑‍✈️', txt: t('tab.slobodniVozaci') })
     tabovi.push({ do: '/pregledi', ikona: '🗓️', txt: t('tab.pregledi') })
     if (korisnik.ai_poslovodja) tabovi.push({ do: '/poslovodja', ikona: '🧠', txt: t('tab.poslovodja') })
   }
@@ -194,7 +194,7 @@ export default function Layout({ naslov, nazad, children, akcija }) {
     }
   }
   // Imenik telefona (samo čitanje, iz Flota OS-a): vlasnik ILI tko ima dodijeljen modul '/imenik'.
-  if (korisnik?.imenik) tabovi.push({ do: '/imenik', ikona: '☎️', txt: 'Imenik' })
+  if (korisnik?.imenik) tabovi.push({ do: '/imenik', ikona: '☎️', txt: t('tab.imenik') })
   // Voditelju Profil ide gore desno (u zaglavlje), ostalima u izbornik.
   if (korisnik?.uloga !== 'voditelj') {
     tabovi.push({ do: '/profil', ikona: '👤', txt: t('tab.profil') })
@@ -263,9 +263,9 @@ export default function Layout({ naslov, nazad, children, akcija }) {
         {navOtvoren && (
           <button type="button" className={'nav-zakljucaj' + (zakljucan ? ' akt' : '')}
             onClick={() => postaviZakljucan(!zakljucan)}
-            title={zakljucan ? 'Izbornik ostaje otvoren — klikni za otključavanje' : 'Zaključaj izbornik da ostane otvoren'}>
+            title={zakljucan ? t('nav.zakljucanTitle') : t('nav.zakljucajTitle')}>
             <span className="ikona">{zakljucan ? '🔒' : '🔓'}</span>
-            <span className="txt">{zakljucan ? 'Izbornik zaključan' : 'Zaključaj izbornik'}</span>
+            <span className="txt">{zakljucan ? t('nav.zakljucan') : t('nav.zakljucaj')}</span>
           </button>
         )}
         {vidljiviTabovi.map((item) => {
