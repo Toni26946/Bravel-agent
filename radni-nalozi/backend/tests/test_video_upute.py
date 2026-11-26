@@ -246,9 +246,9 @@ def _trazi_setup(monkeypatch, odgovara_za: set):
     monkeypatch.setattr(vu, "kandidati", kand)
     monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
         "naslov": "Video " + vid, "kanal": "K", "trajanje": 600, "jezik": "en",
-        "automatski": True, "transkript": vid, "storyboard": None})
+        "automatski": True, "transkript": (vid + " ") * 200, "storyboard": None})
     monkeypatch.setattr(vu, "ai_upute", lambda v, voz: vu.ocisti_upute({
-        "odgovara": v["transkript"] in odgovara_za, "video_vozilo": "x", "razlog": "r",
+        "odgovara": v["transkript"].split()[0] in odgovara_za, "video_vozilo": "x", "razlog": "r",
         "koraci": [{"t": 1, "opis": "korak"}]}, 600))
     monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {})
     vu.obradi(u.id)
@@ -267,6 +267,31 @@ def test_nadji_video_nista_ne_odgovara(monkeypatch):
     u, _ = _trazi_setup(monkeypatch, set())
     assert u.status == "greska" and "Nisam našao video" in u.greska
     assert u.podaci is None and u.video_id == "" and u.naslov is None
+
+
+def test_nadji_preskoci_video_bez_govora(monkeypatch):
+    """Titlovi samo „[Music]" → preskoči bez Claude provjere."""
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    u = VideoUputa(zadatak_id=z.id, url="", video_id="", status="obrada")
+    db.add(u); db.commit()
+    monkeypatch.setattr(database, "SessionLocal", maker)
+    monkeypatch.setattr(vu.settings, "anthropic_api_key", "test")
+    monkeypatch.setattr(vu, "kandidati", lambda t, v: ["glazba00001", "govor000001"])
+    monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
+        "naslov": vid, "kanal": "K", "trajanje": 600, "jezik": "en", "automatski": True,
+        "transkript": "[Music]" if vid.startswith("glazba") else "rijec " * 300, "storyboard": None})
+    provjereni = []
+
+    def ai(v, voz):
+        provjereni.append(v["naslov"])
+        return vu.ocisti_upute({"odgovara": True, "koraci": [{"t": 1, "opis": "k"}]}, 600)
+    monkeypatch.setattr(vu, "ai_upute", ai)
+    monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {})
+    vu.obradi(u.id)
+    assert provjereni == ["govor000001"]
+    assert maker().get(VideoUputa, u.id).video_id == "govor000001"
 
 
 def test_kandidati_filtrira_i_rangira(monkeypatch):
