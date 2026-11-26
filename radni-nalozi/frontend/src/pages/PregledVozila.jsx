@@ -13,11 +13,21 @@ export default function PregledVozila() {
   const [samoIstek, setSamoIstek] = useState(false)
   const [sort, setSort] = useState({ col: null, dir: 1 })   // col: null=hitnost | 'broj' | k provjere
   const [aktivna, setAktivna] = useState(null)              // "<gb>|<k>" ćelija koja se trenutno uređuje
+  const [odjavljena, setOdjavljena] = useState(false)       // prikaz samo odjavljenih (za vraćanje)
 
-  const ucitaj = () => api.pregledi().then(setLista).catch((e) => { setGreska(e.message); setLista([]) })
-  useEffect(() => { ucitaj() }, [])
+  const ucitaj = () => api.pregledi(odjavljena).then(setLista).catch((e) => { setGreska(e.message); setLista([]) })
+  useEffect(() => { setLista(null); ucitaj() }, [odjavljena])
 
   const spremiLokalno = (gb, polja) => setLista((l) => l.map((v) => v.gb === gb ? { ...v, ...polja } : v))
+
+  // Odjavljeno vozilo (Toni 26.11.2026.) nestaje s popisa i iz podsjetnika; „Vrati" ga vraća.
+  const odjava = async (v, da) => {
+    if (da && !window.confirm(t('pv.potvrdaOdjava', { gb: v.gb }))) return
+    try {
+      await api.odjaviVozilo(v.gb, da)
+      setLista((l) => l.filter((x) => x.gb !== v.gb))
+    } catch (e) { setGreska(e.message) }
+  }
 
   const sortiraj = (col) => setSort((s) => s.col === col ? { col, dir: -s.dir } : { col, dir: 1 })
 
@@ -65,6 +75,10 @@ export default function PregledVozila() {
           <input type="checkbox" checked={samoIstek} onChange={(e) => setSamoIstek(e.target.checked)} />
           {t('pv.samoIstek')}
         </label>
+        <label className="pv-samo">
+          <input type="checkbox" checked={odjavljena} onChange={(e) => setOdjavljena(e.target.checked)} />
+          {t('pv.prikaziOdjavljena')}
+        </label>
         <span className="pv-brojilo">{redci.length}</span>
       </div>
 
@@ -86,6 +100,10 @@ export default function PregledVozila() {
                   <div className="pv-naziv">{v.gb}</div>
                   <div className="pv-meta">{[v.vozilo, v.registracija].filter(Boolean).join(' · ')}</div>
                   {v.vozac && <div className="pv-vozac">🧑 {v.vozac}</div>}
+                  {odjavljena && v.napomena && <div className="pv-meta">{v.napomena}</div>}
+                  <button className="pv-odjava" onClick={() => odjava(v, !odjavljena)}>
+                    {odjavljena ? t('pv.vrati') : t('pv.odjavljeno')}
+                  </button>
                 </td>
                 {PROVJERE.map((p) => (
                   <Celija

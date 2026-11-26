@@ -33,6 +33,7 @@ from ..schemas import (
     DogadajCreate,
     DogadajOut,
     ParkingCreate,
+    OdjavaUpdate,
     ParkingOut,
     PovijestRadaOut,
     PregledUpdate,
@@ -580,14 +581,41 @@ def _pregledi_ovlast(korisnik: Korisnik = Depends(trenutni_korisnik)) -> Korisni
 
 
 @router.get("/pregledi", response_model=list[RegistarVozilaOut])
-def pregledi(korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depends(get_db)):
-    """Popis vozila s periodičnim provjerama (periodički, baždar taho, PP, registracija)."""
-    vozila = (
-        db.query(RegistarVozila)
-        .filter(RegistarVozila.status != StatusVozila.prodano)
-        .all()
-    )
-    return [RegistarVozilaOut.model_validate(r) for r in vozila]
+def pregledi(
+    odjavljena: bool = False,
+    korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depends(get_db),
+):
+    """Popis vozila s periodičnim provjerama (periodički, baždar taho, PP, registracija).
+    `odjavljena=true` → SAMO odjavljena/izašla iz flote (da se mogu vratiti)."""
+    q = db.query(RegistarVozila)
+    q = q.filter(RegistarVozila.status == StatusVozila.prodano) if odjavljena \
+        else q.filter(RegistarVozila.status != StatusVozila.prodano)
+    return [RegistarVozilaOut.model_validate(r) for r in q.all()]
+
+
+@router.post("/pregledi/{gb}/odjava", response_model=RegistarVozilaOut)
+def pregledi_odjava(
+    gb: str, podaci: OdjavaUpdate,
+    korisnik: Korisnik = Depends(_pregledi_ovlast), db: Session = Depends(get_db),
+):
+    """Vozilo odjavljeno (Toni 26.11.2026.): makni ga iz pregleda i podsjetnika (status
+    „izašlo iz flote", ručno — Mobilisis ga više ne vraća). `odjavljeno=false` = vrati u flotu."""
+    r = db.get(RegistarVozila, gb)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Vozilo ne postoji")
+    if podaci.odjavljeno:
+        r.status = StatusVozila.prodano
+        r.napomena = f"Odjavljeno {date.today().strftime('%d.%m.%Y.')}"
+    else:
+        r.status = StatusVozila.aktivno
+        if (r.napomena or "").startswith("Odjavljeno"):
+            r.napomena = None
+    r.rucno = True
+    r.podsjetnik_zadnji = None
+    r.azurirao_id = korisnik.id
+    db.commit()
+    db.refresh(r)
+    return RegistarVozilaOut.model_validate(r)
 
 
 @router.get("/pregledi/vozilo/{gb}", response_model=RegistarVozilaOut | None)
