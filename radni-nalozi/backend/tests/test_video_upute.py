@@ -96,6 +96,21 @@ def test_ocisti_upute():
     assert d["kljucni"] == [0, 1]
 
 
+def test_ai_odgovor_s_praznim_blokom(monkeypatch):
+    """Dio odgovora bez teksta (text=None) ne smije srušiti obradu (živa proba 26.11.)."""
+    import types
+    blokovi = [types.SimpleNamespace(type="x", text=None),
+               types.SimpleNamespace(type="text", text='{"odgovara": true, "koraci": [{"t": 5, "opis": "a"}]}')]
+
+    class Klijent:
+        def __init__(self, **_):
+            self.messages = types.SimpleNamespace(create=lambda **_: types.SimpleNamespace(content=blokovi))
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", Klijent)
+    d = vu.ai_upute({"transkript": "[0:00] x", "naslov": "t"}, {"gb": "1"})
+    assert d["odgovara"] is True and d["koraci"][0]["t"] == 5
+
+
 def test_tocka_storyboarda():
     sb = {"rows": 3, "columns": 3, "width": 320, "height": 180,
           "fragments": [{"url": "a", "duration": 90.0}, {"url": "b", "duration": 90.0}, {"url": "c", "duration": 30.0}]}
