@@ -7,6 +7,7 @@ import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import { imeZadnjegVozaca, useZadnjiVozaci } from '../ZadnjiVozac'
 import PovijestVozaca from '../PovijestVozaca'
+import PovijestRadnika from '../PovijestRadnika'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
 const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'u_najmu', 'prodano']
@@ -37,6 +38,7 @@ export default function Vozila() {
 
   const vozaci = useZadnjiVozaci()   // ime zadnjeg vozača uz GB (#436)
   const [povijest, setPovijest] = useState(null)   // null = zatvoreno; '' / GB = otvoreno (#437)
+  const [povijestRadnika, setPovijestRadnika] = useState(false)   // 👷 tko je što radio (#438)
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj(); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
 
@@ -103,10 +105,16 @@ export default function Vozila() {
         <UvozPanel onGotovo={() => { setUvozOtvoren(false); ucitaj() }} onOdustani={() => setUvozOtvoren(false)} />
       )}
 
-      <button type="button" className="btn sekund mali" style={{ marginBottom: 8 }} onClick={() => setPovijest('')}>
-        📜 Povijest vozača (tko je vozio koje vozilo)
-      </button>
+      <div className="btn-red" style={{ marginBottom: 8 }}>
+        <button type="button" className="btn sekund mali" onClick={() => setPovijest('')}>
+          📜 Povijest vozača (tko je vozio koje vozilo)
+        </button>
+        <button type="button" className="btn sekund mali" onClick={() => setPovijestRadnika(true)}>
+          👷 Povijest radnika (tko je što radio)
+        </button>
+      </div>
       {povijest !== null && <PovijestVozaca pocetno={povijest} onZatvori={() => setPovijest(null)} />}
+      {povijestRadnika && <PovijestRadnika onZatvori={() => setPovijestRadnika(false)} />}
 
       <input
         className="pretraga-input"
