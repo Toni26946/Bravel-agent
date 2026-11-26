@@ -310,6 +310,9 @@
   .rad-prihvati{align-self:stretch;margin-top:4px;border:1px dashed #7c3aed;background:#faf5ff;color:#6d28d9;border-radius:8px;padding:3px 7px;font-size:12px;line-height:1.3;cursor:pointer;font-weight:700}
   .auto-pop .btn-prihvati{border:1px solid #7c3aed;background:#7c3aed;color:#fff;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;font-family:inherit}
   .rad-cell .rc-gb{font-weight:800;font-size:13px}
+  /* Zadnji vozač uz GB (Veljko 26.11.2026., #433) */
+  .rad-cell .rc-voz{display:block;font-size:11px;font-weight:600;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nhead .n-voz{color:#475569;font-weight:600;font-size:12.5px;white-space:nowrap}
   .rad-cell .rc-daleko{font-weight:600;font-size:10px;color:#b45309;background:#fef3c7;border-radius:6px;padding:0 4px;margin-left:4px;white-space:nowrap}
   .rad-cell .rc-op{font-size:11px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   /* Okvir prioriteta (kartica Radnici): gornjih 33% crveno, srednjih žuto, zadnjih zeleno */
@@ -510,6 +513,8 @@
   function nalogZavrsen(n){ return n.ops.length>0 && n.ops.every(function(o){return o.status==="gotovo";}); }
   function brHitnih(){ return nalozi.filter(function(n){return n.hitno && !n.cekaDijelove;}).length; }
   function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  // Zadnji vozač uz GB (kamion: zadnji koji je vozio; prikolica: zadnje prikapčanje) — Veljko 26.11.2026., #433
+  function vozTxt(n,kl){ return (n&&n.vozac)?'<span class="'+kl+'" title="Zadnji vozač">🧑 '+esc(n.vozac)+'</span>':''; }
   var CH = {plan:"c-plan",ceka:"c-ceka",radu:"c-radu",gotovo:"c-gotovo",dijelovi:"c-ceka",nedostupan:"c-ceka",pauza:"c-ceka"};
   var LBL = {plan:"Planirano",ceka:"Čeka potvrdu",radu:"U tijeku",gotovo:"Gotovo",dijelovi:"⛔ Čeka dio",nedostupan:"🚫 Vozilo nedostupno",pauza:"⏸ Nije gotovo"};
   // Status operacije ZA KONKRETNOG radnika: „U tijeku" samo ako je NJEGOV mjerač pokrenut.
@@ -711,7 +716,7 @@
     var mehOpts=function(sel){ var s='<option value="">— dodijeli —</option>'; MEH.forEach(function(m){ var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'"'+(sel===m.id?' selected':'')+'>'+esc(m.ime)+' ('+bz+')</option>'; }); return s+vodOpts(null); };
     var mehOptsExcept=function(ids){ var set={}; (ids||[]).forEach(function(i){set[i]=1;}); var s='<option value="">— dodaj —</option>'; MEH.forEach(function(m){ if(set[m.id])return; var bz=_brojMeh[m.id]||0; s+='<option value="'+m.id+'">'+esc(m.ime)+' ('+bz+')</option>'; }); return s+vodOpts(set); };
     var h='<div class="card nalog'+(lane==="hit"?' lane-hitno':'')+'" id="nalog-'+n.id+'" data-nid="'+n.id+'"><div class="rang">'+rankTxt+'</div><div class="nbody">';
-    h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+udaljChip(n)+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
+    h+='<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+' · '+esc(n.reg)+'</span>'+vozTxt(n,'n-voz')+udaljChip(n)+(nalogZapoceo(n)?'':' <span class="chip waitc" data-wait="'+n.id+'">⏳ u redu '+cekanjeTxt(cekaSek(n))+'</span>');
     h+='<span class="arrows">';
     // Drag ručka — samo u planu („norm") i kad je otključan. Povuci za promjenu redoslijeda (miš + prst).
     if(lane==="norm" && !planZakljucan && !filtOp) h+='<button class="drag-h" title="Povuci za promjenu redoslijeda" aria-label="Premjesti redoslijed">⠿</button>';
@@ -886,7 +891,7 @@
       h+='<div class="sek-nas">⛔ Čeka dijelove — ne troši mjesto u planu</div>';
       ceka.forEach(function(n){
         h+='<div class="card nalog dim"><div class="rang">—</div><div class="nbody">'+
-           '<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span>'+udaljChip(n)+' <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
+           '<div class="nhead gb-head" onclick="PLAN.kartKlik(event,'+n.id+')" title="Otvori cijeli nalog"><span class="gb">GB '+esc(n.gb)+'</span> <span class="vozilo">'+esc(n.vozilo)+'</span>'+vozTxt(n,'n-voz')+udaljChip(n)+' <span class="chip c-ceka" style="margin-left:auto">⛔ Čeka dijelove</span></div>';
         n.ops.forEach(function(o){ if(filtOp && !opOdgovara(o)) return; h+='<div class="op"><span class="opn">'+esc(o.naziv)+'</span></div>'; });
         h+='</div></div>';
       });
@@ -1111,7 +1116,7 @@
           h+='<div class="rad-cell '+CH[st]+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" data-faza="'+fz+'" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="'+esc(x.o.naziv)+(fz===3?' — vozilo nije u radioni (>200 m)':'')+'">'+
              (uTijeku?'':'<button class="rc-drag" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>')+
              '<span class="rc-poz">'+(i+1)+'</span>'+
-             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+(fz===3?' <span class="rc-daleko" title="Vozilo nije u radioni (GPS > 200 m) — ide iza vozila u radioni">📍 vani</span>':'')+'</span>'+
+             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+(fz===3?' <span class="rc-daleko" title="Vozilo nije u radioni (GPS > 200 m) — ide iza vozila u radioni">📍 vani</span>':'')+'</span>'+vozTxt(x.n,'rc-voz')+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
              '<span class="chip '+CH[st]+'">'+LBL[st]+'</span>'+
              (uTijeku?'':'<div class="rc-str"><button onclick="PLAN.pomakni(event,'+x.o.id+',-1)" title="Pomakni ranije" aria-label="Ranije">◀</button><button onclick="PLAN.pomakni(event,'+x.o.id+',1)" title="Pomakni kasnije" aria-label="Kasnije">▶</button>'+
@@ -1124,7 +1129,7 @@
           h+='<div class="rad-cell prijedlog'+(PB[x.n.id]?' prio-'+PB[x.n.id]:'')+'" data-zid="'+x.o.id+'" data-prijedlog="1" onclick="PLAN.kartKlik(event,'+x.n.id+')" title="Prijedlog — '+esc(x.o.naziv)+'">'+
              '<button class="rc-drag" title="Povuci drugom mehaničaru" aria-label="Premjesti prijedlog">⠿</button>'+
              '<span class="rc-poz">💡</span>'+
-             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+
+             '<span class="rc-gb">'+(x.n.hitno?'🔴 ':'')+'GB '+esc(x.n.gb)+'</span>'+vozTxt(x.n,'rc-voz')+
              '<span class="rc-op">'+esc(x.o.naziv)+'</span>'+
              '<span class="chip c-prijedlog">💡 Prijedlog</span>'+
              '<div class="rc-str"><button class="rc-ok" onclick="PLAN.prijedlogPrihvati(event,'+x.o.id+')" title="Prihvati — zadatak postaje njegov">✓ Prihvati</button>'+
@@ -1262,7 +1267,7 @@
          '<button class="prio-h" title="Povuci za redoslijed" aria-label="Premjesti">⠿</button>'+
          '<span class="prio-br">'+(i+1)+'.</span>'+
          '<span class="prio-gb">GB '+esc(n.gb)+'</span>'+
-         '<span class="prio-voz">'+esc(n.vozilo||'')+'</span>'+
+         '<span class="prio-voz">'+esc(n.vozilo||'')+(n.vozac?' · 🧑 '+esc(n.vozac):'')+'</span>'+
          prioMjesto(n)+
          '<button class="prio-x" onclick="PLAN.makniPrio('+n.id+')" title="Makni s liste">✕</button>'+
          '</div>';
