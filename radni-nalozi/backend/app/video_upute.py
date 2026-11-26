@@ -295,7 +295,8 @@ def ai_upute(video: dict, vozilo: dict) -> dict:
         system=SUSTAV,
         messages=[{"role": "user", "content": korisnicki}],
     )
-    sirovo = "".join(getattr(b, "text", "") for b in poruka.content).strip()
+    # Neki dijelovi odgovora nemaju tekst (text=None) — preskoči ih.
+    sirovo = "".join((getattr(b, "text", None) or "") for b in poruka.content).strip()
     return ocisti_upute(_izvuci_json(sirovo), video.get("trajanje"))
 
 
@@ -462,7 +463,8 @@ def obradi(uputa_id: int) -> None:
             u.status = "gotovo"
             u.greska = None
         except Exception as e:  # noqa: BLE001 — greška se sprema uz zadatak (vidi je poslovođa)
-            log.warning("Video upute %s (%s) nisu uspjele: %s", uputa_id, u.video_id, e)
+            log.warning("Video upute %s (%s) nisu uspjele: %s", uputa_id, u.video_id, e,
+                        exc_info=not isinstance(e, RuntimeError))
             u.status = "greska"
             u.greska = str(e)[:500]
         u.azurirano = datetime.now(timezone.utc)
