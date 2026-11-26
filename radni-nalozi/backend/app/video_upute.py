@@ -184,9 +184,11 @@ SUSTAV = (
     "Ti si iskusni majstor za teretna vozila (kamioni, tegljači, prikolice) u radioni u Hrvatskoj. "
     "Dobit ćeš transkript (titlove) YouTube videa popravka ili dijagnostike, s oznakama vremena [m:ss]. "
     "Titlovi mogu biti na bilo kojem jeziku i automatski (s greškama u riječima) — razumij smisao. "
+    "Dobit ćeš i podatke VOZILA IZ NALOGA (kamion na kojem se radi). "
     "Od toga složi KRATKE, PRAKTIČNE upute za mehaničara na HRVATSKOM. "
     "Vrati ISKLJUČIVO valjani JSON, bez teksta okolo, točno ovog oblika:\n"
-    '{"naslov": string, "sazetak": string, '
+    '{"odgovara": boolean, "video_vozilo": string, "razlog": string, '
+    '"naslov": string, "sazetak": string, '
     '"koraci": [{"t": number, "opis": string}], '
     '"dijelovi": [{"naziv": string, "oe": string|null, "kolicina": string|null}], '
     '"alat": [string], '
@@ -194,6 +196,15 @@ SUSTAV = (
     '"upozorenja": [string], '
     '"kljucni": [number]}\n'
     "Pravila:\n"
+    "- PRVO provjeri je li video za BAŠ OVAJ KAMION iz naloga (Toni: video mora biti za kamion iz "
+    "naloga, nikoji drugi). odgovara = true SAMO ako se iz naslova ili transkripta JASNO vidi da je u "
+    "videu ISTA MARKA i ISTI MODEL/SERIJA (npr. vozilo SCANIA R450 → video za Scania R-seriju, R450/R500; "
+    "vozilo MAN TGX → video za MAN TGX) i generacija nije očito drugačija od godine vozila. "
+    "Ako je video za drugu marku, drugi model/seriju, drugu generaciju, za prikolicu umjesto kamiona "
+    "(ili obrnuto), ili se iz videa NE MOŽE utvrditi za koji je model — odgovara = false. Kad nisi siguran → false.\n"
+    "- video_vozilo: za koje je vozilo video (marka, model/serija, godište ako se zna), kratko.\n"
+    "- razlog: jedna kratka rečenica zašto odgovara / ne odgovara.\n"
+    "- Ako odgovara = false, ostala polja vrati prazna (\"\" / []).\n"
     "- naslov: kratki naziv posla na hrvatskom (npr. \"Zamjena kočionih pločica – prednja osovina\").\n"
     "- sazetak: jedna rečenica što se radi i na kojem vozilu/sustavu (ako se zna).\n"
     "- koraci: redom kako se radi, 5–15 koraka, svaki kratak (do ~15 riječi), u obliku naredbe "
@@ -220,13 +231,50 @@ def _izvuci_json(tekst: str) -> dict:
     return json.loads(t[i:j + 1])
 
 
-def ai_upute(video: dict) -> dict:
+def podaci_vozila(db, zadatak) -> dict:
+    """Vozilo iz naloga (po GB-u): marka/model iz naloga + matični podaci iz registra
+    (vozilo, tip, vrsta, prva registracija, broj šasije, norma)."""
+    from .models import RegistarVozila  # noqa: PLC0415
+    nalog = zadatak.operacija.nalog if zadatak.operacija else None
+    voz = nalog.vozilo if nalog else None
+    gb = (voz.gb if voz else "") or ""
+    reg = None
+    if gb:
+        reg = db.query(RegistarVozila).filter(RegistarVozila.gb == gb).first()
+        if reg is None and gb.lstrip("0") != gb:
+            reg = db.query(RegistarVozila).filter(RegistarVozila.gb == gb.lstrip("0")).first()
+    d = {
+        "gb": gb,
+        "marka_model": " ".join(x for x in [(voz.marka if voz else None), (voz.model if voz else None)] if x),
+        "vozilo": reg.vozilo if reg else None,
+        "tip": reg.tip if reg else None,
+        "vrsta": reg.vrsta if reg else None,
+        "prva_registracija": reg.prva_registracija if reg else None,
+        "broj_sasije": reg.broj_sasije if reg else None,
+        "norma": reg.norma if reg else None,
+    }
+    return {k: v for k, v in d.items() if v}
+
+
+def vozilo_poznato(v: dict) -> bool:
+    """Znamo li marku/model vozila (inače se ne može provjeriti je li video za njega)."""
+    tekst = f"{v.get('marka_model') or ''} {v.get('vozilo') or ''}".strip()
+    return bool(tekst) and tekst.upper() not in ("TEST", "TEST TEST")
+
+
+def vozilo_kratko(v: dict) -> str:
+    return f"GB {v.get('gb') or '?'} · {v.get('vozilo') or v.get('marka_model') or 'nepoznato'}"
+
+
+def ai_upute(video: dict, vozilo: dict) -> dict:
     import anthropic  # noqa: PLC0415
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     transkript = video["transkript"]
     if len(transkript) > 60000:   # vrlo dugi videi — dovoljan je početak
         transkript = transkript[:60000]
+    voz = "\n".join(f"  {k}: {v}" for k, v in vozilo.items())
     korisnicki = (
+        f"VOZILO IZ NALOGA:\n{voz}\n\n"
         f"NASLOV VIDEA: {video.get('naslov') or '-'}\n"
         f"KANAL: {video.get('kanal') or '-'}\n"
         f"JEZIK TITLOVA: {video.get('jezik')}{' (automatski)' if video.get('automatski') else ''}\n"
@@ -278,6 +326,9 @@ def ocisti_upute(d: dict, trajanje=None) -> dict:
         if 0 <= i < len(koraci) and i not in kljucni:
             kljucni.append(i)
     return {
+        "odgovara": d.get("odgovara") is True,
+        "video_vozilo": s(d.get("video_vozilo"), 120) or "",
+        "razlog": s(d.get("razlog"), 300) or "",
         "naslov": s(d.get("naslov"), 200) or "",
         "sazetak": s(d.get("sazetak"), 400) or "",
         "koraci": koraci,
@@ -372,11 +423,21 @@ def obradi(uputa_id: int) -> None:
         try:
             if not settings.anthropic_api_key:
                 raise RuntimeError("Nije postavljen ANTHROPIC_API_KEY")
+            # Video mora biti za BAŠ OVAJ kamion iz naloga (Toni 26.11.2026.) — bez poznate
+            # marke/modela ne može se provjeriti, pa se upute ne slažu.
+            vozilo = podaci_vozila(db, u.zadatak)
+            if not vozilo_poznato(vozilo):
+                raise RuntimeError(f"Za GB {vozilo.get('gb') or '?'} nisu upisani marka i model — "
+                                   "ne može se provjeriti je li video za ovaj kamion")
             video = dohvati_video(u.video_id)
             u.naslov = (video["naslov"] or "")[:300]
             u.jezik = (video["jezik"] or "")[:20]
             db.commit()
-            upute = ai_upute(video)
+            upute = ai_upute(video, vozilo)
+            if not upute["odgovara"]:
+                raise RuntimeError(
+                    f"Video nije za ovaj kamion ({vozilo_kratko(vozilo)}). "
+                    f"Video je za: {upute['video_vozilo'] or 'nepoznato vozilo'}. {upute['razlog']}".strip())
             if not upute["koraci"]:
                 raise RuntimeError("Iz videa se nisu mogli izvući koraci (možda nije video popravka)")
             kljucni = upute["kljucni"] or list(range(min(3, len(upute["koraci"]))))
@@ -388,6 +449,7 @@ def obradi(uputa_id: int) -> None:
             upute["video"] = {"naslov": video["naslov"], "kanal": video["kanal"],
                               "trajanje": video["trajanje"], "jezik": video["jezik"],
                               "automatski": video["automatski"]}
+            upute["vozilo"] = vozilo_kratko(vozilo)
             u.podaci = json.dumps(upute, ensure_ascii=False)
             u.status = "gotovo"
             u.greska = None

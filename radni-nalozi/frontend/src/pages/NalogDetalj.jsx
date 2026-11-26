@@ -724,6 +724,9 @@ function VideoUpute({ z, jeVoditelj }) {
             <div className="vu-upute">
               <div className="vu-nasl">{u.naslov}</div>
               {u.sazetak && <div className="vu-saz">{u.sazetak}</div>}
+              {u.odgovara
+                ? <div className="vu-voz">✅ Video za ovaj kamion: {u.video_vozilo} ({u.vozilo})</div>
+                : <div className="vu-gr">Upute nisu provjerene za ovaj kamion — mehaničar ih ne vidi. Zalijepi video ponovno.</div>}
               {u.upozorenja?.length > 0 && (
                 <div className="vu-upoz"><b>⚠️ Pazi:</b><ul>{u.upozorenja.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
               )}
