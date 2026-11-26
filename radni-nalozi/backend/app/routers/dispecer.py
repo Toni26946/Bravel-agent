@@ -1074,7 +1074,7 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 .b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
 .vu summary{font-weight:800;font-size:17px;color:#0d47a1;cursor:pointer;list-style:none}
 .vu summary::-webkit-details-marker{display:none}
-.vu summary::after{content:" ▾";} .vu[open] summary::after{content:" ▴";}
+.vu .vu-str::after{content:" ▾";} .vu[open] .vu-str::after{content:" ▴";}
 .vu-sub{display:block;font-weight:600;font-size:14px;color:#5b6470;margin-top:3px}
 .vu-saz{margin-top:10px;font-size:15px;color:#1f2a37}
 .vu-nasl{margin-top:14px;font-weight:800;font-size:15px;color:#0d47a1;text-transform:uppercase;letter-spacing:.3px}
@@ -1196,7 +1196,7 @@ function videoHtml(v){
   if(u.alat&&u.alat.length){h+='<div class="vu-nasl">'+T('vAlat')+'</div><ul class="vu-ul">'+u.alat.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';}
   if(u.momenti&&u.momenti.length){h+='<div class="vu-nasl">'+T('vMomenti')+'</div><ul class="vu-ul">'+u.momenti.map(function(x){return '<li>'+esc(x.sto)+': <b>'+esc(x.vrijednost)+'</b></li>';}).join('')+'</ul>';}
   h+='<a class="vu-video" href="'+ytLink(v.video_id,0)+'" target="_blank" rel="noopener">▶ '+T('vPogledaj')+'</a>';
-  return '<details class="kart vu"'+(VU_OTV?' open':'')+' ontoggle="VU_OTV=this.open"><summary>📺 '+T('vNaslov')+(u.naslov?'<span class="vu-sub">'+esc(u.naslov)+'</span>':'')+'</summary>'+h+'</details>';
+  return '<details class="kart vu"'+(VU_OTV?' open':'')+' ontoggle="VU_OTV=this.open"><summary>📺 '+T('vNaslov')+'<span class="vu-str"></span>'+(u.naslov?'<span class="vu-sub">'+esc(u.naslov)+'</span>':'')+'</summary>'+h+'</details>';
 }
 var VU_OTV=false;
 function renderPopis(d){
