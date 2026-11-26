@@ -11,6 +11,7 @@ import { rokoviVozila, hrDatum, PRAG_USKORO } from '../pregledi'
 import SlikaEditor from '../SlikaEditor'
 import { CrtezOsovina } from './TestoviKocnica'
 import { usePonisti } from '../ponisti'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Dozvoljeni sljedeći statusi po ulozi i trenutnom statusu.
 function ciljeviStatusa(uloga, status) {
@@ -135,6 +136,7 @@ export default function NalogDetalj() {
               🚚 {voziloLabel(n.vozilo)} <span className="veza-vozilo-ik">📖</span>
             </button>
           ) : <>🚚 {voziloLabel(n.vozilo)}</>}
+          <ZadnjiVozac gb={n.vozilo?.gb} osim={n.vozac?.ime} />
         </p>
         {lok?.mjesto && (
           <p className="meta">📍 {t('nalog.lokacija')}: <strong>{lok.mjesto}</strong>
@@ -425,7 +427,7 @@ function NalogPrint({ n, servis, pregled }) {
 
       <div className="np-info">
         <div><span>Datum:</span> {datum(n.kreiran)}</div>
-        <div><span>Garažni broj:</span> {v.gb || '—'}</div>
+        <div><span>Garažni broj:</span> {v.gb || '—'}<ZadnjiVozac gb={v.gb} osim={n.vozac?.ime} /></div>
         <div><span>Registarska oznaka:</span> {v.registracija || '—'}</div>
         <div><span>Vozilo:</span> {[v.marka, v.model].filter(Boolean).join(' ') || '—'}</div>
         {n.voditelj && <div><span>Voditelj:</span> {n.voditelj.ime}</div>}

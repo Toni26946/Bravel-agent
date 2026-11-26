@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
+import { imeZadnjegVozaca, useZadnjiVozaci } from '../ZadnjiVozac'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
 const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'u_najmu', 'prodano']
@@ -33,6 +34,7 @@ export default function Vozila() {
   const [novoOtvoreno, setNovoOtvoreno] = useState(false)
   const [poruka, setPoruka] = useState('')
 
+  const vozaci = useZadnjiVozaci()   // ime zadnjeg vozača uz GB (#436)
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj(); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
 
@@ -60,10 +62,10 @@ export default function Vozila() {
         else if (v.status !== stat) return false
       }
       if (!p) return true
-      return [v.gb, v.registracija, v.tip, v.vozilo, v.vrsta, v.broj_sasije]
+      return [v.gb, v.registracija, v.tip, v.vozilo, v.vrsta, v.broj_sasije, imeZadnjegVozaca(vozaci, v.gb)]
         .some((x) => (x || '').toLowerCase().includes(p))
     })
-  }, [d, pretraga, kat, stat])
+  }, [d, pretraga, kat, stat, vozaci])
 
   if (greska) return <Layout naslov={t('tab.vozila')}><div className="greska">{greska}</div></Layout>
   if (!d) return <Layout naslov={t('tab.vozila')}><Spinner /></Layout>
@@ -135,6 +137,7 @@ export default function Vozila() {
           <div className="karta vz-red">
             <div className="vz-info" onClick={() => v.nalog_id && nav(`/nalozi/${v.nalog_id}`)}>
               <div className="vz-gb">{v.gb}{v.vozilo ? ` · ${v.vozilo}` : ''}</div>
+              {imeZadnjegVozaca(vozaci, v.gb) && <div className="meta vz-vozac">🧑 {imeZadnjegVozaca(vozaci, v.gb)}</div>}
               <div className="meta">
                 {[v.registracija, v.vrsta || v.tip].filter(Boolean).join(' · ') || '—'}
                 {v.nalog_id ? ` · ${v.broj}` : ''}

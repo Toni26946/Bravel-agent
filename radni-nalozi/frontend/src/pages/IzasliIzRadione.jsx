@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Kamioni koji su napustili radionu (GPS), a nalog je još u radu — s gumbom za završavanje.
 export default function IzasliIzRadione() {
@@ -53,7 +54,7 @@ export default function IzasliIzRadione() {
         nalozi.map((n) => (
           <div className="karta izasli-red" key={n.id}>
             <div className="izasli-info" onClick={() => nav(`/nalozi/${n.id}`)}>
-              <div className="izasli-gb">🚚 {n.vozilo?.gb}</div>
+              <div className="izasli-gb">🚚 {n.vozilo?.gb}<ZadnjiVozac gb={n.vozilo?.gb} /></div>
               <div className="meta">{n.broj}{n.vozilo?.registracija ? ` · ${n.vozilo.registracija}` : ''}</div>
               {n.voditelj && <div className="meta">👔 {n.voditelj}</div>}
               {(n.mjesto || n.lat != null) && (

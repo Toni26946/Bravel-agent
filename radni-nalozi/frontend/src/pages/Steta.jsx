@@ -4,6 +4,7 @@ import { api, medijUrl } from '../api'
 import { MikrofonGumb, Prazno, Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import GlasovnaSteta from '../GlasovnaSteta'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Formatiranje eura (približno — cijele brojke).
 function eur(n) {
@@ -99,7 +100,7 @@ export default function Steta() {
           <div key={s.id} className="karta">
             <div className="naslov-red">
               <div>
-                <h3 style={{ margin: 0 }}>🚚 {s.vozilo?.gb || t('steta.bezKamiona')}</h3>
+                <h3 style={{ margin: 0 }}>🚚 {s.vozilo?.gb || t('steta.bezKamiona')}<ZadnjiVozac gb={s.vozilo?.gb} style={{ fontSize: 14 }} /></h3>
                 {s.vozac && <p className="meta" style={{ margin: '4px 0 0' }}>🚛 {s.vozac.ime}</p>}
               </div>
               <span className="steta-iznos-veliki">{eur(s.procjena)}</span>

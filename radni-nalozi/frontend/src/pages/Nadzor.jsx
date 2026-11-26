@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api, medijUrl } from '../api'
 import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 function msVremena(s) {
   if (!s) return 0
@@ -275,7 +276,7 @@ function GotoviKamioni() {
           {k.map((x) => (
             <div className="sp-red" key={x.gb}>
               <div className="sp-info" onClick={() => x.nalog_id && nav(`/nalozi/${x.nalog_id}`)}>
-                <div className="sp-gb">🚚 {x.gb}</div>
+                <div className="sp-gb">🚚 {x.gb}<ZadnjiVozac gb={x.gb} /></div>
                 <div className="meta">{[x.reg, x.tip].filter(Boolean).join(' · ') || '—'}{x.broj ? ` · ${x.broj}` : ''}</div>
               </div>
               <span className="sp-gps">
@@ -314,6 +315,7 @@ function KartaNaloga({ n, sada, onClick }) {
         </div>
         <div className="nad-info">
           <div className="nad-gb">{n.vozilo?.gb}</div>
+          <ZadnjiVozac gb={n.vozilo?.gb} prefiks="" style={{ display: 'block', fontSize: 12, opacity: 0.85 }} />
           <div className="nad-meta">{datum(n.kreiran)}</div>
           {n.vozilo?.registracija && <div className="nad-meta">{n.vozilo.registracija}</div>}
           {n.voditelj && <div className="nad-vod">{n.voditelj.ime}</div>}

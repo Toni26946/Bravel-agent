@@ -6,6 +6,7 @@ import { Spinner, useAutoOsvjezi } from '../ui'
 import { useAuth } from '../auth'
 import { useT } from '../i18n'
 import { Parkinzi, ParkingSelect } from './SpremneSlepe'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Priključna vozila — gdje je što (Toni 25.11.2026.): JEDNA ploča umjesto
 // „Slobodna" + „Spremna". Svaka prikolica/šlepa ima točno jedno stanje.
@@ -120,7 +121,7 @@ function Redak({ s, parkinzi, nav, onGotovo, onNoviParking }) {
   return (
     <div className="sp-red pv2-red">
       <div className="sp-info" onClick={() => s.nalog_id && nav(`/nalozi/${s.nalog_id}`)} style={{ cursor: s.nalog_id ? 'pointer' : 'default' }}>
-        <div className="sp-gb">🛻 {s.gb} <span className="meta" style={{ fontWeight: 400 }}>{[s.reg, s.vrsta].filter(Boolean).join(' · ')}</span></div>
+        <div className="sp-gb">🛻 {s.gb} <span className="meta" style={{ fontWeight: 400 }}>{[s.reg, s.vrsta].filter(Boolean).join(' · ')}</span>{(s.stanje !== 'prikacena' || !s.vozac) && <ZadnjiVozac gb={s.gb} />}</div>
         <div className="meta pv2-opis" style={{ color: st.boja }}><Opis s={s} /></div>
         {s.napomena && <div className="meta sp-nap">📝 {s.napomena}</div>}
       </div>

@@ -106,6 +106,7 @@ export const api = {
   izasliObavijest: () => zahtjev('/nalozi/izasli/obavijesti', { method: 'POST' }),
   nezaduzena: () => zahtjev('/nalozi/nezaduzena'),
   nezaduzenaDijagnostika: () => zahtjev('/nalozi/nezaduzena/dijagnostika'),
+  zadnjiVozaci: () => zahtjev('/vozila/zadnji-vozaci'),
   vozilaRegistar: (params = {}) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
     return zahtjev('/vozila/registar' + (q ? `?${q}` : ''))

@@ -3,6 +3,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Pregled servisa po kamionu: zadnji servis, idući (zadnji + 12 mj), preostalo dana.
 // Faza 1 = vremenski uvjet; km uvjet dolazi kasnije (iz Mobilisisa).
@@ -105,7 +106,7 @@ function ServisRed({ x, onGotovo }) {
     <div className="karta sp-red" style={{ padding: '10px 14px' }}>
       <div className="sp-info">
         <div className="sp-gb">🚚 {x.gb} {EMO[x.status] || ''}
-          {x.reg && <span className="meta" style={{ fontWeight: 400 }}> · {x.reg}</span>}</div>
+          {x.reg && <span className="meta" style={{ fontWeight: 400 }}> · {x.reg}</span>}<ZadnjiVozac gb={x.gb} /></div>
         <div className="meta">
           🗓️ {t('servisi.zadnji')}: <strong>{datum(x.servis_zadnji)}</strong>
           {' · '}{t('servisi.iduci')}: {datum(x.iduci_datum)}

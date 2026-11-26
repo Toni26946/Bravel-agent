@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Layout from '../Layout'
 import { api } from '../api'
 import { Prazno, Spinner, useAutoOsvjezi } from '../ui'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Testovi kočnica s Cartec valjaka (računalo u radioni šalje svako mjerenje).
 // Gore: testovi kojima ne znamo vozilo → pitanje „Test kočnica u HH:MM — koje vozilo?" s gumbima.
@@ -144,7 +145,7 @@ function KarticaTesta({ t }) {
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{t.osovina} osov.</span>
       </div>
       <div style={{ fontSize: 14, marginTop: 2 }}>
-        {t.gb ? <>GB <b>{t.gb}</b></> : <span style={{ color: 'var(--muted)' }}>vozilo nije upisano</span>}
+        {t.gb ? <>GB <b>{t.gb}</b><ZadnjiVozac gb={t.gb} /></> : <span style={{ color: 'var(--muted)' }}>vozilo nije upisano</span>}
         {t.nalog && <> · <Link to={`/nalozi/${t.nalog.id}`}>{t.nalog.broj}</Link></>}
       </div>
       <CrtezOsovina mjerenja={t.mjerenja} />

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from .. import flota, skupine
+from .. import flota, skupine, zadnji_vozaci
 from ..auth import ima_plan_pristup, trenutni_korisnik, zahtijevaj_plan_pristup
 from ..database import get_db
 from ..models import (
@@ -256,39 +256,8 @@ def _radio_po_zadatku(db: Session, zad_ids: list[int]) -> dict[int, tuple[str, i
 # --- GET /plan -------------------------------------------------------------
 def _zadnji_vozaci(db: Session, nalozi, reg_map: dict) -> dict:
     """{gb: ime zadnjeg vozača} za vozila na planu (Veljko 26.11.2026., #433).
-
-    Kamion: zadnji vozač iz Flota OS-a (keš u `flota`, bez čekanja mreže).
-    Priključno vozilo: vozač s ZADNJEG prikapčanja u dnevniku (ili zadnji vozač
-    kamiona na koji je bilo prikačeno, ako ime nije upisano)."""
-    out: dict = {}
-    prikljucna: list = []
-    for n in nalozi:
-        gb = _gb(n)
-        if not gb:
-            continue
-        rv = reg_map.get(gb) or reg_map.get(gb.lstrip("0") or gb)
-        if rv is not None and je_prikljucno_vozilo(rv.kategorija):
-            prikljucna.append(gb)
-        else:
-            ime = flota.zadnji_vozac(gb)
-            if ime:
-                out[gb] = ime
-    if prikljucna:
-        trazeni = set(prikljucna) | {g.lstrip("0") or g for g in prikljucna}
-        zadnji: dict = {}
-        for e in (db.query(DnevnikPrikapcanja)
-                  .filter(DnevnikPrikapcanja.prikolica_gb.in_(trazeni),
-                          DnevnikPrikapcanja.vrsta == VrstaDogadaja.prikaceno)
-                  .order_by(DnevnikPrikapcanja.vrijeme.desc(), DnevnikPrikapcanja.id.desc()).all()):
-            zadnji.setdefault(e.prikolica_gb.lstrip("0") or e.prikolica_gb, e)
-        for gb in prikljucna:
-            e = zadnji.get(gb.lstrip("0") or gb)
-            if e is None:
-                continue
-            ime = (e.vozac or "").strip() or (flota.zadnji_vozac(e.kamion_gb) if e.kamion_gb else None)
-            if ime:
-                out[gb] = ime
-    return out
+    Logika je zajednička za sve ekrane — `app/zadnji_vozaci.py` (#436)."""
+    return zadnji_vozaci.za_gbove(db, [_gb(n) for n in nalozi], reg_map)
 
 
 @router.get("")

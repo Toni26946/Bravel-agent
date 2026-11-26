@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // AI Poslovođa — Faza 1: Učinak (shadow), Norme (cijene posla), Postavke.
 export default function Poslovodja() {
@@ -225,7 +226,7 @@ function SumnjivoBrzi() {
             <tbody>
               {d.redovi.map((r) => (
                 <tr key={r.zadatak_id}>
-                  <td><strong>{r.gb || '—'}</strong>{r.registracija ? <div className="meta">{r.registracija}</div> : null}</td>
+                  <td><strong>{r.gb || '—'}</strong>{r.registracija ? <div className="meta">{r.registracija}</div> : null}<ZadnjiVozac gb={r.gb} prefiks="" style={{ display: 'block', fontSize: 12 }} /></td>
                   <td>{r.kategorija}{r.opis ? <div className="meta">{r.opis}</div> : null}</td>
                   <td>{(r.mehanicari || []).join(', ') || '—'}</td>
                   <td style={{ color: '#b3261e', fontWeight: 700, whiteSpace: 'nowrap' }}>{mmss(r.trajanje_sek)}{!r.pokrenuo && <div className="meta">bez „Počinjem"</div>}</td>
