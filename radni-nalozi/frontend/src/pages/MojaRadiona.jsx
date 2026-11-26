@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../Layout'
 import { api } from '../api'
 import { Prazno, Spinner, useAutoOsvjezi } from '../ui'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Prikaz trajanja iz sekundi (h:mm:ss ili m:ss).
 function trajanje(sek) {
@@ -43,7 +44,7 @@ export default function MojaRadiona() {
   const Glava = ({ o }) => (
     <div className="naslov-red">
       <h3 style={{ margin: 0 }}>GB {o.gb} {o.hitno && <span style={{ color: 'var(--crveno)' }}>🔴</span>}</h3>
-      <span className="meta">{[o.vozilo, o.reg].filter(Boolean).join(' · ')}</span>
+      <span className="meta">{[o.vozilo, o.reg].filter(Boolean).join(' · ')}<ZadnjiVozac gb={o.gb} /></span>
     </div>
   )
 

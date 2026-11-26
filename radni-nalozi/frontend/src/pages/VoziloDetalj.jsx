@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { MikrofonGumb, Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import PovijestDijelova from '../PovijestDijelova'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 export default function VoziloDetalj() {
   const { id } = useParams()
@@ -30,6 +31,7 @@ export default function VoziloDetalj() {
             <h3 style={{ margin: 0 }}>🚚 {vozilo.gb}</h3>
             <p className="meta" style={{ margin: '4px 0 0' }}>
               {[vozilo.marka, vozilo.model, vozilo.registracija].filter(Boolean).join(' · ') || '—'}
+              <ZadnjiVozac gb={vozilo.gb} />
             </p>
           </div>
         </div>

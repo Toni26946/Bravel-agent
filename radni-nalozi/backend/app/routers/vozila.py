@@ -10,7 +10,7 @@ import re
 
 from ..storage import obrisi_sliku, spremi_sliku
 
-from .. import flota
+from .. import flota, zadnji_vozaci
 from ..config import settings
 from ..auth import trenutni_korisnik, zahtijevaj_uloge
 from ..database import get_db
@@ -715,6 +715,13 @@ async def registar(
         )
         out.append(stavka)
     return out
+
+
+@router.get("/zadnji-vozaci")
+def zadnji_vozaci_svi(_: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)) -> dict:
+    """{gb: ime zadnjeg vozača} za sva vozila — ime uz GB na svim ekranima
+    (Veljko 26.11.2026., #436). Bez čekanja mreže: kamioni iz keša Flote."""
+    return zadnji_vozaci.svi(db)
 
 
 @router.patch("/registar/{gb}", response_model=RegistarVozilaOut)

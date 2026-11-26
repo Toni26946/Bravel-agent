@@ -5,6 +5,7 @@ import { useAuth } from '../auth'
 import { api, medijUrl } from '../api'
 import { Spinner } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 const praznaStavka = () => ({ artikl: '', kolicina: 1, jedinica: 'kom', cijena: '' })
 
@@ -73,7 +74,7 @@ export function SkladisteNarudzbe() {
           <p className="meta" style={{ marginTop: 2 }}>Mehaničar je prijavio da za ove poslove fali dio. Kad dio stigne, pritisni „Dio stigao" — zadatak se vraća mehaničaru.</p>
           {dijelovi.map((o) => (
             <div key={o.zadatak_id} className="karta" style={{ padding: 10, marginTop: 8 }}>
-              <div><strong>🚚 GB {o.gb || '—'}</strong>{o.vozilo ? ` · ${o.vozilo}` : ''}</div>
+              <div><strong>🚚 GB {o.gb || '—'}</strong>{o.vozilo ? ` · ${o.vozilo}` : ''}<ZadnjiVozac gb={o.gb} /></div>
               <div style={{ marginTop: 2 }}>{o.kategorija ? <strong>{o.kategorija} — </strong> : ''}{o.opis}</div>
               <div className="meta" style={{ marginTop: 2 }}>
                 {o.mehanicar ? `🧑‍🔧 ${o.mehanicar}` : 'bez mehaničara'}
@@ -113,7 +114,7 @@ export function SkladisteNarudzbe() {
           <div key={n.id} className="karta" style={{ padding: 10, marginTop: 8, borderLeft: `4px solid ${st.c}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
               <div style={{ minWidth: 0 }}>
-                <div><strong>🚚 GB {n.vozilo_gb || '—'}</strong>{n.broj_naloga ? <span className="meta"> · {n.broj_naloga}</span> : ''}</div>
+                <div><strong>🚚 GB {n.vozilo_gb || '—'}</strong><ZadnjiVozac gb={n.vozilo_gb} />{n.broj_naloga ? <span className="meta"> · {n.broj_naloga}</span> : ''}</div>
                 <div style={{ marginTop: 2 }}>
                   <strong>{broj(n.kolicina)} {n.jmj}</strong> · {n.naziv || '(bez naziva — vidi sliku/napomenu)'}
                   {n.kataloski ? <span className="meta"> · {n.kataloski}</span> : ''}
@@ -186,7 +187,7 @@ export function SkladisteIzdatnice() {
             <div key={g.nalog_id} className="karta" style={{ padding: 0, marginTop: 8 }}>
               <div onClick={() => setOtv((p) => ({ ...p, [g.nalog_id]: !p[g.nalog_id] }))}
                 style={{ cursor: 'pointer', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <span><b>{otv[g.nalog_id] ? '▾' : '▸'} 🚚 GB {g.gb || '—'}</b>
+                <span><b>{otv[g.nalog_id] ? '▾' : '▸'} 🚚 GB {g.gb || '—'}</b><ZadnjiVozac gb={g.gb} />
                   <span className="meta"> · {g.broj_naloga || `nalog #${g.nalog_id}`} · {dHR(g.zadnja)}</span></span>
                 <span>
                   <b>{eur(g.iznos)}</b>
@@ -354,7 +355,7 @@ function TrosakPoVozilu() {
               {data.redovi.map((r) => (
                 <div key={r.gb} style={{ border: '1px solid var(--line, #eee)', borderRadius: 8, marginBottom: 6 }}>
                   <div onClick={() => setOtv((p) => ({ ...p, [r.gb]: !p[r.gb] }))} style={{ cursor: 'pointer', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                    <span>{otv[r.gb] ? '▾' : '▸'} 🚚 GB {r.gb}</span>
+                    <span>{otv[r.gb] ? '▾' : '▸'} 🚚 GB {r.gb}<ZadnjiVozac gb={r.gb} /></span>
                     <span>{eur(r.iznos)} <span className="meta" style={{ fontWeight: 400 }}>· {r.stavki} stavki</span></span>
                   </div>
                   {otv[r.gb] && (

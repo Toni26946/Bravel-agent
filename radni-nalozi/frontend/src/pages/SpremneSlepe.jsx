@@ -5,6 +5,7 @@ import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
 import { useAuth } from '../auth'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Ploča spremnih šlepa: što imamo i gdje. Gore „Za upisati" (tjeramo na upis),
 // dolje spremne grupirane po parkingu.
@@ -59,7 +60,7 @@ export default function SpremneSlepe() {
             {kamioni.map((k) => (
               <div className="sp-red" key={k.gb}>
                 <div className="sp-info" onClick={() => k.nalog_id && nav(`/nalozi/${k.nalog_id}`)}>
-                  <div className="sp-gb">🚚 {k.gb}</div>
+                  <div className="sp-gb">🚚 {k.gb}<ZadnjiVozac gb={k.gb} /></div>
                   <div className="meta">
                     {[k.reg, k.tip].filter(Boolean).join(' · ') || '—'}{k.broj ? ` · ${k.broj}` : ''}
                   </div>
@@ -98,7 +99,7 @@ export default function SpremneSlepe() {
           {g.slepe.map((s) => (
             <div className="sp-red" key={s.gb}>
               <div className="sp-info" onClick={() => s.nalog_id && nav(`/nalozi/${s.nalog_id}`)}>
-                <div className="sp-gb">🛻 {s.gb}</div>
+                <div className="sp-gb">🛻 {s.gb}<ZadnjiVozac gb={s.gb} /></div>
                 <div className="meta">
                   {[s.reg, s.tip].filter(Boolean).join(' · ') || '—'}
                   {s.spreman_od ? ` · ${t('spremne.od')} ${s.spreman_od}` : ''}
@@ -235,7 +236,7 @@ function UpisRed({ s, parkinzi, nav, onGotovo }) {
   return (
     <div className="sp-upis-red">
       <div className="sp-info" onClick={() => s.nalog_id && nav(`/nalozi/${s.nalog_id}`)}>
-        <div className="sp-gb">🛻 {s.gb}</div>
+        <div className="sp-gb">🛻 {s.gb}<ZadnjiVozac gb={s.gb} /></div>
         <div className="meta">{[s.reg, s.tip].filter(Boolean).join(' · ') || '—'}{s.broj ? ` · ${s.broj}` : ''}</div>
       </div>
       {!forma ? (

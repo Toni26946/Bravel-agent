@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, datumVrijeme } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Evidencija parkiranja nezaduženih šlepa: poslano / otvoreno / riješeno + lokacija, s ispisom.
 export default function Parkiranje() {
@@ -48,7 +49,7 @@ export default function Parkiranje() {
       {rijeseni.map((n) => (
         <div className="karta no-print" key={n.id} onClick={() => nav(`/nalozi/${n.id}`)}>
           <div className="naslov-red">
-            <h3 style={{ margin: 0 }}>🛻 {n.vozilo?.gb} <span className="pk-lok">📍 {n.parking_lokacija}</span></h3>
+            <h3 style={{ margin: 0 }}>🛻 {n.vozilo?.gb}<ZadnjiVozac gb={n.vozilo?.gb} style={{ fontSize: 14 }} /> <span className="pk-lok">📍 {n.parking_lokacija}</span></h3>
             <span className="meta">{n.broj}</span>
           </div>
           <div className="pk-vremena">
@@ -80,7 +81,7 @@ function RedZaRijesiti({ n, onGotovo, nav, t }) {
   return (
     <div className="karta no-print">
       <div className="naslov-red">
-        <h3 style={{ margin: 0, cursor: 'pointer' }} onClick={() => nav(`/nalozi/${n.id}`)}>🛻 {n.vozilo?.gb}</h3>
+        <h3 style={{ margin: 0, cursor: 'pointer' }} onClick={() => nav(`/nalozi/${n.id}`)}>🛻 {n.vozilo?.gb}<ZadnjiVozac gb={n.vozilo?.gb} style={{ fontSize: 14 }} /></h3>
         <span className="meta">{n.broj}</span>
       </div>
       <div className="pk-vremena">
@@ -120,7 +121,7 @@ function ParkingIspis({ lista, t }) {
           {lista.length === 0 && <tr><td colSpan={6} className="np-prazno">—</td></tr>}
           {lista.map((n) => (
             <tr key={n.id}>
-              <td>{n.vozilo?.gb}</td>
+              <td>{n.vozilo?.gb}<ZadnjiVozac gb={n.vozilo?.gb} prefiks="" style={{ display: 'block', fontSize: 12 }} /></td>
               <td>{n.broj}</td>
               <td>{datumVrijeme(n.parking_obavijest_poslano)}</td>
               <td>{n.parking_otvoreno ? datumVrijeme(n.parking_otvoreno) : '—'}</td>

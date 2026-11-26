@@ -4,6 +4,7 @@ import Layout from '../Layout'
 import { api } from '../api'
 import { Spinner, useAutoOsvjezi } from '../ui'
 import { useT } from '../i18n'
+import ZadnjiVozac from '../ZadnjiVozac'
 
 // Aktivni nalozi čije je vozilo "nezadužena šlepa" (prikolica bez kompozicije — iz Flota OS-a).
 export default function NezaduzenaVozila() {
@@ -37,7 +38,7 @@ export default function NezaduzenaVozila() {
               onClick={() => p.nalog_id && nav(`/nalozi/${p.nalog_id}`)}
             >
               <div className="izasli-info">
-                <div className="izasli-gb">🛻 {p.gb}</div>
+                <div className="izasli-gb">🛻 {p.gb}<ZadnjiVozac gb={p.gb} /></div>
                 <div className="meta">
                   {[p.tip, p.reg].filter(Boolean).join(' · ') || '—'}
                   {p.nalog_id
