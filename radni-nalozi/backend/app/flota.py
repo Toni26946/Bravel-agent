@@ -225,6 +225,63 @@ _vozila_kes: dict = {"ts": 0.0, "podaci": None}
 _VOZ_TTL = 600  # 10 min
 
 
+# --- Zadnji vozač kamiona (Plan radione: ime uz GB — Veljko 26.11.2026., #433) ---
+# Flota OS /api/flota/zadnji-vozac: najsvježija potvrda „Da vozim" > zadnji dan u vožnjama.
+# Plan se osvježava često, pa ga NIKAD ne čeka: čita samo keš, a GB-ove koje traži
+# (novi ili stari > 30 min) pozadinska petlja dohvati u idućem ciklusu.
+_vozaci_kes: dict = {}          # gb -> (monotonic_ts, vozac | None)
+_vozaci_trazeni: set = set()    # GB-ovi koje treba (ponovno) dohvatiti
+_VOZAC_TTL = 1800               # 30 min
+_VOZAC_MAKS_PO_CIKLUSU = 40
+
+
+def zadnji_vozac(gb: str | None) -> str | None:
+    """Ime zadnjeg vozača kamiona iz keša (bez mreže). Nepoznat/zastario GB stavi u red."""
+    gb = str(gb or "").strip()
+    if not gb:
+        return None
+    kes = _vozaci_kes.get(gb)
+    if kes is None or time.monotonic() - kes[0] > _VOZAC_TTL:
+        _vozaci_trazeni.add(gb)
+    return kes[1] if kes else None
+
+
+async def osvjezi_zadnje_vozace() -> int:
+    """Dohvati zadnje vozače za GB-ove iz reda (najviše _VOZAC_MAKS_PO_CIKLUSU). Vraća broj dohvaćenih."""
+    global _token
+    if not _vozaci_trazeni:
+        return 0
+    gbovi = sorted(_vozaci_trazeni)[:_VOZAC_MAKS_PO_CIKLUSU]
+    base = settings.flota_api_base.rstrip("/")
+    dohvaceno = 0
+    async with httpx.AsyncClient(base_url=base, timeout=15) as client:
+        if settings.flota_service_key:
+            headers = {"X-Service-Key": settings.flota_service_key}
+        else:
+            if not _token:
+                await _prijava(client)
+            headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+        for gb in gbovi:
+            try:
+                r = await client.get("/api/flota/zadnji-vozac", params={"gb": gb}, headers=headers)
+                if r.status_code == 401 and not settings.flota_service_key:
+                    await _prijava(client)
+                    headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                    r = await client.get("/api/flota/zadnji-vozac", params={"gb": gb}, headers=headers)
+                if r.status_code != 200:
+                    continue
+                d = r.json()
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(d, dict) or d.get("greska"):
+                continue
+            ime = (d.get("vozac") or "").strip() or None
+            _vozaci_kes[gb] = (time.monotonic(), ime)
+            _vozaci_trazeni.discard(gb)
+            dohvaceno += 1
+    return dohvaceno
+
+
 async def vozila_flota() -> list | None:
     """Matični popis svih vozila iz Flota OS-a: [{gb, reg, tip, kategorija}] ili None.
 
@@ -557,6 +614,12 @@ async def petlja() -> None:
         except Exception as e:  # noqa: BLE001
             log.warning("Flota tick greška: %s", e)
             _zabiljezi(None, str(e))
+        try:
+            await osvjezi_zadnje_vozace()   # imena zadnjih vozača za Plan radione
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("Flota zadnji vozači greška: %s", e)
         await asyncio.sleep(interval)
 
 
