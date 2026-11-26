@@ -126,3 +126,28 @@ def test_novo_vozilo_ceka_kad_flota_ne_radi_pa_posalje(monkeypatch):
     monkeypatch.setattr(v.flota, "vozila_flota", flota)
     assert asyncio.run(v._sync_registar(db))
     assert poslano == ["506"] and db.get(RegistarVozila, "506").flota_ceka is False
+
+
+def test_vozila_samo_u_rn_idu_u_flotu(monkeypatch):
+    """492–499, 503, 504 upisani u RN 25.11.2026. (prije obrasca) — Flota ih nema → pošalji.
+    Vozilo koje je došlo iz Flote pa ga ona više nema (prodano) se NE vraća."""
+    from datetime import datetime, timezone
+    poslano = []
+
+    async def radi(p):
+        poslano.append(p["gb"])
+        return {"ok": True}
+
+    async def flota():
+        return [{"gb": "1", "tip": "KAMION"}]
+    monkeypatch.setattr(v.flota, "dodaj_vozilo", radi)
+    monkeypatch.setattr(v.flota, "vozila_flota", flota)
+    db = _session()
+    db.add_all([
+        RegistarVozila(gb="498", vrsta="DIZALICA", status=StatusVozila.aktivno),            # samo u RN
+        RegistarVozila(gb="77", status=StatusVozila.prodano,
+                       sinkroniziran=datetime(2026, 1, 1, tzinfo=timezone.utc)),          # bio u Floti
+    ])
+    db.commit()
+    assert asyncio.run(v._sync_registar(db))
+    assert poslano == ["498"]
