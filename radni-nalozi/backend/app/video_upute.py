@@ -161,10 +161,16 @@ def dohvati_video(vid: str) -> dict:
         if not izbor:
             raise RuntimeError("Video nema titlova (ni automatskih) — iz njega se ne mogu složiti upute")
         jezik, url, automatski = izbor
-        try:
-            sirovo = ydl.urlopen(url).read().decode("utf-8", "replace")
-        except Exception as e:  # noqa: BLE001
-            raise RuntimeError(f"Titlovi se ne mogu skinuti: {str(e)[:200]}") from e
+        sirovo = None
+        for pokusaj in range(3):   # YouTube zna vratiti 429 — kratka pauza pa ponovno
+            try:
+                sirovo = ydl.urlopen(url).read().decode("utf-8", "replace")
+                break
+            except Exception as e:  # noqa: BLE001
+                if "429" not in str(e) or pokusaj == 2:
+                    raise RuntimeError(f"Titlovi se ne mogu skinuti: {str(e)[:200]}") from e
+                import time  # noqa: PLC0415
+                time.sleep(5 * (pokusaj + 1))
     linije = parsiraj_json3(sirovo) if sirovo.lstrip().startswith("{") else parsiraj_vtt(sirovo)
     if not linije:
         raise RuntimeError("Titlovi su prazni")
@@ -201,7 +207,10 @@ SUSTAV = (
     "videu ISTA MARKA i ISTI MODEL/SERIJA (npr. vozilo SCANIA R450 → video za Scania R-seriju, R450/R500; "
     "vozilo MAN TGX → video za MAN TGX) i generacija nije očito drugačija od godine vozila. "
     "Ako je video za drugu marku, drugi model/seriju, drugu generaciju, za prikolicu umjesto kamiona "
-    "(ili obrnuto), ili se iz videa NE MOŽE utvrditi za koji je model — odgovara = false. Kad nisi siguran → false.\n"
+    "(ili obrnuto), ili se iz videa NE MOŽE utvrditi za koji je model — odgovara = false. Kad nisi siguran → false. "
+    "Nadogradnja (dizalica, kiper, tegljač, šumarska oprema) NE mijenja model: npr. VOLVO FH 460 dizalica i "
+    "video za kočnice/motor/ovjes Volvo FH kamiona → odgovara (posao je na istoj šasiji). Nadogradnja je "
+    "bitna samo kad se posao radi baš na njoj (npr. popravak dizalice).\n"
     "- video_vozilo: za koje je vozilo video (marka, model/serija, godište ako se zna), kratko.\n"
     "- razlog: jedna kratka rečenica zašto odgovara / ne odgovara.\n"
     "- Ako odgovara = false, ostala polja vrati prazna (\"\" / []).\n"
