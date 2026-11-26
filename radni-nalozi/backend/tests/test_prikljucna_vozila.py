@@ -94,3 +94,22 @@ def test_dodaj_parking_bez_duplikata_po_velikim_slovima():
     p2 = v.dodaj_parking(ParkingCreate(naziv="bad soden"), k, db)
     assert p1.naziv == "Bad Soden" and p1.id == p2.id
     assert [p.naziv for p in v.parkinzi(k, db)] == ["Bad Soden"]
+
+
+def test_odjava_iz_pregleda_i_vracanje():
+    """Pregledi vozila → „Odjavljeno" (26.11.2026.): nestaje iz pregleda, vidi se pod
+    odjavljenima, Mobilisis ga ne vraća (ručno); „Vrati u flotu" ga vraća."""
+    from app.schemas import OdjavaUpdate
+    db = _session()
+    k = Korisnik(ime="Vod", korisnicko_ime="vod", lozinka_hash="x", uloga=Uloga.voditelj)
+    db.add(k)
+    db.add(RegistarVozila(gb="286", vrsta="ŠLEPA", kategorija="prikolica", status=StatusVozila.aktivno))
+    db.commit()
+    assert [r.gb for r in v.pregledi(False, k, db)] == ["286"]
+    r = v.pregledi_odjava("286", OdjavaUpdate(odjavljeno=True), k, db)
+    assert r.status == StatusVozila.prodano and r.napomena.startswith("Odjavljeno")
+    assert v.pregledi(False, k, db) == [] and [x.gb for x in v.pregledi(True, k, db)] == ["286"]
+    assert db.get(RegistarVozila, "286").rucno is True
+    r = v.pregledi_odjava("286", OdjavaUpdate(odjavljeno=False), k, db)
+    assert r.status == StatusVozila.aktivno and r.napomena is None
+    assert [x.gb for x in v.pregledi(False, k, db)] == ["286"]

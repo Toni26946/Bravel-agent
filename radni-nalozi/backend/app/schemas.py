@@ -280,6 +280,10 @@ class ParkingCreate(BaseModel):
     naziv: str
 
 
+class OdjavaUpdate(BaseModel):
+    odjavljeno: bool = True
+
+
 class RegistarStatusUpdate(BaseModel):
     # status = None + rucno=False → vrati na Mobilisis prijedlog (poništi ručno).
     status: str | None = None

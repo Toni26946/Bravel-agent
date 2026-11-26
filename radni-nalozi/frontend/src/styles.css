@@ -915,6 +915,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pv-naziv { font-weight: 800; font-size: 14px; line-height: 1.1; }
 .pv-meta { color: var(--sivo); font-size: 11px; line-height: 1.2; }
 .pv-vozac { color: var(--plava); font-size: 11px; font-weight: 600; line-height: 1.3; margin-top: 1px; }
+.pv-odjava { margin-top: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; width: auto;
+  background: transparent; color: var(--sivo); border: 1px solid var(--rub, #ccc); border-radius: 6px; cursor: pointer; }
+.pv-odjava:hover { color: var(--crvena, #c0392b); border-color: currentColor; }
 .pv-cel { cursor: pointer; min-width: 86px; line-height: 1.15; }
 .pv-istek { font-weight: 700; font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pv-dana { font-size: 10.5px; }
