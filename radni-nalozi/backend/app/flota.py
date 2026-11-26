@@ -282,6 +282,35 @@ async def osvjezi_zadnje_vozace() -> int:
     return dohvaceno
 
 
+async def povijest_vozaca(gb: str | None = None, vozac: str | None = None) -> dict | None:
+    """Povijest vozač ↔ vozilo iz Flota OS-a (/api/flota/povijest-vozaca), Veljko 26.11.2026., #437.
+    Vraća {razdoblja: [{gb, vozac, od, do, dana, km}]} ili None kad Flota ne odgovori."""
+    global _token
+    params = {k: v for k, v in (("gb", gb), ("vozac", vozac)) if v}
+    base = settings.flota_api_base.rstrip("/")
+    async with httpx.AsyncClient(base_url=base, timeout=20) as client:
+        if settings.flota_service_key:
+            headers = {"X-Service-Key": settings.flota_service_key}
+        else:
+            if not _token:
+                await _prijava(client)
+            headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+        try:
+            r = await client.get("/api/flota/povijest-vozaca", params=params, headers=headers)
+            if r.status_code == 401 and not settings.flota_service_key:
+                await _prijava(client)
+                headers = {"Authorization": f"Bearer {_token}"} if _token else {}
+                r = await client.get("/api/flota/povijest-vozaca", params=params, headers=headers)
+            if r.status_code != 200:
+                return None
+            d = r.json()
+        except Exception:  # noqa: BLE001
+            return None
+    if not isinstance(d, dict) or d.get("greska"):
+        return None
+    return d
+
+
 async def vozila_flota() -> list | None:
     """Matični popis svih vozila iz Flota OS-a: [{gb, reg, tip, kategorija}] ili None.
 
