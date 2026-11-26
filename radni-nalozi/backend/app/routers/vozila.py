@@ -88,6 +88,80 @@ _MATICNA_POLJA = {"vozilo": 80, "vrsta": 40, "prva_registracija": 10, "firma": 6
                   "iznos_registracije": 20, "norma": 20, "broj_sasije": 40}
 
 
+def cisti_gb(gb) -> str:
+    """Garažni broj je JEDNA riječ (npr. „498"). U Flotu su 25.11.2026. upisani GB-ovi
+    s cijelim opisom („498 YV2R… VOLVO FH64R  2019.", „498  VOLVO FH64R") pa je isti
+    kamion u programu bio dvaput. Uzmi samo prvu riječ."""
+    s = str(gb or "").strip()
+    return s.split()[0] if s else ""
+
+
+def popravi_gb_s_razmakom(db: Session) -> int:
+    """Jednokratno/samoiscjeljivo: zapise s GB-om „broj + opis" spoji na čisti GB.
+
+    Registar: ako čisti GB već postoji, prazna polja mu se dopune iz lošeg zapisa,
+    a loši se briše; inače se loši preimenuje (novi redak, jer je GB ključ).
+    Vozila: nalozi/prijave/štete/povijest se prebace na čisto vozilo, duplikat se briše.
+    Vraća broj popravljenih zapisa."""
+    from sqlalchemy import inspect as sa_inspect
+    from ..models import (Izdatnica, NarudzbaDio, PovijestRada, Prijava, Steta,
+                          ZamjenaDijela, Zaduzenje)
+
+    popravljeno = 0
+    stupci = [c.key for c in sa_inspect(RegistarVozila).mapper.column_attrs if c.key != "gb"]
+    for los in db.query(RegistarVozila).filter(RegistarVozila.gb.like("% %")).all():
+        cisti = cisti_gb(los.gb)
+        if not cisti or cisti == los.gb:
+            continue
+        dobar = db.get(RegistarVozila, cisti)
+        if dobar is None:
+            dobar = RegistarVozila(gb=cisti)
+            for k in stupci:
+                setattr(dobar, k, getattr(los, k))
+            db.add(dobar)
+        else:
+            for k in stupci:
+                if getattr(dobar, k) in (None, "") and getattr(los, k) not in (None, ""):
+                    setattr(dobar, k, getattr(los, k))
+        db.delete(los)
+        db.flush()
+        popravljeno += 1
+
+    for los in db.query(Vozilo).filter(Vozilo.gb.like("% %")).order_by(Vozilo.id).all():
+        cisti = cisti_gb(los.gb)
+        if not cisti or cisti == los.gb:
+            continue
+        dobar = db.query(Vozilo).filter(Vozilo.gb == cisti).first()
+        if dobar is None:
+            los.gb = cisti
+            db.flush()
+            popravljeno += 1
+            continue
+        for model in (Nalog, Prijava, Steta, ZamjenaDijela, PovijestRada):
+            db.query(model).filter(model.vozilo_id == los.id).update(
+                {model.vozilo_id: dobar.id}, synchronize_session=False)
+        dobar.registracija = dobar.registracija or los.registracija
+        dobar.marka = dobar.marka or los.marka
+        dobar.model = dobar.model or los.model
+        dobar.slika = dobar.slika or los.slika
+        db.delete(los)
+        db.flush()
+        popravljeno += 1
+
+    # GB upisan kao tekst (snimke) — isti popravak.
+    for model, polja in ((DnevnikPrikapcanja, ("prikolica_gb", "kamion_gb")),
+                         (Izdatnica, ("vozilo_gb",)), (NarudzbaDio, ("vozilo_gb",)),
+                         (Zaduzenje, ("kamion_gb", "prikolica_gb"))):
+        for polje in polja:
+            stupac = getattr(model, polje)
+            for z in db.query(model).filter(stupac.like("% %")).all():
+                setattr(z, polje, cisti_gb(getattr(z, polje)))
+                popravljeno += 1
+    if popravljeno:
+        db.commit()
+    return popravljeno
+
+
 async def _sync_registar(db: Session) -> bool:
     """Osvježi popisna polja (gb/reg/tip/kategorija) iz Flota OS-a i predloži status
     iz Mobilisisa. RUČNO postavljen status (rucno=True) se NE dira. Best-effort;
@@ -95,10 +169,11 @@ async def _sync_registar(db: Session) -> bool:
     vozila = await flota.vozila_flota()
     if vozila is None:
         return False
+    popravi_gb_s_razmakom(db)
     postojeci = {r.gb: r for r in db.query(RegistarVozila).all()}
     sad = datetime.now(timezone.utc)
     for v in vozila:
-        gb = str(v.get("gb") or "").strip()
+        gb = cisti_gb(v.get("gb"))
         if not gb:
             continue
         mob = _status_iz_mobilisisa(v.get("status"))
@@ -1041,12 +1116,16 @@ def _osiguraj_vozila_iz_registra(db: Session) -> int:
 
 @router.get("", response_model=list[VoziloOut])
 def popis(_: Korisnik = Depends(trenutni_korisnik), db: Session = Depends(get_db)):
+    popravi_gb_s_razmakom(db)
     _osiguraj_vozila_iz_registra(db)
     return db.query(Vozilo).filter(Vozilo.aktivan.is_(True)).order_by(Vozilo.gb).all()
 
 
 @router.post("", response_model=VoziloOut, status_code=201)
 def kreiraj(podaci: VoziloCreate, _: Korisnik = Depends(samo_voditelj), db: Session = Depends(get_db)):
+    if len((podaci.gb or "").split()) != 1:
+        raise HTTPException(status_code=400, detail="Garažni broj je jedna riječ (npr. 498) — opis vozila upiši u Marka/Model")
+    podaci.gb = podaci.gb.strip()
     if db.query(Vozilo).filter(Vozilo.gb == podaci.gb).first():
         raise HTTPException(status_code=409, detail="Vozilo s tim GB već postoji")
     v = Vozilo(**podaci.model_dump())
@@ -1085,6 +1164,10 @@ def uvoz(podaci: VoziloUvoz, _: Korisnik = Depends(samo_voditelj), db: Session =
         if not redak:
             continue
         dijelovi = [d.strip() for d in re.split(r"[\t,;]", redak)]
+        # „498 VOLVO FH64R" (razmak umjesto taba): GB je samo prva riječ, ostalo je opis.
+        if dijelovi and len(dijelovi[0].split()) > 1:
+            prva, ostatak = dijelovi[0].split(None, 1)
+            dijelovi = [prva, ostatak] + dijelovi[1:]
         gb = dijelovi[0] if dijelovi else ""
         if not gb:
             continue
