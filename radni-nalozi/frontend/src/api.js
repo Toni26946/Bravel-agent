@@ -107,6 +107,7 @@ export const api = {
   nezaduzena: () => zahtjev('/nalozi/nezaduzena'),
   nezaduzenaDijagnostika: () => zahtjev('/nalozi/nezaduzena/dijagnostika'),
   zadnjiVozaci: () => zahtjev('/vozila/zadnji-vozaci'),
+  povijestVozaca: ({ gb, vozac }) => zahtjev('/vozila/povijest-vozaca?' + new URLSearchParams(gb ? { gb } : { vozac })),
   vozilaRegistar: (params = {}) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
     return zahtjev('/vozila/registar' + (q ? `?${q}` : ''))

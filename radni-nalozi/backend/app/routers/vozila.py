@@ -724,6 +724,47 @@ def zadnji_vozaci_svi(_: Korisnik = Depends(trenutni_korisnik), db: Session = De
     return zadnji_vozaci.svi(db)
 
 
+def _povijest_prikolice(db: Session, gb: str) -> list[dict]:
+    """Priključno vozilo: razdoblja iz dnevnika prikapčanja (prikačeno → do sljedećeg događaja)."""
+    kljuc = {gb, gb.lstrip("0") or gb}
+    dog = (db.query(DnevnikPrikapcanja).filter(DnevnikPrikapcanja.prikolica_gb.in_(kljuc))
+           .order_by(DnevnikPrikapcanja.vrijeme, DnevnikPrikapcanja.id).all())
+    out = []
+    for i, e in enumerate(dog):
+        if e.vrsta != VrstaDogadaja.prikaceno:
+            continue
+        sljedeci = dog[i + 1].vrijeme if i + 1 < len(dog) else None
+        od = e.vrijeme.date().isoformat() if e.vrijeme else None
+        do = sljedeci.date().isoformat() if sljedeci else date.today().isoformat()
+        ime = (e.vozac or "").strip() or (flota.zadnji_vozac(e.kamion_gb) if e.kamion_gb else None)
+        dana = (date.fromisoformat(do) - date.fromisoformat(od)).days + 1 if od else 1
+        out.append({"gb": gb, "vozac": ime or "(vozač nije upisan)", "kamion_gb": e.kamion_gb,
+                    "od": od, "do": do, "dana": dana, "km": 0, "traje": sljedeci is None})
+    out.reverse()
+    return out
+
+
+@router.get("/povijest-vozaca")
+async def povijest_vozaca(gb: str | None = None, vozac: str | None = None,
+                          _: Korisnik = Depends(voditelj_ili_poslovodja),
+                          db: Session = Depends(get_db)) -> dict:
+    """Koji je vozač vozio koje vozilo (od–do), po GB-u ili po vozaču — iz Flota OS-a
+    (Veljko 26.11.2026., #437); za prikolice iz dnevnika prikapčanja. Samo čitanje."""
+    gb = (gb or "").strip() or None
+    vozac = (vozac or "").strip() or None
+    if not gb and not vozac:
+        raise HTTPException(status_code=400, detail="Upiši garažni broj ili ime vozača")
+    if gb and db is not None:
+        rv = db.get(RegistarVozila, gb) or db.get(RegistarVozila, gb.lstrip("0") or gb)
+        if rv is not None and je_prikljucno_vozilo(rv.kategorija):
+            return {"gb": gb, "vozac": None, "od": None, "prikolica": True,
+                    "razdoblja": _povijest_prikolice(db, gb)}
+    d = await flota.povijest_vozaca(gb=gb, vozac=vozac)
+    if d is None:
+        raise HTTPException(status_code=503, detail="Flota OS se trenutno ne javlja — probaj za minutu")
+    return {"gb": gb, "vozac": vozac, "od": d.get("od"), "razdoblja": d.get("razdoblja") or []}
+
+
 @router.patch("/registar/{gb}", response_model=RegistarVozilaOut)
 def registar_status(
     gb: str,

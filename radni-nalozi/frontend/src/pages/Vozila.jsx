@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 import { imeZadnjegVozaca, useZadnjiVozaci } from '../ZadnjiVozac'
+import PovijestVozaca from '../PovijestVozaca'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
 const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'u_najmu', 'prodano']
@@ -35,6 +36,7 @@ export default function Vozila() {
   const [poruka, setPoruka] = useState('')
 
   const vozaci = useZadnjiVozaci()   // ime zadnjeg vozača uz GB (#436)
+  const [povijest, setPovijest] = useState(null)   // null = zatvoreno; '' / GB = otvoreno (#437)
   const ucitaj = () => api.vozilaRegistar().then(setD).catch((e) => setGreska(e.message))
   useEffect(() => { ucitaj(); api.parkinzi().then(setParkinzi).catch(() => {}) }, [])
 
@@ -101,6 +103,11 @@ export default function Vozila() {
         <UvozPanel onGotovo={() => { setUvozOtvoren(false); ucitaj() }} onOdustani={() => setUvozOtvoren(false)} />
       )}
 
+      <button type="button" className="btn sekund mali" style={{ marginBottom: 8 }} onClick={() => setPovijest('')}>
+        📜 Povijest vozača (tko je vozio koje vozilo)
+      </button>
+      {povijest !== null && <PovijestVozaca pocetno={povijest} onZatvori={() => setPovijest(null)} />}
+
       <input
         className="pretraga-input"
         placeholder={t('vozila.pretraga')}
@@ -137,7 +144,12 @@ export default function Vozila() {
           <div className="karta vz-red">
             <div className="vz-info" onClick={() => v.nalog_id && nav(`/nalozi/${v.nalog_id}`)}>
               <div className="vz-gb">{v.gb}{v.vozilo ? ` · ${v.vozilo}` : ''}</div>
-              {imeZadnjegVozaca(vozaci, v.gb) && <div className="meta vz-vozac">🧑 {imeZadnjegVozaca(vozaci, v.gb)}</div>}
+              {imeZadnjegVozaca(vozaci, v.gb) && (
+                <div className="meta vz-vozac">
+                  <button type="button" className="vz-vozac-btn" title="Povijest vozača ovog vozila"
+                    onClick={(e) => { e.stopPropagation(); setPovijest(v.gb) }}>🧑 {imeZadnjegVozaca(vozaci, v.gb)} · 📜</button>
+                </div>
+              )}
               <div className="meta">
                 {[v.registracija, v.vrsta || v.tip].filter(Boolean).join(' · ') || '—'}
                 {v.nalog_id ? ` · ${v.broj}` : ''}

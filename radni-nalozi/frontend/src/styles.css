@@ -1015,3 +1015,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .pv2-red { flex-direction: column; align-items: stretch; }
   .pv2-akcije { justify-content: flex-start; }
 }
+
+/* Povijest vozača (#437) */
+.pvz-sheet { max-height: 85vh; display: flex; flex-direction: column; }
+.pvz-lista { overflow-y: auto; margin-top: 6px; -webkit-overflow-scrolling: touch; }
+.pvz-red { padding: 8px 2px; border-bottom: 1px solid var(--linija, #e5e7eb); }
+.pvz-glavno { font-weight: 600; }
+.vz-vozac-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.vz-vozac-btn:hover { text-decoration: underline; }
