@@ -902,9 +902,15 @@ def _tip_iz_vrste(vrsta: str) -> str | None:
 
 
 def _za_flotu(r: RegistarVozila, autor: str = "") -> dict:
+    # Flota piše firmu kao „BRAVEL" / „BRAVEL LOGS" (ne „BRAVEL d.o.o.").
+    firma = (r.firma or "").upper()
+    if "LOGS" in firma:
+        firma = "BRAVEL LOGS"
+    elif firma.startswith("BRAVEL"):
+        firma = "BRAVEL"
     return {"gb": r.gb, "vrsta": r.vrsta or "", "vozilo": r.vozilo or "", "reg": r.registracija or "",
             "broj_sasije": r.broj_sasije or "", "prva_registracija": r.prva_registracija or "",
-            "firma": r.firma or "", "autor": autor}
+            "firma": firma, "autor": autor}
 
 
 def _postoji_gb(db: Session, gb: str) -> RegistarVozila | None:
@@ -962,8 +968,18 @@ async def novo_vozilo(podaci: NovoVoziloIn, korisnik: Korisnik = Depends(voditel
 
 
 async def _posalji_cekajuce_u_flotu(db: Session, flota_gb: set) -> None:
-    """Vozila upisana u RN koja Flota još nema → pošalji (ponavlja se dok ne uspije)."""
-    cekaju = db.query(RegistarVozila).filter(RegistarVozila.flota_ceka.is_(True)).all()
+    """Vozila upisana u RN koja Flota još nema → pošalji (ponavlja se dok ne uspije).
+
+    Osim označenih (flota_ceka) šalju se i vozila koja NIKAD nisu došla iz Flote
+    (sinkroniziran prazan) — npr. 492–499, 503, 504 upisani u RN 25.11.2026. prije ovog
+    obrasca. Vozilo koje je Flota jednom imala pa ga više nema (prodano) se NE vraća."""
+    from sqlalchemy import or_
+    cekaju = [
+        r for r in db.query(RegistarVozila).filter(
+            or_(RegistarVozila.flota_ceka.is_(True), RegistarVozila.sinkroniziran.is_(None))).all()
+        if r.gb and len(r.gb.split()) == 1 and (r.flota_ceka or (r.gb not in flota_gb
+                                                                and (r.gb.lstrip("0") or r.gb) not in flota_gb))
+    ]
     for r in cekaju[:20]:
         if r.gb in flota_gb:
             r.flota_ceka = False
