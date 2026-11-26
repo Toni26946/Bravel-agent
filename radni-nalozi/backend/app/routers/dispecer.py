@@ -413,6 +413,9 @@ def _video(z: Zadatak) -> dict | None:
     if u is None or u.status != "gotovo":
         return None
     d = video_upute.za_prikaz(u)
+    # Samo upute provjerene za OVAJ kamion (stare bez provjere vozila se ne prikazuju).
+    if not (d.get("upute") or {}).get("odgovara"):
+        return None
     return {"video_id": d["video_id"], "url": d["url"], "upute": d.get("upute")}
 
 

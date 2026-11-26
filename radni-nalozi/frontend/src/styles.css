@@ -535,6 +535,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .vu-gr { background: #fdeaea; color: #b3261e; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; font-size: 13px; }
 .vu-nasl { font-weight: 800; font-size: 15px; color: var(--plava); }
 .vu-saz { margin-top: 4px; color: var(--tekst); }
+.vu-voz { margin-top: 6px; font-size: 13px; color: #2e7d32; font-weight: 600; }
 .vu-pod { margin-top: 10px; font-weight: 800; font-size: 12px; color: var(--plava); text-transform: uppercase; letter-spacing: .3px; }
 .vu-upute ul, .vu-upute ol { margin: 4px 0 0; padding-left: 22px; }
 .vu-upute li { margin-bottom: 5px; line-height: 1.35; }

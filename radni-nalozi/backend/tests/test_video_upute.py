@@ -117,11 +117,17 @@ def test_obradi_i_stranica_mehanicara(monkeypatch):
     monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
         "naslov": "Changing Brake Pads", "kanal": "K", "trajanje": 750, "jezik": "en-orig",
         "automatski": True, "transkript": "[0:00] x", "storyboard": None})
-    monkeypatch.setattr(vu, "ai_upute", lambda v: vu.ocisti_upute({
+    viđeno = {}
+
+    def ai(v, voz):
+        viđeno.update(voz)
+        return vu.ocisti_upute({
+        "odgovara": True, "video_vozilo": "Scania R-serija", "razlog": "Ista serija",
         "naslov": "Zamjena pločica", "sazetak": "Pogonska osovina",
         "koraci": [{"t": 60, "opis": "Skini kotač"}, {"t": 300, "opis": "Izvadi pločice"}],
         "dijelovi": [{"naziv": "Kočione pločice"}], "alat": ["udarni odvijač"],
-        "momenti": [], "upozorenja": ["Podupri vozilo"], "kljucni": [1]}, 750))
+        "momenti": [], "upozorenja": ["Podupri vozilo"], "kljucni": [1]}, 750)
+    monkeypatch.setattr(vu, "ai_upute", ai)
     monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {300: "/uploads/yt_x.jpg"})
     vu.obradi(u.id)
 
@@ -131,6 +137,8 @@ def test_obradi_i_stranica_mehanicara(monkeypatch):
     p = json.loads(u2.podaci)
     assert p["koraci"][1]["slika"] == "/uploads/yt_x.jpg"
     assert p["video"]["naslov"] == "Changing Brake Pads"
+    assert viđeno["gb"] == "T778" and viđeno["marka_model"] == "SCANIA R450"
+    assert p["vozilo"] == "GB T778 · SCANIA R450"
     assert db2.get(Zadatak, z.id).video_status == "gotovo"
 
     s = z_stanje("vtok", UredjajIn(uredjaj="A"), db=db2)
@@ -153,6 +161,55 @@ def test_obradi_greska_se_sprema(monkeypatch):
     vu.obradi(u.id)
     u2 = maker().get(VideoUputa, u.id)
     assert u2.status == "greska" and "titlova" in u2.greska
+
+
+def _obradi_s(monkeypatch, ai_rezultat, marka="SCANIA", model="R450"):
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    voz = z.operacija.nalog.vozilo
+    voz.marka, voz.model = marka, model
+    u = VideoUputa(zadatak_id=z.id, url="x", video_id="wfnbxDG_sX4", status="obrada")
+    db.add(u); db.commit()
+    monkeypatch.setattr(database, "SessionLocal", maker)
+    monkeypatch.setattr(vu.settings, "anthropic_api_key", "test")
+    monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
+        "naslov": "MAN TGX brake pads", "kanal": "K", "trajanje": 600, "jezik": "en",
+        "automatski": True, "transkript": "[0:00] x", "storyboard": None})
+    pozvan = []
+    monkeypatch.setattr(vu, "ai_upute", lambda v, voz: pozvan.append(1) or vu.ocisti_upute(ai_rezultat, 600))
+    monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {})
+    vu.obradi(u.id)
+    db2 = maker()
+    return db2.get(VideoUputa, u.id), pozvan, db2
+
+
+def test_video_za_drugi_kamion_se_odbija(monkeypatch):
+    """Toni: video mora biti za kamion iz naloga, nikoji drugi — inače ništa."""
+    u, _, db2 = _obradi_s(monkeypatch, {
+        "odgovara": False, "video_vozilo": "MAN TGX", "razlog": "Druga marka",
+        "koraci": [{"t": 1, "opis": "x"}]})
+    assert u.status == "greska"
+    assert "nije za ovaj kamion" in u.greska and "MAN TGX" in u.greska
+    assert u.podaci is None
+    assert z_stanje("vtok", UredjajIn(uredjaj="A"), db=db2)["video"] is None
+
+
+def test_nepoznato_vozilo_bez_uputa(monkeypatch):
+    u, pozvan, _ = _obradi_s(monkeypatch, {"odgovara": True, "koraci": [{"t": 1, "opis": "x"}]},
+                             marka="TEST", model=None)
+    assert u.status == "greska" and "marka i model" in u.greska
+    assert pozvan == []   # Claude se ni ne zove
+
+
+def test_stare_upute_bez_provjere_mehanicar_ne_vidi():
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    db.add(VideoUputa(zadatak_id=z.id, url="x", video_id="wfnbxDG_sX4", status="gotovo",
+                      podaci=json.dumps({"koraci": [{"t": 1, "opis": "x"}]})))
+    db.commit()
+    assert z_stanje("vtok", UredjajIn(uredjaj="A"), db=db)["video"] is None
 
 
 def test_html_ima_video_dio():
