@@ -420,10 +420,10 @@ def slicice(sb: dict | None, vremena: list[int]) -> dict[int, str]:
 
 
 # --- 4. cijela obrada (pozadina) ---------------------------------------------
-def _slozi(db, u, vozilo: dict, vid: str) -> None:
+def _slozi(db, u, vozilo: dict, vid: str, video: dict | None = None) -> None:
     """Jedan video → provjera da je za ovaj kamion → upute spremljene u `u`.
     RuntimeError s razlogom ako video ne odgovara / nema titlova / koraka."""
-    video = dohvati_video(vid)
+    video = video or dohvati_video(vid)
     u.naslov = (video["naslov"] or "")[:300]
     u.jezik = (video["jezik"] or "")[:20]
     db.commit()
@@ -452,12 +452,16 @@ def _slozi(db, u, vozilo: dict, vid: str) -> None:
 
 
 # --- „🔍 Nađi video" (Toni 26.11.2026.: traži samo kad se zatraži) -------------
-MAX_KANDIDATA = 3   # najviše toliko videa se otvara (titlovi + Claude) po jednom traženju
+MAX_KANDIDATA = 6   # najviše toliko videa se otvara (samo titlovi) po jednom traženju
+MAX_PROVJERA = 3    # najviše toliko videa ide na Claude provjeru (trošak)
+MIN_RIJECI = 150    # titlovi s manje riječi = nema govora (glazba) → preskoči bez Claudea
 
 SUSTAV_TRAZI = (
     "Pomažeš naći YouTube video popravka za mehaničara. Dobiješ ZADATAK iz radnog naloga i VOZILO. "
-    "Vrati ISKLJUČIVO JSON: {\"upiti\": [string, string]} — dva kratka YouTube upita na ENGLESKOM "
-    "(marka + model/serija + posao, npr. \"Volvo FH brake pads replacement\", \"Volvo FH4 disc brake pad change\"). "
+    "Vrati ISKLJUČIVO JSON: {\"upiti\": [string, string, string]} — tri kratka YouTube upita: "
+    "na ENGLESKOM, NJEMAČKOM i RUSKOM (mehaničari kamiona tamo snimaju najviše videa) — "
+    "marka + model/serija + posao, npr. \"Volvo FH brake pads replacement\", "
+    "\"Volvo FH Bremsbeläge wechseln\", \"Volvo FH замена колодок\". "
     "Bez godine i registracije. Ako zadatak nije posao koji se radi na vozilu (pregled, registracija, "
     "papirologija), vrati {\"upiti\": []}."
 )
@@ -465,8 +469,9 @@ SUSTAV_TRAZI = (
 SUSTAV_RANG = (
     "Dobiješ VOZILO, ZADATAK i popis YouTube videa (id, naslov, kanal, trajanje u s). Odaberi najviše "
     f"{MAX_KANDIDATA} videa koji su NAJVJEROJATNIJE baš za tu marku i model/seriju vozila I za taj posao, "
-    "od najboljeg. Preskoči druge marke/modele, prikolice umjesto kamiona, igre, vožnje, reklame i "
-    "videe bez rada. Vrati ISKLJUČIVO JSON: {\"id\": [string, ...]} (prazno ako ništa ne odgovara)."
+    "od najboljeg. Naslovi mogu biti na bilo kojem jeziku (engleski, njemački, ruski…). Ista serija s "
+    "oznakom generacije vrijedi (npr. Volvo FH4 / FH 2013+ za Volvo FH). Preskoči druge marke/modele "
+    "(npr. Volvo FM nije Volvo FH), prikolice umjesto kamiona, igre, vožnje, reklame i videe bez rada. Vrati ISKLJUČIVO JSON: {\"id\": [string, ...]} (prazno ako ništa ne odgovara)."
 )
 
 
@@ -501,7 +506,7 @@ def kandidati(zadatak_tekst: str, vozilo: dict) -> list[str]:
     voz = ", ".join(f"{k}: {v}" for k, v in vozilo.items())
     upiti = _claude_json(SUSTAV_TRAZI, f"ZADATAK: {zadatak_tekst}\nVOZILO: {voz}").get("upiti") or []
     nadeni: dict[str, dict] = {}
-    for q in [str(x) for x in upiti][:2]:
+    for q in [str(x) for x in upiti][:3]:
         try:
             for v in pretrazi_youtube(q):
                 if v["trajanje"] and (v["trajanje"] < 60 or v["trajanje"] > 3600):
@@ -517,17 +522,32 @@ def kandidati(zadatak_tekst: str, vozilo: dict) -> list[str]:
 
 
 def _trazi_i_slozi(db, u, vozilo: dict) -> None:
+    """Kandidati redom: titlovi (besplatno) → bez govora preskoči → Claude provjera (≤ MAX_PROVJERA)."""
     tekst = opis_zadatka(u.zadatak)
     ids = kandidati(tekst, vozilo)
+    provjereno = 0
     for vid in ids:
+        if provjereno >= MAX_PROVJERA:
+            break
         try:
-            _slozi(db, u, vozilo, vid)
+            video = dohvati_video(vid)
+        except RuntimeError as e:
+            log.info("Video %s za zadatak %s preskočen: %s", vid, u.zadatak_id, e)
+            continue
+        if len(video["transkript"].split()) < MIN_RIJECI:
+            log.info("Video %s za zadatak %s preskočen: nema govora u titlovima", vid, u.zadatak_id)
+            continue
+        provjereno += 1
+        try:
+            _slozi(db, u, vozilo, vid, video)
             return
         except RuntimeError as e:
             log.info("Video %s za zadatak %s preskočen: %s", vid, u.zadatak_id, e)
     u.naslov = None
     raise RuntimeError(f"Nisam našao video za ovaj kamion ({vozilo_kratko(vozilo)}) i ovaj posao"
                        + (f" — pregledano {len(ids)} videa." if ids else "."))
+
+
 def obradi(uputa_id: int) -> None:
     """Pozadinska obrada jedne upute: titlovi → Claude → sličice → spremi. Vlastita sesija."""
     from .database import SessionLocal  # noqa: PLC0415
