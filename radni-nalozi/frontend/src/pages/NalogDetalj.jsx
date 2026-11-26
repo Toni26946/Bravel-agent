@@ -701,13 +701,19 @@ function VideoUpute({ z, jeVoditelj }) {
     try { setV(await api.videoUputePostavi(z.id, url)); setUnos('') } catch (er) { setGreska(er.message) }
     setSalje(false)
   }
+  // 🔍 Nađi video — sustav sam traži video za ovaj kamion i posao (samo na klik).
+  const nadji = async () => {
+    setSalje(true); setGreska('')
+    try { setV(await api.videoUputeNadji(z.id)) } catch (er) { setGreska(er.message) }
+    setSalje(false)
+  }
   const obrisi = async () => {
     if (!window.confirm('Ukloniti upute iz videa s ovog zadatka?')) return
     try { await api.videoUputeObrisi(z.id); setV({ nema: true }) } catch (er) { setGreska(er.message) }
   }
 
   const oznaka = status === 'gotovo' ? '📺 Upute iz videa'
-    : status === 'obrada' ? '📺 Slažem upute iz videa…'
+    : status === 'obrada' ? (v && !v.video_id ? '🔍 Tražim video…' : '📺 Slažem upute iz videa…')
       : status === 'greska' ? '📺 Upute: greška' : '📺 + Video upute'
   const u = v?.upute
   return (
@@ -718,7 +724,9 @@ function VideoUpute({ z, jeVoditelj }) {
       {otvoreno && (
         <div className="vu-panel">
           {greska && <div className="vu-gr">{greska}</div>}
-          {status === 'obrada' && <div className="vu-info">⏳ Čitam titlove i slažem korake — traje do minute.</div>}
+          {status === 'obrada' && <div className="vu-info">⏳ {v && !v.video_id
+            ? 'Tražim video baš za ovaj kamion i posao — traje do 2 minute.'
+            : 'Čitam titlove i slažem korake — traje do minute.'}</div>}
           {status === 'greska' && <div className="vu-gr">{v?.greska}</div>}
           {status === 'gotovo' && u && (
             <div className="vu-upute">
@@ -760,6 +768,9 @@ function VideoUpute({ z, jeVoditelj }) {
                 value={unos} onChange={(e) => setUnos(e.target.value)} />
               <button type="submit" className="vu-btn" disabled={salje || !unos.trim()}>
                 {salje ? 'Šaljem…' : status ? 'Zamijeni video' : 'Složi upute'}
+              </button>
+              <button type="button" className="vu-btn vu-btn-zeleni" disabled={salje || status === 'obrada'} onClick={nadji}>
+                🔍 Nađi video
               </button>
               {status && <button type="button" className="vu-btn vu-btn-sivi" onClick={obrisi}>Ukloni</button>}
             </form>

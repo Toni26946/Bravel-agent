@@ -39,11 +39,24 @@ def postavi(zadatak_id: int, p: LinkIn, pozadina: BackgroundTasks,
     vid = video_upute.video_id(p.url)
     if not vid:
         raise HTTPException(status_code=400, detail="To nije YouTube poveznica")
+    return _pokreni(db, z, k, p.url.strip()[:300], vid, pozadina)
+
+
+@router.post("/zadatak/{zadatak_id}/nadji")
+def nadji(zadatak_id: int, pozadina: BackgroundTasks,
+          k: Korisnik = Depends(_urednik), db: Session = Depends(get_db)):
+    """🔍 Nađi video — sustav SAM traži YouTube video za ovaj kamion i posao (samo na zahtjev,
+    Toni 26.11.2026.). Ako ne nađe video baš za taj kamion, upute se ne prikazuju."""
+    z = _zadatak(db, zadatak_id)
+    return _pokreni(db, z, k, "", "", pozadina)
+
+
+def _pokreni(db: Session, z: Zadatak, k: Korisnik, url: str, vid: str, pozadina: BackgroundTasks):
     u = z.video_uputa
     if u is None:
-        u = VideoUputa(zadatak_id=z.id, url="", video_id=vid)
+        u = VideoUputa(zadatak_id=z.id, url="", video_id="")
         db.add(u)
-    u.url = p.url.strip()[:300]
+    u.url = url
     u.video_id = vid
     u.status = "obrada"
     u.greska = None

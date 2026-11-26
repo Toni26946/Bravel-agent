@@ -230,6 +230,55 @@ def test_stare_upute_bez_provjere_mehanicar_ne_vidi():
     assert z_stanje("vtok", UredjajIn(uredjaj="A"), db=db)["video"] is None
 
 
+def _trazi_setup(monkeypatch, odgovara_za: set):
+    maker = _maker()
+    db = maker()
+    z = _priprema(db)
+    u = VideoUputa(zadatak_id=z.id, url="", video_id="", status="obrada")
+    db.add(u); db.commit()
+    monkeypatch.setattr(database, "SessionLocal", maker)
+    monkeypatch.setattr(vu.settings, "anthropic_api_key", "test")
+    viđeni_tekst = []
+
+    def kand(tekst, voz):
+        viđeni_tekst.append(tekst)
+        return ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    monkeypatch.setattr(vu, "kandidati", kand)
+    monkeypatch.setattr(vu, "dohvati_video", lambda vid: {
+        "naslov": "Video " + vid, "kanal": "K", "trajanje": 600, "jezik": "en",
+        "automatski": True, "transkript": vid, "storyboard": None})
+    monkeypatch.setattr(vu, "ai_upute", lambda v, voz: vu.ocisti_upute({
+        "odgovara": v["transkript"] in odgovara_za, "video_vozilo": "x", "razlog": "r",
+        "koraci": [{"t": 1, "opis": "korak"}]}, 600))
+    monkeypatch.setattr(vu, "slicice", lambda sb, vremena: {})
+    vu.obradi(u.id)
+    return maker().get(VideoUputa, u.id), viđeni_tekst
+
+
+def test_nadji_video_uzme_prvi_koji_odgovara(monkeypatch):
+    u, tekst = _trazi_setup(monkeypatch, {"bbbbbbbbbbb"})
+    assert tekst == ["KOČNICE – Zamjena pločica"]
+    assert u.status == "gotovo" and u.video_id == "bbbbbbbbbbb"
+    assert u.url == "https://www.youtube.com/watch?v=bbbbbbbbbbb"
+    assert json.loads(u.podaci)["odgovara"] is True
+
+
+def test_nadji_video_nista_ne_odgovara(monkeypatch):
+    u, _ = _trazi_setup(monkeypatch, set())
+    assert u.status == "greska" and "Nisam našao video" in u.greska
+    assert u.podaci is None and u.video_id == "" and u.naslov is None
+
+
+def test_kandidati_filtrira_i_rangira(monkeypatch):
+    odgovori = iter([{"upiti": ["Scania R brake pads", "Scania R450 pads"]},
+                     {"id": ["cccccccccc1", "nepostoji"]}])
+    monkeypatch.setattr(vu, "_claude_json", lambda s, t, max_tokens=400: next(odgovori))
+    monkeypatch.setattr(vu, "pretrazi_youtube", lambda q, n=8: [
+        {"id": "cccccccccc1", "naslov": "Scania R pads", "kanal": "k", "trajanje": 600},
+        {"id": "short000001", "naslov": "short", "kanal": "k", "trajanje": 30}])
+    assert vu.kandidati("KOČNICE – pločice", {"gb": "1", "marka_model": "SCANIA R450"}) == ["cccccccccc1"]
+
+
 def test_html_ima_video_dio():
     from app.routers.dispecer import _HTML
     assert "videoHtml(d.video)" in _HTML and "vNaslov" in _HTML
