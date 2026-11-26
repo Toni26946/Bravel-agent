@@ -176,6 +176,10 @@ export const api = {
   odjavaZadatak: (id, zadatakId) =>
     zahtjev(`/nalozi/${id}/zadaci/${zadatakId}/odjava`, { method: 'POST' }),
   obrisiZadatak: (id, zadatakId) => zahtjev(`/nalozi/${id}/zadaci/${zadatakId}`, { method: 'DELETE' }),
+  // 📺 Upute iz videa (YouTube link uz zadatak)
+  videoUpute: (zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}`),
+  videoUputePostavi: (zadatakId, url) => zahtjev(`/video-upute/zadatak/${zadatakId}`, { method: 'POST', body: { url } }),
+  videoUputeObrisi: (zadatakId) => zahtjev(`/video-upute/zadatak/${zadatakId}`, { method: 'DELETE' }),
 
   // Samostalni rad (npr. vulkanizer): sam otvara posao i sam se prijavljuje
   samostalno: (kao) => zahtjev('/samostalno' + (kao ? `?kao=${kao}` : '')),

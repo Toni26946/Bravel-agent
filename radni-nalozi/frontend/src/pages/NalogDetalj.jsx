@@ -639,6 +639,7 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
                   {z.zavrsio && <> · <b>označio: {z.zavrsio.ime}</b></>}
                 </span>
               )}
+              {(jeVoditelj || z.video_status) && <VideoUpute z={z} jeVoditelj={jeVoditelj} />}
               {z.vremena && z.vremena.length > 0 && (
                 <div className="mj-radnici">
                   {z.vremena.map((zr) => {
@@ -660,6 +661,106 @@ function OperacijaBlok({ nalog, op, radnici, wrap, ucitaj, naGresku, sada, jeVod
       {dodaje && (
         <div className="op2-dodaj">
           <DodajZadatak nalogId={nalog.id} opId={op.id} naGotovo={() => { setDodaje(false); ucitaj() }} naGresku={naGresku} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 📺 Upute iz videa: poslovođa/voditelj zalijepi YouTube link uz zadatak → sustav iz
+// titlova složi korake, dijelove, alat, momente i upozorenja (mehaničar ih vidi na /z/).
+const ytLink = (id, t) => `https://youtu.be/${encodeURIComponent(id)}${t ? `?t=${Math.round(t)}` : ''}`
+const vrijemeVidea = (s) => {
+  s = Math.max(0, Math.round(s || 0))
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60
+  return (h ? `${h}:${String(m).padStart(2, '0')}` : m) + ':' + String(x).padStart(2, '0')
+}
+
+function VideoUpute({ z, jeVoditelj }) {
+  const [otvoreno, setOtvoreno] = useState(false)
+  const [v, setV] = useState(null)          // podaci s API-ja
+  const [unos, setUnos] = useState('')
+  const [salje, setSalje] = useState(false)
+  const [greska, setGreska] = useState('')
+  const status = v ? (v.nema ? null : v.status) : z.video_status
+
+  const ucitajV = () => api.videoUpute(z.id).then(setV).catch((e) => setGreska(e.message))
+  useEffect(() => { if (otvoreno && !v) ucitajV() }, [otvoreno]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Dok se slaže (~20–60 s) — provjeravaj svakih 5 s.
+  useEffect(() => {
+    if (status !== 'obrada') return undefined
+    const t = setInterval(ucitajV, 5000)
+    return () => clearInterval(t)
+  }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const posalji = async (e) => {
+    e?.preventDefault()
+    const url = unos.trim()
+    if (!url) return
+    setSalje(true); setGreska('')
+    try { setV(await api.videoUputePostavi(z.id, url)); setUnos('') } catch (er) { setGreska(er.message) }
+    setSalje(false)
+  }
+  const obrisi = async () => {
+    if (!window.confirm('Ukloniti upute iz videa s ovog zadatka?')) return
+    try { await api.videoUputeObrisi(z.id); setV({ nema: true }) } catch (er) { setGreska(er.message) }
+  }
+
+  const oznaka = status === 'gotovo' ? '📺 Upute iz videa'
+    : status === 'obrada' ? '📺 Slažem upute iz videa…'
+      : status === 'greska' ? '📺 Upute: greška' : '📺 + Video upute'
+  const u = v?.upute
+  return (
+    <div className={'vu-blok' + (otvoreno ? ' otv' : '')}>
+      <button type="button" className={'vu-gumb' + (status ? ' vu-' + status : '')} onClick={() => setOtvoreno((o) => !o)}>
+        {oznaka} {otvoreno ? '▴' : '▾'}
+      </button>
+      {otvoreno && (
+        <div className="vu-panel">
+          {greska && <div className="vu-gr">{greska}</div>}
+          {status === 'obrada' && <div className="vu-info"><Spinner /> Čitam titlove i slažem korake — traje do minute.</div>}
+          {status === 'greska' && <div className="vu-gr">{v?.greska}</div>}
+          {status === 'gotovo' && u && (
+            <div className="vu-upute">
+              <div className="vu-nasl">{u.naslov}</div>
+              {u.sazetak && <div className="vu-saz">{u.sazetak}</div>}
+              {u.upozorenja?.length > 0 && (
+                <div className="vu-upoz"><b>⚠️ Pazi:</b><ul>{u.upozorenja.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+              )}
+              <div className="vu-pod">Koraci</div>
+              <ol className="vu-kor">
+                {u.koraci.map((k, i) => (
+                  <li key={i}>
+                    <a className="vu-t" href={ytLink(v.video_id, k.t)} target="_blank" rel="noreferrer">▶ {vrijemeVidea(k.t)}</a> {k.opis}
+                    {k.slika && <a href={ytLink(v.video_id, k.t)} target="_blank" rel="noreferrer"><img className="vu-img" src={medijUrl(k.slika)} alt="" loading="lazy" /></a>}
+                  </li>
+                ))}
+              </ol>
+              {u.dijelovi?.length > 0 && (<>
+                <div className="vu-pod">Dijelovi</div>
+                <ul>{u.dijelovi.map((d, i) => <li key={i}>{d.naziv}{d.kolicina ? ` · ${d.kolicina}` : ''}{d.oe && <span className="vu-oe"> OE {d.oe}</span>}</li>)}</ul>
+              </>)}
+              {u.alat?.length > 0 && (<>
+                <div className="vu-pod">Alat</div>
+                <ul>{u.alat.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              </>)}
+              {u.momenti?.length > 0 && (<>
+                <div className="vu-pod">Momenti pritezanja</div>
+                <ul>{u.momenti.map((m, i) => <li key={i}>{m.sto}: <b>{m.vrijednost}</b></li>)}</ul>
+              </>)}
+              <a className="vu-video" href={ytLink(v.video_id, 0)} target="_blank" rel="noreferrer">▶ {v.naslov || 'Pogledaj video'}</a>
+            </div>
+          )}
+          {jeVoditelj && (
+            <form className="vu-unos" onSubmit={posalji}>
+              <input type="url" inputMode="url" placeholder="Zalijepi YouTube link (npr. zamjena pločica Scania R450)"
+                value={unos} onChange={(e) => setUnos(e.target.value)} />
+              <button type="submit" className="vu-btn" disabled={salje || !unos.trim()}>
+                {salje ? 'Šaljem…' : status ? 'Zamijeni video' : 'Složi upute'}
+              </button>
+              {status && <button type="button" className="vu-btn vu-btn-sivi" onClick={obrisi}>Ukloni</button>}
+            </form>
+          )}
         </div>
       )}
     </div>

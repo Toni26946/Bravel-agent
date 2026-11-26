@@ -402,7 +402,18 @@ def _stanje(db: Session, radnik: Korisnik) -> dict:
         # Udaljenost vozila od radione (m) — za gumb „Nedostupan". None za prikolice (nemaju GPS).
         "udaljenost_m": flota.udaljenost_od_radione(_gb(n)),
         "odgodjeno": z.razlog_prekida in ("dijelovi", "nedostupan"),
+        # 📺 Upute iz videa — samo gotove (obrada/greška mehaničaru ništa ne znače)
+        "video": _video(z),
     }
+
+
+def _video(z: Zadatak) -> dict | None:
+    from .. import video_upute
+    u = z.video_uputa
+    if u is None or u.status != "gotovo":
+        return None
+    d = video_upute.za_prikaz(u)
+    return {"video_id": d["video_id"], "url": d["url"], "upute": d.get("upute")}
 
 
 def provjeri_zalihu(db: Session, radnik: Korisnik) -> None:
@@ -1061,6 +1072,20 @@ button{border:0;border-radius:14px;padding:18px;font-size:19px;font-weight:700;c
 .b-foto:disabled,.b-posalji:disabled{opacity:.5}
 .b-poc:disabled,.b-got:disabled,.b-dij:disabled,.b-ned:disabled,.b-nije:disabled{opacity:.5}
 .b-stavka{background:#1f7a39} .b-stavka:disabled{opacity:.5}
+.vu summary{font-weight:800;font-size:17px;color:#0d47a1;cursor:pointer;list-style:none}
+.vu summary::-webkit-details-marker{display:none}
+.vu summary::after{content:" ▾";} .vu[open] summary::after{content:" ▴";}
+.vu-sub{display:block;font-weight:600;font-size:14px;color:#5b6470;margin-top:3px}
+.vu-saz{margin-top:10px;font-size:15px;color:#1f2a37}
+.vu-nasl{margin-top:14px;font-weight:800;font-size:15px;color:#0d47a1;text-transform:uppercase;letter-spacing:.3px}
+.vu-kor{padding-left:22px;margin:6px 0 0}.vu-kor li{margin:0 0 10px;font-size:16px;line-height:1.4}
+.vu-ul{padding-left:20px;margin:6px 0 0}.vu-ul li{margin:0 0 5px;font-size:15px}
+.vu-t{display:inline-block;background:#e8f0fb;color:#0d47a1;border-radius:6px;padding:1px 6px;font-size:13px;font-weight:700;text-decoration:none;margin-right:4px}
+.vu-img{display:block;width:100%;max-width:320px;border-radius:8px;margin-top:6px;border:1px solid #d8dee6}
+.vu-oe{font-size:13px;color:#5b6470;font-family:ui-monospace,Consolas,monospace}
+.vu-upoz{margin-top:12px;background:#fff4d6;border:1px solid #f0c44c;color:#7a4e00;border-radius:10px;padding:10px 12px;font-size:15px}
+.vu-upoz ul{margin:6px 0 0;padding-left:20px}
+.vu-video{display:block;margin-top:14px;text-align:center;background:#b3261e;color:#fff;border-radius:10px;padding:12px;font-weight:700;text-decoration:none}
 .pregbroj{font-weight:800;font-size:18px;margin:2px 0 14px;color:#0d47a1}
 .rok{margin-top:8px;font-size:14px;font-weight:700;color:#b26a00}
 .banner{background:#fff4d6;border:1px solid #f0c44c;color:#7a4e00;border-radius:12px;padding:16px;font-weight:700;text-align:center;font-size:17px;margin-bottom:4px}
@@ -1102,9 +1127,9 @@ function operacija(k,opis){k=(k||'').trim();if(!k||k.toUpperCase()==='RAZNO'||St
 function udalj(m){if(m==null)return'';return m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m)+' m';}
 // --- Jezici: HR / EN / UK (mehaničari su često s ukrajinskog govornog područja) ---
 var I18N={
- hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",jeLiGotov:"Je li zadatak gotov?",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače.",slikaDio:"Slikaj dio",posalji:"Pošalji",odustani:"Odustani"},
- en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",jeLiGotov:"Is the task finished?",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual.",slikaDio:"Photograph part",posalji:"Send",odustani:"Cancel"},
- uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",jeLiGotov:"Завдання виконано?",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди.",slikaDio:"Сфотографувати деталь",posalji:"Надіслати",odustani:"Скасувати"}
+ hr:{zadatak:"radni zadatak",nemaVise:"Nemaš više zadataka.",javiPoslovodji:"Javi poslovođi.",gotovDanas:"Gotov za danas.",spremljeno1:"Vrijeme je spremljeno. Vidimo se sutra!",zabiljezeno:"Zabilježeno — zadatak <b>nije dovršen</b> (pauza).",spremljeno2:"Vrijeme je spremljeno. Doviđenja!",noviZadatak:"🆕 Stigao novi zadatak!",mjeracRadi:"▶ mjerač radi",uRedu:"još {n} u redu",poc:"Počinjem",got:"Gotovo",dij:"Nemam dijelova",ned:"Nedostupan",nije:"Nije gotovo",nemaPregleda:"Nema otvorenih pregleda.",sveGotovo:"Sve je gotovo. 👍",tvojiPregledi:"Tvoji pregledi:",rok:"Rok:",gotovoKv:"✓ Gotovo",oznaciGotovo:"Označiti kao gotovo — GB {gb}?",nijeZaTebe:"Ova poveznica nije za tebe",greska:"Greška",kojiDio:"Koji dio nedostaje? (upiši naziv)",krajVremena:"Kraj radnog vremena.",jeLiGotov:"Je li zadatak gotov?",gotovIliOstajes:"Jesi gotov za danas ili ostaješ dulje?",ostajem:"Ostajem dulje",ostajemProba:"Ostajem dulje. (proba) Nastavljaš s radom kao inače.",slikaDio:"Slikaj dio",posalji:"Pošalji",odustani:"Odustani",vNaslov:"Upute iz videa",vKoraci:"Koraci",vDijelovi:"Dijelovi",vAlat:"Alat",vMomenti:"Momenti pritezanja",vUpoz:"Pazi:",vPogledaj:"Pogledaj cijeli video"},
+ en:{zadatak:"work task",nemaVise:"No more tasks.",javiPoslovodji:"Tell the foreman.",gotovDanas:"Done for today.",spremljeno1:"Your time is saved. See you tomorrow!",zabiljezeno:"Noted — task <b>not finished</b> (paused).",spremljeno2:"Your time is saved. Goodbye!",noviZadatak:"🆕 New task!",mjeracRadi:"▶ timer running",uRedu:"{n} more in queue",poc:"Start",got:"Done",dij:"No parts",ned:"Unavailable",nije:"Not finished",nemaPregleda:"No open inspections.",sveGotovo:"All done. 👍",tvojiPregledi:"Your inspections:",rok:"Due:",gotovoKv:"✓ Done",oznaciGotovo:"Mark as done — GB {gb}?",nijeZaTebe:"This link is not for you",greska:"Error",kojiDio:"Which part is missing? (type the name)",krajVremena:"End of working hours.",jeLiGotov:"Is the task finished?",gotovIliOstajes:"Are you done for today or staying longer?",ostajem:"Staying longer",ostajemProba:"Staying longer. (test) You keep working as usual.",slikaDio:"Photograph part",posalji:"Send",odustani:"Cancel",vNaslov:"Video instructions",vKoraci:"Steps",vDijelovi:"Parts",vAlat:"Tools",vMomenti:"Tightening torques",vUpoz:"Caution:",vPogledaj:"Watch full video"},
+ uk:{zadatak:"робоче завдання",nemaVise:"Більше немає завдань.",javiPoslovodji:"Повідом майстра.",gotovDanas:"Готово на сьогодні.",spremljeno1:"Час збережено. До завтра!",zabiljezeno:"Записано — завдання <b>не завершено</b> (пауза).",spremljeno2:"Час збережено. До побачення!",noviZadatak:"🆕 Нове завдання!",mjeracRadi:"▶ таймер працює",uRedu:"ще {n} у черзі",poc:"Починаю",got:"Готово",dij:"Немає запчастин",ned:"Недоступний",nije:"Не завершено",nemaPregleda:"Немає відкритих оглядів.",sveGotovo:"Усе готово. 👍",tvojiPregledi:"Твої огляди:",rok:"Термін:",gotovoKv:"✓ Готово",oznaciGotovo:"Позначити як готово — GB {gb}?",nijeZaTebe:"Це посилання не для тебе",greska:"Помилка",kojiDio:"Якої запчастини бракує? (введи назву)",krajVremena:"Кінець робочого часу.",jeLiGotov:"Завдання виконано?",gotovIliOstajes:"Ти завершив на сьогодні чи залишаєшся довше?",ostajem:"Залишаюся довше",ostajemProba:"Залишаюся довше. (тест) Працюєш як завжди.",slikaDio:"Сфотографувати деталь",posalji:"Надіслати",odustani:"Скасувати",vNaslov:"Інструкції з відео",vKoraci:"Кроки",vDijelovi:"Запчастини",vAlat:"Інструмент",vMomenti:"Моменти затягування",vUpoz:"Увага:",vPogledaj:"Дивитися все відео"}
 };
 var L=localStorage.getItem('bravel_jezik')||'hr'; if(!I18N[L])L='hr';
 function T(k,p){var s=(I18N[L]&&I18N[L][k])||I18N.hr[k]||k; if(p){for(var x in p){s=s.split('{'+x+'}').join(p[x]);}} return s;}
@@ -1136,6 +1161,7 @@ function render(d){
    +(radi?'<div class="stanje radi">'+T('mjeracRadi')+'</div>':'')
    +(d.preostalo>0?'<div class="stanje">'+T('uRedu',{n:d.preostalo})+'</div>':'')
    +'</div>'
+   +videoHtml(d.video)
    +'<div class="gumbi">'
    +(radi?'':'<button class="b-poc">'+T('poc')+'</button>')
    +'<button class="b-got">'+T('got')+'</button>'
@@ -1150,6 +1176,29 @@ function render(d){
   var bn=document.querySelector('.b-nije'); if(bn) bn.onclick=function(){akc('nije-gotovo')};
   if(d._novi) najaviNovi();
 }
+// 📺 Upute iz videa (YouTube → koraci, dijelovi, alat, momenti, upozorenja) — sklopivo.
+function vrijeme(s){s=Math.max(0,parseInt(s,10)||0);var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0');}
+function ytLink(id,t){return 'https://youtu.be/'+encodeURIComponent(id)+(t?'?t='+(parseInt(t,10)||0):'');}
+function videoHtml(v){
+  if(!v||!v.upute)return '';
+  var u=v.upute, h='';
+  if(u.sazetak) h+='<div class="vu-saz">'+esc(u.sazetak)+'</div>';
+  if(u.upozorenja&&u.upozorenja.length){h+='<div class="vu-upoz"><b>⚠️ '+T('vUpoz')+'</b><ul>'+u.upozorenja.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';}
+  if(u.koraci&&u.koraci.length){
+    h+='<div class="vu-nasl">'+T('vKoraci')+'</div><ol class="vu-kor">';
+    u.koraci.forEach(function(k){
+      h+='<li><a class="vu-t" href="'+ytLink(v.video_id,k.t)+'" target="_blank" rel="noopener">▶ '+vrijeme(k.t)+'</a> '+esc(k.opis)
+        +(k.slika?'<a href="'+ytLink(v.video_id,k.t)+'" target="_blank" rel="noopener"><img class="vu-img" loading="lazy" src="'+esc(k.slika)+'" alt=""></a>':'')+'</li>';
+    });
+    h+='</ol>';
+  }
+  if(u.dijelovi&&u.dijelovi.length){h+='<div class="vu-nasl">'+T('vDijelovi')+'</div><ul class="vu-ul">'+u.dijelovi.map(function(x){return '<li>'+esc(x.naziv)+(x.kolicina?' · '+esc(x.kolicina):'')+(x.oe?' <span class="vu-oe">OE '+esc(x.oe)+'</span>':'')+'</li>';}).join('')+'</ul>';}
+  if(u.alat&&u.alat.length){h+='<div class="vu-nasl">'+T('vAlat')+'</div><ul class="vu-ul">'+u.alat.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';}
+  if(u.momenti&&u.momenti.length){h+='<div class="vu-nasl">'+T('vMomenti')+'</div><ul class="vu-ul">'+u.momenti.map(function(x){return '<li>'+esc(x.sto)+': <b>'+esc(x.vrijednost)+'</b></li>';}).join('')+'</ul>';}
+  h+='<a class="vu-video" href="'+ytLink(v.video_id,0)+'" target="_blank" rel="noopener">▶ '+T('vPogledaj')+'</a>';
+  return '<details class="kart vu"'+(VU_OTV?' open':'')+' ontoggle="VU_OTV=this.open"><summary>📺 '+T('vNaslov')+(u.naslov?'<span class="vu-sub">'+esc(u.naslov)+'</span>':'')+'</summary>'+h+'</details>';
+}
+var VU_OTV=false;
 function renderPopis(d){
   const app=document.getElementById('app');
   _lastD=d; _krajMode=false;

@@ -30,6 +30,7 @@ from .routers import samostalno as samostalno_router
 from .routers import cartec as cartec_router
 from .routers import valjci as valjci_router
 from .routers import slobodni_vozaci as slobodni_vozaci_router
+from .routers import video as video_router
 from .seed import (
     backfill_povijest_gotovih,
     jednokratna_reaktivacija_roka,
@@ -225,6 +226,7 @@ app.include_router(narudzbe.router, prefix="/api")
 app.include_router(cartec_router.router, prefix="/api")
 app.include_router(valjci_router.router, prefix="/api")
 app.include_router(slobodni_vozaci_router.router, prefix="/api")
+app.include_router(video_router.router, prefix="/api")
 # Login-less stranica mehaničara /z/<token> — registrirana PRIJE SPA catch-alla.
 app.include_router(dispecer.page_router)
 
