@@ -7,8 +7,8 @@ import { Spinner, datum } from '../ui'
 import { useT } from '../i18n'
 
 // Operativni statusi (mjerodavni — „sveto pismo"). Redoslijed = redoslijed u izborniku.
-const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'prodano']
-const EMO = { aktivno: '✅', u_radionici: '🔧', pokvareno: '🛑', prodano: '💰', nezaduzeno: '🛻', spremno: '🟢' }
+const STATUSI = ['aktivno', 'u_radionici', 'pokvareno', 'spremno', 'nezaduzeno', 'u_najmu', 'prodano']
+const EMO = { aktivno: '✅', u_radionici: '🔧', pokvareno: '🛑', prodano: '💰', nezaduzeno: '🛻', spremno: '🟢', u_najmu: '🤝' }
 
 // Naziv kategorije: prevedi ako postoji ključ, inače prikaži sirovu vrijednost.
 function katLabel(t, k) {

@@ -34,10 +34,10 @@ def _javi(db, gb: str, voditelj_id: int | None, prvi: bool) -> None:
 
 
 def _rijeseno(r: RegistarVozila) -> bool:
-    """Šlepa ima ishod: spremna (uz lokaciju) ili pokvarena/prodana."""
+    """Šlepa ima ishod: spremna (uz lokaciju) ili pokvarena/prodana/u najmu."""
     if r.status == StatusVozila.spremno and (r.lokacija or "").strip():
         return True
-    return r.status in (StatusVozila.pokvareno, StatusVozila.prodano)
+    return r.status in (StatusVozila.pokvareno, StatusVozila.prodano, StatusVozila.u_najmu)
 
 
 async def obradi_spremnost() -> None:

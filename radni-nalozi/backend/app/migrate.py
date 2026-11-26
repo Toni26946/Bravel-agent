@@ -138,3 +138,23 @@ def migrate(engine: Engine) -> None:
                 log.info("Migracija: dodan stupac %s.%s", tablica, stupac)
                 if (tablica, stupac) in _NAKON_DODAVANJA:
                     conn.exec_driver_sql(_NAKON_DODAVANJA[(tablica, stupac)])
+    if dialect == "postgresql":
+        _dodaj_enum_vrijednosti(engine)
+
+
+def _dodaj_enum_vrijednosti(engine: Engine) -> None:
+    """Postgres: nove vrijednosti enuma (npr. status vozila „u_najmu", #432) moraju se
+    dodati i u tip u bazi — create_all postojeći tip ne mijenja. Idempotentno
+    (ADD VALUE IF NOT EXISTS), izvan transakcije (AUTOCOMMIT). SQLAlchemy sprema IME člana."""
+    from .models import StatusVozila
+
+    tipovi = {"statusvozila": [s.name for s in StatusVozila]}
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for tip, vrijednosti in tipovi.items():
+            postoji = conn.execute(
+                text("SELECT 1 FROM pg_type WHERE typname = :t"), {"t": tip}
+            ).first()
+            if not postoji:
+                continue
+            for v in vrijednosti:
+                conn.exec_driver_sql(f"ALTER TYPE {tip} ADD VALUE IF NOT EXISTS '{v}'")

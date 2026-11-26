@@ -1078,7 +1078,7 @@ def _prikolice_za_upisati(db: Session) -> list[RegistarVozila]:
         if r.gb in prikacene or (r.gb.lstrip("0") or r.gb) in prikacene:
             continue
         rijeseno = (r.status == StatusVozila.spremno and (r.lokacija or "").strip()) \
-            or r.status in (StatusVozila.pokvareno, StatusVozila.prodano)
+            or r.status in (StatusVozila.pokvareno, StatusVozila.prodano, StatusVozila.u_najmu)
         if not rijeseno and r.status == StatusVozila.nezaduzeno and (r.lokacija or "").strip():
             t = zadnji_zapis.get(r.gb.lstrip("0") or r.gb)
             kraj = kraj_naloga.get(gb)

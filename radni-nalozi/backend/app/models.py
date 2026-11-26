@@ -80,6 +80,7 @@ class StatusVozila(str, enum.Enum):
     prodano = "prodano"          # izašlo iz flote
     nezaduzeno = "nezaduzeno"    # slobodno / nije prikopčano ni na jedan kamion
     spremno = "spremno"          # popravljena, ispravna, spremna za kamion (uz lokaciju parkinga)
+    u_najmu = "u_najmu"          # iznajmljeno drugoj firmi (Veljko 26.11.2026., #432)
 
 
 def je_prikljucno_vozilo(kategorija: str | None) -> bool:
