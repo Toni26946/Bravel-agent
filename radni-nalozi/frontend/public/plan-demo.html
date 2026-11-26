@@ -117,6 +117,11 @@
   .btn.dodaj-voz{background:var(--s-radu);color:#fff;font-size:14px;padding:8px 16px;box-shadow:0 2px 8px rgba(21,128,61,.35);cursor:pointer}
   .btn.dodaj-voz:hover{filter:brightness(1.1)}
   .btn.dodaj-voz:active{transform:translateY(1px)}
+  /* „Dodaj vozilo" i GORE u traci kartica, uz „Povijest klikanja" (WhatsApp #431) — traka ne
+     skrola s planom, pa se vozilo doda bez skrolanja na vrh. Nije .tab (ne mijenja karticu sama). */
+  .tab-dodaj{border:0;background:var(--s-radu);color:#fff;padding:8px 14px;border-radius:999px;font-weight:800;font-size:13px;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
+  .tab-dodaj:hover{filter:brightness(1.1)}
+  .tab-dodaj:active{transform:translateY(1px)}
   .btn:disabled{opacity:.45;cursor:default}
   select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--card);color:var(--fg)}
   .gb{font-weight:800;font-size:15px}
@@ -359,6 +364,7 @@
   <button class="tab" data-v="nap">✅ Napravljeno</button>
   <button class="tab" data-v="bonus">💶 Klik-bonus</button>
   <button class="tab" data-v="povijest">🕑 Povijest klikanja</button>
+  <button type="button" class="tab-dodaj" id="tab-dodaj" onclick="PLAN.dodajIzTrake()" title="Dodaj vozilo (garažni broj) u plan">➕ Dodaj vozilo</button>
   <button type="button" class="drzi" id="drzi" title="Drži prstom lijeve ruke, a desnom pomiči zadatak" aria-label="Drži za pomicanje zadataka">✋ Drži</button>
   <button class="tab" data-v="prioritet">🎯 Prioriteti</button>
   <span class="datum" id="datum"></span>
@@ -630,6 +636,18 @@
     // NE briše plan — samo otvori unos da se DODA vozilo u postojeći plan.
     // (Brisanje cijelog plana je zaseban gumb „🗑 Očisti plan".)
     _planMode=!!on; render(); if(on) setTimeout(_fokusGB,0);
+  }
+  // Gumb „➕ Dodaj vozilo" u traci kartica (WhatsApp #431): s bilo koje kartice i bilo koje
+  // pozicije skrola prebaci na Poslovođu, otvori unos garažnog broja i skrolaj do njega.
+  function dodajIzTrake(){
+    if(planZakljucan) return;
+    pogled="pl";
+    try{ sessionStorage.setItem("plan_tab", pogled); }catch(_){}
+    var _tp=document.querySelector('.tab[data-v="pl"]');
+    document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("akt", t===_tp); });
+    planMode(true);
+    var _m=document.querySelector("main"); if(_m) _m.scrollTop=0;
+    setTimeout(function(){ var e=document.getElementById("gb-unos"); if(e){ if(e.scrollIntoView) e.scrollIntoView({block:"center"}); e.focus(); } },0);
   }
   function gbKey(ev,el){ if(ev.key==="Enter"){ ev.preventDefault(); dodajGB(el.value); } }
   function dodajGB(gb){ gb=(gb||"").trim(); if(!gb) return;
@@ -1278,6 +1296,7 @@
     var cekaUk = svabOps().filter(function(x){return x.o.status==="ceka"||x.o.status==="pauza";}).length;
     var mt = document.querySelector('.tab[data-v="meh"]');
     mt.textContent = "📱 Mehaničar" + (cekaUk? "  ("+cekaUk+"🔔)":"");
+    var _td=document.getElementById("tab-dodaj"); if(_td) _td.hidden = planZakljucan;   // zaključan plan → nema dodavanja
   }
 
   function tick(){
@@ -1310,7 +1329,7 @@
   function skrolDo(id){ var el=document.getElementById("nalog-"+id); if(!el) return; el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("flash"); setTimeout(function(){ el.classList.remove("flash"); },1200); }
 
   // --- API za inline onclick ---
-  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, voziloDoslo:voziloDoslo, toggleLog:toggleLog, toggleBlizu:toggleBlizu, filtOp:postaviFiltOp, toggleNaprav:toggleNaprav, planMode:planMode, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, autoPopuni:autoPopuniSet, skupinaSet:skupinaSet, skOtv:function(o){ _skOtv=!!o; }, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
+  window.PLAN={ posalji:posalji, isplaniraj:isplaniraj, isplanirajSve:isplanirajSve, potvrdi:potvrdi, dodijeli:dodijeli, dodajRadnika:dodajRadnika, makniRadnikaIz:makniRadnikaIz, pokaziDodaj:pokaziDodaj, pomakni:pomakni, zakljucaj:zakljucaj, hitno:hitno, makniRadnika:makniRadnika, openStop:openStop, closeStop:closeStop, chooseStop:chooseStop, dioStigao:dioStigao, voziloDoslo:voziloDoslo, toggleLog:toggleLog, toggleBlizu:toggleBlizu, filtOp:postaviFiltOp, toggleNaprav:toggleNaprav, planMode:planMode, dodajIzTrake:dodajIzTrake, gbKey:gbKey, dodajGB:dodajGB, ocistiPlan:ocistiPlan, izbaci:izbaci, obnovi:obnovi, otvoriNalog:otvoriNalog, kartKlik:kartKlik, autoOn:autoOn, autoOff:autoOff, autoPonOn:autoPonOn, autoPonOff:autoPonOff, autoPopuni:autoPopuniSet, skupinaSet:skupinaSet, skOtv:function(o){ _skOtv=!!o; }, skrolDo:skrolDo, postaviStatus:postaviStatus, toggleStat:toggleStat,
     setMeh:function(v){ prikazMeh=parseInt(v,10); render(); },
     // Radnici: ponovno pošalji poveznicu mehaničaru (npr. crvenom koji se nije javio).
     posaljiMeh:function(e,zid){ if(e){e.stopPropagation();e.preventDefault();} if(_busy)return;
