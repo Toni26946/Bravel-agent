@@ -22,10 +22,35 @@ on:
       - '.github/workflows/fly-deploy-radni-nalozi.yml'
   workflow_dispatch:
 
+# Niz brzih pushova (ili commitova na PR-u): stariji run se otkaže, vrti se samo zadnji.
+# Štedi GitHub Actions minute (26.11.2026.: 90 % mjesečne kvote).
+concurrency:
+  group: radni-nalozi-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FLY_APP: bravel-radni-nalozi
 
 jobs:
+  # Skripta s Cartec valjaka se sama ažurira s portala — sintaksna greška bi je ugasila
+  # na računalu u radioni (popravak tek preko AnyDeska). Zato se prije deploya parsira.
+  powershell:
+    name: PowerShell skripte (sintaksa)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parsiraj .ps1
+        shell: pwsh
+        run: |
+          $greske = 0
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1 -Path radni-nalozi) {
+            $tok = $null; $err = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tok, [ref]$err)
+            foreach ($e in $err) { Write-Host "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $greske++ }
+            Write-Host "$($f.Name): $($err.Count) grešaka"
+          }
+          if ($greske) { exit 1 }
+
   # Vrata prije deploya: testovi se vrte i na SQLiteu (brzo, izolirano) i na PRAVOM
   # Postgresu (smoke, test_postgres_smoke.py). Produkcija je Postgres, a Postgres je
   # stroži od SQLitea (npr. SELECT DISTINCT nad JSON stupcem puca) — ovo hvata tu klasu
@@ -66,11 +91,10 @@ jobs:
 
   deploy:
     name: Deploy Radni Nalozi
-    needs: testovi
+    needs: [testovi, powershell]
     # Na pull requestu se ne deploya — samo testovi (gornji job).
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    concurrency: deploy-radni-nalozi
     steps:
       - uses: actions/checkout@v4
 
